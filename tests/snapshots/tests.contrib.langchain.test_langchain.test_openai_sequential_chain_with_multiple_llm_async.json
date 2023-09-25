@@ -1,13 +1,11 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": null,
     "resource": "langchain.chains.sequential.SequentialChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
@@ -15,34 +13,31 @@
       "langchain.response.outputs.final_output": "\\nI've convinced my mind, no physical world's there, no sky, no earth, no minds, no bodies there. Does this mean I don't exist, ...",
       "langchain.response.outputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
       "language": "python",
-      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
+      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 198,
       "langchain.tokens.prompt_tokens": 304,
       "langchain.tokens.total_cost": 0.01004,
       "langchain.tokens.total_tokens": 502,
-      "process_id": 52007
+      "process_id": 10515
     },
-    "duration": 4233027,
-    "start": 1691167369586015163
+    "duration": 4820114,
+    "start": 1694032467511885319
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.prompt": "Paraphrase this text:\\n\\n        {input_text}\\n\\n        Paraphrase: ",
          "langchain.request.type": "chain",
@@ -50,25 +45,23 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 106,
          "langchain.tokens.prompt_tokens": 183,
          "langchain.tokens.total_cost": 0.00578,
          "langchain.tokens.total_tokens": 289
        },
-       "duration": 2066254,
-       "start": 1691167369586283265
+       "duration": 2445689,
+       "start": 1694032467512141811
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -88,25 +81,23 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 106,
             "langchain.tokens.prompt_tokens": 183,
             "langchain.tokens.total_cost": 0.00578,
             "langchain.tokens.total_tokens": 289
           },
-          "duration": 1680594,
-          "start": 1691167369586573679
+          "duration": 2042915,
+          "start": 1694032467512453483
         },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.inputs.paraphrased_output": "\\nI have convinced myself that there is no physical world - no sky, earth, minds, or bodies. Does this mean that I don't exist e...",
          "langchain.request.prompt": "Make this text rhyme:\\n\\n        {paraphrased_output}\\n\\n        Rhyme: ",
@@ -115,25 +106,23 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 92,
          "langchain.tokens.prompt_tokens": 121,
          "langchain.tokens.total_cost": 0.00426,
          "langchain.tokens.total_tokens": 213
        },
-       "duration": 1743839,
-       "start": 1691167369588424324
+       "duration": 1970223,
+       "start": 1694032467514663254
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "",
-          "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -153,11 +142,12 @@
           },
           "metrics": {
             "_dd.measured": 1,
+            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 92,
             "langchain.tokens.prompt_tokens": 121,
             "langchain.tokens.total_cost": 0.00426,
             "langchain.tokens.total_tokens": 213
           },
-          "duration": 1380757,
-          "start": 1691167369588707653
+          "duration": 1594262,
+          "start": 1694032467514949589
         }]]

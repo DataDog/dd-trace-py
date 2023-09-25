@@ -6,8 +6,6 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -21,7 +19,6 @@
       "unicode_tag": "ustr"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -38,8 +35,6 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -48,7 +43,6 @@
       "service.name": "moons-service-num"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,

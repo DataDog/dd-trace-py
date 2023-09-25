@@ -35,10 +35,15 @@ from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
+from .constants import TELEMETRY_AGENT_HOST
+from .constants import TELEMETRY_AGENT_PORT
+from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_CALL_BASIC_CONFIG
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
+from .constants import TELEMETRY_DOGSTATSD_PORT
+from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
@@ -46,14 +51,21 @@ from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
 from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
+from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
+from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
+from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
+from .constants import TELEMETRY_REMOTE_CONFIGURATION_INTERVAL
 from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
 from .constants import TELEMETRY_SERVICE_MAPPING
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES
 from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
 from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
+from .constants import TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS
+from .constants import TELEMETRY_TRACE_API_VERSION
 from .constants import TELEMETRY_TRACE_COMPUTE_STATS
 from .constants import TELEMETRY_TRACE_DEBUG
 from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
@@ -64,6 +76,10 @@ from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
 from .constants import TELEMETRY_TRACE_SAMPLING_RATE
 from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
+from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
+from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
+from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
+from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
 from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -216,7 +232,6 @@ class TelemetryWriter(PeriodicService):
         self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
-            atexit.unregister(self.stop)
             self.stop()
         else:
             self.status = ServiceStatus.STOPPED
@@ -288,7 +303,7 @@ class TelemetryWriter(PeriodicService):
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
-                (TELEMETRY_STARTUP_LOGS_ENABLED, config._call_basic_config, "unknown"),
+                (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
@@ -317,16 +332,32 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_OTEL_ENABLED, config._otel_enabled, "unknown"),
                 (TELEMETRY_TRACE_HEALTH_METRICS_ENABLED, config.health_metrics_enabled, "unknown"),
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
+                (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
+                (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
+                (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
+                (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
                 (TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA, SCHEMA_VERSION, "unknown"),
                 (TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED, _remove_client_service_names, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED, _ps_config.set_defaults_enabled, "unknown"),
                 (TELEMETRY_TRACE_PEER_SERVICE_MAPPING, _ps_config._unparsed_peer_service_mapping, "unknown"),
                 (TELEMETRY_SERVICE_MAPPING, config._unparsed_service_mapping, "unknown"),
+                (TELEMETRY_TRACE_API_VERSION, config._trace_api, "unknown"),
+                (TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES, config._trace_writer_buffer_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES, config._trace_writer_payload_size, "unknown"),
+                (TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS, config._trace_writer_interval_seconds, "unknown"),
+                (TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, config._trace_writer_connection_reuse, "unknown"),
+                (TELEMETRY_DOGSTATSD_PORT, config._stats_agent_port, "unknown"),
+                (TELEMETRY_DOGSTATSD_URL, config._stats_agent_url, "unknown"),
+                (TELEMETRY_AGENT_HOST, config._trace_agent_hostname, "unknown"),
+                (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
+                (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
+                (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
             ]
         )
 
@@ -601,7 +632,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        atexit.unregister(self.stop)
         self.stop(join=False)
 
     def _restart_sequence(self):

@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -60,7 +61,7 @@ def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
-            priority_sampler=tracer._priority_sampler,
+            priority_sampling=config._priority_sampling,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
@@ -98,7 +99,7 @@ def test_filters(writer, tracer):
 @snapshot(async_mode=False)
 def test_synchronous_writer():
     tracer = Tracer()
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampler=tracer._priority_sampler)
+    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampling=config._priority_sampling)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
@@ -261,21 +262,12 @@ def test_snapshot_skip():
 
 @parametrize_with_all_encodings
 @mark_snapshot
-def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_API_VERSION"] = encoding
+def test_setting_span_tags_and_metrics_generates_no_error_logs():
+    import ddtrace
 
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import ddtrace
-
-s = ddtrace.tracer.trace("operation", service="my-svc")
-s.set_tag("env", "my-env")
-s.set_metric("number1", 123)
-s.set_metric("number2", 12.0)
-s.set_metric("number3", "1")
-s.finish()
-""",
-        env=env,
-    )
-    assert status == 0, (out, err)
+    s = ddtrace.tracer.trace("operation", service="my-svc")
+    s.set_tag("env", "my-env")
+    s.set_metric("number1", 123)
+    s.set_metric("number2", 12.0)
+    s.set_metric("number3", "1")
+    s.finish()

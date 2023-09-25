@@ -3,6 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
@@ -10,7 +11,7 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
-@pytest.mark.skip(reason="Test fixed in PR #6768")
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -31,11 +32,10 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
-    from ddtrace.appsec.iast._taint_tracking import contexts_reset
     from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import initializer_size
-    from ddtrace.appsec.iast._taint_tracking import num_contexts
     from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
+    from ddtrace.appsec.iast._taint_tracking import reset_context
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
     from ddtrace.vendor import psutil
 
@@ -44,7 +44,6 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     _num_objects_tainted = 0
-    _num_contexts = 0
     _active_map_addreses_size = 0
     _initializer_size = 0
     for _ in range(500):
@@ -64,9 +63,6 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()
             assert _num_objects_tainted > 0
-        if _num_contexts == 0:
-            _num_contexts = num_contexts()
-            assert _num_contexts > 0
         if _active_map_addreses_size == 0:
             _active_map_addreses_size = active_map_addreses_size()
             assert _active_map_addreses_size > 0
@@ -75,9 +71,8 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
             assert _initializer_size > 0
 
         assert _num_objects_tainted == num_objects_tainted()
-        assert _num_contexts == num_contexts()
         assert _active_map_addreses_size == active_map_addreses_size()
         assert _initializer_size == initializer_size()
-        contexts_reset()
+        reset_context()
         end_memory = psutil.Process(os.getpid()).memory_info().rss
         assert end_memory < start_memory * 1.05, "Memory increment to {} from {}".format(end_memory, start_memory)

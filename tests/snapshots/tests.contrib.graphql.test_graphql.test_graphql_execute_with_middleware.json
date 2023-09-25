@@ -1,20 +1,17 @@
 [[
   {
     "name": "test-execute-instrumentation",
-    "service": "",
+    "service": null,
     "resource": "test-execute-instrumentation",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -31,10 +28,8 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -52,10 +47,8 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -76,10 +69,8 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 52250,
@@ -92,11 +83,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 5,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.base_service": "",
-               "_dd.p.dm": "-0"
+               "_dd.base_service": ""
              },
              "duration": 16708,
              "start": 1692710417201093263
@@ -109,10 +97,8 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.dm": "-0",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -133,10 +119,8 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.dm": "-0",
             "component": "graphql"
           },
           "duration": 43500,
@@ -149,11 +133,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 6,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.base_service": "",
-               "_dd.p.dm": "-0"
+               "_dd.base_service": ""
              },
              "duration": 14000,
              "start": 1692710417201254179

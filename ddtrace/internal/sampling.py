@@ -10,13 +10,21 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+from ddtrace.constants import SAMPLING_AGENT_DECISION
+from ddtrace.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.constants import SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
+from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
+from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.sampling_rule import SamplingRule
 from ddtrace.settings import _config as config
 
 from .rate_limiter import RateLimiter
@@ -72,31 +80,6 @@ SpanSamplingRules = TypedDict(
 )
 
 
-def _set_trace_tag(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
-
-    value = "-%d" % sampling_mechanism
-
-    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-
-    return value
-
-
-def _unset_trace_tag(
-    context,  # type: Context
-):
-    # type: (...) -> Optional[Text]
-    if SAMPLING_DECISION_TRACE_TAG_KEY not in context._meta:
-        return None
-
-    value = context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-    return value
-
-
 def validate_sampling_decision(
     meta,  # type: Dict[str, str]
 ):
@@ -111,18 +94,14 @@ def validate_sampling_decision(
     return meta
 
 
-def update_sampling_decision(
+def set_sampling_decision_maker(
     context,  # type: Context
     sampling_mechanism,  # type: int
-    sampled,  # type: bool
 ):
     # type: (...) -> Optional[Text]
-    # When sampler keeps trace, we need to set sampling decision trace tag.
-    # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
-    if sampled:
-        return _set_trace_tag(context, sampling_mechanism)
-    else:
-        return _unset_trace_tag(context)
+    value = "-%d" % sampling_mechanism
+    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+    return value
 
 
 class SpanSamplingRule:
@@ -294,3 +273,47 @@ def _check_unsupported_pattern(string):
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
+
+
+def _set_sampling_tags(span, sampled, sample_rate, priority_category):
+    # type: (Span, bool, float, str) -> None
+    mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+    if priority_category == "rule":
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+    elif priority_category == "default":
+        mechanism = SamplingMechanism.DEFAULT
+    elif priority_category == "auto":
+        mechanism = SamplingMechanism.AGENT_RATE
+        span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
+    priorities = _CATEGORY_TO_PRIORITIES[priority_category]
+    _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
+    set_sampling_decision_maker(span.context, mechanism)
+
+
+def _apply_rate_limit(span, sampled, limiter):
+    # type: (Span, bool, RateLimiter) -> bool
+    allowed = True
+    if sampled:
+        allowed = limiter.is_allowed(span.start_ns)
+        if not allowed:
+            _set_priority(span, USER_REJECT)
+    if limiter._has_been_configured:
+        span.set_metric(SAMPLING_LIMIT_DECISION, limiter.effective_rate)
+    return allowed
+
+
+def _set_priority(span, priority):
+    # type: (Span, int) -> None
+    span.context.sampling_priority = priority
+    span.sampled = priority > 0  # Positive priorities mean it was kept
+
+
+def _get_highest_precedence_rule_matching(span, rules):
+    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
+    if not rules:
+        return None
+
+    for rule in rules:
+        if rule.matches(span):
+            return rule
+    return None

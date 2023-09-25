@@ -16,7 +16,7 @@ def build_schema(obj):
     waf = ddwaf.DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()
     res = waf.run(
-        ctx, {"server.request.body": obj, constants.WAF_DATA_NAMES.SETTINGS: {"extract-schema": True}}
+        ctx, {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}}
     ).derivatives
     return res["_dd.appsec.s.req.body"]
 
@@ -105,9 +105,23 @@ def deep_build_schema(n, mini=0):
                 {"len": 20, "truncated": True},
             ],
         ),
-        ({str(i): "toast" for i in range((512))}, [{str(i): [8] for i in range(256)}]),
-        (deep_build(40), deep_build_schema(40, 21)),
+        ({str(i): "toast" for i in range((512))}, [{str(i): [8] for i in range(255)}, {"truncated": True}]),
+        (deep_build(40), deep_build_schema(40, 23)),
     ],
 )
 def test_limits(obj, res):
-    assert equal_with_meta(build_schema(obj), res)  # max_depth=20, max_girth=256, max_types_in_array=10
+    schema = build_schema(obj)
+    assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10
+
+
+@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
+@pytest.mark.parametrize(
+    "obj, res",
+    [
+        ({"US PASSPORT": "C03005988"}, [{"US PASSPORT": [8, {"category": "pii", "type": "passport_number"}]}]),
+        ({"ViN": "1HGBH41JXMN109186"}, [{"ViN": [8, {"category": "pii", "type": "vin"}]}]),
+    ],
+)
+def test_scanners(obj, res):
+    schema = build_schema(obj)
+    assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10

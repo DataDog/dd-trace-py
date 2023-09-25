@@ -1,20 +1,17 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": null,
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -25,15 +22,13 @@
   },
      {
        "name": "aiohttp.request",
-       "service": "",
+       "service": null,
        "resource": "aiohttp.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
-       "error": 0,
        "meta": {
-         "_dd.p.dm": "-0",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
@@ -47,15 +42,12 @@
      },
         {
           "name": "TCPConnector.connect",
-          "service": "",
+          "service": null,
           "resource": "TCPConnector.connect",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
             "component": "aiohttp"
           },
           "duration": 1236231,

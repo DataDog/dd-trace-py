@@ -27,6 +27,7 @@ app
 appsec
 aredis
 args
+ascii
 asgi
 async
 asyncio
@@ -134,6 +135,7 @@ metadata
 microservices
 middleware
 middlewares
+misencoded
 moderations
 mongoengine
 multiline
@@ -143,6 +145,7 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
 NeedsAppKey
 obfuscator
@@ -225,6 +228,7 @@ unittest
 unix
 unpatch
 unpatched
+unobfuscated
 unregister
 unshallow
 unvendored
@@ -233,12 +237,14 @@ url
 urls
 username
 uvicorn
+vendored
 versioned
 vertica
 w3c
 whitelist
 whitespace
 workflow
+Wrapt
 wsgi
 xfail
 yaaredis
@@ -253,3 +259,6 @@ programmatically
 DES
 Blowfish
 Gitlab
+Enablement
+hotspot
+CMake

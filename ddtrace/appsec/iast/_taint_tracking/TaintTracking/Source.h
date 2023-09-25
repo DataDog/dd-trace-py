@@ -23,7 +23,8 @@ enum class OriginType
     QUERY,
     PATH_PARAMETER,
     COOKIE,
-    COOKIE_NAME
+    COOKIE_NAME,
+    EMPTY
 };
 
 enum class TagMappingMode
@@ -41,15 +42,21 @@ struct Source
     string name;
     string value;
     OriginType origin;
-    int refcount = 0;
 
     [[nodiscard]] string toString() const;
 
-    inline void set_values(string name = "", string value = "", OriginType origin = OriginType())
+    inline void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
     {
-        this->name = move(name);
-        this->value = move(value);
-        this->origin = origin;
+        name = std::move(name_);
+        value = std::move(value_);
+        origin = origin_;
+    }
+
+    inline void reset()
+    {
+        name = "";
+        value = "";
+        origin = OriginType::EMPTY;
     }
 
     [[nodiscard]] int get_hash() const;
@@ -61,8 +68,6 @@ struct Source
 
     explicit operator std::string() const;
 };
-
-using SourcePtr = Source*;
 
 inline string
 origin_to_str(OriginType origin_type)
@@ -93,7 +98,33 @@ origin_to_str(OriginType origin_type)
     }
 }
 
-using SourcePtr = Source*;
+inline OriginType
+str_to_origin(const string& origin_type_str)
+{
+    if (origin_type_str == "http.request.parameter")
+        return OriginType::PARAMETER;
+    if (origin_type_str == "http.request.parameter.name")
+        return OriginType::PARAMETER_NAME;
+    if (origin_type_str == "http.request.header")
+        return OriginType::HEADER;
+    if (origin_type_str == "http.request.header.name")
+        return OriginType::HEADER_NAME;
+    if (origin_type_str == "http.request.path")
+        return OriginType::PATH;
+    if (origin_type_str == "http.request.body")
+        return OriginType::BODY;
+    if (origin_type_str == "http.request.query")
+        return OriginType::QUERY;
+    if (origin_type_str == "http.request.path.parameter")
+        return OriginType::PATH_PARAMETER;
+
+    if (origin_type_str == "http.request.cookie.name")
+        return OriginType::COOKIE_NAME;
+    if (origin_type_str == "http.request.cookie.value")
+        return OriginType::COOKIE;
+
+    return OriginType::PARAMETER;
+}
 
 void
 pyexport_source(py::module& m);

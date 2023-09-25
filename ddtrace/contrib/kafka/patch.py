@@ -11,10 +11,10 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -72,7 +72,7 @@ class TracedConsumer(confluent_kafka.Consumer):
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
-    def poll(self, timeout=1):
+    def poll(self, timeout=None):
         return super(TracedConsumer, self).poll(timeout)
 
     def commit(self, message=None, *args, **kwargs):
@@ -123,6 +123,7 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
+    core.set_item("kafka_topic", topic)
     try:
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
@@ -131,10 +132,7 @@ def traced_produce(func, instance, args, kwargs):
     partition = kwargs.get("partition", -1)
     if config._data_streams_enabled:
         # inject data streams context
-        headers = kwargs.get("headers", {})
-        pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
-        headers[PROPAGATION_KEY] = pathway.encode()
-        kwargs["headers"] = headers
+        core.dispatch("kafka.produce.start", [instance, args, kwargs])
 
         on_delivery_kwarg = "on_delivery"
         on_delivery_arg = 5
@@ -203,11 +201,8 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
             if config._data_streams_enabled:
-                headers = {header[0]: header[1] for header in (message.headers() or [])}
-                ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
-                ctx.set_checkpoint(
-                    ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
-                )
+                core.set_item("kafka_topic", message.topic())
+                core.dispatch("kafka.consume.start", [instance, message])
                 if instance._auto_commit:
                     # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
                     # when it's read.

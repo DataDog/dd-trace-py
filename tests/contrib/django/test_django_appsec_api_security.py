@@ -59,6 +59,7 @@ def test_api_security(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=2",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 200
@@ -107,6 +108,7 @@ def test_api_security(client, test_spans, tracer):
                 "_dd.appsec.s.req.headers",
                 [{"content-length": [8], "content-type": [8]}],
             ),
+            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.appsec.s.res.headers", headers_schema[django.__version__[0]]),
@@ -132,6 +134,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 403
@@ -146,6 +149,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
                 "_dd.appsec.s.req.headers",
                 [{"content-length": [8], "content-type": [8]}],
             ),
+            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
@@ -171,6 +175,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 403
@@ -182,6 +187,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
         for name in [
             "_dd.appsec.s.req.body",
             "_dd.appsec.s.req.headers",
+            "_dd.appsec.s.req.cookies",
             "_dd.appsec.s.req.query",
             "_dd.appsec.s.req.params",
             "_dd.appsec.s.res.headers",

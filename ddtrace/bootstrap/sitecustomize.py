@@ -179,7 +179,6 @@ try:
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
-    tracer._generate_diagnostic_logs()
     if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
@@ -243,15 +242,12 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
 
-    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
-        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-    )
-    if should_start_appsec_remoteconfig:
+    if config._appsec_enabled or config._remote_config_enabled:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
@@ -261,6 +257,7 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
+    tracer._generate_diagnostic_logs()
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)

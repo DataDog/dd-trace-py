@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
-    "error": 0,
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
@@ -20,7 +19,6 @@
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -42,7 +40,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
-    "error": 0,
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
@@ -55,11 +52,11 @@
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "db.row_count": 0,
       "network.destination.port": 6379,
       "out.redis_db": 0,
       "process_id": 5155,

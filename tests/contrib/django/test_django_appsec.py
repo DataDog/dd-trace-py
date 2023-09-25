@@ -22,8 +22,7 @@ from tests.appsec.test_processor import RULES_SRB
 from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _ALLOWED_IP
-from tests.appsec.test_processor import _BLOCKED_IP
+from tests.appsec.test_processor import _IP
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -411,12 +410,12 @@ def test_request_ipblock_403(client, test_spans, tracer):
             test_spans,
             tracer,
             url="/foobar",
-            headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_USER_AGENT": "fooagent"},
+            headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
         as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
         assert result.content == as_bytes
-        assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/foobar"
         assert root.get_tag(http.METHOD) == "GET"
@@ -435,12 +434,12 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
     """
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _BLOCKED_IP, "HTTP_ACCEPT": "text/html"}
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_ACCEPT": "text/html"}
         )
         assert result.status_code == 403
         as_bytes = bytes(BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else BLOCKED_RESPONSE_HTML
         assert result.content == as_bytes
-        assert root.get_tag("actor.ip") == _BLOCKED_IP
+        assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "text/html"
@@ -449,7 +448,7 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
 def test_request_ipblock_nomatch_200(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _ALLOWED_IP}
+            client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _IP.DEFAULT}
         )
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
@@ -463,7 +462,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
             test_spans,
             tracer,
             url="/appsec/block/",
-            headers={"HTTP_X_REAL_IP": _ALLOWED_IP, "HTTP_USER_AGENT": "fooagent"},
+            headers={"HTTP_X_REAL_IP": _IP.DEFAULT, "HTTP_USER_AGENT": "fooagent"},
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
@@ -855,6 +854,31 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
     # remove cache to avoid other tests from using the templates of this test
     http._HTML_BLOCKED_TEMPLATE_CACHE = None
     http._JSON_BLOCKED_TEMPLATE_CACHE = None
+
+
+@pytest.mark.parametrize(
+    ["suspicious_value", "expected_code", "rule"],
+    [
+        ("suspicious_301", 301, "tst-040-004"),
+        ("suspicious_303", 303, "tst-040-005"),
+    ],
+)
+def test_request_suspicious_request_redirect_actions(client, test_spans, tracer, suspicious_value, expected_code, rule):
+    # value suspicious_306_auto must be blocked
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(
+            DD_APPSEC_RULES=RULES_SRBCA,
+        )
+    ):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="index.html?toto=%s" % suspicious_value
+        )
+        assert response.status_code == expected_code
+        # check if response content is custom as expected
+        assert not response.content
+        assert response["location"] == "https://www.datadoghq.com"
+        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == [rule]
 
 
 @pytest.mark.django_db
