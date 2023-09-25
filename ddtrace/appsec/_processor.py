@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 import attr
 from six import ensure_binary
 
-from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -18,8 +17,6 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
@@ -27,8 +24,6 @@ from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -121,6 +116,8 @@ _COLLECTED_REQUEST_HEADERS = {
 
 def _set_headers(span, headers, kind):
     # type: (Span, Any, str) -> None
+    from ddtrace.contrib.trace_utils import _normalize_tag_name
+
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
@@ -141,7 +138,7 @@ class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
-    _ddwaf = attr.ib(type=DDWaf, default=None)
+    # _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
 
@@ -151,50 +148,48 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __attrs_post_init__(self):
         # type: () -> None
-        if self._ddwaf is None:
-            try:
-                with open(self.rules, "r") as f:
-                    rules = json.load(f)
-                    if config._api_security_enabled:
-                        with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
-                            processors = json.load(f_apisec)
-                            rules["processors"] = processors["processors"]
-                            rules["scanners"] = processors["scanners"]
-                    self._update_actions(rules)
+        from ddtrace import config
+        from ddtrace.appsec._ddwaf import DDWaf
 
-            except EnvironmentError as err:
-                if err.errno == errno.ENOENT:
-                    log.error(
-                        "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules
-                    )
-                else:
-                    # TODO: try to log reasons
-                    log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
-                raise
-            except JSONDecodeError:
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
-                raise
-            except Exception:
+        try:
+            with open(self.rules, "r") as f:
+                rules = json.load(f)
+                if config._api_security_enabled:
+                    with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
+                        processors = json.load(f_apisec)
+                        rules["processors"] = processors["processors"]
+                        rules["scanners"] = processors["scanners"]
+                self._update_actions(rules)
+
+        except EnvironmentError as err:
+            if err.errno == errno.ENOENT:
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
+            else:
                 # TODO: try to log reasons
                 log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
-                raise
-            try:
-                self._ddwaf = DDWaf(
-                    rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+            raise
+        except JSONDecodeError:
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            raise
+        except Exception:
+            # TODO: try to log reasons
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+            raise
+        try:
+            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
+            if not self._ddwaf._handle or self._ddwaf.info.failed:
+                stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
+                    rules,
+                    self._ddwaf.info.loaded,
+                    self._ddwaf.info.errors,
                 )
-                if not self._ddwaf._handle or self._ddwaf.info.failed:
-                    stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                        rules,
-                        self._ddwaf.info.loaded,
-                        self._ddwaf.info.errors,
-                    )
-                    _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
+                _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
 
-                _set_waf_init_metric(self._ddwaf.info)
-            except ValueError:
-                # Partial of DDAS-0005-00
-                log.warning("[DDAS-0005-00] WAF initialization failed")
-                raise
+            _set_waf_init_metric(self._ddwaf.info)
+        except ValueError:
+            # Partial of DDAS-0005-00
+            log.warning("[DDAS-0005-00] WAF initialization failed")
+            raise
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
         # we always need the request headers
@@ -231,6 +226,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
+        from ddtrace.contrib import trace_utils
+
         if span.span_type != SpanTypes.WEB:
             return
 
@@ -284,6 +281,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
+        from ddtrace import config
 
         if span.span_type != SpanTypes.WEB:
             return None
@@ -352,6 +350,8 @@ class AppSecSpanProcessor(SpanProcessor):
             if waf_results.timeout:
                 _set_waf_error_metric("WAF run. Timeout errors", "", info)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+            from ddtrace.appsec._ddwaf import version
+
             span.set_tag_str(APPSEC.WAF_VERSION, version())
 
             def update_metric(name, value):
