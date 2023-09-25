@@ -17,7 +17,7 @@ click-repl==0.3.0
 coverage[toml]==7.2.7
 django==2.2.1
 exceptiongroup==1.1.2
-gevent==22.10.2
+gevent==23.9.1
 greenlet==2.0.2
 hypothesis==6.45.0
 idna==3.4
