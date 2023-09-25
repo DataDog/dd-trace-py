@@ -29,10 +29,10 @@
       "runtime-id": "0a0a92d644714949b7544ee81c6d1bf1"
     },
     "metrics": {
+      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 91222
     },
