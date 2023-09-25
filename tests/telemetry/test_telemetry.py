@@ -245,6 +245,22 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[2]["payload"]["error"]["message"]
 
 
+def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    _, stderr, status, _ = run_python_code_in_subprocess(
+        "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')", env=env
+    )
+    assert status == 1, stderr
+    assert b"bad_code" in stderr
+    # Regression test for python3.12 support
+    assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
+
+    # Ensure the expected telemetry events are sent
+    events = test_agent_session.get_events()
+    event_types = [event["request_type"] for event in events]
+    assert event_types == ["generate-metrics", "app-closing", "app-dependencies-loaded", "app-started"]
+
+
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
     code = """
 import logging
