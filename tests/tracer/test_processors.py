@@ -375,37 +375,27 @@ def test_span_normalizator():
 
 
 def test_span_creation_metrics():
-    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
+    """Test that telemetry span creation metrics are queued"""
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     with mock.patch("ddtrace.internal.processor.trace.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
-            span = Span("span", on_finish=[aggr.on_span_finish])
+            span = Span("span")
             aggr.on_span_start(span)
+
+        mock_tm.assert_has_calls(
+            [mock.call("tracers", "spans_created", tags=(("integration_name", "datadog"),)) for _ in range(300)]
+        )
+
+        mock_tm.reset_mock()
+
+        for _ in range(300):
+            span = Span("span", on_finish=[aggr.on_span_finish])
             span.finish()
 
-        span = Span("span", on_finish=[aggr.on_span_finish])
-        aggr.on_span_start(span)
-        span.finish()
-
         mock_tm.assert_has_calls(
-            [
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-            ]
-        )
-        mock_tm.reset_mock()
-        aggr.shutdown(None)
-        mock_tm.assert_has_calls(
-            [
-                mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
-            ]
+            [mock.call("tracers", "spans_finished", tags=(("integration_name", "datadog"),)) for _ in range(300)]
         )
 
 

@@ -83,6 +83,9 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
+        response = gunicorn_client.get("/start_application")
+        assert response.status_code == 200
+
         gunicorn_client.get("/count_metric")
         gunicorn_client.get("/count_metric")
         response = gunicorn_client.get("/count_metric")
@@ -191,18 +194,10 @@ for _ in range(4):
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
-    metrics = get_metrics_from_events(events)
-    assert len(metrics) == 3
 
-    assert metrics[0]["metric"] == "spans_created"
-    assert metrics[0]["tags"] == ["integration_name:datadog"]
-    assert metrics[0]["points"][0][1] == 4
-    assert metrics[1]["metric"] == "spans_created"
-    assert metrics[1]["tags"] == ["integration_name:opentracing"]
-    assert metrics[1]["points"][0][1] == 4
-    assert metrics[2]["metric"] == "spans_created"
-    assert metrics[2]["tags"] == ["integration_name:otel"]
-    assert metrics[2]["points"][0][1] == 4
+    metrics = get_metrics_from_events(events)
+    # Telemeetry events are only submitted after the first trace is finished and sent to the agent
+    assert len(metrics) == 0
 
 
 def get_metrics_from_events(events):

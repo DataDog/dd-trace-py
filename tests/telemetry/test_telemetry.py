@@ -283,17 +283,20 @@ tracer.trace("hi").finish()
         == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
     )
 
-    metric_events = [
-        event
-        for event in events
-        if event["request_type"] == "generate-metrics"
-        and event["payload"]["series"][0]["metric"] == "integration_errors"
-    ]
-    assert len(metric_events) == 1
-    assert len(metric_events[0]["payload"]["series"]) == 1
-    assert metric_events[0]["payload"]["series"][0]["type"] == "count"
-    assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
-    assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
+    # Get metric containing the integration error
+    integration_error = {}
+    for event in events:
+        if event["request_type"] == "generate-metrics":
+            for metric in event["payload"]["series"]:
+                if metric["metric"] == "integration_errors":
+                    integration_error = metric
+                    break
+
+    # assert the integration metric has the correct type, count, and tags
+    assert integration_error
+    assert integration_error["type"] == "count"
+    assert integration_error["points"][0][1] == 1
+    assert integration_error["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
 def test_unhandled_integration_error(test_agent_session, run_python_code_in_subprocess):

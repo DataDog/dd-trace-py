@@ -621,14 +621,6 @@ class TelemetryWriter(PeriodicService):
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self.reset_queues()
-        if self.status == ServiceStatus.STOPPED:
-            return
-
-        self.stop(join=False)
-
-        # Enable writer service in child process to avoid interpreter shutdown
-        # error in Python 3.12
-        self.enable()
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)
