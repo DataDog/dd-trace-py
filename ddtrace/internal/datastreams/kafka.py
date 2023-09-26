@@ -73,16 +73,18 @@ def dsm_kafka_message_commit(instance, args, kwargs):
 
     offsets = []
     if message is not None:
-        # We need to add one to message offsets to make them mean the same thing as offsets passed in by the offsets keyword
+        # We need to add one to message offsets to make them mean the same thing as offsets
+        # passed in by the offsets keyword
         reported_offset = message.offset() + 1 if isinstance(message.offset(), INT_TYPES) else -1
         offsets = [TopicPartition(message.topic(), message.partition(), reported_offset)]
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
 
     for offset in offsets:
-        # When offsets is passed in as an arg, its an exact value for the next expected message.  When message is passed in
-        # Kafka reports msg.offset() + 1.  We add +1 above to message offsets to make them mean the same thing as passed in
-        # offsets, then subtract 1 universally here from both
+        # When offsets is passed in as an arg, its an exact value for the next expected message.
+        # When message is passed in Kafka reports msg.offset() + 1.  We add +1 above to message
+        # offsets to make them mean the same thing as passed in offsets, then subtract 1 universally
+        # here from both
         reported_offset = offset.offset - 1 if isinstance(offset.offset, INT_TYPES) else -1
         processor().track_kafka_commit(instance._group_id, offset.topic, offset.partition, reported_offset, time.time())
 
