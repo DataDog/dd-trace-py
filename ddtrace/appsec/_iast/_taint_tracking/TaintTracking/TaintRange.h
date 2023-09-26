@@ -20,7 +20,7 @@ class TaintedObject;
 // Alias
 using TaintedObjectPtr = TaintedObject*;
 
-#ifndef NDEBUG // Decide wether to use abseil
+#ifdef NDEBUG // Decide wether to use abseil
 
 #include "absl/container/node_hash_map.h"
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;

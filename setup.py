@@ -313,7 +313,7 @@ class CMakeBuild(build_ext):
             import subprocess
 
             cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+            build_type = "Debug" if DEBUG_COMPILE else "Release"
             build_args = ["--config", build_type]
             cmake_args = [
                 "-S",
