@@ -4,19 +4,15 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
+from typing import Any
+from typing import List
 from typing import Set
-from typing import TYPE_CHECKING
 
 from six import iteritems
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import List
 
 
 PY3 = sys.version_info[0] >= 3
@@ -299,6 +295,15 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
+    def _assign_node(self, from_node, targets, value):  # type: (Any, List[Any], Any) -> Any
+        return self._node(
+            ast.Assign,
+            from_node,
+            targets=targets,
+            value=value,
+            type_comment=None,
+        )
+
     def find_insert_position(self, module_node):  # type: (ast.Module) -> int
         insert_position = 0
         from_future_import_found = False
@@ -567,12 +572,89 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
+    def visit_AugAssign(self, augassign_node):  # type: (ast.AugAssign) -> Any
+        """Replace an inplace add or multiply."""
+        if isinstance(augassign_node.target, ast.Subscript):
+            # Can't augassign to function call, ignore this node
+            augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
+            self.generic_visit(augassign_node)
+            return augassign_node
+
+        # TODO: Replace an inplace add or multiply (+= / *=)
+        return augassign_node
+
+    def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
+        """
+        Decompose multiple assignment into single ones and
+        check if any item in the targets list is if type Subscript and if
+        that's the case further decompose it to use a temp variable to
+        avoid assigning to a function call.
+        """
+        # a = b = c
+        # __dd_tmp = c
+        # a = __dd_tmp
+
+        ret_nodes = []
+
+        if len(assign_node.targets) > 1:
+            # Multiple assignments, assign the value to a temporal variable
+            tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
+            assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
+            assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
+            ret_nodes.append(assign_to_tmp)
+            self.ast_modified = True
+        else:
+            assign_value = assign_node.value  # type: ignore
+
+        for target in assign_node.targets:
+            if isinstance(target, ast.Subscript):
+                # We can't assign to a function call, which is anyway going to rewrite
+                # the index destination so we just ignore that target
+                target.avoid_convert = True  # type: ignore[attr-defined]
+            elif isinstance(target, (List, ast.Tuple)):
+                # Same for lists/tuples on the left side of the assignment
+                for element in target.elts:
+                    if isinstance(element, ast.Subscript):
+                        element.avoid_convert = True  # type: ignore[attr-defined]
+
+            # Create a normal assignment. This way we decompose multiple assignments
+            # like (a = b = c) into a = b and a = c so the transformation above
+            # is possible.
+            # Decompose it into a normal, not multiple, assignment
+            new_assign_value = copy.copy(assign_value)
+
+            new_target = copy.copy(target)
+
+            single_assign = self._assign_node(assign_node, [new_target], new_assign_value)
+
+            self.generic_visit(single_assign)
+            ret_nodes.append(single_assign)
+
+        if len(ret_nodes) == 1:
+            return ret_nodes[0]
+
+        return ret_nodes
+
+    def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
+        # del replaced_index(foo, bar) would fail so avoid converting the right hand side
+        # since it's going to be deleted anyway
+
+        for target in assign_node.targets:
+            if isinstance(target, ast.Subscript):
+                target.avoid_convert = True  # type: ignore[attr-defined]
+
+        self.generic_visit(assign_node)
+        return assign_node
+
     def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
         """
         Turn an indexes[1] and slices[0:1:2] into the replacement function call
         Optimization: dont convert if the indexes are strings
         """
         self.generic_visit(subscr_node)
+
+        if hasattr(subscr_node, "avoid_convert"):
+            return subscr_node
 
         # Optimization: String literal slices and indexes are not patched
         if self._is_string_node(subscr_node.value):
@@ -606,9 +688,7 @@ class AstVisitor(ast.NodeTransformer):
             aspect_split = self._aspect_index.split(".")
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
-
             call_node.args.extend([subscr_node.value, subscr_node.slice])
-            self.ast_modified = True
         elif isinstance(subscr_node.slice, ast.Index):
             if self._is_string_node(subscr_node.slice.value):  # type: ignore[attr-defined]
                 return subscr_node
@@ -617,8 +697,8 @@ class AstVisitor(ast.NodeTransformer):
             call_node.func.value.id = aspect_split[0]
 
             call_node.args.extend([subscr_node.value, subscr_node.slice.value])  # type: ignore[attr-defined]
-            self.ast_modified = True
         else:
             return subscr_node
 
+        self.ast_modified = True
         return call_node
