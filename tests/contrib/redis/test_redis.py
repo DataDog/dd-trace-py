@@ -7,7 +7,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from ddtrace.internal.compat import mock
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -15,6 +14,12 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
+
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock  # type: ignore  # noqa
 
 
 class TestRedisPatch(TracerTestCase):
