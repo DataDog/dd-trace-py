@@ -15,10 +15,6 @@ def assert_stack(expected):
     assert [f.f_code.co_name for f in stack] == expected
 
 
-async def async_func():
-    return 42
-
-
 def test_wrap_unwrap():
     channel = []
 
