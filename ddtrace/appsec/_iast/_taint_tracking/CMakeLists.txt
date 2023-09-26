@@ -29,6 +29,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
                 URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
         )
         FetchContent_MakeAvailable(absl)
+else()
+    message("Debug mode is enabled, not using abseil")
 endif()
 
 include_directories(".")
