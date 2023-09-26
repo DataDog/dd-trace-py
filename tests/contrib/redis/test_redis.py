@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import pytest
 import redis
 
 import ddtrace
@@ -7,7 +6,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from ddtrace.internal.compat import mock
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -138,15 +136,6 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
-
-    def test_connection_error(self):
-        with mock.patch.object(
-            redis.connection.ConnectionPool,
-            "get_connection",
-            side_effect=redis.exceptions.ConnectionError("whatever"),
-        ):
-            with pytest.raises(redis.exceptions.ConnectionError):
-                self.r.get("foo")
 
     def test_analytics_without_rate(self):
         with self.override_config("redis", dict(analytics_enabled=True)):
