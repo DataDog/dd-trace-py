@@ -444,7 +444,7 @@ class Config(object):
         except Empty:  # nosec
             pass
         except BaseException:
-            log.debug("unexpected failure with _add_extra_service", exc_info=True)
+            log.debug("unexpected failure with _get_extra_service", exc_info=True)
         return self._extra_services
 
     def get_from(self, obj):
