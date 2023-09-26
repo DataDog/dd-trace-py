@@ -12,13 +12,13 @@ MAX_NAMES = 64
 
 @pytest.mark.parametrize("nb_service", [2, 16, 64, 256])
 def test_service_name(nb_service):
-    def write_in_subprocess(id):
+    def write_in_subprocess(id_nb):
         time.sleep(random.random())
-        ddtrace.config._add_extra_service(f"extra_service_{id}")
+        ddtrace.config._add_extra_service(f"extra_service_{id_nb}")
 
     threads = [threading.Thread(target=write_in_subprocess, args=(i,)) for i in range(nb_service)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    len(ddtrace.config._get_extra_services()) == min(nb_service, MAX_NAMES)
+    assert len(ddtrace.config._get_extra_services()) == min(nb_service, MAX_NAMES)

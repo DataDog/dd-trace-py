@@ -433,7 +433,7 @@ class Config(object):
         try:
             while True:
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
-                if len(self._extra_services) >= 64:
+                if len(self._extra_services) > 64:
                     self._extra_services.pop()
         except Exception:  # nosec
             pass
