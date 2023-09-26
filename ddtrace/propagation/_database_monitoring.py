@@ -5,6 +5,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
+from ..internal import compat
 from ..internal.utils import get_argument_value
 from ..internal.utils import set_argument_value
 from ..settings import _config as dd_config
@@ -75,7 +76,8 @@ class _DBM_Propagator(object):
         peer_service_enabled = PeerServiceConfig().set_defaults_enabled
         service_name_key = db_span.service
         if peer_service_enabled:
-            service_name_key = db_span.get_tags().get("db.name") or db_span.service
+            db_name = db_span.get_tags().get("db.name")
+            service_name_key = compat.ensure_str(db_name) if db_name else db_span.service
 
         dbm_tags = {
             DBM_PARENT_SERVICE_NAME_KEY: dd_config.service,
