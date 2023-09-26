@@ -23,7 +23,7 @@ using TaintedObjectPtr = TaintedObject*;
 #ifdef NDEBUG // Decide wether to use abseil
 
 #include <unordered_map>
-using TaintRangeMapType = std::unordered_map<uintptr_t, TaintedObjectPtr>;
+using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;
 
 #else
 
