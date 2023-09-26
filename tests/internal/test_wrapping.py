@@ -467,3 +467,27 @@ async def test_wrap_async_generator_throw_close():
     await gen.aclose()
 
     assert channel == [True] + [0, ValueError, 1] * 10 + ["GeneratorExit"]
+
+
+def test_wrap_closure():
+    channel = []
+
+    def wrapper(f, args, kwargs):
+        channel.append((args, kwargs))
+        retval = f(*args, **kwargs)
+        channel.append(retval)
+        return retval
+
+    def outer(answer=42):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    wrap(outer, wrapper)
+
+    closure = outer()
+    wrap(closure, wrapper)
+
+    assert closure(1, 2, 3) == (1, 2, 3, 42)
+    assert channel == [((42,), {}), closure, ((1, 2, 3), {}), (1, 2, 3, 42)]
