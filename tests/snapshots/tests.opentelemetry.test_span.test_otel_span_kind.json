@@ -1,13 +1,11 @@
 [[
   {
     "name": "otel-client",
-    "service": "",
+    "service": null,
     "resource": "otel-client",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -26,13 +24,11 @@
 [
   {
     "name": "otel-server",
-    "service": "",
+    "service": null,
     "resource": "otel-server",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -51,13 +47,11 @@
 [
   {
     "name": "otel-producer",
-    "service": "",
+    "service": null,
     "resource": "otel-producer",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -76,13 +70,11 @@
 [
   {
     "name": "otel-consumer",
-    "service": "",
+    "service": null,
     "resource": "otel-consumer",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -101,13 +93,11 @@
 [
   {
     "name": "otel-internal",
-    "service": "",
+    "service": null,
     "resource": "otel-internal",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
