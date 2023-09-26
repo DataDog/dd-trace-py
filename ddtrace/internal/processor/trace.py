@@ -193,9 +193,9 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", tags=(("integration_name", span._span_api),)
-            )
+        telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", tags=(("integration_name", span._span_api),)
+        )
 
     def on_span_finish(self, span):
         # type: (Span) -> None
