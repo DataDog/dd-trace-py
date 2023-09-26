@@ -1,12 +1,14 @@
 # -*- encoding: utf-8 -*-
 import pytest
 
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
+
+if python_supported_by_iast():
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
