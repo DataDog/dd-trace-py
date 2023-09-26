@@ -154,7 +154,7 @@ commands:
                 steps:
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: riot -v run -s 'wait' << parameters.wait >>
+                      command: riot -P -v run -s 'wait' << parameters.wait >>
             - when:
                 condition:
                   << parameters.trace_agent_url >> != ""
@@ -310,7 +310,7 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
