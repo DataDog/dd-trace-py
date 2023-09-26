@@ -22,6 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 PY3 = sys.version_info[0] >= 3
 PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
 PY38_PLUS = sys.version_info >= (3, 8, 0)
+PY39_PLUS = sys.version_info >= (3, 9, 0)
 
 CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
@@ -62,6 +63,11 @@ class AstVisitor(ast.NodeTransformer):
                 "format_map": "ddtrace_aspects.format_map_aspect",
                 "zfill": "ddtrace_aspects.zfill_aspect",
                 "ljust": "ddtrace_aspects.ljust_aspect",
+            },
+            # Replacement function for indexes and ranges
+            "slices": {
+                "index": "ddtrace_aspects.index_aspect",
+                # "slice": "ddtrace_aspects.slice_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
@@ -129,6 +135,7 @@ class AstVisitor(ast.NodeTransformer):
         self.filename = filename
         self.module_name = module_name
 
+        self._aspect_index = self._aspects_spec["slices"]["index"]
         self._aspect_functions = self._aspects_spec["functions"]
         self._aspect_operators = self._aspects_spec["operators"]
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
@@ -558,4 +565,63 @@ class AstVisitor(ast.NodeTransformer):
 
         self.ast_modified = True
         _set_metric_iast_instrumented_propagation()
+        return call_node
+
+    def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
+        """
+        Turn an indexes[1] and slices[0:1:2] into the replacement function call
+        Optimization: dont convert if the indexes are strings
+        """
+        self.generic_visit(subscr_node)
+
+        # Optimization: String literal slices and indexes are not patched
+        if self._is_string_node(subscr_node.value):
+            return subscr_node
+
+        attr_node = self._attr_node(subscr_node, "")
+
+        call_node = self._call_node(
+            subscr_node,
+            func=attr_node,
+            args=[],
+        )
+
+        # Create the Name node for the Call.func member
+
+        # Here, the value instead is wrapped inside an Index node
+        if hasattr(subscr_node.slice, "value") and not self._is_string_node(subscr_node.slice.value):
+            return subscr_node
+
+        if isinstance(subscr_node.slice, ast.Slice):
+            # Slice[0:1:2]. The other cases in this if are Indexes[0]
+            # TODO: Add stlice
+            # aspect_split = self._aspect_slice.split(".")
+            # call_node.func.attr = aspect_split[1]
+            # call_node.func.value.id = aspect_split[0]
+            # none_node = self._none_constant(subscr_node)
+            # lower = subscr_node.slice.lower if subscr_node.slice.lower is not None else none_node
+            # upper = subscr_node.slice.upper if subscr_node.slice.upper is not None else none_node
+            # step = subscr_node.slice.step if subscr_node.slice.step is not None else none_node
+            # call_node.args.extend([subscr_node.value, lower, upper, step])
+            # self.ast_modified = True
+            pass
+        elif PY39_PLUS:
+            # In Py39+ the if subscr_node.slice member is not a Slice, is directly an unwrapped value
+            # for the index (e.g. Constant for a number, Name for a var, etc)
+            aspect_split = self._aspect_index.split(".")
+            call_node.func.attr = aspect_split[1]
+            call_node.func.value.id = aspect_split[0]
+
+            call_node.args.extend([subscr_node.value, subscr_node.slice])
+            self.ast_modified = True
+        elif isinstance(subscr_node.slice, ast.Index):
+            aspect_split = self._aspect_index.split(".")
+            call_node.func.attr = aspect_split[1]
+            call_node.func.value.id = aspect_split[0]
+
+            call_node.args.extend([subscr_node.value, subscr_node.slice.value])  # type: ignore[attr-defined]
+            self.ast_modified = True
+        else:
+            return subscr_node
+
         return call_node
