@@ -626,7 +626,7 @@ class TelemetryWriter(PeriodicService):
             return
 
         if self._is_periodic:
-           self.stop(join=False)
+            self.stop(join=False)
 
         # Enable writer service in child process to avoid interpreter shutdown
         # error in Python 3.12
