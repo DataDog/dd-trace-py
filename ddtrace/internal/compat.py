@@ -46,10 +46,6 @@ PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
-try:
-    from unittest import mock
-except ImportError:
-    import mock  # type: ignore  # noqa
 
 try:
     from builtin import TimeoutError
