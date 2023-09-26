@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ci: This fix resolves a failure that occurred during the creation of wheels for uploading to PyPI, caused by an import
+    statement incompatible with Python 2 .
