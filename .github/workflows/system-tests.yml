@@ -3,8 +3,7 @@ name: System Tests
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
+      - 2.x
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -34,6 +33,8 @@ jobs:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
           - weblog-variant: django-poc
+        #   runs django-poc for 3.12
+          - weblog-variant: python3.12
       fail-fast: false
     env:
       TEST_LIBRARY: python

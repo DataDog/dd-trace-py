@@ -138,6 +138,113 @@ def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
             assert len(tainted_ranges) == len(get_tainted_ranges(obj1)) + len(get_tainted_ranges(obj2))
 
 
+@pytest.mark.parametrize(
+    "obj1",
+    [
+        "abc",
+        b"abc",
+    ],
+)
+def test_add_aspect_tainting_add_itself(obj1):
+    obj1 = taint_pyobject(
+        pyobject=obj1,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=obj1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = ddtrace_aspects.add_aspect(obj1, obj1)
+    assert result == obj1 + obj1
+
+    assert is_pyobject_tainted(result) is True
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 2
+    assert ranges_result[0].start == 0
+    assert ranges_result[0].length == 3
+    assert ranges_result[1].start == 3
+    assert ranges_result[1].length == 3
+
+
+@pytest.mark.parametrize(
+    "obj1",
+    [
+        "abc",
+        b"abc",
+    ],
+)
+def test_add_aspect_tainting_add_itself_twice(obj1):
+    obj1 = taint_pyobject(
+        pyobject=obj1,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=obj1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = ddtrace_aspects.add_aspect(obj1, obj1)
+    result = ddtrace_aspects.add_aspect(obj1, obj1)
+    assert result == obj1 + obj1
+
+    assert is_pyobject_tainted(result) is True
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 2
+    assert ranges_result[0].start == 0
+    assert ranges_result[0].length == 3
+    assert ranges_result[1].start == 3
+    assert ranges_result[1].length == 3
+
+
+@pytest.mark.parametrize(
+    "obj1, obj2",
+    [
+        ("abc", "def"),
+        (b"abc", b"def"),
+    ],
+)
+def test_add_aspect_tainting_add_right_twice(obj1, obj2):
+    obj1 = taint_pyobject(
+        pyobject=obj1,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=obj1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+    result = ddtrace_aspects.add_aspect(obj1, obj2)
+    assert result == obj1 + obj2
+
+    assert is_pyobject_tainted(result) is True
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+    assert ranges_result[0].start == 0
+    assert ranges_result[0].length == 3
+
+
+@pytest.mark.parametrize(
+    "obj1, obj2",
+    [
+        ("abc", "def"),
+        (b"abc", b"def"),
+    ],
+)
+def test_add_aspect_tainting_add_left_twice(obj1, obj2):
+    obj1 = taint_pyobject(
+        pyobject=obj1,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=obj1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = ddtrace_aspects.add_aspect(obj2, obj1)  # noqa
+    result = ddtrace_aspects.add_aspect(obj2, obj1)
+    assert result == obj2 + obj1
+
+    assert is_pyobject_tainted(result) is True
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+    assert ranges_result[0].start == 3
+    assert ranges_result[0].length == 3
+
+
 def test_taint_ranges_as_evidence_info_nothing_tainted():
     text = "nothing tainted"
     value_parts, sources = taint_ranges_as_evidence_info(text)
