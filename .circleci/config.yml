@@ -150,7 +150,7 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} ./scripts/ddtest riot -P -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - unless:
           condition:
@@ -163,7 +163,7 @@ commands:
                 steps:
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: riot -v run 'wait' << parameters.wait >>
+                      command: riot -P -v run 'wait' << parameters.wait >>
             - when:
                 condition:
                   << parameters.trace_agent_url >> != ""
@@ -177,7 +177,7 @@ commands:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   # Sort the hashes to ensure a consistent ordering/division between each node
-                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
+                  riot list --hash-only '<<parameters.pattern>>' | sort | circleci tests split | xargs -n 1 -I {} riot -P -v run --exitfirst --pass-env -s {} $([[ << pipeline.parameters.coverage >> == false ]] && echo '--no-cov' )
                   ./scripts/check-diff ".riot/requirements/" "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       - save_pip_cache
       - when:
@@ -281,7 +281,7 @@ jobs:
           command: riot run -s scripts
       - run:
           name: "Running security analysis checks with bandit"
-          command: riot -v run -s bandit
+          command: riot -P -v run -s bandit
 
   ccheck:
     executor: cimg_base
@@ -1117,7 +1117,7 @@ jobs:
       - checkout
       - run:
           command: |
-             riot -v run docs
+             riot -P -v run docs
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
