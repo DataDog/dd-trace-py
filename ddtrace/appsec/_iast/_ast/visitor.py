@@ -695,7 +695,6 @@ class AstVisitor(ast.NodeTransformer):
             aspect_split = self._aspect_index.split(".")
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
-
             call_node.args.extend([subscr_node.value, subscr_node.slice.value])  # type: ignore[attr-defined]
         else:
             return subscr_node

@@ -17,11 +17,13 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintR
             break;
         }
     }
-    if (ranges_to_set.empty()) {
-        return result_o;
-    }
+
     const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
     Py_DECREF(result_o);
+
+    if (ranges_to_set.empty()) {
+        return res_new_id;
+    }
     set_ranges(res_new_id, ranges_to_set);
 
     return res_new_id;
