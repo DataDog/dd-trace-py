@@ -500,6 +500,7 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
         pass
     buckets = dsm_processor._buckets
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     _message = _read_single_message(consumer)  # noqa: F841
@@ -534,6 +535,7 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     _message = _read_single_message(consumer)  # noqa: F841
@@ -563,7 +565,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     _message = _read_single_message(consumer)  # noqa: F841
