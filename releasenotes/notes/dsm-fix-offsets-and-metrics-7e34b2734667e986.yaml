@@ -1,3 +1,3 @@
 fixes:
   - |
-    dsm: fix off-by-one metric issue and error where stats weren't calculated when the core api was used.
+    DSM: fix off-by-one metric issue and error where statistics weren't calculated when the core API was used.
