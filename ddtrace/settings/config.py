@@ -179,7 +179,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    extra_services_queue = multiprocessing.Queue()  # type: multiprocessing.Queue
+    _extra_services_queue = multiprocessing.Queue()  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -288,7 +288,7 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
-        self.extra_services = set()
+        self._extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -421,22 +421,22 @@ class Config(object):
 
         return self._config[name]
 
-    def add_extra_service(self, service_name):
+    def _add_extra_service(self, service_name: str) -> None:
         if service_name != self.service:
             try:
-                self.extra_services_queue.put_nowait(service_name)
+                self._extra_services_queue.put_nowait(service_name)
             except Exception:  # nosec
                 pass
 
-    def get_extra_services(self):
+    def _get_extra_services(self) -> set[str]:
         try:
             while True:
-                self.extra_services.add(self.extra_services_queue.get(timeout=0.01))
-                if len(self.extra_services) >= 64:
-                    self.extra_services.pop()
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) >= 64:
+                    self._extra_services.pop()
         except Exception:  # nosec
             pass
-        return self.extra_services
+        return self._extra_services
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
