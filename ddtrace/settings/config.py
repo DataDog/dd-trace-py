@@ -428,7 +428,8 @@ class Config(object):
             except Exception:  # nosec
                 pass
 
-    def _get_extra_services(self) -> set[str]:
+    def _get_extra_services(self):
+        # type: () -> set[str]
         try:
             while True:
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
