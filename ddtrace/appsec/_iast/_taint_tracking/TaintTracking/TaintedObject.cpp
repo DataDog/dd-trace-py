@@ -33,6 +33,12 @@ void
 TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, int max_length, int orig_offset)
 {
     const auto& ranges = tainted_object->get_ranges();
+    add_ranges_shifted(ranges, offset, max_length, orig_offset);
+}
+
+void
+TaintedObject::add_ranges_shifted(TaintRangeRefs ranges, long offset, int max_length, int orig_offset)
+{
     const auto to_add = (long)min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size());
     if (!ranges.empty() and to_add > 0) {
         ranges_.reserve(ranges_.size() + to_add);
