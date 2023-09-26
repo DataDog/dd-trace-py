@@ -9,5 +9,7 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-PyObject* index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map);
-PyObject*  api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
+PyObject*
+index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map);
+PyObject*
+api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
