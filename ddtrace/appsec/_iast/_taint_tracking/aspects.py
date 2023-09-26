@@ -114,10 +114,8 @@ def join_aspect(orig_function, joiner, *args, **kwargs):
         return joiner.join(*args, **kwargs)
 
 
-def index_aspect(*args: Any, **kwargs: Any) -> Any:
-    candidate_text = args[0]
-    index = args[1]
-    if not isinstance(candidate_text, TEXT_TYPES):
+def index_aspect(candidate_text, index) -> Any:
+    if not isinstance(candidate_text, TEXT_TYPES) or not isinstance(index, int):
         return candidate_text[index]
     try:
         return _index_aspect(candidate_text, index)

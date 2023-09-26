@@ -14,10 +14,17 @@ if python_supported_by_iast():
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_string_index_eror():
+def test_string_index_error_index_error():
     with pytest.raises(IndexError) as excinfo:
         mod.do_index("abc", 22)  # pylint: disable=no-member
     assert "string index out of range" in str(excinfo.value)
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_string_index_error_type_error():
+    with pytest.raises(TypeError) as excinfo:
+        mod.do_index("abc", "22")  # pylint: disable=no-member
+    assert "string indices must be integers" in str(excinfo.value)
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
