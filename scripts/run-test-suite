@@ -19,6 +19,8 @@ if [[ -z "$RIOT_HASHES" ]]; then
     exit 1
 fi
 
+echo "Found ${#RIOT_HASHES[@]} riot hashes."
+
 set -e
 
 if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
@@ -33,8 +35,6 @@ if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
         fi
     fi
 fi
-
-echo "Found ${#RIOT_HASHES[@]} riot hashes."
 
 for hash in ${RIOT_HASHES[@]}; do
     echo "Running riot hash: $hash"
