@@ -115,7 +115,7 @@
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
-            "ddtrace/contrib/flask_cache/*"
+            "ddtrace/contrib/flask_cache/*",
             "ddtrace/contrib/flask_login/*"
         ],
         "fastapi": [
