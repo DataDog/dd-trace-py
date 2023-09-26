@@ -23,14 +23,14 @@ endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    message("Debug mode is not enabled, using abseil")
+    message("Release mode: using abseil")
         FetchContent_Declare(
                 absl
                 URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
         )
         FetchContent_MakeAvailable(absl)
 else()
-    message("Debug mode is enabled, not using abseil")
+    message("Debug mode: not using abseil")
 endif()
 
 include_directories(".")

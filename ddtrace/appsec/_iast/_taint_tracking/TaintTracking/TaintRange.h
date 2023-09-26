@@ -20,7 +20,7 @@ class TaintedObject;
 // Alias
 using TaintedObjectPtr = TaintedObject*;
 
-#ifdef NDEBUG // Decide wether to use abseil
+#ifndef NDEBUG // Decide wether to use abseil
 
 #include <unordered_map>
 using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;

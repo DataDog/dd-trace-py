@@ -70,8 +70,6 @@ jobs:
           python-version: '3.7'
 
       - name: Build sdist
-        env:
-          DD_COMPILE_DEBUG: 1
         run: |
           pip install cython
           python setup.py sdist
