@@ -1,9 +1,9 @@
 import os
 
 import bottle
+import wrapt
 
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from .trace import TracePlugin
@@ -18,12 +18,17 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(bottle, "__version__", "")
+
+
 def patch():
     """Patch the bottle.Bottle class"""
     if getattr(bottle, "_datadog_patch", False):
         return
 
-    setattr(bottle, "_datadog_patch", True)
+    bottle._datadog_patch = True
     wrapt.wrap_function_wrapper("bottle", "Bottle.__init__", traced_init)
 
 

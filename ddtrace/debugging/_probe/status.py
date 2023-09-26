@@ -48,7 +48,7 @@ class ProbeStatusLogger(object):
 
         if exc_info is not None:
             exc_type, exc, tb = exc_info
-            assert exc_type is not None and tb is not None, exc_info
+            assert exc_type is not None and tb is not None, exc_info  # nosec
             payload["debugger"]["diagnostics"]["exception"] = {  # type: ignore[index]
                 "type": exc_type.__name__,
                 "message": str(exc),

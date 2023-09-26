@@ -115,7 +115,7 @@ def test_rate_liimter_effective_rate_rates():
     prev_rate = 0.5
     window_ns = starting_window_ns + 1e9
 
-    for i in range(100):
+    for _ in range(100):
         assert limiter.is_allowed(window_ns) is True
         assert limiter.effective_rate == 0.75
         assert limiter.current_window_ns == window_ns

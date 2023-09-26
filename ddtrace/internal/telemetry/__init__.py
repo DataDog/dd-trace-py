@@ -6,6 +6,7 @@ To start the service manually, invoke the ``enable`` method::
     from ddtrace.internal.telemetry import telemetry_writer
     telemetry_writer.enable()
 """
+import os
 import sys
 
 from .writer import TelemetryWriter
@@ -19,22 +20,42 @@ __all__ = ["telemetry_writer"]
 _ORIGINAL_EXCEPTHOOK = sys.excepthook
 
 
-def _excepthook(tp, value, traceback):
-    filename = None
-    lineno = None
-    if traceback and traceback.tb_frame and traceback.tb_frame.f_code:
+def _excepthook(tp, value, root_traceback):
+    if root_traceback is not None:
+        # Get the frame which raised the exception
+        traceback = root_traceback
+        while traceback.tb_next:
+            traceback = traceback.tb_next
+
         lineno = traceback.tb_frame.f_code.co_firstlineno
         filename = traceback.tb_frame.f_code.co_filename
-    telemetry_writer.add_error(1, str(value), filename, lineno)
+        telemetry_writer.add_error(1, str(value), filename, lineno)
 
-    if not telemetry_writer.started and telemetry_writer.enable(start_worker_thread=False):
-        # Starting/stopping the telemetry worker thread in a sys.excepthook causes deadlocks in gunicorn.
-        # Here we avoid starting the telemetry worker thread by manually queuing and sending
-        # app-started and app-closed events.
-        telemetry_writer._app_started_event()
+        dir_parts = filename.split(os.path.sep)
+        # Check if exception was raised in the  `ddtrace.contrib` package
+        if "ddtrace" in dir_parts and "contrib" in dir_parts:
+            ddtrace_index = dir_parts.index("ddtrace")
+            contrib_index = dir_parts.index("contrib")
+            # Check if the filename has the following format:
+            # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
+            if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
+                integration_name = dir_parts[contrib_index + 1]
+                telemetry_writer.add_count_metric(
+                    "tracers",
+                    "integration_errors",
+                    1,
+                    (("integration_name", integration_name), ("error_type", tp.__name__)),
+                )
+                error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                telemetry_writer.add_integration(integration_name, True, error_msg=error_msg)
+
+        if not telemetry_writer.started:
+            telemetry_writer._app_started_event(False)
+            telemetry_writer._app_dependencies_loaded_event()
+
         telemetry_writer.app_shutdown()
-        telemetry_writer.disable()
-    return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
+
+    return _ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
 
 def install_excepthook():

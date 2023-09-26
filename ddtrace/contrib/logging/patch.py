@@ -1,12 +1,12 @@
 import logging
 
 import attr
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
-from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
 
 
@@ -25,6 +25,11 @@ config._add(
         tracer=None,
     ),
 )  # by default, override here for custom tracer
+
+
+def get_version():
+    # type: () -> str
+    return getattr(logging, "__version__", "")
 
 
 @attr.s(slots=True)
@@ -119,7 +124,7 @@ def patch():
     """
     if getattr(logging, "_datadog_patch", False):
         return
-    setattr(logging, "_datadog_patch", True)
+    logging._datadog_patch = True
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
     if hasattr(logging, "StrFormatStyle"):
@@ -131,7 +136,7 @@ def patch():
 
 def unpatch():
     if getattr(logging, "_datadog_patch", False):
-        setattr(logging, "_datadog_patch", False)
+        logging._datadog_patch = False
 
         _u(logging.Logger, "makeRecord")
         if hasattr(logging, "StrFormatStyle"):

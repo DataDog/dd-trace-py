@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+CHECKPOINT_FILENAME="latest-success-commit"
+RIOT_PATTERN=${1}
+if [[ -v CIRCLECI ]]; then
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
+else
+    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort)
+fi
+DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
+COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
+DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
+
+set -e
+
+if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
+    if [[ -f "$CHECKPOINT_FILENAME" ]]; then
+        latest_success_commit=$(cat $CHECKPOINT_FILENAME)
+        if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
+            echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
+            echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
+            echo "Skipping this job."
+            circleci step halt
+            exit 0
+        fi
+    fi
+fi
+
+for hash in $RIOT_HASHES; do
+    if ! $DDTEST_CMD riot -P -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
+        if [[ -v CIRCLECI ]]; then
+            circleci step halt
+        fi
+        exit 1
+    fi
+done
+
+rm -f $CHECKPOINT_FILENAME
+echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
+echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"
+
+./scripts/check-diff \
+    ".riot/requirements/" \
+    "Changes detected after running riot. Consider deleting changed files, \
+    running scripts/compile-and-prune-test-requirements and committing the result."

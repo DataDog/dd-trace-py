@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
@@ -87,7 +87,9 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "tornado": False,
     "openai": True,
+    "langchain": True,
     "subprocess": True,
+    "unittest": True,
 }
 
 
@@ -129,11 +131,6 @@ _MODULES_FOR_CONTRIB = {
     "kafka": ("confluent_kafka",),
 }
 
-IAST_PATCH = {
-    "path_traversal": True,
-    "weak_cipher": True,
-    "weak_hash": True,
-}
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
@@ -157,15 +154,25 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
-        except Exception:
+        except Exception as e:
             if raise_errors:
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
             telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            telemetry_writer.add_count_metric(
+                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+            )
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
+            if hasattr(imported_module, "get_versions"):
+                versions = imported_module.get_versions()
+                for name, v in versions.items():
+                    telemetry_writer.add_integration(name, True, PATCH_MODULES.get(module) is True, "", version=v)
+            else:
+                version = imported_module.get_version()
+                telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
+
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
 
@@ -188,7 +195,7 @@ def patch_all(**patch_modules):
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
-    for module, enabled in modules.items():
+    for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
         if env_var in os.environ:
             modules[module] = formats.asbool(os.environ[env_var])
@@ -202,22 +209,10 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    patch_iast(**IAST_PATCH)
+    if config._iast_enabled:
+        from ddtrace.appsec._iast._patch_modules import patch_iast
 
-
-def patch_iast(**patch_modules):
-    # type: (bool) -> None
-    """Load IAST vulnerabilities sink points.
-
-    IAST_PATCH: list of implemented vulnerabilities
-    """
-    iast_enabled = config._iast_enabled
-    if iast_enabled:
-        # TODO: Devise the correct patching strategy for IAST
-        for module in (m for m, e in patch_modules.items() if e):
-            when_imported("hashlib")(
-                _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
-            )
+        patch_iast()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
@@ -249,12 +244,10 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         with _LOCK:
             _PATCHED_MODULES.add(contrib)
 
-    patched_modules = _get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)",
-        len(patched_modules),
+        "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
         len(contribs),
-        ",".join(patched_modules),
+        ",".join(contribs),
     )
 
 

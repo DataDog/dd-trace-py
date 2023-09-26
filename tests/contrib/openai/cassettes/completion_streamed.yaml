@@ -133,7 +133,7 @@ interactions:
       openai-model:
       - ada
       openai-organization:
-      - user-f23xvdxbrssd56y1ghcjdcue
+      - datadog-4
       openai-processing-ms:
       - '6'
       openai-version:

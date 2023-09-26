@@ -13,7 +13,7 @@ from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging._probe.model import MAXLEN
 from ddtrace.debugging._probe.model import MAXLEVEL
 from ddtrace.debugging._probe.model import MAXSIZE
-from ddtrace.debugging.safety import get_fields
+from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
@@ -72,28 +72,22 @@ def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=M
         return repr(type(value))
 
     if type(value) not in BUILTIN_CONTAINER_TYPES:
-        return (
-            type(value).__name__
-            + "("
-            + ", ".join(
-                [
+        return "%s(%s)" % (
+            type(value).__name__,
+            ", ".join(
+                (
                     "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                    for k, v in list(get_fields(value).items())[:maxfields]
-                ]
-            )
-            + ")"
+                    for k, v in islice(get_fields(value).items(), maxfields)
+                )
+            ),
         )
 
     if type(value) is dict:
-        return (
-            "{"
-            + ", ".join(
-                [
-                    ": ".join((serialize(k, level - 1, maxsize, maxlen, maxfields), serialize(v, level - 1)))
-                    for k, v in value.items()
-                ]
+        return "{%s}" % ", ".join(
+            (
+                ": ".join((serialize(_, level - 1, maxsize, maxlen, maxfields) for _ in pair))
+                for pair in islice(value.items(), maxsize)
             )
-            + "}"
         )
     elif type(value) is list:
         return _serialize_collection(value, "[]", level, maxsize, maxlen, maxfields)
@@ -158,7 +152,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                 "notCapturedReason": cond.__name__,
             }
 
-        value_repr = repr(value)
+        value_repr = serialize(value)
         value_repr_len = len(value_repr)
         return (
             {
@@ -211,7 +205,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                         stopping_cond=cond,
                     ),
                 )
-                for _, (k, v) in takewhile(lambda _: not cond(_), zip(range(maxsize), value.items()))
+                for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))
             ]
             data = {
                 "type": "dict",
@@ -230,7 +224,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                     maxfields=maxfields,
                     stopping_cond=cond,
                 )
-                for _, v in takewhile(lambda _: not cond(_), zip(range(maxsize), value))
+                for v in takewhile(lambda _: not cond(_), islice(value, maxsize))
             ]
             data = {
                 "type": qualname(_type),
@@ -261,7 +255,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
     fields = get_fields(value)
     captured_fields = {
         n: capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
-        for _, (n, v) in takewhile(lambda _: not cond(_), zip(range(maxfields), fields.items()))
+        for n, v in takewhile(lambda _: not cond(_), islice(fields.items(), maxfields))
     }
     data = {
         "type": qualname(_type),

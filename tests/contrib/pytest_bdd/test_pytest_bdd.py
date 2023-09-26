@@ -1,13 +1,17 @@
 import json
 import os
+import sys
 
 import pytest
 
 import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.contrib.pytest_bdd.plugin import _get_step_func_args_json
+from ddtrace.contrib.pytest_bdd.plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -35,9 +39,10 @@ class TestPytest(TracerTestCase):
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    assert CIVisibility.enabled
-                    CIVisibility.disable()
-                    CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                    with _patch_dummy_writer():
+                        assert CIVisibility.enabled
+                        CIVisibility.disable()
+                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
             self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
@@ -46,6 +51,11 @@ class TestPytest(TracerTestCase):
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
+
+    def test_module_implements_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
@@ -103,7 +113,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 12  # 3 scenarios + 7 steps
+        assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
         assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
         assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
         assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
@@ -145,7 +155,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 6
+        assert len(spans) == 7
         assert spans[0].get_tag("component") == "pytest"
         assert spans[0].get_tag("test.name") == "Simple scenario"
         assert spans[0].span_type == "test"
@@ -191,7 +201,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 6
+        assert len(spans) == 7
         assert spans[3].name == "then"
         assert spans[3].get_tag(ERROR_MSG)
 
@@ -214,5 +224,33 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 3
+        assert len(spans) == 4
         assert spans[0].get_tag(ERROR_MSG)
+
+    def test_get_step_func_args_json_empty(self):
+        self.monkeypatch.setattr("ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: None)
+
+        assert _get_step_func_args_json(None, lambda: None, None) is None
+
+    def test_get_step_func_args_json_valid(self):
+        self.monkeypatch.setattr(
+            "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": "test string"}
+        )
+
+        assert _get_step_func_args_json(None, lambda: None, None) == '{"func_arg": "test string"}'
+
+    def test_get_step_func_args_json_invalid(self):
+        self.monkeypatch.setattr(
+            "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
+        )
+
+        if sys.version_info < (3, 6, 0):
+            expected = '{"error_serializing_args": "set([]) is not JSON serializable"}'
+        elif sys.version_info < (3, 6, 0):
+            expected = '{"error_serializing_args": "set() is not JSON serializable"}'
+        elif sys.version_info < (3, 7, 0):
+            expected = '{"error_serializing_args": "Object of type \'set\' is not JSON serializable"}'
+        else:
+            expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'
+
+        assert _get_step_func_args_json(None, lambda: None, None) == expected

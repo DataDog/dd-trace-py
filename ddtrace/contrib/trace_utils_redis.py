@@ -19,6 +19,26 @@ from ddtrace.internal.utils.formats import stringify_cache_args
 
 format_command_args = stringify_cache_args
 
+SINGLE_KEY_COMMANDS = [
+    "GET",
+    "GETDEL",
+    "GETEX",
+    "GETRANGE",
+    "GETSET",
+    "LINDEX",
+    "LRANGE",
+    "RPOP",
+    "LPOP",
+    "HGET",
+    "HGETALL",
+    "HKEYS",
+    "HMGET",
+    "HRANDFIELD",
+    "HVALS",
+]
+MULTI_KEY_COMMANDS = ["MGET"]
+ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
+
 
 def _extract_conn_tags(conn_kwargs):
     """Transform redis conn info into dogtrace metas"""
@@ -34,6 +54,39 @@ def _extract_conn_tags(conn_kwargs):
         return conn_tags
     except Exception:
         return {}
+
+
+def determine_row_count(redis_command, span, result):
+    empty_results = [b"", [], {}, None]
+    # result can be an empty list / dict / string
+    if result not in empty_results:
+        if redis_command == "MGET":
+            # only include valid key results within count
+            result = [x for x in result if x not in empty_results]
+            span.set_metric(db.ROWCOUNT, len(result))
+        elif redis_command == "HMGET":
+            # only include valid key results within count
+            result = [x for x in result if x not in empty_results]
+            span.set_metric(db.ROWCOUNT, 1 if len(result) > 0 else 0)
+        else:
+            span.set_metric(db.ROWCOUNT, 1)
+    else:
+        # set count equal to 0 if an empty result
+        span.set_metric(db.ROWCOUNT, 0)
+
+
+def _run_redis_command(span, func, args, kwargs):
+    parsed_command = stringify_cache_args(args)
+    redis_command = parsed_command.split(" ")[0]
+    try:
+        result = func(*args, **kwargs)
+        if redis_command in ROW_RETURNING_COMMANDS:
+            determine_row_count(redis_command=redis_command, span=span, result=result)
+        return result
+    except Exception:
+        if redis_command in ROW_RETURNING_COMMANDS:
+            span.set_metric(db.ROWCOUNT, 0)
+        raise
 
 
 @contextmanager
@@ -81,6 +134,28 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, i
         if not is_cluster:
             span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
+        # set analytics sample rate if enabled
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
+        # yield the span in case the caller wants to build on span
+        yield span
+
+
+@contextmanager
+def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, resource, instance):
+    """Create a span for the execute async cluster pipeline method and tag it"""
+    with pin.tracer.trace(
+        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        resource=resource,
+        service=trace_utils.ext_service(pin, config_integration),
+        span_type=SpanTypes.REDIS,
+    ) as span:
+        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span.set_tag_str(COMPONENT, config_integration.integration_name)
+        span.set_tag_str(db.SYSTEM, redisx.APP)
+        span.set_tag(SPAN_MEASURED_KEY)
+        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
+        span.set_tag_str(span_name, resource)
+        span.set_metric(redisx.PIPELINE_LEN, len(instance._command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
         # yield the span in case the caller wants to build on span

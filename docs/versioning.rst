@@ -4,10 +4,8 @@
 Versioning
 **********
 
-
 Release support
 ===============
-
 
 .. list-table::
    :header-rows: 1
@@ -16,18 +14,19 @@ Release support
      - :ref:`Support level<versioning_support_levels>`
      - Minimum Datadog Agent
    * - ``<1``
-     - :ref:`Maintenance<versioning_support_maintenace>`
+     - :ref:`End of Life<versioning_support_eol>`
      -
    * - ``>=1.0,<2``
+     - :ref:`Maintenance<versioning_support_maintenance>`
+     - 7.28
+   * - ``>=2.0,<3``
      - :ref:`General Availability<versioning_support_ga>`
      - 7.28
-
 
 .. _versioning_support_levels:
 
 Support levels
 ==============
-
 
 .. list-table::
    :header-rows: 1
@@ -37,20 +36,20 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Support for new features, bug and security fixes. Bug and security fixes are backported to the latest minor release branch.
+     - Receives new features, bug fixes, and security fixes. Fixes are backported to the three most recent minor releases.
 
-       .. _versioning_support_maintenace:
+       .. _versioning_support_maintenance:
    * - Maintenance
-     - Does not receive new features. Support for critical bug fixes and security fixes only. Applicable bug and security fixes are backported to the latest minor release branch.
-   * - End-of-life
-     - No support.
+     - Does not receive new features. Receives only those bug fixes and security fixes considered "critical". Fixes are backported to the most recent minor release.
 
+       .. _versioning_support_eol:
+   * - End-of-Life (EOL)
+     - No support.
 
 .. _versioning_release:
 
 Release versions
 ================
-
 
 The non-negative integer components of the **version format** (``v<MAJOR>.<MINOR>.<PATCH>``) are incremented by the criteria:
 
@@ -81,6 +80,7 @@ For semantic versioning purposes, the public API is defined as follows.
 The definition of the **public** interface:
     Any module, function, class or attribute that is not internal
 
+
 The definition of the **internal** interface:
     The ``ddtrace.internal`` module is internal
 
@@ -109,15 +109,30 @@ Supported runtimes
    * - Linux
      - x86-64, i686, AArch64
      - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - MacOS
+     - Intel, Apple Silicon
+     - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - Windows
+     - 64bit, 32bit
+     - CPython
+     - 3.7-3.12
+     - ``>=2.0,<3``
+   * - Linux
+     - x86-64, i686, AArch64
+     - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``
    * - MacOS
      - Intel, Apple Silicon
      - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``
    * - Windows
      - 64bit, 32bit
      - CPython
      - 2.7, 3.5-3.11
-     - ``<2``
+     - ``>=1.0,<2``

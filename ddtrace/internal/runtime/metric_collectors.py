@@ -49,7 +49,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     for more information.
     """
 
-    required_modules = ["ddtrace.vendor.psutil"]
+    required_modules = ["psutil"]
     delta_funs = {
         CPU_TIME_SYS: lambda p: p.cpu_times().system,
         CPU_TIME_USER: lambda p: p.cpu_times().user,
@@ -63,7 +63,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     }
 
     def _on_modules_load(self):
-        self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
+        self.proc = self.modules["psutil"].Process(os.getpid())
         self.stored_values = {key: 0 for key in self.delta_funs.keys()}
 
     def collect_fn(self, keys):
@@ -71,9 +71,9 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
             metrics = {}
 
             # Populate metrics for which we compute delta values
-            for metric, func in self.delta_funs.items():
+            for metric, delta_fun in self.delta_funs.items():
                 try:
-                    value = func(self.proc)
+                    value = delta_fun(self.proc)
                 except Exception:
                     value = 0
 
@@ -82,9 +82,9 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 metrics[metric] = delta
 
             # Populate metrics that just take instantaneous reading
-            for metric, fun in self.abs_funs.items():
+            for metric, abs_fun in self.abs_funs.items():
                 try:
-                    value = func(self.proc)
+                    value = abs_fun(self.proc)
                 except Exception:
                     value = 0
 

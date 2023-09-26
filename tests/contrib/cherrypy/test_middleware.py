@@ -53,6 +53,13 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
             distributed_tracing=True,
         )
 
+    def test_get_version(self):
+        from ddtrace.contrib.cherrypy import get_version
+
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`
         # and `TraceMiddleware` are used together. `traced_app` MUST
@@ -574,7 +581,7 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
@@ -633,4 +640,4 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out

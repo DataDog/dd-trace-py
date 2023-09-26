@@ -1,12 +1,12 @@
 import os
 
 import urllib3
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -38,11 +38,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(urllib3, "__version__", "")
+
+
 def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
         return
-    setattr(urllib3, "__datadog_patch", True)
+    urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
@@ -51,7 +56,7 @@ def patch():
 def unpatch():
     """Disable trace for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):
-        setattr(urllib3, "__datadog_patch", False)
+        urllib3.__datadog_patch = False
 
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
 

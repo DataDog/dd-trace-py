@@ -1,9 +1,9 @@
 import pylons
 from pylons import config
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config as ddconfig
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils import get_argument_value
 from .compat import legacy_pylons
@@ -17,7 +17,7 @@ def trace_rendering():
     # patch only once
     if getattr(pylons.templating, "__datadog_patch", False):
         return
-    setattr(pylons.templating, "__datadog_patch", True)
+    pylons.templating.__datadog_patch = True
 
     if legacy_pylons:
         # Pylons <= 0.9.7

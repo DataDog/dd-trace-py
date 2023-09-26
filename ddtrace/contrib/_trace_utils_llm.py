@@ -24,6 +24,10 @@ class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
     def __init__(self, config, stats_url, site, api_key):
+        # FIXME: this currently does not consider if the tracer is configured to
+        # use a different hostname. eg. tracer.configure(host="new-hostname")
+        # Ideally the metrics client should live on the tracer or some other core
+        # object that is strongly linked with configuration.
         self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
         self._config = config
         self._log_writer = V2LogWriter(
@@ -52,13 +56,13 @@ class BaseLLMIntegration:
         self._log_writer.start()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span):
-        # type: (Span) -> None
+    def _set_base_span_tags(self, span, **kwargs):
+        # type: (Span, Dict[str, Any]) -> None
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id):
-        # type: (Pin, str) -> Span
+    def trace(self, pin, operation_id, **kwargs):
+        # type: (Pin, str, Dict[str, Any]) -> Span
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -69,11 +73,12 @@ class BaseLLMIntegration:
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
-        self._set_base_span_tags(span)
+        self._set_base_span_tags(span, **kwargs)
         return span
 
+    @classmethod
     @abc.abstractmethod
-    def _logs_tags(self, span):
+    def _logs_tags(cls, span):
         # type: (Span) -> str
         """Generate ddtags from the corresponding span."""
         pass
@@ -98,8 +103,9 @@ class BaseLLMIntegration:
         log.update(attrs)
         self._log_writer.enqueue(log)
 
+    @classmethod
     @abc.abstractmethod
-    def _metrics_tags(self, span):
+    def _metrics_tags(cls, span):
         # type: (Span) -> list
         """Generate a list of metrics tags from a given span."""
         return []

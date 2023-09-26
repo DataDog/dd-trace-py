@@ -3,13 +3,13 @@ import os
 
 import aioredis
 import pytest
+from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.aioredis.patch import aioredis_version
 from ddtrace.contrib.aioredis.patch import patch
 from ddtrace.contrib.aioredis.patch import unpatch
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -136,7 +136,7 @@ async def test_closed_connection_pool(single_pool_redis_client):
         return single_pool_redis_client.get("cheese")
 
     # start running the task after blocking the pool
-    with (await single_pool_redis_client):
+    with await single_pool_redis_client:
         task = [asyncio.ensure_future(execute_task())]
     # Pool is released, make sure we wait for the task to finish
     await asyncio.gather(*task, return_exceptions=True)
@@ -274,7 +274,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
     """
 
     async with redis_client.pipeline(transaction=True) as p:
-        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+        set_1, set_2, get_1, get_2 = await p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute()
 
     # response from redis.set is OK if successfully pushed
     assert set_1 is True

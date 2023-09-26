@@ -1,6 +1,7 @@
 from importlib import import_module
 import inspect
 import os
+from typing import List
 
 from ddtrace import Pin
 from ddtrace import config
@@ -14,6 +15,8 @@ try:
 # catch async function syntax errors when using Python<3.7 with no async support
 except SyntaxError:
     pass
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
@@ -21,7 +24,6 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
@@ -74,6 +76,19 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
+PATCHED_VERSIONS = {}
+
+
+def get_versions():
+    # type: () -> List[str]
+    return PATCHED_VERSIONS
+
+
 def _psycopg_modules():
     module_names = (
         "psycopg",
@@ -97,7 +112,9 @@ def _patch(psycopg_module):
     """
     if getattr(psycopg_module, "_datadog_patch", False):
         return
-    setattr(psycopg_module, "_datadog_patch", True)
+    psycopg_module._datadog_patch = True
+
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 
@@ -130,7 +147,7 @@ def unpatch():
 
 def _unpatch(psycopg_module):
     if getattr(psycopg_module, "_datadog_patch", False):
-        setattr(psycopg_module, "_datadog_patch", False)
+        psycopg_module._datadog_patch = False
 
         if psycopg_module.__name__ == "psycopg2":
             _u(psycopg_module, "connect")
@@ -144,8 +161,8 @@ def _unpatch(psycopg_module):
 
             # _u throws an attribute error for Python 3.11, no __get__ on the BoundFunctionWrapper
             # unlike Python Class Methods which implement __get__
-            setattr(psycopg_module.Connection, "connect", _original_connect)
-            setattr(psycopg_module.AsyncConnection, "connect", _original_async_connect)
+            psycopg_module.Connection.connect = _original_connect
+            psycopg_module.AsyncConnection.connect = _original_async_connect
 
         pin = Pin.get_from(psycopg_module)
         if pin:
@@ -168,7 +185,7 @@ def init_cursor_from_connection_factory(psycopg_module):
         pin = Pin.get_from(connection).clone()
         cfg = config.psycopg
 
-        if cfg and getattr(cfg, "trace_fetch_methods") and cfg.trace_fetch_methods:
+        if cfg and cfg.trace_fetch_methods:
             trace_fetch_methods = True
         else:
             trace_fetch_methods = False
@@ -190,7 +207,7 @@ def init_cursor_from_connection_factory(psycopg_module):
             # else just use the connection row factory
             if row_factory is None:
                 row_factory = connection.row_factory
-            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)
+            cursor = wrapped_cursor_cls(connection=connection, row_factory=row_factory, *args, **kwargs)  # noqa: B026
         else:
             cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 

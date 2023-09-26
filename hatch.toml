@@ -1,0 +1,124 @@
+[envs.lint]
+detached = true
+python = "3.10"
+dependencies = [
+    "black==21.4b2",
+    "isort==5.12.0",
+    # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
+    "click<8.1.0",
+    "cython-lint",
+    "codespell==2.1.0",
+    "bandit",
+    "mypy==0.991",
+    "coverage",
+    "envier==0.4.0",
+    "types-attrs==19.1.0",
+    "types-docutils==0.19.1.1",
+    "types-protobuf==3.20.4.5",
+    "types-PyYAML==6.0.12.2",
+    "types-setuptools==65.6.0.0",
+    "types-six==1.16.21.4",
+    "ddapm-test-agent>=1.2.0",
+    "packaging",
+    "flake8>=3.8,<3.9",
+    "flake8-blind-except",
+    "flake8-builtins",
+    "flake8-docstrings",
+    "flake8-bugbear",
+    "flake8-logging-format",
+    "flake8-rst-docstrings",
+    "flake8-isort",
+    "pygments",
+    "riot==0.19.0",
+]
+
+[envs.lint.scripts]
+style = [
+    "isort --check --diff {args:.}",
+    "black --check --diff {args:.}",
+    "flake8 {args}",
+    "cython-lint {args:.}",
+]
+spelling = [
+    "codespell --skip='ddwaf.h' {args:ddtrace/ tests/}",
+]
+typing = [
+    "mypy {args}",
+]
+security = [
+    "bandit -c pyproject.toml {args:-r ddtrace/}",
+]
+fmt-snapshots = [
+    "ddapm-test-agent-fmt {args:tests/snapshots/}",
+]
+riot = [
+    "python -m doctest {args} riotfile.py"
+]
+fmt = [
+    "black {args:.}",
+    "isort {args:.}",
+]
+
+[envs.docs]
+template = "docs"
+dev-mode = false
+python = "3.10"
+features = ["opentracing"]
+extra-dependencies = [
+    "reno[sphinx]~=3.5.0",
+    "sphinx~=4.0",
+    "sphinxcontrib-spelling==7.7.0",
+    "PyEnchant==3.2.2",
+    "sphinx-copybutton==0.5.1",
+    # Later release of furo breaks formatting for code blocks
+    "furo<=2023.05.20",
+]
+pre-install-commands = [
+    "scripts/docs/install.sh",
+]
+
+[envs.docs.scripts]
+build = [
+    "scripts/docs/build.sh",
+]
+
+[envs.docs.overrides]
+# Local MacOS development requires Docker containers
+platform.macos.type = { value = "container" }
+
+[envs.slotscheck]
+template = "slotscheck"
+python = "3.10"
+features = ["opentracing"]
+extra-dependencies = [
+    "slotscheck==0.17.0",
+]
+
+[envs.slotscheck.scripts]
+_ = [
+    "python -m slotscheck -v ddtrace/",
+]
+
+
+[envs.scripts]
+detached = true
+python = "3.10"
+extra-dependencies = [
+    "packaging==23.1",
+]
+
+[envs.scripts.scripts]
+test = [
+    "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
+]
+
+[envs.meta-testing]
+extra-dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis<6.45.1"
+]
+[envs.meta-testing.scripts]
+meta-testing = [
+  "pytest {args} tests/meta"
+]

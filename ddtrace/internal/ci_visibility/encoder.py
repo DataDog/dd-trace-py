@@ -1,10 +1,9 @@
 import json
 import threading
-from typing import Any
-from typing import Dict
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
@@ -16,11 +15,15 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
     from typing import List
     from typing import Optional
 
@@ -32,7 +35,11 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ALLOWED_METADATA_KEYS = ("language", "library_version", "runtime-id", "env")
     PAYLOAD_FORMAT_VERSION = 1
     TEST_SUITE_EVENT_VERSION = 1
-    TEST_EVENT_VERSION = 2
+    # Change to 1 to allow unittest tests without module or session spans
+    if config._ci_visibility_unittest_enabled:
+        TEST_EVENT_VERSION = 1
+    else:
+        TEST_EVENT_VERSION = 2
 
     def __init__(self, *args):
         super(CIVisibilityEncoderV01, self).__init__()
@@ -66,17 +73,38 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             return payload
 
     def _build_payload(self, traces):
-        normalized_spans = [
-            CIVisibilityEncoderV01._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace
-        ]
+        normalized_spans = [self._convert_span(span, trace[0].context.dd_origin) for trace in traces for span in trace]
         self._metadata = {k: v for k, v in self._metadata.items() if k in self.ALLOWED_METADATA_KEYS}
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
-        return msgpack_packb(
+        return CIVisibilityEncoderV01._pack_payload(
             {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": {"*": self._metadata}, "events": normalized_spans}
         )
 
     @staticmethod
-    def _convert_span(span, dd_origin):
+    def _pack_payload(payload):
+        if PY2:
+            payload = CIVisibilityEncoderV01._py2_payload_force_unicode_strings(payload)
+
+        return msgpack_packb(payload)
+
+    @staticmethod
+    def _py2_payload_force_unicode_strings(payload):
+        def _ensure_text_strings(o):
+            if type(o) == str:
+                return ensure_text(o)
+            return o
+
+        if type(payload) == list:
+            return [CIVisibilityEncoderV01._py2_payload_force_unicode_strings(item) for item in payload]
+        if type(payload) == dict:
+            return {
+                _ensure_text_strings(k): CIVisibilityEncoderV01._py2_payload_force_unicode_strings(v)
+                for k, v in payload.items()
+            }
+
+        return _ensure_text_strings(payload)
+
+    def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
@@ -137,6 +165,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     PAYLOAD_FORMAT_VERSION = 2
     boundary = uuid4().hex
     content_type = "multipart/form-data; boundary=%s" % boundary
+    itr_suite_skipping_mode = False
+
+    def _set_itr_suite_skipping_mode(self, new_value):
+        self.itr_suite_skipping_mode = new_value
 
     def put(self, spans):
         spans_with_coverage = [span for span in spans if COVERAGE_TAG_NAME in span.get_tags()]
@@ -175,10 +207,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _build_data(self, traces):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
-            CIVisibilityCoverageEncoderV02._convert_span(span, "")
-            for trace in traces
-            for span in trace
-            if COVERAGE_TAG_NAME in span.get_tags()
+            self._convert_span(span, "") for trace in traces for span in trace if COVERAGE_TAG_NAME in span.get_tags()
         ]
         if not normalized_covs:
             return None
@@ -192,11 +221,15 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             return None
         return b"\r\n".join(self._build_body(data))
 
-    @staticmethod
-    def _convert_span(span, dd_origin):
+    def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]
-        return {
+        converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
             "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
         }
+
+        if not self.itr_suite_skipping_mode:
+            converted_span["span_id"] = span.span_id
+
+        return converted_span

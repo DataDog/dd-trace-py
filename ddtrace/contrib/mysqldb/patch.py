@@ -1,6 +1,7 @@
 import os
 
 import MySQLdb
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
@@ -10,7 +11,6 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -39,11 +39,16 @@ KWPOS_BY_TAG = {
 }
 
 
+def get_version():
+    # type: () -> str
+    return ".".join(map(str, MySQLdb.version_info[0:3]))
+
+
 def patch():
     # patch only once
     if getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", True)
+    MySQLdb.__datadog_patch = True
 
     Pin().onto(MySQLdb)
 
@@ -59,7 +64,7 @@ def patch():
 def unpatch():
     if not getattr(MySQLdb, "__datadog_patch", False):
         return
-    setattr(MySQLdb, "__datadog_patch", False)
+    MySQLdb.__datadog_patch = False
 
     pin = Pin.get_from(MySQLdb)
     if pin:

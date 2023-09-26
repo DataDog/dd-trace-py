@@ -1,9 +1,10 @@
 import os
 
+import pyramid
 import pyramid.config
+import wrapt
 
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from .constants import SETTINGS_ANALYTICS_ENABLED
@@ -22,6 +23,16 @@ config._add(
 )
 
 DD_PATCH = "_datadog_patch"
+
+
+def get_version():
+    # type: () -> str
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return str(importlib_metadata.version(pyramid.__package__))
 
 
 def patch():

@@ -1,10 +1,10 @@
 import os
 
 import jinja2
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -25,11 +25,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(jinja2, "__version__", "")
+
+
 def patch():
     if getattr(jinja2, "__datadog_patch", False):
         # already patched
         return
-    setattr(jinja2, "__datadog_patch", True)
+    jinja2.__datadog_patch = True
     Pin(
         service=config.jinja2["service_name"],
         _config=config.jinja2,
@@ -43,7 +48,7 @@ def patch():
 def unpatch():
     if not getattr(jinja2, "__datadog_patch", False):
         return
-    setattr(jinja2, "__datadog_patch", False)
+    jinja2.__datadog_patch = False
     _u(jinja2.Template, "render")
     _u(jinja2.Template, "generate")
     _u(jinja2.Environment, "compile")

@@ -10,6 +10,7 @@ from opentelemetry.trace.span import TraceState
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 
@@ -65,23 +66,23 @@ class Span(OtelSpan):
     def _record_exception(self):
         # type: () -> bool
         # default value is True, if record exception key is not set return True
-        return self._ddspan._get_ctx_item(self._RECORD_EXCEPTION_KEY) is not False
+        return core.get_item(self._RECORD_EXCEPTION_KEY, span=self._ddspan) is not False
 
     @_record_exception.setter
     def _record_exception(self, value):
         # type: (bool) -> None
-        self._ddspan._set_ctx_item(self._RECORD_EXCEPTION_KEY, value)
+        core.set_item(self._RECORD_EXCEPTION_KEY, value, span=self._ddspan)
 
     @property
     def _set_status_on_exception(self):
         # type: () -> bool
         # default value is True, if set status on exception key is not set return True
-        return self._ddspan._get_ctx_item(self._SET_EXCEPTION_STATUS_KEY) is not False
+        return core.get_item(self._SET_EXCEPTION_STATUS_KEY, span=self._ddspan) is not False
 
     @_set_status_on_exception.setter
     def _set_status_on_exception(self, value):
         # type: (bool) -> None
-        self._ddspan._set_ctx_item(self._SET_EXCEPTION_STATUS_KEY, value)
+        core.set_item(self._SET_EXCEPTION_STATUS_KEY, value, span=self._ddspan)
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None

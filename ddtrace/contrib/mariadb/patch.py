@@ -1,6 +1,7 @@
 import os
 
 import mariadb
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
@@ -10,7 +11,6 @@ from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.vendor import wrapt
 
 
 config._add(
@@ -23,26 +23,31 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(mariadb, "__version__", "")
+
+
 def patch():
     if getattr(mariadb, "_datadog_patch", False):
         return
-    setattr(mariadb, "_datadog_patch", True)
+    mariadb._datadog_patch = True
     wrapt.wrap_function_wrapper("mariadb", "connect", _connect)
 
 
 def unpatch():
     if getattr(mariadb, "_datadog_patch", False):
-        setattr(mariadb, "_datadog_patch", False)
+        mariadb._datadog_patch = False
         unwrap(mariadb, "connect")
 
 
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
     tags = {
-        net.TARGET_HOST: kwargs["host"],
-        net.TARGET_PORT: kwargs["port"],
-        db.USER: kwargs["user"],
-        db.NAME: kwargs["database"],
+        net.TARGET_HOST: kwargs.get("host", "127.0.0.1"),
+        net.TARGET_PORT: kwargs.get("port", 3306),
+        db.USER: kwargs.get("user", "test"),
+        db.NAME: kwargs.get("database", "test"),
         db.SYSTEM: "mariadb",
     }
 

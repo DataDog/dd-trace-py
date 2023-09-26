@@ -1,10 +1,7 @@
-from ddtrace.appsec.iast.reporter import Evidence
-from ddtrace.appsec.iast.reporter import Location
-from ddtrace.appsec.iast.reporter import Source
-from ddtrace.appsec.iast.reporter import Vulnerability
-
-
-# e and e2 must be logically equal, f and g not equal to e
+from ddtrace.appsec._iast.reporter import Evidence
+from ddtrace.appsec._iast.reporter import Location
+from ddtrace.appsec._iast.reporter import Source
+from ddtrace.appsec._iast.reporter import Vulnerability
 
 
 def _do_assert_hash(e, f, g, e2):
@@ -22,6 +19,16 @@ def test_evidence_hash_and_equality():
     f = Evidence(value="SomeEvidenceValue")
     g = Evidence(value="SomeOtherEvidenceValue")
     e2 = Evidence(value="SomeEvidenceValue")
+
+    _do_assert_hash(e, f, g, e2)
+    _do_assert_equality(e, f, g, e2)
+
+
+def test_evidence_hash_and_equality_valueParts():
+    e = Evidence(valueParts=[{"value": "SomeEvidenceValue"}])
+    f = Evidence(valueParts=[{"value": "SomeEvidenceValue"}])
+    g = Evidence(valueParts=[{"value": "SomeOtherEvidenceValue"}])
+    e2 = Evidence(valueParts=[{"value": "SomeEvidenceValue"}])
 
     _do_assert_hash(e, f, g, e2)
     _do_assert_equality(e, f, g, e2)

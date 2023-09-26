@@ -7,8 +7,8 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "POST",
@@ -18,18 +18,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "runtime-id": "66e637ba14594bcbb77b23f4937316b6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4441
+      "process_id": 12533
     },
-    "duration": 1571000,
-    "start": 1667244145007862000
+    "duration": 11026000,
+    "start": 1692650840463974630
   },
      {
        "name": "sqlite.query",
@@ -39,8 +38,8 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
-       "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"
@@ -50,8 +49,8 @@
          "_dd.top_level": 1,
          "db.row_count": 1
        },
-       "duration": 344000,
-       "start": 1667244145008486000
+       "duration": 5676042,
+       "start": 1692650840465291296
      }],
 [
   {
@@ -62,8 +61,8 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "starlette",
       "http.method": "GET",
@@ -73,18 +72,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
+      "runtime-id": "66e637ba14594bcbb77b23f4937316b6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4441
+      "process_id": 12533
     },
-    "duration": 551000,
-    "start": 1667244145010462000
+    "duration": 2835125,
+    "start": 1692650840476099880
   },
      {
        "name": "sqlite.query",
@@ -94,8 +92,8 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
-       "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"
@@ -104,6 +102,6 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 136000,
-       "start": 1667244145010704000
+       "duration": 1486750,
+       "start": 1692650840477196171
      }]]

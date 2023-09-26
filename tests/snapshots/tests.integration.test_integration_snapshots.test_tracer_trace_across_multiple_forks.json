@@ -1,69 +1,62 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": null,
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52166
+      "process_id": 19794
     },
-    "duration": 861500000,
-    "start": 1631827407768929000
+    "duration": 17556566,
+    "start": 1691163615434076624
   },
      {
        "name": "child1",
-       "service": "",
+       "service": null,
        "resource": "child1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "language": "python",
-         "runtime-id": "da86c61045c247d78f3484fe9e693377"
+         "runtime-id": "60f937fe2fa5494c8aeceab4b18a5174"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 52181
+         "process_id": 19882
        },
-       "duration": 660665000,
-       "start": 1631827407811098000
+       "duration": 8826524,
+       "start": 1691163615437388850
      },
         {
           "name": "child2",
-          "service": "",
+          "service": null,
           "resource": "child2",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "language": "python",
-            "runtime-id": "9181d9085f7e47f5a3eb66709923c2f6"
+            "runtime-id": "0a98b167e74c408abbb58db3fd26a2e7"
           },
           "metrics": {
             "_dd.top_level": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "process_id": 52186
+            "process_id": 19883
           },
-          "duration": 162000,
-          "start": 1631827408305852000
+          "duration": 57412,
+          "start": 1691163615440398294
         }]]

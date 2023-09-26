@@ -2,15 +2,16 @@ import os
 
 import redis
 from six import PY3
+import wrapt
 
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
+from ..trace_utils_redis import _run_redis_command
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
@@ -24,6 +25,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(redis, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods
 
@@ -32,7 +38,7 @@ def patch():
     """
     if getattr(redis, "_datadog_patch", False):
         return
-    setattr(redis, "_datadog_patch", True)
+    redis._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -64,12 +70,26 @@ def patch():
             _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
             Pin(service=None).onto(redis.asyncio.Redis)
+
+        if PY3 and redis.VERSION >= (4, 3, 0):
+            from .asyncio_patch import traced_async_execute_command
+
+            _w("redis.asyncio.cluster", "RedisCluster.execute_command", traced_async_execute_command)
+
+            if redis.VERSION >= (4, 3, 2):
+                from .asyncio_patch import traced_async_execute_cluster_pipeline
+
+                _w("redis.asyncio.cluster", "RedisCluster.pipeline", traced_pipeline)
+                _w("redis.asyncio.cluster", "ClusterPipeline.execute", traced_async_execute_cluster_pipeline)
+
+            Pin(service=None).onto(redis.asyncio.RedisCluster)
+
     Pin(service=None).onto(redis.StrictRedis)
 
 
 def unpatch():
     if getattr(redis, "_datadog_patch", False):
-        setattr(redis, "_datadog_patch", False)
+        redis._datadog_patch = False
 
         if redis.VERSION < (3, 0, 0):
             unwrap(redis.StrictRedis, "execute_command")
@@ -91,6 +111,11 @@ def unpatch():
                 unwrap(redis.asyncio.client.Redis, "pipeline")
                 unwrap(redis.asyncio.client.Pipeline, "execute")
                 unwrap(redis.asyncio.client.Pipeline, "immediate_execute_command")
+            if redis.VERSION >= (4, 3, 0):
+                unwrap(redis.asyncio.cluster.RedisCluster, "execute_command")
+            if redis.VERSION >= (4, 3, 2):
+                unwrap(redis.asyncio.cluster.RedisCluster, "pipeline")
+                unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
 
 
 #
@@ -102,8 +127,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args):
-            return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
+            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command
 

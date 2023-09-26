@@ -6,12 +6,13 @@ import os
 import mock
 from paste import fixture
 from paste.deploy import loadapp
+from paste.fixture import AppError
 import pylons
 import pytest
 from routes import url_for
 
 from ddtrace import config
-from ddtrace.appsec.ddwaf import _DDWAF_LOADED
+from ddtrace.appsec._ddwaf import _DDWAF_LOADED
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -20,7 +21,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -129,7 +130,7 @@ class PylonsTestCase(TracerTestCase):
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service="web")
         app = fixture.TestApp(app)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Middleware exception"):
             app.get(url_for(controller="root", action="index"))
 
         spans = self.pop_spans()
@@ -223,11 +224,11 @@ class PylonsTestCase(TracerTestCase):
             if config.pylons.trace_query_string:
                 assert span.get_tag(http.QUERY_STRING) == query_string
                 if config._appsec:
-                    assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/?" + query_string
+                    assert core.get_item("http.request.uri", span=span) == "http://localhost:80/?" + query_string
             else:
                 assert http.QUERY_STRING not in span.get_tags()
                 if config._appsec:
-                    assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/"
+                    assert core.get_item("http.request.uri", span=span) == "http://localhost:80/"
             assert span.error == 0
 
     def test_query_string(self):
@@ -323,7 +324,7 @@ class PylonsTestCase(TracerTestCase):
         assert template.error == 0
 
     def test_template_render_exception(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="integer division or modulo by zero"):
             self.app.get(url_for(controller="root", action="render_exception"))
 
         spans = self.pop_spans()
@@ -345,7 +346,7 @@ class PylonsTestCase(TracerTestCase):
         assert "ZeroDivisionError: integer division or modulo by zero" in template.get_tag("error.stack")
 
     def test_failure_500(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_exception"))
 
         spans = self.pop_spans()
@@ -364,7 +365,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_wrong_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_wrong_code"))
 
         spans = self.pop_spans()
@@ -383,7 +384,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_custom_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_custom_code"))
 
         spans = self.pop_spans()
@@ -402,7 +403,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_code_method(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_code_method"))
 
         spans = self.pop_spans()
@@ -541,7 +542,7 @@ class PylonsTestCase(TracerTestCase):
             appsec_json = root_span.get_tag("_dd.appsec.json")
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            span = _context.get_item("http.request.cookies", span=root_span)
+            span = core.get_item("http.request.cookies", span=root_span)
             assert span["attack"] == "w00tw00t.at.isc.sans.dfind"
 
     def test_pylons_cookie(self):
@@ -556,7 +557,7 @@ class PylonsTestCase(TracerTestCase):
             root_span = spans[0]
 
             assert root_span.get_tag("_dd.appsec.json") is None
-            span = _context.get_item("http.request.cookies", span=root_span)
+            span = core.get_item("http.request.cookies", span=root_span)
             assert span["testingcookie_key"] == "testingcookie_value"
 
     def test_pylons_body_urlencoded(self):
@@ -577,7 +578,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -592,7 +593,7 @@ class PylonsTestCase(TracerTestCase):
         root_span = spans[0]
 
         assert root_span
-        assert not _context.get_item("http.request.body", span=root_span)
+        assert not core.get_item("http.request.body", span=root_span)
 
     @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_urlencoded_attack(self):
@@ -614,7 +615,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json
                 assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-                query = dict(_context.get_item("http.request.body", span=root_span))
+                query = dict(core.get_item("http.request.body", span=root_span))
                 assert query == {"attack": "1' or '1' = '1'"}
 
     def test_pylons_body_json(self):
@@ -636,7 +637,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -662,7 +663,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json
                 assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-                span = dict(_context.get_item("http.request.body", span=root_span))
+                span = dict(core.get_item("http.request.body", span=root_span))
                 assert span
                 assert span == {"attack": "1' or '1' = '1'"}
 
@@ -686,7 +687,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
@@ -714,7 +715,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json is None
 
                 assert "UnicodeDecodeError" not in self._caplog.text
-                assert _context.get_item("http.request.body", span=root_span) is None
+                assert core.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_json_unicode_decode_error(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
@@ -736,7 +737,7 @@ class PylonsTestCase(TracerTestCase):
                 assert appsec_json is None
 
                 assert "UnicodeDecodeError" not in self._caplog.text
-                assert _context.get_item("http.request.body", span=root_span) is None
+                assert core.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_xml_attack_and_unicode_decode_error(self):
         with override_global_config(dict(_appsec_enabled=True)):
@@ -758,7 +759,7 @@ class PylonsTestCase(TracerTestCase):
             assert "UnicodeDecodeError" not in self._caplog.text
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = dict(_context.get_item("http.request.body", span=root_span))
+            span = dict(core.get_item("http.request.body", span=root_span))
             assert span
             assert span == {"attack": "1' or '1' = '1'"}
 
@@ -781,7 +782,7 @@ class PylonsTestCase(TracerTestCase):
             assert root_span
             assert root_span.get_tag("_dd.appsec.json") is None
 
-            span = _context.get_item("http.request.body", span=root_span)
+            span = core.get_item("http.request.body", span=root_span)
             assert span is None
 
     def test_pylons_body_plain_attack(self):
@@ -803,7 +804,7 @@ class PylonsTestCase(TracerTestCase):
             appsec_json = root_span.get_tag("_dd.appsec.json")
             assert "triggers" not in json.loads(appsec_json if appsec_json else "{}")
 
-            span = _context.get_item("http.request.body", span=root_span)
+            span = core.get_item("http.request.body", span=root_span)
             assert span is None
 
     def test_request_method_get_200(self):
@@ -813,7 +814,7 @@ class PylonsTestCase(TracerTestCase):
         assert spans[0].get_tag("http.method") == "GET"
 
     def test_request_method_get_404(self):
-        with pytest.raises(Exception):
+        with pytest.raises(AppError):
             res = self.app.get(url_for(controller="root", action="index") + "nonexistent-path")
             assert res.status == 404
         spans = self.pop_spans()
@@ -834,7 +835,7 @@ class PylonsTestCase(TracerTestCase):
             spans = self.pop_spans()
             root_span = spans[0]
             assert root_span.get_tag("_dd.appsec.json") is None
-            path_params = _context.get_item("http.request.path_params", span=root_span)
+            path_params = core.get_item("http.request.path_params", span=root_span)
 
             assert path_params["month"] == "july"
             assert path_params["year"] == "2022"
@@ -853,7 +854,7 @@ class PylonsTestCase(TracerTestCase):
             appsec_json = root_span.get_tag("_dd.appsec.json")
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
-            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            query = dict(core.get_item("http.request.path_params", span=root_span))
             assert query["month"] == "w00tw00t.at.isc.sans.dfind"
             assert query["year"] == "2022"
 

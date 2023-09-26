@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a bug that caused applications using gevent and cassandra to fail to
+    start with the ddtrace-run command.

@@ -1,6 +1,6 @@
 # `ddtrace`
 
-[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x)
+[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/2.x.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/2.x)
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 [![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 
@@ -11,7 +11,9 @@ This library powers [Distributed Tracing](https://docs.datadoghq.com/tracing/),
  [Error Tracking](https://docs.datadoghq.com/tracing/error_tracking/),
  [Continuous Integration Visibility](https://docs.datadoghq.com/continuous_integration/),
  [Deployment Tracking](https://docs.datadoghq.com/tracing/deployment_tracking/),
- [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/) and more.
+ [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/),
+ [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/),
+ and more.
 
 To get started with tracing, check out the [product documentation][setup docs] or the [glossary][visualization docs].
 

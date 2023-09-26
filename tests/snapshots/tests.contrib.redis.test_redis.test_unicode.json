@@ -7,28 +7,28 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
-      "runtime-id": "b8f85bec81c04f81aa7a1e60a8dd199f",
+      "runtime-id": "3cf1df7fb079462ab81608355e026651",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "db.row_count": 0,
       "network.destination.port": 6379,
       "out.redis_db": 0,
-      "process_id": 64515,
+      "process_id": 19999,
       "redis.args_length": 2
     },
-    "duration": 4348000,
-    "start": 1667243546612831000
+    "duration": 512083,
+    "start": 1692651822408832834
   }]]

@@ -3,8 +3,9 @@ import sqlite3
 import sqlite3.dbapi2
 import sys
 
+import wrapt
+
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
@@ -30,11 +31,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return sqlite3.sqlite_version
+
+
 def patch():
     wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 
-    setattr(sqlite3, "connect", wrapped)
-    setattr(sqlite3.dbapi2, "connect", wrapped)
+    sqlite3.connect = wrapped
+    sqlite3.dbapi2.connect = wrapped
 
 
 def unpatch():

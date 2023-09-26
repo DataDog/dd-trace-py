@@ -17,13 +17,15 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
+import wrapt
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import six
@@ -34,7 +36,6 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -438,6 +439,7 @@ def set_http_meta(
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
     route=None,  # type: Optional[str]
+    response_cookies=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
     """
@@ -492,7 +494,7 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = _context.get_item("http.request.remote_ip", span=span)
+            request_ip = core.get_item("http.request.remote_ip", span=span)
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
@@ -514,12 +516,16 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        from ddtrace.appsec.iast._util import _is_iast_enabled
+        from ddtrace.appsec._iast._utils import _is_iast_enabled
 
-        if request_cookies and _is_iast_enabled():
-            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
+        if _is_iast_enabled():
+            from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-            asm_check_cookies(request_cookies)
+            if request_cookies:
+                asm_check_cookies(request_cookies)
+
+            if response_cookies:
+                asm_check_cookies(response_cookies)
 
         if span.span_type == SpanTypes.WEB:
             from ddtrace.appsec._asm_request_context import set_waf_address
@@ -622,14 +628,24 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
-    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool) -> None
+def set_user(
+    tracer,  # type: Tracer
+    user_id,  # type: str
+    name=None,  # type: Optional[str]
+    email=None,  # type: Optional[str]
+    scope=None,  # type: Optional[str]
+    role=None,  # type: Optional[str]
+    session_id=None,  # type: Optional[str]
+    propagate=False,  # type bool
+    span=None,  # type: Optional[Span]
+):
+    # type: (...) -> None
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
-
-    span = tracer.current_root_span()
+    if span is None:
+        span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
         str_user_id = str(user_id)

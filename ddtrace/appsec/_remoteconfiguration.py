@@ -3,9 +3,9 @@ import os
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
-from ddtrace.appsec.utils import _appsec_rc_file_is_not_static
+from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -64,7 +64,11 @@ def enable_appsec_rc(test_tracer=None):
         tracer = test_tracer
 
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
-    asm_callback = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+    asm_callback = (
+        remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+        or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+        or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+    )
 
     if _appsec_rc_features_is_enabled():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
@@ -73,6 +77,15 @@ def enable_appsec_rc(test_tracer=None):
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+
+
+def disable_appsec_rc():
+    # only used to avoid data leaks between tests
+
+    remoteconfig_poller.unregister(PRODUCTS.ASM_FEATURES)
+    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+    remoteconfig_poller.unregister(PRODUCTS.ASM)
+    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
 
 def _add_rules_to_list(features, feature, message, ruleset):
@@ -130,9 +143,6 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             features.get("asm", {}),
         )
 
-        if not pubsub_instance:
-            pubsub_instance = AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
-
         rc_appsec_enabled = None
         if features is not None:
             if APPSEC_ENV in os.environ:
@@ -151,6 +161,13 @@ def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None)
             )
             if rc_appsec_enabled is not None:
                 from ddtrace.appsec._constants import PRODUCTS
+
+                if not pubsub_instance:
+                    pubsub_instance = (
+                        remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
+                        or remoteconfig_poller.get_registered(PRODUCTS.ASM)
+                        or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
+                    )
 
                 if rc_appsec_enabled and _appsec_rc_file_is_not_static():
                     remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
@@ -199,7 +216,6 @@ def _appsec_1click_activation(features, test_tracer=None):
 
         log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
         if rc_appsec_enabled is not None:
-
             log.debug(
                 "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
                 os.getpid(),

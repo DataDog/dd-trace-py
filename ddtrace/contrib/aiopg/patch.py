@@ -3,13 +3,18 @@ import asyncio
 
 import aiopg.connection
 import psycopg2.extensions
+import wrapt
 
 from ddtrace.contrib.aiopg.connection import AIOTracedConnection
 from ddtrace.contrib.psycopg.connection import patch_conn as psycopg_patch_conn
 from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.vendor import wrapt
+
+
+def get_version():
+    # type: () -> str
+    return getattr(aiopg, "__version__", "")
 
 
 def patch():
@@ -18,7 +23,7 @@ def patch():
     """
     if getattr(aiopg, "_datadog_patch", False):
         return
-    setattr(aiopg, "_datadog_patch", True)
+    aiopg._datadog_patch = True
 
     wrapt.wrap_function_wrapper(aiopg.connection, "_connect", patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
@@ -26,7 +31,7 @@ def patch():
 
 def unpatch():
     if getattr(aiopg, "_datadog_patch", False):
-        setattr(aiopg, "_datadog_patch", False)
+        aiopg._datadog_patch = False
         _u(aiopg.connection, "_connect")
         _unpatch_extensions(_aiopg_extensions)
 

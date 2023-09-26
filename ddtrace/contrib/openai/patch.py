@@ -3,11 +3,14 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from openai import version
+
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 
@@ -34,6 +37,11 @@ config._add(
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return version.VERSION
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
@@ -73,7 +81,8 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 else:
                     span.set_tag_str("openai.%s" % attr, v)
 
-    def _logs_tags(self, span):
+    @classmethod
+    def _logs_tags(cls, span):
         tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s," "openai.user.api_key:%s" % (  # noqa: E501
             (config.env or ""),
             (config.version or ""),
@@ -85,7 +94,8 @@ class _OpenAIIntegration(BaseLLMIntegration):
         )
         return tags
 
-    def _metrics_tags(self, span):
+    @classmethod
+    def _metrics_tags(cls, span):
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
@@ -314,7 +324,7 @@ def patch():
             _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
         )
 
-    setattr(openai, "__datadog_patch", True)
+    openai.__datadog_patch = True
 
 
 def unpatch():
@@ -331,13 +341,15 @@ def _patched_make_session(func, args, kwargs):
     This should technically be a ``peer.service`` but this concept doesn't exist yet.
     """
     session = func(*args, **kwargs)
-    Pin.override(session, service="openai")
+    service = schematize_service_name("openai")
+    Pin.override(session, service=service)
     return session
 
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
+    err = None
     if openai_api_key:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
@@ -346,22 +358,23 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
         hook.send(None)
 
-        resp, error = yield
+        resp, err = yield
 
         # Record any error information
-        if error is not None:
+        if err is not None:
             span.set_exc_info(*sys.exc_info())
             integration.metric(span, "incr", "request.error", 1)
 
         # Pass the response and the error to the hook
         try:
-            hook.send((resp, error))
+            hook.send((resp, err))
         except StopIteration as e:
-            if error is None:
+            if err is None:
                 return e.value
     finally:
-        # Streamed responses will be finished when the generator exits.
-        if not kwargs.get("stream"):
+        # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
+        # Streamed responses with error will need to be finished manually as well.
+        if not kwargs.get("stream") or err is not None:
             span.finish()
             integration.metric(span, "dist", "request.duration", span.duration_ns)
 
@@ -387,7 +400,7 @@ def _patched_endpoint(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 
@@ -413,7 +426,7 @@ def _patched_endpoint_async(openai, integration, patch_hook):
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
-                    return e.value
+                    return e.value  # noqa: B012
 
     return patched_endpoint
 

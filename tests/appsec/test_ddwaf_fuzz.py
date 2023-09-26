@@ -4,8 +4,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
-from ddtrace.appsec.ddwaf.ddwaf_types import _observator
-from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_object
+from ddtrace.appsec._ddwaf.ddwaf_types import _observator
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 
 
 SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())
@@ -37,15 +37,19 @@ class _AnyObject:
 @pytest.mark.parametrize(
     "obj, res",
     [
-        (32, "32"),
+        (32, 32),
         (True, True),
         ("test", "test"),
         (b"test", "test"),
-        (1.0, "1.0"),
-        ([1, 2], ["1", "2"]),
+        (1.0, 1.0),
+        ([1, 2], [1, 2]),
+        ([1, "a", 3.14, -3], [1, "a", 3.14, -3]),
         ({"test": "truc"}, {"test": "truc"}),
         (None, None),
         (_AnyObject(), _AnyObject.cst),
+        ((1 << 64) - 1, -1),  # integers are now on 64 signed bits into the waf
+        ((1 << 63) - 1, (1 << 63) - 1),
+        (float("inf"), float("inf")),
     ],
 )
 def test_small_objects(obj, res):
@@ -56,12 +60,12 @@ def test_small_objects(obj, res):
 @pytest.mark.parametrize(
     "obj, res, trunc",
     [
-        (324, "324", 0),  # integers are formatted into strings by libddwaf and are not truncated
+        (324, 324, 0),  # integers are no more formatted into strings by libddwaf and are not truncated
         (True, True, 0),
         ("toast", "to", 1),
         (b"toast", "to", 1),
-        (1.034, "1.", 1),
-        ([1, 2], ["1"], 2),
+        (1.034, 1.034, 0),
+        ([1, 2], [1], 2),
         ({"toast": "touch", "tomato": "tommy"}, {"to": "to"}, 3),
         (None, None, 0),
         (_AnyObject(), _AnyObject.cst[:2], 1),

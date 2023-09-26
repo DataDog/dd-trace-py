@@ -10,6 +10,7 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
+from ddtrace._logger import _configure_log_injection
 from ddtrace.debugging._config import di_config  # noqa
 from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
@@ -19,50 +20,21 @@ from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode  # noqa
-from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
+# Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config.logs_injection:
-    # immediately patch logging if trace id injected
-    from ddtrace import patch
+    _configure_log_injection()
 
-    patch(logging=True)
-
-
-# DEV: Once basicConfig is called here, future calls to it cannot be used to
-# change the formatter since it applies the formatter to the root handler only
-# upon initializing it the first time.
-# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
-# Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-if not debug_mode and call_basic_config:
-    deprecate(
-        "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
-    )
-    if config.logs_injection:
-        logging.basicConfig(format=DD_LOG_FORMAT)
-    else:
-        logging.basicConfig()
 
 log = get_logger(__name__)
 
 
-if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
-    deprecate(
-        "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
-        postfix="There is no special configuration necessary to make ddtrace work with gevent if using ddtrace-run. "
-        "If not using ddtrace-run, import ddtrace.auto before calling gevent.monkey.patch_all().",
-        removal_version="2.0.0",
-    )
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
     if gevent.monkey.is_module_patched("threading"):
-        warnings.warn(
+        warnings.warn(  # noqa: B028
             "Loading ddtrace after gevent.monkey.patch_all() is not supported and is "
             "likely to break the application. Use ddtrace-run to fix this, or "
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
@@ -108,8 +80,10 @@ def cleanup_loaded_modules():
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
+            "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
+            "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
     )
@@ -165,24 +139,20 @@ try:
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if config._runtime_metrics_enabled:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._util import _is_python_version_supported
+        from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 
-            from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-            from ddtrace.appsec.iast._loader import _exec_iast_patched_module
-            from ddtrace.appsec.iast._taint_tracking import setup
-
-            setup(bytes.join, bytearray.join)
+            from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+            from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
-    tracer._generate_diagnostic_logs()
     if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         from ddtrace import patch_all
 
@@ -246,16 +216,12 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+    if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
 
-    should_start_appsec_remoteconfig = config._appsec_enabled or asbool(
-        os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-    )
-
-    if should_start_appsec_remoteconfig:
+    if config._appsec_enabled or config._remote_config_enabled:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
@@ -265,6 +231,7 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
+    tracer._generate_diagnostic_logs()
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)

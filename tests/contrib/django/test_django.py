@@ -15,6 +15,7 @@ from django.views.generic import TemplateView
 import mock
 import pytest
 from six import ensure_text
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -23,7 +24,9 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -35,7 +38,6 @@ from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import override_config
@@ -1419,12 +1421,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
+        "_dd.base_service": "",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+        "_dd.base_service": "",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1463,6 +1467,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
+        "_dd.base_service": "",
     }
 
     assert span_template_cache.get_tags() == expected_meta
@@ -1511,6 +1516,60 @@ def test(client, test_spans):
 
     span = spans[0]
     assert span.service == "{}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """.format(
+        expected_service_name
+    )
+
+    env = os.environ.copy()
+    if schema_version is not None:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if global_service_name is not None:
+        env["DD_SERVICE"] = global_service_name
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        code,
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+@pytest.mark.parametrize("global_service_name", [None, "mysvc"])
+@pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
+def test_schematized_default_db_service_name(
+    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name
+):
+    expected_service_name = {
+        None: "defaultdb",
+        "v0": "defaultdb",
+        "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
+    }[schema_version]
+    code = """
+import pytest
+import sys
+
+import django
+
+from tests.contrib.django.conftest import *
+from tests.utils import override_config
+
+@pytest.mark.django_db
+def test_connection(client, test_spans):
+    from django.contrib.auth.models import User
+
+    users = User.objects.count()
+    assert users == 0
+
+    test_spans.assert_span_count(1)
+    spans = test_spans.get_spans()
+
+    span = spans[0]
+    assert span.name == "sqlite.query"
+    assert span.service == "{}"
+    assert span.span_type == "sql"
+    assert span.get_tag("django.db.vendor") == "sqlite"
+    assert span.get_tag("django.db.alias") == "default"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -2340,3 +2399,22 @@ def test_django_get_user(client, test_spans):
     assert root.get_tag(user.NAME) == "usr.name"
     assert root.get_tag(user.ROLE) == "usr.role"
     assert root.get_tag(user.SCOPE) == "usr.scope"
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_django_base_handler_failure(client, test_spans):
+    """
+    This tests the failure mode seen with Gunicorn during timeouts, where the Django
+    Handler is terminated after <x> seconds and no response is returned by
+    django.core.handler.base.BaseHandler.get_response.  We expect to populate the resource
+    with "GET <resource>" instead of what we did before this test "GET"
+    """
+    trace_utils.unwrap(client.handler, "get_response")
+    with mock.patch.object(client.handler, "get_response", side_effect=Exception("test")):
+        trace_utils.wrap(client.handler, "get_response", traced_get_response(django))
+        try:
+            client.get("/")
+        except Exception:
+            pass  # We expect an error
+        root = test_spans.get_root_span()
+        assert root.resource == "GET ^$"

@@ -1,10 +1,10 @@
 import os
 
 import falcon
+import wrapt
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
@@ -22,6 +22,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(falcon, "__version__", "")
+
+
 def patch():
     """
     Patch falcon.API to include contrib.falcon.TraceMiddleware
@@ -30,7 +35,7 @@ def patch():
     if getattr(falcon, "_datadog_patch", False):
         return
 
-    setattr(falcon, "_datadog_patch", True)
+    falcon._datadog_patch = True
     if FALCON_VERSION >= (3, 0, 0):
         wrapt.wrap_function_wrapper("falcon", "App.__init__", traced_init)
     if FALCON_VERSION < (4, 0, 0):

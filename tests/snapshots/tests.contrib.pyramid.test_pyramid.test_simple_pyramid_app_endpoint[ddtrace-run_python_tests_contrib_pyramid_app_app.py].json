@@ -7,28 +7,27 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "pyramid",
       "http.method": "GET",
       "http.route": "/",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
       "pyramid.route.name": "hello",
-      "runtime-id": "08abee7146de476093e7dda93af60a9b",
+      "runtime-id": "d9908345d0c648618fd57ba4d5ed5f65",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 656017
+      "process_id": 80715
     },
-    "duration": 122000,
-    "start": 1667243302987504000
+    "duration": 170750,
+    "start": 1692712509142352342
   }]]

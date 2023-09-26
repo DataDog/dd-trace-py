@@ -1,13 +1,11 @@
 [[
   {
     "name": "otel-client",
-    "service": "",
+    "service": null,
     "resource": "otel-client",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -15,7 +13,6 @@
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -27,13 +24,11 @@
 [
   {
     "name": "otel-server",
-    "service": "",
+    "service": null,
     "resource": "otel-server",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -41,7 +36,6 @@
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -53,13 +47,11 @@
 [
   {
     "name": "otel-producer",
-    "service": "",
+    "service": null,
     "resource": "otel-producer",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -67,7 +59,6 @@
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -79,13 +70,11 @@
 [
   {
     "name": "otel-consumer",
-    "service": "",
+    "service": null,
     "resource": "otel-consumer",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -93,7 +82,6 @@
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
@@ -105,20 +93,17 @@
 [
   {
     "name": "otel-internal",
-    "service": "",
+    "service": null,
     "resource": "otel-internal",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
       "runtime-id": "86d94e107de5452e80709b37ac12b380"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,

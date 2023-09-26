@@ -1,11 +1,12 @@
 import os
 
+import pylons
 import pylons.wsgiapp
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
@@ -20,12 +21,17 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(pylons, "__version__", "")
+
+
 def patch():
     """Instrument Pylons applications"""
     if getattr(pylons.wsgiapp, "_datadog_patch", False):
         return
 
-    setattr(pylons.wsgiapp, "_datadog_patch", True)
+    pylons.wsgiapp._datadog_patch = True
     wrapt.wrap_function_wrapper("pylons.wsgiapp", "PylonsApp.__init__", traced_init)
 
 
@@ -33,7 +39,7 @@ def unpatch():
     """Disable Pylons tracing"""
     if not getattr(pylons.wsgiapp, "__datadog_patch", False):
         return
-    setattr(pylons.wsgiapp, "__datadog_patch", False)
+    pylons.wsgiapp.__datadog_patch = False
 
     _u(pylons.wsgiapp.PylonsApp, "__init__")
 

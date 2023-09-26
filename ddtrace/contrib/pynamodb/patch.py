@@ -3,12 +3,12 @@ Trace queries to botocore api done via a pynamodb client
 """
 
 import pynamodb.connection.base
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -35,10 +35,15 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(pynamodb, "__version__", "")
+
+
 def patch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return
-    setattr(pynamodb.connection.base, "_datadog_patch", True)
+    pynamodb.connection.base._datadog_patch = True
 
     wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
     Pin(service=None).onto(pynamodb.connection.base.Connection)
@@ -46,7 +51,7 @@ def patch():
 
 def unpatch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
-        setattr(pynamodb.connection.base, "_datadog_patch", False)
+        pynamodb.connection.base._datadog_patch = False
         unwrap(pynamodb.connection.base.Connection, "_make_api_call")
 
 

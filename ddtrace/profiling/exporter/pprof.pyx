@@ -12,6 +12,7 @@ from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.datadog.profiling.ddup import sanitize_string
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -19,6 +20,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import threading
 
 
 if hasattr(typing, "TypedDict"):
@@ -99,7 +101,7 @@ _pb_version = _protobuf_version()
 for v in [(4, 21), (3, 19), (3, 12)]:
     if _pb_version >= v:
         import sys
-        
+
         pprof_module = "ddtrace.profiling.exporter.pprof_%s%s_pb2" % v
         __import__(pprof_module)
         pprof_pb2 = sys.modules[pprof_module]
@@ -161,7 +163,7 @@ _Label_List_T = typing.Tuple[_Label_T, ...]
 _Location_Key_T = typing.Tuple[typing.Tuple[int, ...], _Label_List_T]
 
 
-HashableStackTraceType = typing.Tuple[event.FrameType, ...]
+HashableStackTraceType = typing.Tuple[event.DDFrame, ...]
 
 
 @attr.s
@@ -189,9 +191,14 @@ class _PprofConverter(object):
 
     def _to_Function(
         self,
-        filename: str,
-        funcname: str,
-    ) -> pprof_FunctionType:
+        filename,  # type: str
+        funcname,  # type: str
+    ):
+        # type: (...) -> pprof_FunctionType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
+        filename = sanitize_string(filename)
+        funcname = sanitize_string(funcname)
         try:
             return self._functions[(filename, funcname)]
         except KeyError:
@@ -205,10 +212,15 @@ class _PprofConverter(object):
 
     def _to_Location(
         self,
-        filename: str,
-        lineno: int,
-        funcname: str,
-    ) -> pprof_LocationType:
+        filename,  # type: str
+        lineno,  # type: int
+        funcname,  # type: str
+    ):
+        # type: (...) -> pprof_LocationType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
+        filename = sanitize_string(filename)
+        funcname = sanitize_string(funcname)
         try:
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
@@ -224,13 +236,13 @@ class _PprofConverter(object):
             self._locations[(filename, lineno, funcname)] = location
             return location
 
-    def _str(self, string: str) -> int:
+    def _str(self, string: typing.Optional[str]) -> int:
         """Convert a string to an id from the string table."""
         return self._string_table.index(str(string))
 
     def _to_locations(
         self,
-        frames,  # type: typing.Sequence[event.FrameType]
+        frames,  # type: typing.Sequence[event.DDFrame]
         nframes,  # type: int
     ):
         # type: (...) -> typing.Tuple[int, ...]
@@ -687,6 +699,8 @@ class PprofExporter(exporter.Exporter):
         for event_class, convert_fn in (
             (_lock.LockAcquireEvent, converter.convert_lock_acquire_event),
             (_lock.LockReleaseEvent, converter.convert_lock_release_event),
+            (threading.ThreadingLockAcquireEvent, converter.convert_lock_acquire_event),
+            (threading.ThreadingLockReleaseEvent, converter.convert_lock_release_event),
         ):
             lock_events = events.get(event_class, [])  # type: ignore[call-overload]
             sampling_sum_pct = sum(event.sampling_pct for event in lock_events)
