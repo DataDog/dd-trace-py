@@ -563,6 +563,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     except AttributeError:
         pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.flush()
 
     _message = _read_single_message(consumer)  # noqa: F841
