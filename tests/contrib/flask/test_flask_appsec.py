@@ -940,4 +940,4 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         resp = self.client.get("/new_service/awesome_test")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok awesome_test"
-        assert "awesome_test" in ddtrace.config.get_extra_services()
+        assert "awesome_test" in ddtrace.config._get_extra_services()
