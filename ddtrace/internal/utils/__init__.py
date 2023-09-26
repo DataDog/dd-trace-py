@@ -19,6 +19,7 @@ def get_argument_value(
     kwargs,  # type: Dict[str, Any]
     pos,  # type: int
     kw,  # type: str
+    optional=False,  # type: bool
 ):
     # type: (...) -> Optional[Any]
     """
@@ -41,6 +42,8 @@ def get_argument_value(
         try:
             return args[pos]
         except IndexError:
+            if optional:
+                return None
             raise ArgumentError("%s (at position %d)" % (kw, pos))
 
 
