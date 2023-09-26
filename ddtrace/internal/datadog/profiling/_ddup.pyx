@@ -8,6 +8,8 @@ from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.span import Span
 
+from .utils import sanitize_string
+
 
 IF UNAME_SYSNAME == "Linux":
     cdef extern from "exporter.hpp":
@@ -119,8 +121,8 @@ IF UNAME_SYSNAME == "Linux":
         ddup_push_lock_name(ensure_binary(lock_name))
 
     def push_frame(name: str, filename: str, address: int, line: int) -> None:
-        name = name if name is not None else ""
-        filename = filename if filename is not None else ""
+        name = sanitize_string(name)
+        filename = sanitize_string(filename)
         ddup_push_frame(ensure_binary(name), ensure_binary(filename), address, line)
 
     def push_threadinfo(thread_id: int, thread_native_id: int, thread_name: Optional[str]) -> None:

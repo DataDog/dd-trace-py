@@ -41,8 +41,8 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "iast", "_taint_tracking"))
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_ddwaf", "libddwaf"))
+IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint_tracking"))
 
 CURRENT_OS = platform.system()
 
@@ -304,7 +304,7 @@ class CMakeBuild(build_ext):
 
         if (
             sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec.iast._taint_tracking._native"
+            and ext.name == "ddtrace.appsec._iast._taint_tracking._native"
             and os.path.exists(cmake_list_path)
         ):
             os.makedirs(tmp_iast_path, exist_ok=True)
@@ -449,17 +449,17 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec.iast._stacktrace",
+                "ddtrace.appsec._iast._stacktrace",
                 # Sort source files for reproducibility
                 sources=[
-                    "ddtrace/appsec/iast/_stacktrace.c",
+                    "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=debug_compile_args,
             )
         )
 
         if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec.iast._taint_tracking._native", sources=[]))
+            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
 else:
     ext_modules = []
 
@@ -498,9 +498,6 @@ def get_ddup_ext():
 
 
 bytecode = [
-    "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
-    "bytecode~=0.12.0; python_version=='3.5'",
-    "bytecode~=0.13.0; python_version=='3.6'",
     "bytecode~=0.13.0; python_version=='3.7'",
     "bytecode; python_version>='3.8'",
 ]
@@ -528,35 +525,27 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
-        "ddtrace.appsec.iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
     },
-    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+    python_requires=">=3.7",
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     install_requires=[
         "ddsketch>=2.0.1",
-        "enum34; python_version<'3.4'",
-        "funcsigs>=1.0.0; python_version=='2.7'",
-        "typing; python_version<'3.5'",
-        "protobuf>=3; python_version>='3.7'",
-        "protobuf>=3,<4.0; python_version=='3.6'",
-        "protobuf>=3,<3.18; python_version<'3.6'",
-        "attrs>=20; python_version>'2.7'",
-        "attrs>=20,<22; python_version=='2.7'",
-        "contextlib2<1.0; python_version=='2.7'",
-        "cattrs<1.1; python_version<='3.6'",
-        "cattrs; python_version>='3.7'",
+        "protobuf>=3",
+        "attrs>=20",
+        "cattrs",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
-        "pathlib2; python_version<'3.5'",
         "xmltodict>=0.12",
-        "ipaddress; python_version<'3.7'",
         "envier",
-        "pep562; python_version<'3.7'",
-        "opentelemetry-api>=1; python_version>='3.7'",
+        "opentelemetry-api>=1",
+        "psutil==5.6.7",
+        "setuptools; python_version>='3.12'",
+        "wrapt==1.15.0",
     ]
     + bytecode,
     extras_require={
@@ -583,17 +572,18 @@ setup(
         ],
     },
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
-    setup_requires=["setuptools_scm[toml]>=4,<8", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -655,7 +645,5 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
-    + get_exts_for("wrapt")
-    + get_exts_for("psutil")
     + get_ddup_ext(),
 )
