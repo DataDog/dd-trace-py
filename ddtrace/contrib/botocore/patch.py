@@ -292,7 +292,7 @@ def get_kinesis_data_object(data):
     - json string
     - byte encoded json string
     - base64 encoded json string
-    If it's neither of these, then we leave the message as it is.
+    If it's none of these, then we leave the message as it is.
     """
 
     # check if data is a json string
@@ -313,7 +313,7 @@ def get_kinesis_data_object(data):
         data_str = base64.b64decode(data).decode("ascii")
         return get_json_from_str(data_str)
     except Exception:
-        log.error("Unable to parse payload, unable to inject trace context.")
+        log.debug("Unable to parse payload, unable to inject trace context.")
 
     return None, None
 

@@ -71,7 +71,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install 'cython<3'
+          pip install cython
           python setup.py sdist
       - uses: actions/upload-artifact@v3
         with:
@@ -109,7 +109,6 @@ jobs:
 
   upload_pypi:
     needs:
-      - build_wheels_py36
       - build_wheels_py37
       - build_wheels_py38
       - build_wheels_py39
@@ -124,10 +123,6 @@ jobs:
         with:
           name: artifact
           path: dist
-
-      - name: Remove unsupported 3.12 wheels
-        run: |
-          rm -f dist/*cp312*.whl
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
