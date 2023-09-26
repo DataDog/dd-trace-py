@@ -282,7 +282,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             # Nothing else to do.
             return
 
-        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+        log.debug("[%s][P: %s] Dynamic Instrumentation received new data", os.getpid(), os.getppid())
         for metadata, config in zip(data["metadata"], data["config"]):
             if metadata is None:
                 log.debug(
