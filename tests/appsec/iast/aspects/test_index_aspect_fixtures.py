@@ -1,4 +1,6 @@
 # -*- encoding: utf-8 -*-
+import sys
+
 import pytest
 
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
@@ -27,7 +29,9 @@ def test_string_index_error_type_error():
     assert "string indices must be integers" in str(excinfo.value)
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(
+    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
+)
 @pytest.mark.parametrize(
     "input_str, index_pos, expected_result, tainted",
     [
