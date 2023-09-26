@@ -10,7 +10,7 @@ if python_supported_by_iast():
     from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
-mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
