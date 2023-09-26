@@ -5,7 +5,6 @@
 
 #include <pybind11/stl.h>
 
-#include "absl/container/node_hash_map.h"
 #include "structmember.h"
 
 #include "Constants.h"
@@ -20,7 +19,18 @@ class TaintedObject;
 
 // Alias
 using TaintedObjectPtr = TaintedObject*;
+
+#ifdef NDEBUG // Decide wether to use abseil
+
+#include "absl/container/node_hash_map.h"
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
+
+#else
+
+#include <unordered_map>
+using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;
+
+#endif // NDEBUG
 
 inline static uintptr_t
 get_unique_id(const PyObject* str)

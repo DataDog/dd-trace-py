@@ -32,7 +32,7 @@ try:
     from .ddwaf_types import py_ddwaf_update
 
     _DDWAF_LOADED = True
-except OSError:
+except BaseException:
     _DDWAF_LOADED = False
     LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 
@@ -78,7 +78,7 @@ if _DDWAF_LOADED:
 
     class DDWaf(object):
         def __init__(self, ruleset_map, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, dict[text_type, Any], text_type, text_type) -> None
+            # type: (DDWaf, dict[text_type, Any], bytes, bytes) -> None
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
