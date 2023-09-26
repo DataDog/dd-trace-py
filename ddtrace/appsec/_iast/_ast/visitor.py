@@ -585,13 +585,6 @@ class AstVisitor(ast.NodeTransformer):
             func=attr_node,
             args=[],
         )
-
-        # Create the Name node for the Call.func member
-
-        # Here, the value instead is wrapped inside an Index node
-        if hasattr(subscr_node.slice, "value") and not self._is_string_node(subscr_node.slice.value):
-            return subscr_node
-
         if isinstance(subscr_node.slice, ast.Slice):
             # Slice[0:1:2]. The other cases in this if are Indexes[0]
             # TODO: Add stlice
@@ -604,8 +597,10 @@ class AstVisitor(ast.NodeTransformer):
             # step = subscr_node.slice.step if subscr_node.slice.step is not None else none_node
             # call_node.args.extend([subscr_node.value, lower, upper, step])
             # self.ast_modified = True
-            pass
+            return subscr_node
         elif PY39_PLUS:
+            if self._is_string_node(subscr_node.slice):
+                return subscr_node
             # In Py39+ the if subscr_node.slice member is not a Slice, is directly an unwrapped value
             # for the index (e.g. Constant for a number, Name for a var, etc)
             aspect_split = self._aspect_index.split(".")
@@ -615,6 +610,8 @@ class AstVisitor(ast.NodeTransformer):
             call_node.args.extend([subscr_node.value, subscr_node.slice])
             self.ast_modified = True
         elif isinstance(subscr_node.slice, ast.Index):
+            if self._is_string_node(subscr_node.slice.value):  # type: ignore[attr-defined]
+                return subscr_node
             aspect_split = self._aspect_index.split(".")
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
