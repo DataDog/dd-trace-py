@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
+from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -187,22 +188,29 @@ class SpanAggregator(SpanProcessor):
         _lock = attr.ib(init=False, factory=RLock, repr=False, type=Union[RLock, Lock])
     else:
         _lock = attr.ib(init=False, factory=Lock, repr=False, type=Union[RLock, Lock])
+    # Tracks the number of spans created and tags each count with the api that was used
+    # ex: otel api, opentracing api, datadog api
+    _span_metrics = attr.ib(
+        init=False,
+        factory=lambda: {
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
+        },
+        type=Dict[str, DefaultDict],
+    )
 
     def on_span_start(self, span):
         # type: (Span) -> None
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-        telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "spans_created", tags=(("integration_name", span._span_api),)
-        )
+            self._span_metrics["spans_created"][span._span_api] += 1
+            self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_TRACER, "spans_finished", tags=(("integration_name", span._span_api),)
-        )
         with self._lock:
+            self._span_metrics["spans_finished"][span._span_api] += 1
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
@@ -239,6 +247,7 @@ class SpanAggregator(SpanProcessor):
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
 
+                self._queue_span_count_metrics("spans_finished", "integration_name")
                 self._writer.write(spans)
                 return
 
@@ -255,11 +264,40 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
+        if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
+            if config._telemetry_enabled:
+                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
+                # Here we submit the remanining span creation metrics without restarting the periodic thread.
+                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
+                telemetry_writer._is_periodic = False
+                telemetry_writer._enabled = True
+                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+                # before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_created", "integration_name", None)
+                # on_span_finish(...) queues span finish metrics in batches of 100.
+                # This ensures all remaining counts are sent before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_finished", "integration_name", None)
+                telemetry_writer.periodic(True)
+                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
+                telemetry_writer.disable()
+
         try:
             self._writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
+
+    def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
+        # type: (str, str, Optional[int]) -> None
+        """Queues a telemetry count metric for span created and span finished"""
+        # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
+        # We should avoid calling this method on every invocation of span finish and span start.
+        if min_count is None or sum(self._span_metrics[metric_name].values()) >= min_count:
+            for tag_value, count in self._span_metrics[metric_name].items():
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
+                )
+            self._span_metrics[metric_name] = defaultdict(int)
 
 
 @attr.s
