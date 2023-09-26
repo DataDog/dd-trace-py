@@ -1,4 +1,5 @@
 import aiomysql
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
@@ -9,7 +10,6 @@ from ddtrace.contrib import dbapi
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.vendor import wrapt
 
 from ...ext import SpanKind
 from ...ext import SpanTypes

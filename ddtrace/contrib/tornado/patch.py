@@ -1,10 +1,10 @@
 import os
 
 import tornado
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import application
 from . import context_provider
