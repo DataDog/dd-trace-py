@@ -116,6 +116,7 @@
         "flask": [
             "ddtrace/contrib/flask/*",
             "ddtrace/contrib/flask_cache/*"
+            "ddtrace/contrib/flask_login/*"
         ],
         "fastapi": [
             "ddtrace/contrib/fastapi/*"
@@ -663,6 +664,7 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
+            "tests/contrib/flask_login/*"
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
