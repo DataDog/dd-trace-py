@@ -92,7 +92,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True)):
+        with override_global_config(dict(health_metrics_enabled=True, _trace_writer_buffer_size=8 << 20)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
@@ -284,7 +284,7 @@ class AgentWriterTests(BaseTestCase):
         writer_run_periodic = mock.Mock()
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
-        with override_global_config(dict(health_metrics_enabled=False)):
+        with override_global_config(dict(health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             writer.run_periodic = writer_run_periodic
             writer._put = writer_put
