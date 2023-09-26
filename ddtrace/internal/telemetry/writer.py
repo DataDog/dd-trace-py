@@ -623,7 +623,7 @@ class TelemetryWriter(PeriodicService):
         # Queued events should be sent in the main process.
         self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
-           return
+            return
 
         if self._is_periodic:
            self.stop(join=False)
