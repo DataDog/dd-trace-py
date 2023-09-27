@@ -17,7 +17,8 @@ if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
 fi
 
 if [[ -v CIRCLECI ]]; then
-    RIOT_HASHES=( $( echo ${RIOT_HASHES[@]}  | circleci tests split) )
+    # circleci tests splits expects one test per line
+    RIOT_HASHES=( $( printf '%s\n' "${RIOT_HASHES[@]}"  | circleci tests split) )
     if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
         echo "No riot hashes found after split, halting."
         circleci step halt
