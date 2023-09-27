@@ -2,8 +2,6 @@
 
 #include "AspectIndex.h"
 
-#include "Initializer/Initializer.h"
-
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map)
 {
