@@ -651,13 +651,6 @@ jobs:
           pattern: "flask"
           docker_services: "memcached redis"
 
-  flask_login:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "flask_login"
-
   gevent:
     <<: *contrib_job_small
     docker:
