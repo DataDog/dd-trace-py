@@ -283,6 +283,7 @@ def _update_remaining_suites_and_modules(
     """
     suite_dict = _CIVisibility._unittest_data["suites"][test_module_suite_path]
     modules_dict = _CIVisibility._unittest_data["modules"][test_module_path]
+
     suite_dict["remaining_tests"] -= 1
     if suite_dict["remaining_tests"] == 0:
         modules_dict["remaining_suites"] -= 1
