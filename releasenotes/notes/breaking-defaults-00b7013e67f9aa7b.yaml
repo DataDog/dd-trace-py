@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    This update changes the default values of two configuration variables: ``DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED=True``
+    and ``DD_TRACE_PROPAGATION_STYLE=tracecontext``.
