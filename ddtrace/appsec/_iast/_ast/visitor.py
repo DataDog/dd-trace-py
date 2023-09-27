@@ -653,6 +653,8 @@ class AstVisitor(ast.NodeTransformer):
         """
         self.generic_visit(subscr_node)
 
+        # We mark nodes to avoid_convert (check visit_Delete, visit_AugAssign, visit_Assign) due to complex
+        # expressions that raise errors when try to replace with index aspects
         if hasattr(subscr_node, "avoid_convert"):
             return subscr_node
 
