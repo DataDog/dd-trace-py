@@ -919,6 +919,7 @@ venv = Venv(
                 "Jinja2": "~=2.11.0",
                 "markupsafe": "<2.0",
                 "itsdangerous": "<2.0",
+                "werkzeug": "<2.0",
             },
         ),
         Venv(
