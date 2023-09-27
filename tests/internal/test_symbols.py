@@ -166,4 +166,9 @@ def test_symbols_to_json():
 def test_symbols_scope_context():
     import ddtrace.debugging._debugger as d
 
-    assert 200 <= ScopeContext([Scope.from_module(d)]).upload().status < 300
+    context = ScopeContext([Scope.from_module(d)])
+    import json
+
+    print(json.dumps(context.to_json(), indent=2))
+
+    assert 200 <= context.upload().status < 300

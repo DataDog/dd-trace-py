@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import field
 import dis
 from enum import Enum
 from functools import singledispatchmethod
@@ -268,6 +269,36 @@ class Scope:
 
     @_get_from.register
     @classmethod
+    def _(cls, code: CodeType, data: ScopeData):
+        if code in data.seen:
+            return None
+        data.seen.add(code)
+
+        if Path(code.co_filename).resolve() != data.origin:
+            # Comes from another module.
+            return None
+
+        ls = linenos(code)
+        if not ls:
+            return None
+
+        start_line = min(ls)
+        end_line = max(ls)
+
+        return Scope(
+            scope_type=ScopeType.CLOSURE,  # DEV: Not in the sense of a Python closure.
+            name=code.co_name,
+            source_file=code.co_filename,
+            start_line=start_line,
+            end_line=end_line,
+            symbols=Symbol.from_code(code),
+            scopes=[
+                _ for _ in (cls._get_from(_, data) for _ in code.co_consts if isinstance(_, CodeType)) if _ is not None
+            ],
+        )
+
+    @_get_from.register
+    @classmethod
     def _(cls, f: FunctionType, data: ScopeData):
         if f in data.seen:
             return None
@@ -276,32 +307,15 @@ class Scope:
         if is_from_stdlib(f):
             return None
 
-        path = func_origin(f)
-        if path is None:
+        code_scope = cls._get_from(f.__code__, data)
+        if code_scope is None:
             return None
 
-        if Path(path).resolve() != data.origin:
-            # Comes from another module.
-            return None
+        # Code objects define a closure scope in general. In this case we know
+        # that this comes from a function scope, so we override the type.
+        code_scope.scope_type = ScopeType.FUNCTION
 
-        code = f.__code__
-
-        ls = linenos(f)
-        if not ls:
-            return None
-
-        start_line = min(ls)
-        end_line = max(ls)
-
-        return Scope(
-            scope_type=ScopeType.FUNCTION,
-            name=f.__name__,
-            source_file=path,
-            start_line=start_line,
-            end_line=end_line,
-            symbols=Symbol.from_code(code),
-            scopes=[],
-        )
+        return code_scope
 
     @_get_from.register
     @classmethod
@@ -339,6 +353,8 @@ class Scope:
             scopes=[t.cast(Scope, cls._get_from(_, data)) for _ in (pr.fget, pr.fset, pr.fdel) if _ is not None],
         )
 
+    # TODO: support for singledispatch
+
     @classmethod
     def from_module(cls, module: ModuleType) -> "Scope":
         """Get the scope of a module.
@@ -350,8 +366,6 @@ class Scope:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
         return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
-
-    # DEV: We deliberately omit support for nested functions for now.
 
 
 class ScopeContext:
