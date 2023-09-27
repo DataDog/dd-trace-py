@@ -925,3 +925,19 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
                 "text/plain"
             )
+
+    def test_multiple_service_name(self):
+        import flask
+
+        import ddtrace
+
+        @self.app.route("/new_service/<service_name>")
+        def new_service(service_name):
+            ddtrace.Pin.override(flask.Flask, service=service_name, tracer=ddtrace.tracer)
+            return "Ok %s" % service_name, 200
+
+        self._aux_appsec_prepare_tracer()
+        resp = self.client.get("/new_service/awesome_test")
+        assert resp.status_code == 200
+        assert get_response_body(resp) == "Ok awesome_test"
+        assert "awesome_test" in ddtrace.config._get_extra_services()
