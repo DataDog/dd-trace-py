@@ -265,15 +265,21 @@ class SpanAggregator(SpanProcessor):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", None)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", None)
-            # The telemetry metrics writer can be shutdown before the tracer.
-            # This ensures all tracer metrics always sent.
-            telemetry_writer.periodic(True)
+            if config._telemetry_enabled:
+                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
+                # Here we submit the remanining span creation metrics without restarting the periodic thread.
+                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
+                telemetry_writer._is_periodic = False
+                telemetry_writer._enabled = True
+                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+                # before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_created", "integration_name", None)
+                # on_span_finish(...) queues span finish metrics in batches of 100.
+                # This ensures all remaining counts are sent before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_finished", "integration_name", None)
+                telemetry_writer.periodic(True)
+                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
+                telemetry_writer.disable()
 
         try:
             self._writer.stop(timeout)
