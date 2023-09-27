@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -x
-
 CHECKPOINT_FILENAME="latest-success-commit"
 RIOT_PATTERN=${1}
 if [[ -v CIRCLECI ]]; then
@@ -13,7 +11,7 @@ DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
-if [[ -z "$RIOT_HASHES" ]]; then
+if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
     echo "No riot hashes found for pattern: $RIOT_PATTERN"
     sleep 600
     if [[ -v CIRCLECI ]]; then
@@ -22,9 +20,7 @@ if [[ -z "$RIOT_HASHES" ]]; then
     exit 1
 fi
 
-echo "Found ${#RIOT_HASHES[@]} riot hashes."
-
-set +x
+echo "Found ${#RIOT_HASHES[@]} riot hashes: ${RIOT_HASHES[@]}"
 
 set -e
 
