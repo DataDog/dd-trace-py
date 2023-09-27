@@ -179,7 +179,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.Queue()  # type: multiprocessing.Queue
+    _extra_services_queue = multiprocessing.Queue(512)  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -422,12 +422,12 @@ class Config(object):
         return self._config[name]
 
     def _add_extra_service(self, service_name: str) -> None:
-        from queue import Empty
+        from queue import Full
 
-        if service_name != self.service:
+        if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
-            except Empty:  # nosec
+            except Full:  # nosec
                 pass
             except BaseException:
                 log.debug("unexpected failure with _add_extra_service", exc_info=True)
