@@ -14,6 +14,8 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -23,8 +25,8 @@ from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
+from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
@@ -32,8 +34,6 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
