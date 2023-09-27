@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    opentelemetry: Enables ddtrace opentelemetry support by default.
+    This change will replace all preconfigured opentelemetry tracreproviders with the OTEL Datadog TracerProvider. This may be breaking change.
+    OpenTelemetry support can be disabled by setting ``DD_TRACE_OTEL_ENABLED=False``.

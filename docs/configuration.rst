@@ -62,7 +62,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
-     default: False
+     default: True
      description: |
          When used with ``ddtrace-run`` this configuration enables OpenTelemetry support. To enable OpenTelemetry without `ddtrace-run` refer
          to the following :mod:`docs <ddtrace.opentelemetry>`.

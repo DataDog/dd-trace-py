@@ -389,11 +389,18 @@ class Config(object):
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
         self._ci_visibility_unittest_enabled = asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_ENABLED", default=False))
-        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
+        self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", True))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+            if self._propagation_style_extract != "w3c" or self._propagation_style_inject != "w3c":
+                log.warning(
+                    "OpenTelemetry support requires w3c trace context propagation."
+                    "DD_TRACE_PROPAGATION_STYLE, DD_TRACE_PROPAGATION_STYLE_EXTRACT, "
+                    "and/or DD_TRACE_PROPAGATION_STYLE_INJECT should be set to: w3c."
+                    "OpenTelemetry support can be disabled by setting ``DD_TRACE_OTEL_ENABLED`` to False."
+                )
         self._ddtrace_bootstrapped = False
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
