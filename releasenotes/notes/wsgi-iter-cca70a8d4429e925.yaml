@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    wsgi: This change introduces the keyword argument app_is_iterator to the DDWSGIMiddleware constructor.
+    It's provided as a workaround for an issue where the Datadog WSGI middleware would fail to handle WSGI
+    apps that are not their own iterators. This condition can arise when a Django app attempts to send its
+    "request finished" signal, in which case it may cause connection leaks. Standard methods of distinguishing
+    an iterable from its iterator, such as checking for the presence of iter and next dunder methods, don't
+    work in this case for unknown reasons. Instead of adding brittle special-case detection logic to the
+    middleware, this new argument allows users to indicate when this is the case.
