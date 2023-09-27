@@ -696,6 +696,8 @@ class PatchTestCase(object):
                         """
                         import sys
 
+                        from ddtrace.internal.module import ModuleWatchdog
+
                         from wrapt import wrap_function_wrapper as wrap
 
                         patched = False
@@ -711,7 +713,7 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 
