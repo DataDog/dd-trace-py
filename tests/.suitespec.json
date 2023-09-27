@@ -19,7 +19,8 @@
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
-            "ddtrace/version.py"
+            "ddtrace/version.py",
+            "ddtrace/settings/config.py"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
