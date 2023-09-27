@@ -24,6 +24,7 @@ from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
@@ -31,6 +32,8 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -93,7 +96,8 @@ def _parse_propagation_styles(name, default):
 
     - "datadog"
     - "b3multi"
-    - "b3 single header"
+    - "b3" (formerly 'b3 single header')
+    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "none"
 
@@ -113,7 +117,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
-        DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
+        DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
     envvar = os.getenv(name, default=default)
@@ -121,6 +125,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
+        if style == "b3 single header":
+            deprecate(
+                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            style = PROPAGATION_STYLE_B3_SINGLE
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:

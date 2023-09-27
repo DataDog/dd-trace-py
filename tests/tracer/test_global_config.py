@@ -7,6 +7,7 @@ from ddtrace import config as global_config
 from ddtrace.settings import Config
 
 from ..utils import DummyTracer
+from ddtrace.settings.config import _parse_propagation_styles
 from ..utils import override_env
 
 
@@ -277,3 +278,10 @@ class GlobalConfigTestCase(TestCase):
         with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
             c = Config()
             assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}
+
+    def test_parse_propagation_styles_b3_deprecation(capsys):
+        with pytest.warns(
+            DeprecationWarning, match='Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated'
+        ), override_env(dict(DD_TRACE_PROPAGATION_STYLE="b3 single header")):
+            style = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE", default="datadog")
+            assert style == ["b3"]
