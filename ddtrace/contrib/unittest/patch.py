@@ -644,12 +644,12 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestResult, arg
     if _is_invoked_by_cli(instance):
         return func(*args, **kwargs)
     _CIVisibility._datadog_entry = "TextTestRunner"
+    if not hasattr(_CIVisibility, "_datadog_session_span"):
+        _CIVisibility._datadog_session_span = _start_test_session_span(instance)
+        _CIVisibility._datadog_expected_sessions = 0
+        _CIVisibility._datadog_finished_sessions = 0
+    _CIVisibility._datadog_expected_sessions += 1
     try:
-        if not hasattr(_CIVisibility, "_datadog_session_span"):
-            _CIVisibility._datadog_session_span = _start_test_session_span(instance)
-            _CIVisibility._datadog_expected_sessions = 0
-            _CIVisibility._datadog_finished_sessions = 0
-        _CIVisibility._datadog_expected_sessions += 1
         result = func(*args, **kwargs)
     except SystemExit as e:
         _CIVisibility._datadog_finished_sessions += 1
