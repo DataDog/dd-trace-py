@@ -424,7 +424,7 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         from queue import Full
 
-        if service_name != self.service:
+        if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
             except Full:  # nosec
