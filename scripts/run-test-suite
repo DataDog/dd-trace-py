@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -x
+
 CHECKPOINT_FILENAME="latest-success-commit"
 RIOT_PATTERN=${1}
 if [[ -v CIRCLECI ]]; then
@@ -20,6 +22,8 @@ if [[ -z "$RIOT_HASHES" ]]; then
 fi
 
 echo "Found ${#RIOT_HASHES[@]} riot hashes."
+
+set +x
 
 set -e
 
