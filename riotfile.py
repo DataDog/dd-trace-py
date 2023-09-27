@@ -1,4 +1,3 @@
-ga
 # type: ignore
 import logging
 from typing import List  # noqa
