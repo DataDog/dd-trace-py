@@ -263,57 +263,58 @@ def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> Non
 
 
 def _on_django_login(
-    pin, request, user, mode, _get_user_info, _get_username, _find_in_user_model, _POSSIBLE_USER_ID_FIELDS
+    pin,
+    request,
+    user,
+    mode,
+    info_retriever,
 ):
     if not config._appsec_enabled:
         return
 
-    if user and str(user) != "AnonymousUser":
-        user_id, user_extra = _get_user_info(user)
-        if not user_id:
-            log.debug(
-                "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
-                type(user),
-            )
-            return
-
-        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            from ddtrace.contrib.django.compat import user_is_authenticated
-
-            if user_is_authenticated(user):
-                session_key = getattr(request, "session_key", None)
-                track_user_login_success_event(
-                    pin.tracer,
-                    user_id=user_id,
-                    session_id=session_key,
-                    propagate=True,
-                    login_events_mode=mode,
-                    **user_extra
+    if user:
+        if str(user) != "AnonymousUser":
+            user_id, user_extra = info_retriever.get_user_info()
+            if not user_id:
+                log.debug(
+                    "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
+                    type(user),
                 )
                 return
-            else:
-                # Login failed but the user exists
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
-                return
-    else:
-        # Login failed and the user is unknown
-        if user:
+
+            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+                from ddtrace.contrib.django.compat import user_is_authenticated
+
+                if user_is_authenticated(user):
+                    session_key = getattr(request, "session_key", None)
+                    track_user_login_success_event(
+                        pin.tracer,
+                        user_id=user_id,
+                        session_id=session_key,
+                        propagate=True,
+                        login_events_mode=mode,
+                        **user_extra
+                    )
+                else:
+                    # Login failed but the user exists
+                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+        else:
+            # Login failed and the user is unknown
             if mode == "extended":
-                user_id = _get_username(user)
+                user_id = info_retriever.get_username()
             else:  # safe mode
-                user_id = _find_in_user_model(user, _POSSIBLE_USER_ID_FIELDS)
+                user_id = info_retriever.get_userid()
             if not user_id:
                 user_id = "AnonymousUser"
 
             track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
-            return
 
 
-def _on_django_auth(result_user, mode, kwargs, pin, _POSSIBLE_USER_ID_FIELDS, _POSSIBLE_LOGIN_FIELDS):
+def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
     if not config._appsec_enabled:
         return True, result_user
 
-    userid_list = _POSSIBLE_USER_ID_FIELDS if mode == "safe" else _POSSIBLE_LOGIN_FIELDS
+    userid_list = info_retriever.possible_user_id_fields if mode == "safe" else info_retriever.possible_login_fields
 
     for possible_key in userid_list:
         if possible_key in kwargs:
