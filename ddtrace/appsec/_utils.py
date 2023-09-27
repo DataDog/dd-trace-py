@@ -127,3 +127,82 @@ def _appsec_rc_features_is_enabled():
     if config._remote_config_enabled:
         return APPSEC_ENV not in os.environ
     return False
+
+
+class _UserInfoRetriever(object):
+    def __init__(self, user):
+        self.user = user
+
+        self.possible_user_id_fields = ["pk", "id", "uid", "userid", "user_id", "PK", "ID", "UID", "USERID"]
+        self.possible_login_fields = ["username", "user", "login", "USERNAME", "USER", "LOGIN"]
+        self.possible_email_fields = ["email", "mail", "address", "EMAIL", "MAIL", "ADDRESS"]
+        self.possible_name_fields = ["name", "fullname", "full_name", "NAME", "FULLNAME", "FULL_NAME"]
+
+    def find_in_user_model(self, possible_fields):
+        for field in possible_fields:
+            value = getattr(self.user, field, None)
+            if value:
+                return value
+
+        return None  # explicit to make clear it has a meaning
+
+    def get_userid(self):
+        user_login = getattr(self.user, config._user_model_login_field, None)
+        if user_login:
+            return user_login
+
+        return self.find_in_user_model(self.possible_user_id_fields)
+
+    def get_username(self):
+        username = getattr(self.user, config._user_model_name_field, None)
+        if username:
+            return username
+
+        if hasattr(self.user, "get_username"):
+            try:
+                return self.user.get_username()
+            except Exception:
+                log.debug("User model get_username member produced an exception: ", exc_info=True)
+
+        return self.find_in_user_model(self.possible_login_fields)
+
+    def get_user_email(self):
+        email = getattr(self.user, config._user_model_email_field, None)
+        if email:
+            return email
+
+        return self.find_in_user_model(self.possible_email_fields)
+
+    # JJJ cambiar
+    def get_name(self):
+        name = getattr(self.user, config._user_model_name_field, None)
+        if name:
+            return name
+
+        return self.find_in_user_model(self.possible_name_fields)
+
+    def get_user_info(self):
+        """
+        In safe mode, try to get the user id from the user object.
+        In extended mode, try to also get the username (which will be the returned user_id),
+        email and name.
+        """
+        user_extra_info = {}
+
+        if config._automatic_login_events_mode == "extended":
+            user_id = self.get_username()
+            if not user_id:
+                user_id = self.find_in_user_model(self.possible_user_id_fields)
+
+            user_extra_info = {
+                "login": user_id,
+                "email": self.get_user_email(),
+                "name": self.get_name(),
+            }
+        else:  # safe mode, default
+            user_id = self.get_userid()
+
+        if not user_id:
+            return None, {}
+
+        return user_id, user_extra_info

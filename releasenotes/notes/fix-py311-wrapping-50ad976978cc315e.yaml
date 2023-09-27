@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an issue that could have caused some tracing integrations to leave the
+    interpreter in an inconsistent state, resulting in the profiler incurring a
+    segmentation fault.

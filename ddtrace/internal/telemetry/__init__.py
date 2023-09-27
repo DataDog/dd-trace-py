@@ -49,12 +49,11 @@ def _excepthook(tp, value, root_traceback):
                 error_msg = "{}:{} {}".format(filename, lineno, str(value))
                 telemetry_writer.add_integration(integration_name, True, error_msg=error_msg)
 
-        if telemetry_writer.started is False:
+        if not telemetry_writer.started:
             telemetry_writer._app_started_event(False)
             telemetry_writer._app_dependencies_loaded_event()
 
         telemetry_writer.app_shutdown()
-        telemetry_writer.disable()
 
     return _ORIGINAL_EXCEPTHOOK(tp, value, root_traceback)
 
