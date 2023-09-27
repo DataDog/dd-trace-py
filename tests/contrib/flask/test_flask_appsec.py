@@ -938,13 +938,15 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             ddtrace.Pin.override(flask.Flask, service=service_name, tracer=ddtrace.tracer)
             return "Ok %s" % service_name, 200
 
-        self._aux_appsec_prepare_tracer()
-        resp = self.client.get("/new_service/awesome_test")
-        assert resp.status_code == 200
-        assert get_response_body(resp) == "Ok awesome_test"
-        for _ in range(10):
-            time.sleep(1)
-            if "awesome_test" in ddtrace.config._get_extra_services():
-                break
-        else:
-            raise AssertionError("extra service not found")
+        with override_global_config(dict(_remote_config_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            assert ddtrace.config._remote_config_enabled
+            resp = self.client.get("/new_service/awesome_test")
+            assert resp.status_code == 200
+            assert get_response_body(resp) == "Ok awesome_test"
+            for _ in range(10):
+                time.sleep(1)
+                if "awesome_test" in ddtrace.config._get_extra_services():
+                    break
+            else:
+                raise AssertionError("extra service not found")
