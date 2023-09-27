@@ -77,11 +77,12 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
-     default: False
+     default: True
      description: |
          This configuration enables the generation of 128 bit trace ids.
      version_added:
        v1.12.0:
+       v2.0.0: Changed default value to True
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -295,7 +296,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``tracecontext,datadog``
+         ``tracecontext``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -317,10 +318,11 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
+       v2.0.0: Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext"``
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``tracecontext,datadog``
+         ``tracecontext``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -336,10 +338,11 @@ The following environment variables for the tracer are supported:
 
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
+       v2.0.0: Changed the default value to ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="tracecontext"``
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``tracecontext,datadog``
+         ``tracecontext``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
@@ -355,6 +358,7 @@ The following environment variables for the tracer are supported:
 
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
+       v2.0.0: Changed the default value to ``DD_TRACE_PROPAGATION_STYLE_INJECT="tracecontext"``
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
@@ -400,7 +404,7 @@ The following environment variables for the tracer are supported:
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
      description: |
-         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
+         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and
          each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
    DD_HTTP_CLIENT_TAG_QUERY_STRING:
@@ -412,7 +416,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
-    
+
    DD_TRACE_SPAN_AGGREGATOR_RLOCK:
      type: Boolean
      default: True
@@ -521,8 +525,8 @@ The following environment variables for the tracer are supported:
       description: |
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
-         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.  
+         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be
+         set to ``true`` to work.
       version_added:
          v1.15.0:
 
@@ -531,7 +535,7 @@ The following environment variables for the tracer are supported:
       default: ""
       description: |
          Field to be used to read the user login when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
-         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and,
          in some cases, the selected field could hold potentially private information.
       version_added:
          v1.15.0:
