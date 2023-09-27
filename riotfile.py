@@ -912,6 +912,7 @@ venv = Venv(
         Venv(
             name="flask_login",
             command="pytest {cmdargs} tests/contrib/flask_login",
+            pys="3.11",
             pkgs={
                 "flask": "~=1.0.4",
                 "flask-login": "~=0.6.2",
