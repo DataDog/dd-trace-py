@@ -466,10 +466,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[3].name == TEST_OPERATION_NAME
             assert spans[3].get_tag(test.NAME) == "test_will_fail"
             assert spans[3].get_tag(ERROR_MSG) == "False is not true"
-            if sys.version_info[0] >= 3:
-                assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-            else:
-                assert spans[3].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
             assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -536,10 +533,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[3].name == TEST_OPERATION_NAME
             assert spans[3].get_tag(test.NAME) == "test_will_fail_first"
             assert spans[3].get_tag(ERROR_MSG) == "False is not true"
-            if sys.version_info[0] >= 3:
-                assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-            else:
-                assert spans[3].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
             assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -548,10 +542,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[4].name == TEST_OPERATION_NAME
             assert spans[4].get_tag(test.NAME) == "test_will_fail_second"
             assert spans[4].get_tag(ERROR_MSG) == "False is not true"
-            if sys.version_info[0] >= 3:
-                assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-            else:
-                assert spans[4].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
             assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -634,10 +625,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[4].get_tag(test.TEST_STATUS) == test.Status.FAIL.value
             assert spans[4].get_tag(test.SKIP_REASON) is None
             assert spans[4].get_tag(ERROR_MSG) == "False is not true"
-            if sys.version_info[0] >= 3:
-                assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-            else:
-                assert spans[4].get_tag(ERROR_TYPE) == "exceptions.AssertionError"
+            assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
             assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
             assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
             assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -761,7 +749,7 @@ class UnittestTestCase(TracerTestCase):
                     test.TEST_STATUS: test.Status.FAIL.value,
                     test.SUITE: "SubTest1",
                     ERROR_MSG: "False is not true",
-                    ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
+                    ERROR_TYPE: "builtins.AssertionError",
                     MODULE_ID: str(test_module_span.span_id),
                     SUITE_ID: str(test_suite_span_subtest_1.span_id),
                     test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
@@ -905,7 +893,7 @@ class UnittestTestCase(TracerTestCase):
                     test.TEST_STATUS: test.Status.FAIL.value,
                     test.SUITE: "SubTest1",
                     ERROR_MSG: "False is not true",
-                    ERROR_TYPE: "builtins.AssertionError" if sys.version_info[0] >= 3 else "exceptions.AssertionError",
+                    ERROR_TYPE: "builtins.AssertionError",
                     MODULE_ID: str(test_module_span.span_id),
                     SUITE_ID: str(test_suite_span_subtest_1.span_id),
                     test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
