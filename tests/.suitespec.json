@@ -12,7 +12,8 @@
             "hatch.toml",
             "tests/conftest.py",
             "tests/__init__.py",
-            "tests/.suitespec.json"
+            "tests/.suitespec.json",
+            ".circleci/*"
         ],
         "core": [
             "ddtrace/internal/*",
