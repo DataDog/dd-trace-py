@@ -86,9 +86,9 @@ def _is_test_suite(item) -> bool:
 
 def _is_test(item) -> bool:
     if (
-            type(item) == unittest.TestSuite
-            or not hasattr(item, "_testMethodName")
-            or (ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"))
+        type(item) == unittest.TestSuite
+        or not hasattr(item, "_testMethodName")
+        or (ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"))
     ):
         return False
     return True
@@ -216,9 +216,9 @@ def _is_valid_module_suite_call(func) -> bool:
 
 def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     return (
-            hasattr(instance, "progName")
-            or hasattr(_CIVisibility, "_datadog_entry")
-            and _CIVisibility._datadog_entry == "cli"
+        hasattr(instance, "progName")
+        or hasattr(_CIVisibility, "_datadog_entry")
+        and _CIVisibility._datadog_entry == "cli"
     )
 
 
@@ -276,8 +276,7 @@ def _finish_remaining_suites_and_modules(seen_suites: dict, seen_modules: dict):
 
 
 def _update_remaining_suites_and_modules(
-        test_module_suite_path: str, test_module_path: str, test_module_span: ddtrace.Span,
-        test_suite_span: ddtrace.Span
+    test_module_suite_path: str, test_module_path: str, test_module_span: ddtrace.Span, test_suite_span: ddtrace.Span
 ):
     """
     Updates the remaining test suite and test counter and finishes spans when these have finished their execution.
