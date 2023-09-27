@@ -188,6 +188,7 @@ class RemoteConfigClient(object):
             language="python",
             tracer_version=tracer_version,
             service=ddtrace.config.service,
+            extra_services=list(ddtrace.config._get_extra_services()),
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
@@ -324,6 +325,8 @@ class RemoteConfigClient(object):
 
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
+        self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
+
         return dict(
             client=dict(
                 id=self.id,
