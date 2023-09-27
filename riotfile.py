@@ -916,6 +916,7 @@ venv = Venv(
             pkgs={
                 "flask": "~=1.0.4",
                 "flask-login": "~=0.6.2",
+                "Jinja2": "~=2.11.0",
             },
         ),
         Venv(
