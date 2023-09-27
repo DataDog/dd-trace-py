@@ -15,6 +15,7 @@ DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
 if [[ -z "$RIOT_HASHES" ]]; then
     echo "No riot hashes found for pattern: $RIOT_PATTERN"
+    sleep 600
     if [[ -v CIRCLECI ]]; then
         circleci step halt
     fi
