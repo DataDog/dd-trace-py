@@ -927,6 +927,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             )
 
     def test_multiple_service_name(self):
+        import time
+
         import flask
 
         import ddtrace
@@ -940,4 +942,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         resp = self.client.get("/new_service/awesome_test")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok awesome_test"
-        assert "awesome_test" in ddtrace.config._get_extra_services()
+        for _ in range(10):
+            time.sleep(0.2)
+            if "awesome_test" in ddtrace.config._get_extra_services():
+                break
+        else:
+            raise AssertionError("extra service not found")
