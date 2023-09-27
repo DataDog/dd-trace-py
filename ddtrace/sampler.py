@@ -246,7 +246,7 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = ddconfig._trace_sample_rate
+            sample_rate = ddconfig.trace_sample_rate
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)

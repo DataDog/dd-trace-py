@@ -304,13 +304,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        self._service = config.service
-        config._subscribe(["service"], self._on_global_config_change)
-
-    def _on_global_config_change(self, new_config, items):
-        # type: (Config, List[str]) -> None
-        if "service" in items:
-            self._service = new_config.service
 
     def _atexit(self):
         # type: () -> None
@@ -377,7 +370,7 @@ class Tracer(object):
         if isinstance(active, Span) and active.service:
             service = active.service
         else:
-            service = self._service
+            service = config.service
 
         return {
             "trace_id": str(active.trace_id) if active else "0",
@@ -690,7 +683,7 @@ class Tracer(object):
             if parent:
                 service = parent.service
             else:
-                service = self._service
+                service = config.service
 
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
@@ -753,7 +746,7 @@ class Tracer(object):
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == self._service) or (
+            if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span.set_tag_str(VERSION_KEY, config.version)

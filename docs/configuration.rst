@@ -11,6 +11,12 @@ see specific integration documentation for more details.
 The following environment variables for the tracer are supported:
 
 
+Global Settings
+---------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings:GlobalConfig
+   :recursive: true
+
 .. ddtrace-configuration-options::
    DD_ENV:
      description: |

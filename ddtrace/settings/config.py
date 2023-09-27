@@ -1,14 +1,12 @@
 from copy import deepcopy
 import os
 import re
-from typing import Any
 from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Tuple
 
 from envier import En
-from typing_extensions import TypedDict
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -234,9 +232,7 @@ class Config(object):
 
     def __init__(self):
         # Must come before _integration_configs due to __setattr__
-        self._envier_config = GlobalConfig(
-            env_source=_create_env_source(),
-        )
+        self._envier_config = GlobalConfig()
 
         # use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
@@ -251,13 +247,11 @@ class Config(object):
                 removal_version="2.0.0",
             )
 
-        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
-        self.http = HttpConfig(header_tags=header_tags)
+        self.http = HttpConfig(header_tags=self._envier_config.trace_http_header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
@@ -293,7 +287,10 @@ class Config(object):
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
+        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
+        if self.service is None and in_gcp_function():
+            self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
@@ -311,8 +308,6 @@ class Config(object):
         # The version tag should not be included on all spans.
         if self.version and "version" in self.tags:
             del self.tags["version"]
-
-        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
 
         self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
@@ -434,7 +429,7 @@ class Config(object):
         )
 
     def __getattr__(self, name):
-        if name in self._envier_config:
+        if name in self._envier_config.keys():
             return getattr(self._envier_config, name)
 
         if name not in self._integration_configs:
@@ -543,9 +538,8 @@ class Config(object):
     def __setattr__(self, key, value):
         if key == "_envier_config":
             return super(self.__class__, self).__setattr__(key, value)
-        elif key in self._envier_config:
+        elif key in self._envier_config.keys():
             setattr(self._envier_config, key, value)
-            # self._envier_config.set_user_value(value)
             self._notify_subscribers([key])
             return None
         else:
@@ -553,36 +547,46 @@ class Config(object):
 
     def reset(self):
         # type: () -> None
-        self._envier_config = GlobalConfig(env_source=_create_env_source())
-
-
-def _create_env_source():
-    env = os.environ.copy()
-    if "DD_TAGS" in env:
-        tags = parse_tags_str(env["DD_TAGS"])
-        if "DD_SERVICE" not in env and "service" in tags:
-            env["DD_SERVICE"] = tags["service"]
-    if "DD_SERVICE" not in env and in_gcp_function():
-        for e in ("FUNCTION_NAME", "K_SERVICE"):
-            if e in env:
-                env["DD_SERVICE"] = env[e]
-                break
-    return env
+        self._envier_config = GlobalConfig()
 
 
 class GlobalConfig(En):
-    """Configuration shared for all components of the library.
+    """Global configuration of the ddtrace library.
 
-    These include settings like service, env and version which are universal
-    tags and should apply to all products.
+    TODO: for each setting
+        - Add usage examples
+        - Add validators
     """
-
     __prefix__ = "dd"
 
-    service = En.v(
-        Optional[str],
-        "service",
-        default=DEFAULT_SPAN_SERVICE_NAME,
-        help_type="String",
-        help="Service name to be used for the application.",
+    trace_sample_rate = En.v(
+        Optional[float],
+        "trace_sample_rate",
+        default=1.0,
+        help_type="Float",
+        help="Global sample rate for all traces.",
+    )
+
+    logs_injection = En.v(
+        Optional[bool],
+        "logs_injection",
+        default=False,
+        help_type="Bool",
+        help=(
+            "Enable trace id injection into logs. "
+            "This setting requires a change to the string format of the logger. No change is required when using "
+            "an structured logger. "
+            "Note that this setting is only compatible with ``ddtrace-run`` and when using Library Injection.",
+        )
+    )
+
+    trace_http_header_tags = En.v(
+        dict,
+        "trace_header_tags",
+        default={},
+        parser=parse_tags_str,
+        help_type="Dict[str, str]",
+        help=(
+            "A comma-separated list of HTTP headers tags to be set as span tags."
+        )
     )

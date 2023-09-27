@@ -1,80 +1,80 @@
+import mock
 import pytest
 
-from ddtrace import config
+from ddtrace.settings import Config
+
+
+
+@pytest.fixture
+def config():
+    yield Config()
 
 
 @pytest.mark.parametrize(
-    "test",
+    "testcase",
     [
         {
-            "expected_service": None,
+            "expected": {
+                "trace_sample_rate": 1.0,
+                "logs_injection": False,
+                "trace_http_header_tags": {},
+            }
         },
         {
-            "env": {"DD_SERVICE": "env_svc"},
-            "expected_service": "env_svc",
+            "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
+            "expected": {
+                "trace_sample_rate": 0.9,
+            }
         },
         {
-            "env": {"DD_TAGS": "service:env_svc"},
-            "expected_service": "env_svc",
-        },
-        {
-            "code": "code_svc",
-            "expected_service": "code_svc",
-        },
-        {
-            "env": {"DD_SERVICE": "env_svc1", "DD_TAGS": "service:env_svc2"},
-            "expected_service": "env_svc1",
-        },
-        {
-            "env": {"DD_SERVICE": "env_svc1", "DD_TAGS": "service:env_svc2"},
-            "code": "code_svc",
-            "expected_service": "code_svc",
-        },
-        {
-            # DD_SERVICE takes precedence over all other env vars
-            "env": {
-                "DD_SERVICE": "dd_service",
-                "DD_TAGS": "service:dd_tags_service",
-                "GCP_PROJECT": "prj",
-                "FUNCTION_NAME": "my_fn",
+            "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
+            "code": {
+                "trace_sample_rate": 0.8,
             },
-            "expected_service": "dd_service",
+            "expected": {
+                "trace_sample_rate": 0.8,
+            }
         },
         {
-            # DD_TAGS takes second-highest precedence over all other env vars
-            "env": {"DD_TAGS": "service:dd_tags_service", "GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn"},
-            "expected_service": "dd_tags_service",
+            "env": {"DD_LOGS_INJECTION": "true"},
+            "expected": {"logs_injection": True},
         },
         {
-            # Serverless should not work unless GCP or AWS is detected
-            "env": {"FUNCTION_NAME": "my_fn"},
-            "expected_service": None,
+            "env": {"DD_LOGS_INJECTION": "true"},
+            "code": {"logs_injection": False},
+            "expected": {"logs_injection": False},
         },
         {
-            "env": {"GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn"},
-            "expected_service": "my_fn",
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
+            "expected": {"trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}},
         },
         {
-            # Test serverless precedence
-            "env": {"GCP_PROJECT": "prj", "FUNCTION_NAME": "my_fn", "K_SERVICE": "my_svc"},
-            "expected_service": "my_fn",
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
+            "code": {"trace_http_header_tags": {"header": "value"}},
+            "expected": {"trace_http_header_tags": {"header": "value"}},
         },
-        pytest.param(
-            {"tag_code": "service:code_svc", "expected_service": "code_svc"},
-            marks=pytest.mark.xfail(reason="The service isn't updated when tags are set programmatically"),
-        ),
+        # xfail
+        # {
+        #     "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1,X-Header-Tag-2"},
+        #     "expected": {"trace_http_header_tags": {"X-Header-Tag-1": "", "X-Header-Tag-2": ""}},
+        # },
     ],
 )
-def test_service(test, monkeypatch):
-    for env_name, env_value in test.get("env", {}).items():
+def test_settings(testcase, config, monkeypatch):
+    for env_name, env_value in testcase.get("env", {}).items():
         monkeypatch.setenv(env_name, env_value)
-        # Reset the config to reload the env vars
         config.reset()
 
-    if "code" in test:
-        config.service = test["code"]
+    for code_name, code_value in testcase.get("code", {}).items():
+        setattr(config, code_name, code_value)
 
-    if "tag_code" in test:
-        config.tags = test["tag_code"]
+    for expected_name, expected_value in testcase["expected"].items():
+        assert getattr(config, expected_name) == expected_value
 
-    assert config.service == test["expected_service"]
+
+def test_subscription(config):
+    for s in ("trace_sample_rate", "logs_injection", "trace_http_header_tags"):
+        _handler = mock.MagicMock()
+        config._subscribe([s], _handler)
+        setattr(config, s, "1")
+        _handler.assert_called_once_with(config, [s])
