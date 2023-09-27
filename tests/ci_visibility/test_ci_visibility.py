@@ -315,26 +315,11 @@ def test_git_client_get_latest_commits(git_repo):
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     backend_commits = CIVisibilityGitClient._search_commits(
         REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
     )
     assert latest_commits[0] in backend_commits
-
-
-def test_get_client_do_request_agentless_headers_legacy_app_key():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
-    response = mock.MagicMock()
-    response.status = 200
-
-    with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
-    ):
-        CIVisibilityGitClient._do_request(
-            REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
-        )
-
-    _request.assert_called_once_with("POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo"})
 
 
 def test_get_client_do_request_agentless_headers():
@@ -350,26 +335,6 @@ def test_get_client_do_request_agentless_headers():
         )
 
     _request.assert_called_once_with("POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo"})
-
-
-def test_get_client_do_request_evp_proxy_headers_legacy_app_key():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
-    response = mock.MagicMock()
-    response.status = 200
-
-    with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
-    ):
-        CIVisibilityGitClient._do_request(
-            REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
-        )
-
-    _request.assert_called_once_with(
-        "POST",
-        "http://base_url/repository/endpoint",
-        "payload",
-        {"X-Datadog-EVP-Subdomain": "api"},
-    )
 
 
 def test_get_client_do_request_evp_proxy_headers():
@@ -446,7 +411,7 @@ def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_rep
 
 
 def test_git_client_upload_packfiles(git_repo):
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
@@ -461,39 +426,6 @@ def test_git_client_upload_packfiles(git_repo):
             assert call_args[2] == "/packfile"
             assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
             assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
-
-
-def test_git_do_request_agentless_legacy_app_key(git_repo):
-    mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey", "fakeappkey")
-    response = mock.MagicMock()
-    setattr(response, "status", 200)  # noqa: B010
-
-    with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
-            mock_http_connection = mock.Mock()
-            mock_http_connection.request = mock.Mock()
-            mock_http_connection.close = mock.Mock()
-            mock_get_connection.return_value = mock_http_connection
-
-            CIVisibilityGitClient._do_request(
-                REQUESTS_MODE.AGENTLESS_EVENTS,
-                "base_url",
-                "endpoint",
-                '{"payload": "payload"}',
-                mock_serializer,
-                {"mock_header_name": "mock_header_value"},
-            )
-
-            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
-            mock_http_connection.request.assert_called_once_with(
-                "POST",
-                "base_url/repositoryendpoint",
-                '{"payload": "payload"}',
-                {
-                    "dd-api-key": "fakeapikey",
-                    "mock_header_name": "mock_header_value",
-                },
-            )
 
 
 def test_git_do_request_agentless(git_repo):
@@ -524,39 +456,6 @@ def test_git_do_request_agentless(git_repo):
                 '{"payload": "payload"}',
                 {
                     "dd-api-key": "fakeapikey",
-                    "mock_header_name": "mock_header_value",
-                },
-            )
-
-
-def test_git_do_request_evp_legacy_app_key(git_repo):
-    mock_serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
-    response = mock.MagicMock()
-    setattr(response, "status", 200)  # noqa: B010
-
-    with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
-            mock_http_connection = mock.Mock()
-            mock_http_connection.request = mock.Mock()
-            mock_http_connection.close = mock.Mock()
-            mock_get_connection.return_value = mock_http_connection
-
-            CIVisibilityGitClient._do_request(
-                REQUESTS_MODE.EVP_PROXY_EVENTS,
-                "base_url",
-                "endpoint",
-                '{"payload": "payload"}',
-                mock_serializer,
-                {"mock_header_name": "mock_header_value"},
-            )
-
-            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
-            mock_http_connection.request.assert_called_once_with(
-                "POST",
-                "base_url/repositoryendpoint",
-                '{"payload": "payload"}',
-                {
-                    "X-Datadog-EVP-Subdomain": "api",
                     "mock_header_name": "mock_header_value",
                 },
             )
