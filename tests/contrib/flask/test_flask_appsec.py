@@ -943,7 +943,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok awesome_test"
         for _ in range(10):
-            time.sleep(0.2)
+            time.sleep(1)
             if "awesome_test" in ddtrace.config._get_extra_services():
                 break
         else:
