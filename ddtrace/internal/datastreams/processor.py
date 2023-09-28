@@ -302,7 +302,6 @@ class DataStreamsProcessor(PeriodicService):
         except Exception:
             log.error("retry limit exceeded submitting pathway stats to the Datadog agent at %s", self._agent_endpoint)
 
-
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
         self.periodic()
@@ -447,6 +446,7 @@ class DataStreamsCtx:
         self.processor.on_checkpoint_creation(
             hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec
         )
+
 
 def _atexit(obj=None):
     try:
