@@ -580,6 +580,46 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
             )
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    student_description = """
+    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
+    David is an active member of the university's Chess Club and the South Asian Student Association.
+    He hopes to pursue a career in software engineering after graduating.
+    """
+    student_custom_functions = [
+        {
+            "name": "extract_student_info",
+            "description": "Get the student information from the body of the input text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the person"},
+                    "major": {"type": "string", "description": "Major subject."},
+                    "school": {"type": "string", "description": "The university name."},
+                    "grades": {"type": "integer", "description": "GPA of the student."},
+                    "clubs": {
+                        "type": "array",
+                        "description": "School clubs for extracurricular activities. ",
+                        "items": {"type": "string", "description": "Name of School Club"},
+                    },
+                },
+            },
+        },
+    ]
+
+    with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": student_description}],
+            functions=student_custom_functions,
+            function_call="auto",
+            user="ddtrace-test",
+        )
+
+
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
 def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
     """Ensure the metrics_enabled configuration works."""
