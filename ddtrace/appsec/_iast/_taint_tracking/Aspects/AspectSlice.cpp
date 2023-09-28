@@ -68,18 +68,29 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
     PyObject* candidate_text = args[0];
-    auto start = PyNumber_Long(args[1]);
-    auto stop = PyNumber_Long(args[2]);
+    PyObject* start = PyLong_FromLong(0);
 
-    PyObject* step = nullptr;
+    if (PyNumber_Check(args[1])) {
+        start = PyNumber_Long(args[1]);
+    }
+    PyObject* stop = nullptr;
+    if (PyNumber_Check(args[2])) {
+        stop = PyNumber_Long(args[2]);
+    }
+    PyObject* step = PyLong_FromLong(1);
     if (nargs == 4) {
-        step = PyNumber_Long(args[3]);
+        if (PyNumber_Check(args[3])) {
+            step = PyNumber_Long(args[3]);
+        } else {
+        }
     }
 
     PyObject* slice = PySlice_New(start, stop, step);
+    if (slice == nullptr) {
+        PyErr_Print();
+        return nullptr;
+    }
     PyObject* result = PyObject_GetItem(candidate_text, slice);
-    Py_DECREF(slice);
     auto res = slice_aspect(result, candidate_text, start, stop, step);
-    Py_DECREF(result);
     return res;
 }
