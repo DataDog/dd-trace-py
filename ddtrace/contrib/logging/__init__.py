@@ -46,6 +46,14 @@ Make sure that your log format exactly matches the following::
         log.info('Hello, World!')
 
     hello()
+
+
+Note that most host based setups log by default in UTC time.
+if the log timestamps aren't automatically formatted as UTC, the logging formatter can be updated to use UTC.
+For more information, review https://docs.datadoghq.com/logs/guide/logs-not-showing-expected-timestamp/
+
+    import time
+    logging.Formatter.converter = time.gmtime
 """
 
 from ...internal.utils.importlib import require_modules
