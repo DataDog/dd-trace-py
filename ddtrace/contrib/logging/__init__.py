@@ -48,7 +48,7 @@ Make sure that your log format exactly matches the following::
     hello()
 
 Note that most host based setups log by default to UTC time.
-If the log timestamps aren't automatically formatted as UTC, `logging.Formatter` can be updated to use UTC::
+If the log timestamps aren't automatically in UTC, the formatter can be updated to use UTC::
 
     import time
     logging.Formatter.converter = time.gmtime
