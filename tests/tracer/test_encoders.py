@@ -700,3 +700,95 @@ def test_json_encoder_traces_bytes():
         assert u"\ufffdspan.a" == span_a["name"], span_a["name"]
         assert u"\x80span.b" == span_b["name"]
         assert u"\ufffdspan.b" == span_c["name"]
+
+
+def _decode_v05_bytes(obj):
+    import msgpack
+
+    from ddtrace import Span
+
+    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+
+    if not unpacked or not unpacked[0]:
+        return unpacked
+
+    table, _traces = unpacked
+
+    def resolve(span):
+        rebuilt_span = Span("temp")
+        # structure of v0.5 encoded spans
+        # 		 0: Service   (uint32)
+        # 		 1: Name      (uint32)
+        # 		 2: Resource  (uint32)
+        # 		 3: TraceID   (uint64)
+        # 		 4: SpanID    (uint64)
+        # 		 5: ParentID  (uint64)
+        # 		 6: Start     (int64)
+        # 		 7: Duration  (int64)
+        # 		 8: Error     (int32)
+        # 		 9: Meta      (map[uint32]uint32)
+        # 		10: Metrics   (map[uint32]float64)
+        # 		11: Type      (uint32)
+        rebuilt_span.service = table[span[0]].decode() or None
+        rebuilt_span.name = table[span[1]].decode() or None
+        rebuilt_span.resource = table[span[2]].decode() or None
+        rebuilt_span.trace_id = span[3] or None
+        rebuilt_span.span_id = span[4] or None
+        rebuilt_span.parent_id = span[5] or None
+        rebuilt_span.start = span[6]
+        rebuilt_span.duration_ns = span[7] or None
+        rebuilt_span.error = span[8]
+        rebuilt_span._meta = {table[k].decode(): table[v].decode() for k, v in span[9].items()}
+        rebuilt_span._metrics = {table[k].decode(): table[v] for k, v in span[10].items()}
+        rebuilt_span.span_type = table[span[11]].decode() or None
+
+        return rebuilt_span
+
+    return [[resolve(span) for span in trace] for trace in _traces]
+
+
+def test_payload_corruption_v05():
+    import ddtrace
+    from ddtrace.internal.encoding import MsgpackEncoderV05
+    from tests.utils import override_global_config
+
+    string_table_size = 1 << 12
+    encoder = MsgpackEncoderV05(string_table_size, string_table_size)
+
+    # Generate Spans in one trace
+    with override_global_config({"_128_bit_trace_id_enabled": False}):
+        # Note - 128bit trace ids are encoded in chunks. This complicates this test so we ensure this
+        # feature is disabled.
+        trace = [ddtrace.Span("name", "service", "resource", "type") for _ in range(6)]
+
+    for s in trace:
+        for x in "abcdefgijklmnopqrstuvwxyz":
+            s.set_tag_str(x, x * 100)
+        s.start = 0
+
+    # DEBUG: Print the contents of the string table
+    print("xxxxxx     string table before encoding     xxxxxxxxx")
+    print(encoder.stable.string_table_values)
+
+    # Queue trace in encoder
+    encoder.put(trace)
+
+    # DEBUG: Print the contents of the string table
+    print("------------ string table after encoding --------------")
+    print(encoder.stable.string_table_values)
+
+    # Encode one trace
+    encoded_bytes = encoder.encode()
+
+    # Recreate traces from encoded bytes
+    decoded_traces = _decode_v05_bytes(encoded_bytes)
+    # _decode_v05_bytes() returns a list of traces. This test generates one trace so just get that
+    decoded_trace = decoded_traces[0]
+
+    # Ensure the original trace and the decoded trace have the same values
+    # If this fails the trace has been corrupted
+    assert len(decoded_trace) == len(trace)
+    for i in range(len(decoded_trace)):
+        og_span = trace[i]._pprint()
+        decoded_span = decoded_trace[i]._pprint()
+        assert og_span == decoded_span, "original span: {}, decoded span: {}".format(og_span, decoded_span)

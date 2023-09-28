@@ -7,7 +7,6 @@ import threading
 
 from ._utils cimport PyBytesLike_Check
 
-
 # Do not use an absolute import here Cython<3.0.0 will
 #   import `ddtrace.internal.constants` instead when this
 #   package is installed in editable mode
@@ -227,7 +226,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef size_t _reset_size
 
     def __init__(self, max_size):
-        self.pk.buf_size = min(max_size, 1 << 20)
+        self.pk.buf_size = min(max_size, 1 << 12)
         self.pk.buf = <char*> PyMem_Malloc(self.pk.buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
@@ -267,6 +266,10 @@ cdef class MsgpackStringTable(StringTable):
     cdef savepoint(self):
         self._sp_len = self.pk.length
         self._sp_id = self._next_id
+
+    @property
+    def string_table_values(self):
+        return "_sp_len:{} _sp_id:{} pk_buf:{} pk_buff_size:{} max_size:{} table:{}".format(self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table)
 
     cdef rollback(self):
         if self._sp_len > 0:
@@ -725,6 +728,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 return self._st.flush()
             finally:
                 self._reset_buffer()
+
+    @property
+    def stable(self):
+        return self._st
 
     @property
     def size(self):
