@@ -5,12 +5,14 @@ import os
 from platform import machine
 from platform import system
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
 
 
-DDWafRulesType = Union[None, int, str, list[Any], dict[str, Any]]
+DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -190,7 +192,7 @@ class ddwaf_object(ctypes.Structure):
 
     @property
     def struct(self) -> DDWafRulesType:
-        """pretty printing of the python ddwaf_object"""
+        """Generate a python structure from ddwaf_object"""
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
             return self.value.stringValue.decode("UTF-8", errors="ignore")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
@@ -410,7 +412,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_required_addresses(handle: ddwaf_handle_capsule) -> list[str]:
+def py_ddwaf_required_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
     obj = ddwaf_required_addresses(handle.handle, ctypes.byref(size))
     return [obj[i].decode("UTF-8") for i in range(size.value)]
