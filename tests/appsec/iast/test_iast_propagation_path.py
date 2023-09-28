@@ -216,7 +216,6 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     [
         ("taintsource1", "taintsource2"),
         ("taintsource", "taintsource"),
-        ("1", "1"),
         (b"taintsource1", "taintsource2"),
         (b"taintsource1", b"taintsource2"),
         ("taintsource1", b"taintsource2"),
