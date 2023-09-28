@@ -143,7 +143,7 @@ def extract_user_info(cwd=None):
 
 def extract_git_version(cwd=None):
     output = _git_subprocess_cmd("--version")
-    version_info = tuple([int(part) for part in output.split()[-1].split(".")])
+    version_info = tuple([int(part) for part in output.split()[2].split(".")])
     return version_info
 
 
