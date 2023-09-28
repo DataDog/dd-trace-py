@@ -9,7 +9,7 @@ when a user tries to log in using ``flask_login`` as an authentication plugin:
 
 Note that, by default, this will be enabled if ``DD_APPSEC_ENABLED=1`` with
 ``DD_APPSEC_AUTOMATIC_USER_EVENTS_TRACKING`` set to ``safe`` which will store the user's
-``id`` but not the username or email. Check the configuration docs to see how to disable this feature entirely, set it
+``id`` but not the username or email. Check the configuration docs to see how to disable this feature entirely, or set it
 to extended mode which would also store the username and email or customize the id, email and name fields to
 adapt them to your custom ``User`` model.
 
