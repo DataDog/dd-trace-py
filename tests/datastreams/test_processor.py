@@ -1,5 +1,7 @@
 import time
 
+import mock
+
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import PartitionKey
@@ -52,3 +54,19 @@ def test_kafka_offset_monitoring():
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1)] == 34
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2)] == 10
     assert processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1)] == 14
+
+
+def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
+    processor = DataStreamsProcessor("http://localhost:8126")
+    processor.stop(5)  # Stop period processing/flushing
+    mock_flush = mock.Mock()
+    processor._flush_stats_with_backoff = mock_flush
+
+    now = time.time()
+    processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 1)
+    now_ns = int(now * 1e9)
+    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    aggr_key = (",".join(["direction:out", "topic:topicA", "type:kafka"]), 1, 2)
+    assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key].full_pathway_latency.count == 1
+    processor._atexit()
+    assert mock_flush.called
