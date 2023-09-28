@@ -6,7 +6,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 from .. import trace_utils
