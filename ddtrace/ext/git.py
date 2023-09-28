@@ -146,7 +146,7 @@ def extract_git_version(cwd=None):
     try:
         version_info = tuple([int(part) for part in output.split()[2].split(".")])
     except ValueError:
-        log.error("Git version not found, it is not following the desired version format.")
+        log.error("Git version not found, it is not following the desired version format: {}".format(output))
         return 0, 0, 0
     return version_info
 
