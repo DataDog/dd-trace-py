@@ -37,9 +37,11 @@ prelude: >
   as specified using ``DD_TRACE_LOG_FILE``.
 
 
-  Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'`` to enable
-  B3 propagation has been removed. Please use
-  ``DD_TRACE_PROPAGATION_STYLE='b3multi'`` instead.
+  Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'``, 
+  which previously enabled ``b3multi`` now enables ``b3 single header``.
+  ``b3 single header`` still works but is deprecated for ``b3``.
+  Simplified: ``b3`` used to enable ``b3multi``, but now enables ``b3 single header``
+  to better align with Opentelemetry's terms.
 
 
   Removed deprecated environment variables
