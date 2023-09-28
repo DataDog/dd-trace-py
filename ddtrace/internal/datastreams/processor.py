@@ -1,6 +1,7 @@
 # coding: utf-8
 import base64
 from collections import defaultdict
+from functools import partial
 import gzip
 import os
 import struct
@@ -137,8 +138,8 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
         )(self._flush_stats)
 
+        register_on_exit_signal(partial(_atexit, obj=self))
         self.start()
-        register_on_exit_signal(self._atexit)
 
     def on_checkpoint_creation(
         self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec
@@ -301,15 +302,6 @@ class DataStreamsProcessor(PeriodicService):
         except Exception:
             log.error("retry limit exceeded submitting pathway stats to the Datadog agent at %s", self._agent_endpoint)
 
-    def _atexit(self):
-        try:
-            # Data streams tries to flush data on shutdown.
-            # Adding a try except here to ensure we don't crash the application if the agent is killed before
-            # the application for example.
-            self.shutdown(SHUTDOWN_TIMEOUT)
-        except Exception as e:
-            if config._data_streams_enabled:
-                log.warning("Failed to shutdown data streams processor: %s", repr(e))
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
@@ -455,3 +447,13 @@ class DataStreamsCtx:
         self.processor.on_checkpoint_creation(
             hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec
         )
+
+def _atexit(obj=None):
+    try:
+        # Data streams tries to flush data on shutdown.
+        # Adding a try except here to ensure we don't crash the application if the agent is killed before
+        # the application for example.
+        obj.shutdown(SHUTDOWN_TIMEOUT)
+    except Exception as e:
+        if config._data_streams_enabled:
+            log.warning("Failed to shutdown data streams processor: %s", repr(e))
