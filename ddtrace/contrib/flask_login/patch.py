@@ -89,7 +89,6 @@ def patch():
     Pin().onto(flask_login)
     _w("flask_login", "login_user", traced_login_user)
     flask_login._datadog_patch = True
-    core.dispatch("flask_login.patch", [])
 
 
 def unpatch():
