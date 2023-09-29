@@ -116,18 +116,18 @@ def join_aspect(orig_function, joiner, *args, **kwargs):
         return joiner.join(*args, **kwargs)
 
 
-def replace_aspect(orig_function, origstr, substr, replstr, *args):
-    # type: (Any, Any, Any, Any) -> Any
+def replace_aspect(orig_function, origstr, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
     if not isinstance(orig_function, BuiltinFunctionType):
-        return orig_function(substr, replstr, *args)
+        return orig_function(*args, **kwargs)
 
     if not isinstance(origstr, TEXT_TYPES):
-        return origstr.replace(substr, replstr, *args)
+        return origstr.replace(*args, **kwargs)
     try:
-        return _replace_aspect(origstr, substr, replstr, *args)
+        return _replace_aspect(origstr, *args, **kwargs)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. replace_aspect. {}".format(e), traceback.format_exc())
-        return origstr.replace(substr, replstr, *args)
+        return origstr.replace(*args, **kwargs)
 
 
 def index_aspect(candidate_text, index) -> Any:
