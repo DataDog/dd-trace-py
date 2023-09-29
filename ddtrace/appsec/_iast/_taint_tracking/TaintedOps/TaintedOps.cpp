@@ -1,7 +1,7 @@
 #include "TaintedOps.h"
 
 PyObject*
-new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length)
+new_pyobject_id(PyObject* tainted_object)
 {
     if (PyUnicode_Check(tainted_object)) {
         PyObject* empty_unicode = PyUnicode_New(0, 127);
@@ -37,9 +37,8 @@ PyObject*
 api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args)
 {
     PyObject* tainted_object;
-    Py_ssize_t object_length;
-    PyArg_ParseTuple(args, "On", &tainted_object, &object_length);
-    return new_pyobject_id(tainted_object, object_length);
+    PyArg_ParseTuple(args, "O", &tainted_object);
+    return new_pyobject_id(tainted_object);
 }
 
 bool
