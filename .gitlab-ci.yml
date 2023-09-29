@@ -52,27 +52,13 @@ deploy_to_reliability_env:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
 
-deploy_to_di_backend:automatic:
+deploy_to_di_backend:
   stage: deploy
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
-  trigger:
-    project: DataDog/debugger-demos
-    branch: main
-  variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PACKAGE_JOB: build
-    
-deploy_to_di_backend:manual:
-  stage: deploy
-  rules:
     - when: manual
       allow_failure: true
   trigger:
