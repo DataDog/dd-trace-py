@@ -39,8 +39,9 @@ TEXT_TYPES = (str, bytes, bytearray)
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
-_join_aspect = aspects.join_aspect
 _index_aspect = aspects.index_aspect
+_join_aspect = aspects.join_aspect
+_slice_aspect = aspects.slice_aspect
 
 __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
 
@@ -122,6 +123,21 @@ def index_aspect(candidate_text, index) -> Any:
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. index_aspect. {}".format(e), traceback.format_exc())
         return candidate_text[index]
+
+
+def slice_aspect(candidate_text, start, stop, step) -> Any:
+    if (
+        not isinstance(candidate_text, TEXT_TYPES)
+        or (start is not None and not isinstance(start, int))
+        or (stop is not None and not isinstance(stop, int))
+        or (step is not None and not isinstance(step, int))
+    ):
+        return candidate_text[start:stop:step]
+    try:
+        return _slice_aspect(candidate_text, start, stop, step)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e), traceback.format_exc())
+        return candidate_text[start:stop:step]
 
 
 def bytearray_extend_aspect(orig_function, op1, op2):
