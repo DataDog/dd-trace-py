@@ -6,7 +6,7 @@
 namespace py = pybind11;
 
 TaintRangePtr
-reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_LENGTH offset, RANGE_LENGTH max_length)
+reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH max_length)
 {
     RANGE_LENGTH length;
     if (max_length != -1)
@@ -31,7 +31,7 @@ shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
 
 void
 TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
-                                  RANGE_LENGTH offset,
+                                  RANGE_START offset,
                                   RANGE_LENGTH max_length,
                                   RANGE_LENGTH orig_offset)
 {
@@ -41,7 +41,7 @@ TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
 
 void
 TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
-                                  RANGE_LENGTH offset,
+                                  RANGE_START offset,
                                   RANGE_LENGTH max_length,
                                   RANGE_LENGTH orig_offset)
 {
