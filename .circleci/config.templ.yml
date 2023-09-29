@@ -780,7 +780,6 @@ jobs:
       - run_test:
           pattern: 'unittest'
 
-
   asynctest:
     executor: ddtrace_dev
     steps:
