@@ -32,8 +32,8 @@ NAME = TEST_NAME = "test.name"
 # Test Parameters
 PARAMETERS = "test.parameters"
 
-# Pytest Result (XFail, XPass)
-RESULT = TEST_RESULT = "pytest.result"
+# Test Result (XFail, XPass)
+RESULT = TEST_RESULT = "test.result"
 
 # Skip Reason
 SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
