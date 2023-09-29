@@ -75,12 +75,22 @@ def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
 
 
 def _is_suite_coverage_enabled():
-    # TODO: implement skipping logic
+    # TODO: implement suite skipping logic
     is_skipped_by_itr = False
     return (
         _CIVisibility._instance._suite_skipping_mode
         and _CIVisibility._instance._collect_coverage_enabled
         and not is_skipped_by_itr
+    )
+
+
+def _is_test_coverage_enabled():
+    # TODO: implement test skipping logic
+    is_skipped = False
+    return (
+            not _CIVisibility._instance._suite_skipping_mode
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped
     )
 
 
@@ -468,8 +478,14 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
         with _start_test_span(instance, test_suite_span) as span:
+            root_directory = os.getcwd()
+            if _is_test_coverage_enabled():
+                coverage = _start_coverage(root_directory)
+                instance._coverage = coverage
             result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
+            if _is_test_coverage_enabled() and coverage:
+                _detach_coverage(coverage, span, root_directory)
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
         )
