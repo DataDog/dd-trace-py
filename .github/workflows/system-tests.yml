@@ -27,7 +27,6 @@ jobs:
   system-tests:
     runs-on: ubuntu-latest
     needs: needs-run
-    if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
     strategy:
       matrix:
         include:
