@@ -5,7 +5,6 @@
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map)
 {
-    size_t len_result_o{ get_pyobject_size(result_o) };
     auto idx_long = PyLong_AsLong(idx);
     TaintRangeRefs ranges_to_set;
     auto ranges = get_ranges(candidate_text);
@@ -16,7 +15,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintR
         }
     }
 
-    const auto& res_new_id = new_pyobject_id(result_o, len_result_o);
+    const auto& res_new_id = new_pyobject_id(result_o);
     Py_DECREF(result_o);
 
     if (ranges_to_set.empty()) {
