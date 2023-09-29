@@ -677,7 +677,7 @@ class AstVisitor(ast.NodeTransformer):
             call_node.func.value.id = aspect_split[0]
             none_node = self._none_constant(subscr_node)
             lower = none_node if subscr_node.slice.lower is None else subscr_node.slice.lower
-            upper = none_node if subscr_node.slice.upper is None else subscr_node.slice.upper 
+            upper = none_node if subscr_node.slice.upper is None else subscr_node.slice.upper
             step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
             call_node.args.extend([subscr_node.value, lower, upper, step])
             self.ast_modified = True

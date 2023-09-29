@@ -81,16 +81,23 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (nargs == 4) {
         if (PyNumber_Check(args[3])) {
             step = PyNumber_Long(args[3]);
-        } else {
         }
     }
 
     PyObject* slice = PySlice_New(start, stop, step);
     if (slice == nullptr) {
         PyErr_Print();
+        Py_DECREF(start);
+        Py_DECREF(stop);
+        Py_DECREF(step);
         return nullptr;
     }
     PyObject* result = PyObject_GetItem(candidate_text, slice);
     auto res = slice_aspect(result, candidate_text, start, stop, step);
+
+    Py_DECREF(start);
+    Py_DECREF(stop);
+    Py_DECREF(step);
+    Py_DECREF(slice);
     return res;
 }
