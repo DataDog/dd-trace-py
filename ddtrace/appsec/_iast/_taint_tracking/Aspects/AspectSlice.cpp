@@ -106,6 +106,6 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (step != nullptr) {
         Py_DECREF(step);
     }
-    //    Py_DECREF(slice);
+    Py_DECREF(slice);
     return res;
 }
