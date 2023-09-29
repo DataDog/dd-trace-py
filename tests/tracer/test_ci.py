@@ -263,6 +263,13 @@ def test_get_rev_list_git_lt_223(git_repo):
         )
 
 
+def test_valid_git_version(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13 (Apple 256)"):
+        assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13"):
+        assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
+
+
 def test_invalid_git_version(git_repo):
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13a (invalid)"):
         assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
