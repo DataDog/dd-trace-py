@@ -200,7 +200,7 @@ else:
             LOGGER.debug("DDWaf features disabled. dry update")
             return False
 
-        def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
+        def _at_request_start(self) -> None:
             return None
 
         def _at_request_end(self) -> None:
