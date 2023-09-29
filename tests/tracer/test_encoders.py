@@ -739,7 +739,7 @@ def _decode_v05_bytes(obj):
         rebuilt_span.duration_ns = span[7] or None
         rebuilt_span.error = span[8]
         rebuilt_span._meta = {table[k].decode(): table[v].decode() for k, v in span[9].items()}
-        rebuilt_span._metrics = {table[k].decode(): table[v] for k, v in span[10].items()}
+        rebuilt_span._metrics = {table[k].decode(): v for k, v in span[10].items()}
         rebuilt_span.span_type = table[span[11]].decode() or None
 
         return rebuilt_span
@@ -752,8 +752,76 @@ def test_payload_corruption_v05():
     from ddtrace.internal.encoding import MsgpackEncoderV05
     from tests.utils import override_global_config
 
-    string_table_size = 1 << 12
+    string_table_size = 4 * (1 << 12)
     encoder = MsgpackEncoderV05(string_table_size, string_table_size)
+    s_dict = {
+        "org_id": 2,
+        "trace_id": "3939227152590743338",
+        "span_id": "2162019064858654055",
+        "parent_id": "8490121054105183582",
+        "start": 1694536934.81535,
+        "end": 1694536992.33221,
+        "duration": 57.516860094,
+        "type": "some_type",
+        "service": "alerting-metric-evaluator",
+        "name": "grpc.server",
+        "resource": "Evaluate",
+        "resource_hash": "",
+        "host_id": 13666247359,
+        "hostname": "i-0befefd732760776e",
+        "env": "prod",
+        "host_groups": ["env:prod", "datacenter:us1.prod.dog"],
+        "meta": {
+            "app": "alerting_metric_query",
+            "language": "python",
+            "_dd.agent_rare_sampler.enabled": "false",
+            "ddtrace.version": "1.16.1",
+            "tracestate": "dd=s:0",
+            "_dd.tracer_version": "1.16.1",
+            "env": "prod",
+            "_dd.filter.type": "spans-sampling-processor",
+            "_dd.tags.container": "kube_replica_set:alerting-metric-evaluator-fast-785b6c6dcd,app:alerting-metric-"
+            "evaluator,log_format:dd-ame-amq,kube_ownerref_kind:replicaset,kube_deployment:alerting-metric-evaluator"
+            "-fast,short_image:alerting-metric-query,kube_qos:burstable,kube_container_name:alerting-metric-query-5,"
+            "image_name:464622532012.dkr.ecr.us-east-1.amazonaws.com/alerting-metric-query,image_tag:v19532234-"
+            "6dd430e9-focal-py3,pod_phase:running,dc_config_version:49461303e4133bf4155985c90fc703513b2bf156,"
+            "env:prod,kube_service:alerting-metric-evaluator-fast,cnab.installation:helm/v1::alerting-metric-"
+            "evaluator-fast.metrics-alerting.metrics1b.us1.prod.dog,image_id:464622532012.dkr.ecr.us-east-1."
+            "amazonaws.com/alerting-metric-query@sha256:b33e6713acc1053b769ab0136955c60c6bc8c4781d49fa257a"
+            "9da90e3785a99b,kube_namespace:metrics-alerting,service:alerting-metric-evaluator,release:"
+            "alerting-metric-evaluator-fast,team:metrics-alerting,cluster:alerting-metric-evaluator-fast,"
+            "git.commit.sha:6dd430e93a5e1fc08b976554b26da430ac1f92e9,git.repository_url:http://github.com/"
+            "datadog/dogweb,container.baseimage.isgbi:yes,container.baseimage.buildstamp:2023-08-10t03:23:19z,"
+            "container.baseimage.os:ubuntu focal lts,container.baseimage.name:images/base/gbi-ubuntu_2004,"
+            "pod_name:alerting-metric-evaluator-fast-785b6c6dcd-w7x24,kube_ownerref_name:alerting-metric-evaluator-"
+            "fast-785b6c6dcd,display_container_name:alerting-metric-query-5_alerting-metric-evaluator-fast-785b6c6dcd-"
+            "w7x24,container_id:0cb943f6b7103235971e886409f5a581966a9f4f9e3accc0265352fb8d354e8a,container_name:"
+            "alerting-metric-query-5",
+            "_dd.agent_version": "7.47.0",
+            "_dd.filter.id": "puzo6QWKQ7mXhoAX0y2KBw",
+            "traceparent": "00-000000000000000036aaf2396fbea72a-75d2f81dba01255e-00",
+            "_dd.ingestion_reason": "error",
+            "avg:aws.sqs.approximate_number_of_messages_visible{queuename:fury-raven-incoming-sqs}": "2023-09-12T16",
+            "version": "v19532234-6dd430e9-focal-py3",
+            "_dd.agent_hostname": "i-0befefd732760776e",
+        },
+        "metrics": {
+            "_dd.tracer_kr": 1,
+            "metrics-querier query_batch -q b'Cp4BCMdKEi5hd3Muc3FzLmFwcHJveGltYXRlX251bWJlcl9vZl9tZXNzYWdlc192aXNpYmI"
+            "zqSCqAYiBgjmqYKoBiohcXVldWVuYW1lOmZ1cnktcmF2ZW4taW5jb21pbmctc3FzMgEqOAJCAggCSAJQBFoDCKwCagB": 7,
+            "_top_level": 1,
+            "_dd.agent_priority_sampler.target_tps": 10,
+            "_dd1.sr.esusr": 0.001,
+            "_dd.agent_errors_sampler.target_tps": 10,
+            "_dd.errors_sr": 0.5,
+            "pb.Health": 1,
+            "_sampling_priority_v1": 0,
+            "_dd.top_level": 1,
+            "Check": 9543,
+        },
+        "ingestion_reason": "error",
+        "metadata": {"sds_info": []},
+    }
 
     # encode and decoded traces 100 times. This tests the string table flushing and resetting logic
     for i in range(100):
@@ -761,15 +829,18 @@ def test_payload_corruption_v05():
         with override_global_config({"_128_bit_trace_id_enabled": False}):
             # Note - 128bit trace ids are encoded in chunks. This complicates this test so we ensure this
             # feature is disabled.
-            traces = [[ddtrace.Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(5)]
+            traces = [[ddtrace.Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(30)]
 
         for trace in traces:
             for s in trace:
-                for x in "abcdefgijklmnopqrstuvwxyz":
-                    for y in "abj":
-                        s.set_tag_str(x + y, x * 2 + y * 2)
                 # Set start to zero to simplify the decoding span logic
                 s.start = 0
+                # use values from trace that failed to decode
+                s.name = s_dict["name"]
+                s.service = s_dict["service"]
+                s.resource = s_dict["resource"]
+                s._meta = s_dict["meta"]
+                s._metrics = s_dict["metrics"]
 
         # DEBUG: Print the contents of the string table
         print("xxxxxx     string table before encoding     xxxxxxxxx")
