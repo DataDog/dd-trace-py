@@ -10,6 +10,7 @@ import sys
 import warnings  # noqa
 
 from ddtrace import config  # noqa
+from ddtrace._logger import _configure_log_injection
 from ddtrace.debugging._config import di_config  # noqa
 from ddtrace.debugging._config import ed_config  # noqa
 from ddtrace.internal.compat import PY2  # noqa
@@ -17,45 +18,19 @@ from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
+from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
+# Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config.logs_injection:
-    # immediately patch logging if trace id injected
-    from ddtrace import patch
+    _configure_log_injection()
 
-    patch(logging=True)
-
-
-# DEV: Once basicConfig is called here, future calls to it cannot be used to
-# change the formatter since it applies the formatter to the root handler only
-# upon initializing it the first time.
-# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
-# Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-if not config._debug_mode and config._call_basic_config:
-    deprecate(
-        "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application.",
-        removal_version="2.0.0",
-    )
-    if config.logs_injection:
-        logging.basicConfig(format=DD_LOG_FORMAT)
-    else:
-        logging.basicConfig()
 
 log = get_logger(__name__)
 
 
-if os.environ.get("DD_GEVENT_PATCH_ALL") is not None:
-    deprecate(
-        "The environment variable DD_GEVENT_PATCH_ALL is deprecated and will be removed in a future version. ",
-        postfix="There is no special configuration necessary to make ddtrace work with gevent if using ddtrace-run. "
-        "If not using ddtrace-run, import ddtrace.auto before calling gevent.monkey.patch_all().",
-        removal_version="2.0.0",
-    )
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa
 
@@ -170,12 +145,12 @@ try:
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
 
-        from ddtrace.appsec.iast._utils import _is_python_version_supported
+        from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
 
-            from ddtrace.appsec.iast._ast.ast_patching import _should_iast_patch
-            from ddtrace.appsec.iast._loader import _exec_iast_patched_module
+            from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+            from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
@@ -190,6 +165,9 @@ try:
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
+
+        if config.trace_methods:
+            _install_trace_methods(config.trace_methods)
     else:
         cleanup_loaded_modules()
 

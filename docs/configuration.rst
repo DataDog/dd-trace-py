@@ -87,7 +87,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-         Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist.
+         Enables debug logging in the tracer.
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
      version_added:
@@ -135,11 +135,6 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: Enables :ref:`Logs Injection`.
-
-   DD_CALL_BASIC_CONFIG:
-     type: Boolean
-     default: False
-     description: Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
    DD_AGENT_HOST:
      type: String
@@ -425,6 +420,15 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.16.2: added with default of False
        v1.19.0: default changed to True
+
+   DD_TRACE_METHODS:
+     type: String
+     default: ""
+     description: |
+        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Note that this setting is only compatible with ``ddtrace-run``.
+     version_added:
+       v2.1.0:
 
    DD_IAST_ENABLED:
      type: Boolean

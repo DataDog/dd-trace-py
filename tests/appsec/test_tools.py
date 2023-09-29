@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from ddtrace.appsec.utils import parse_form_params
+from ddtrace.appsec._utils import parse_form_params
 
 
 @pytest.mark.parametrize(

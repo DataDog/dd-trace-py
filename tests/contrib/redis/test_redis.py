@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from unittest import mock
+
+import pytest
 import redis
 
 import ddtrace
@@ -136,6 +139,15 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+
+    def test_connection_error(self):
+        with mock.patch.object(
+            redis.connection.ConnectionPool,
+            "get_connection",
+            side_effect=redis.exceptions.ConnectionError("whatever"),
+        ):
+            with pytest.raises(redis.exceptions.ConnectionError):
+                self.r.get("foo")
 
     def test_analytics_without_rate(self):
         with self.override_config("redis", dict(analytics_enabled=True)):

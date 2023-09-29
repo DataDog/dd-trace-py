@@ -61,6 +61,8 @@ class _EndpointHook:
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
                     span.set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
+            elif kw_attr == "engine":  # Azure OpenAI requires using "engine" instead of "model"
+                span.set_tag_str("openai.request.model", str(kwargs[kw_attr]))
             else:
                 span.set_tag_str("openai.request.%s" % kw_attr, str(kwargs[kw_attr]))
 
@@ -91,7 +93,6 @@ class _BaseCompletionHook(_EndpointHook):
             try:
                 num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
                 num_completion_tokens = yield
-
                 span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
                 total_tokens = num_prompt_tokens + num_completion_tokens
                 span.set_metric("openai.response.usage.total_tokens", total_tokens)
@@ -152,6 +153,7 @@ class _BaseCompletionHook(_EndpointHook):
 class _CompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
+        "engine",
         "suffix",
         "max_tokens",
         "temperature",
@@ -180,8 +182,15 @@ class _CompletionHook(_BaseCompletionHook):
             elif prompt:
                 for idx, p in enumerate(prompt):
                     span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
+        return
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return self._handle_response(pin, span, integration, resp)
+        prompt = kwargs.get("prompt", "")
         if kwargs.get("stream"):
             num_prompt_tokens = 0
+            estimated = False
             if isinstance(prompt, str) or isinstance(prompt, list) and isinstance(prompt[0], int):
                 estimated, prompt_tokens = _compute_prompt_token_count(prompt, kwargs.get("model"))
                 num_prompt_tokens += prompt_tokens
@@ -191,10 +200,6 @@ class _CompletionHook(_BaseCompletionHook):
                     num_prompt_tokens += prompt_tokens
             span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-        return
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        if not resp or kwargs.get("stream"):
             return self._handle_response(pin, span, integration, resp)
         if "choices" in resp:
             choices = resp["choices"]
@@ -212,7 +217,6 @@ class _CompletionHook(_BaseCompletionHook):
                     span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.get("text")))
         integration.record_usage(span, resp.get("usage"))
         if integration.is_pc_sampled_log(span):
-            prompt = kwargs.get("prompt", "")
             integration.log(
                 span,
                 "info" if error is None else "error",
@@ -228,6 +232,7 @@ class _CompletionHook(_BaseCompletionHook):
 class _ChatCompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
+        "engine",
         "temperature",
         "top_p",
         "n",
@@ -254,19 +259,20 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span.set_tag_str("openai.request.messages.%d.content" % idx, content)
                 span.set_tag_str("openai.request.messages.%d.role" % idx, role)
                 span.set_tag_str("openai.request.messages.%d.name" % idx, name)
+        return
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        if not resp:
+            return self._handle_response(pin, span, integration, resp)
+        messages = kwargs.get("messages")
         if kwargs.get("stream"):
-            # streamed responses do not have a usage field, so we have to
-            # estimate the number of tokens returned.
             est_num_message_tokens = 0
+            estimated = False
             for m in messages:
                 estimated, prompt_tokens = _compute_prompt_token_count(m.get("content", ""), kwargs.get("model"))
                 est_num_message_tokens += prompt_tokens
             span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
             span.set_metric("openai.response.usage.prompt_tokens", est_num_message_tokens)
-        return
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        if not resp or kwargs.get("stream"):
             return self._handle_response(pin, span, integration, resp)
         choices = resp.get("choices", [])
         span.set_metric("openai.response.choices_count", len(choices))
@@ -277,10 +283,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             idx = choice["index"]
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
             if integration.is_pc_sampled_span(span) and choice.get("message"):
-                span.set_tag_str(
-                    "openai.response.choices.%d.message.content" % idx,
-                    integration.trunc(choice.get("message", {}).get("content", "")),
-                )
+                content = choice.get("message", {}).get("content", "") or ""
+                span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
                 span.set_tag_str(
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message", {}).get("role", "")),
@@ -291,7 +295,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 )
         integration.record_usage(span, resp.get("usage"))
         if integration.is_pc_sampled_log(span):
-            messages = kwargs.get("messages")
             integration.log(
                 span,
                 "info" if error is None else "error",
@@ -306,7 +309,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
 class _EmbeddingHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = ("model", "user")
+    _request_kwarg_params = ("model", "engine", "user")
     ENDPOINT_NAME = "embeddings"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createEmbedding"

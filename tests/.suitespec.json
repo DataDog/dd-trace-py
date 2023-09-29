@@ -8,10 +8,12 @@
         "$harness": [
             "riotfile.py",
             "scripts/ddtest",
+            "scripts/run-test-suite",
             "hatch.toml",
             "tests/conftest.py",
             "tests/__init__.py",
-            "tests/.suitespec.json"
+            "tests/.suitespec.json",
+            ".circleci/*"
         ],
         "core": [
             "ddtrace/internal/*",
@@ -147,9 +149,6 @@
         "pyramid": [
             "ddtrace/contrib/pyramid/*"
         ],
-        "pylons": [
-            "ddtrace/contrib/pylons/*"
-        ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
         ],
@@ -219,8 +218,7 @@
         "molten": [
             "ddtrace/contrib/molten/*"
         ],
-        "boto": [
-            "ddtrace/contrib/boto/*",
+        "botocore": [
             "ddtrace/contrib/botocore/*",
             "ddtrace/contrib/aiobotocore/*"
         ],
@@ -459,20 +457,12 @@
             "@vendor",
             "tests/vendor/*"
         ],
-        "boto": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@boto",
-            "tests/contrib/boto/*"
-        ],
         "botocore": [
             "@bootstrap",
             "@core",
             "@contrib",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/botocore/*"
         ],
         "test_logging": [
@@ -527,15 +517,6 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*"
-        ],
-        "pylons": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@appsec",
-            "@pylons",
-            "tests/contrib/pylons/*"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -631,6 +612,7 @@
             "@contrib",
             "@appsec",
             "@asgi",
+            "@wsgi",
             "@django",
             "@dbapi",
             "@pg",
@@ -969,7 +951,7 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/aiobotocore/*"
         ],
         "aiomysql": [
@@ -1077,6 +1059,7 @@
             "@tracing",
             "@wsgi",
             "tests/contrib/wsgi/*",
+            "tests/contrib/django/test_django_wsgi.py",
             "tests/contrib/uwsgi/__init__.py",
             "tests/snapshots/tests.contrib.wsgi.*"
         ],
