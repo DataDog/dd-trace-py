@@ -87,8 +87,12 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* slice = PySlice_New(start, stop, step);
     if (slice == nullptr) {
         PyErr_Print();
-        Py_DECREF(start);
-        Py_DECREF(stop);
+        if (start != nullptr) {
+            Py_DECREF(start);
+        }
+        if (stop != nullptr) {
+            Py_DECREF(stop);
+        }
         if (step != nullptr) {
             Py_DECREF(step);
         }
