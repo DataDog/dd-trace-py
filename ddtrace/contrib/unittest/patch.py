@@ -88,9 +88,9 @@ def _is_test_coverage_enabled():
     # TODO: implement test skipping logic
     is_skipped = False
     return (
-            not _CIVisibility._instance._suite_skipping_mode
-            and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped
+        not _CIVisibility._instance._suite_skipping_mode
+        and _CIVisibility._instance._collect_coverage_enabled
+        and not is_skipped
     )
 
 
