@@ -1,23 +1,18 @@
 import ctypes
 import time
-from typing import TYPE_CHECKING
-
-from six import text_type
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.internal.logger import get_logger
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Union
-
-    from .ddwaf_types import DDWafRulesType
-
-
 LOGGER = get_logger(__name__)
 
 try:
+    from .ddwaf_types import DDWafRulesType
     from .ddwaf_types import _observator
     from .ddwaf_types import ddwaf_config
     from .ddwaf_types import ddwaf_context_capsule
@@ -36,16 +31,20 @@ except BaseException:
     _DDWAF_LOADED = False
     LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 
-#
-# Interface as Cython
-#
-
 
 class DDWaf_result(object):
     __slots__ = ["data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
 
-    def __init__(self, data, actions, runtime, total_runtime, timeout, truncation, derivatives):
-        # type: (DDWaf_result, text_type|None, list[text_type], float, float, bool, int, dict[str, Any]) -> None
+    def __init__(
+        self,
+        data: Optional[str],
+        actions: List[str],
+        runtime: float,
+        total_runtime: float,
+        timeout: bool,
+        truncation: int,
+        derivatives: Dict[str, Any],
+    ):
         self.data = data
         self.actions = actions
         self.runtime = runtime
@@ -58,8 +57,7 @@ class DDWaf_result(object):
 class DDWaf_info(object):
     __slots__ = ["loaded", "failed", "errors", "version"]
 
-    def __init__(self, loaded, failed, errors, version):
-        # type: (DDWaf_info, int, int, dict[text_type, Any], text_type) -> None
+    def __init__(self, loaded: int, failed: int, errors: Dict[str, Any], version: str):
         self.loaded = loaded
         self.failed = failed
         self.errors = errors
@@ -77,8 +75,12 @@ class DDWaf_info(object):
 if _DDWAF_LOADED:
 
     class DDWaf(object):
-        def __init__(self, ruleset_map, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, dict[text_type, Any], bytes, bytes) -> None
+        def __init__(
+            self,
+            ruleset_map: Dict[str, Any],
+            obfuscation_parameter_key_regexp: bytes,
+            obfuscation_parameter_value_regexp: bytes,
+        ):
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
@@ -99,12 +101,10 @@ if _DDWAF_LOADED:
             ddwaf_object_free(ctypes.byref(ruleset_map_object))
 
         @property
-        def required_data(self):
-            # type: (DDWaf) -> list[text_type]
+        def required_data(self) -> List[str]:
             return py_ddwaf_required_addresses(self._handle) if self._handle else []
 
-        def _set_info(self, diagnostics):
-            # type: (DDWaf, ddwaf_object) -> None
+        def _set_info(self, diagnostics: ddwaf_object) -> None:
             info_struct = diagnostics.struct
             rules = info_struct.get("rules", {}) if info_struct else {}  # type: ignore
             errors_result = rules.get("errors", {})
@@ -113,12 +113,10 @@ if _DDWAF_LOADED:
             ddwaf_object_free(diagnostics)
 
         @property
-        def info(self):
-            # type: (DDWaf) -> DDWaf_info
+        def info(self) -> DDWaf_info:
             return self._info
 
-        def update_rules(self, new_rules):
-            # type: (dict[text_type, DDWafRulesType]) -> bool
+        def update_rules(self, new_rules: Dict[str, DDWafRulesType]) -> bool:
             """update the rules of the WAF instance. return True if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
@@ -133,8 +131,7 @@ if _DDWAF_LOADED:
                 LOGGER.debug("DDWAF.update_rules: keeping the previous handle.")
                 return False
 
-        def _at_request_start(self):
-            # type: () -> ddwaf_context_capsule | None
+        def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
             ctx = None
             if self._handle:
                 ctx = py_ddwaf_context_init(self._handle)
@@ -142,17 +139,15 @@ if _DDWAF_LOADED:
                 LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
             return ctx
 
-        def _at_request_end(self):
-            # () -> None
+        def _at_request_end(self) -> None:
             pass
 
         def run(
-            self,  # type: DDWaf
-            ctx,  # type: ddwaf_context_capsule
-            data,  # type: DDWafRulesType
-            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
-        ):
-            # type: (...) -> DDWaf_result
+            self,
+            ctx: ddwaf_context_capsule,
+            data: DDWafRulesType,
+            timeout_ms: float = DEFAULT.WAF_TIMEOUT,
+        ) -> DDWaf_result:
             start = time.time()
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
@@ -174,43 +169,43 @@ if _DDWAF_LOADED:
                 result.derivatives.struct,
             )
 
-    def version():
-        # type: () -> text_type
+    def version() -> str:
         return ddwaf_get_version().decode("UTF-8")
 
 
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
-        required_data = []  # type: list[text_type]
-        info = DDWaf_info(0, 0, {}, "")  # type: DDWaf_info
+        required_data: List[str] = []
+        info: DDWaf_info = DDWaf_info(0, 0, {}, "")
 
-        def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, dict[text_type, Any], text_type, text_type) -> None
+        def __init__(
+            self,
+            rules: Dict[str, Any],
+            obfuscation_parameter_key_regexp: bytes,
+            obfuscation_parameter_value_regexp: bytes,
+        ):
             self._handle = None
 
         def run(
-            self,  # type: DDWaf
-            ctx,  # type: ddwaf_context_capsule
-            data,  # type: Union[None, int, text_type, list[Any], dict[text_type, Any]]
-            timeout_ms=DEFAULT.WAF_TIMEOUT,  # type:float
-        ):
-            # type: (...) -> DDWaf_result
+            self,
+            ctx: Any,
+            data: Any,
+            timeout_ms: float = DEFAULT.WAF_TIMEOUT,
+        ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
             return DDWaf_result(None, [], 0.0, 0.0, False, 0, {})
 
-        def update_rules(self, _):
-            # type: (dict[text_type, DDWafRulesType]) -> bool
+        def update_rules(self, _: Dict[str, Any]) -> bool:
             LOGGER.debug("DDWaf features disabled. dry update")
             return False
 
-        def _at_request_start(self):
+        def _at_request_start(self) -> None:
+            return None
+
+        def _at_request_end(self) -> None:
             pass
 
-        def _at_request_end(self):
-            pass
-
-    def version():
-        # type: () -> text_type
+    def version() -> str:
         LOGGER.debug("DDWaf features disabled. null version")
         return "0.0.0"
