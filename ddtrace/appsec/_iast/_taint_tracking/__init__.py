@@ -78,8 +78,8 @@ __all__ = [
 ]
 
 
-def taint_pyobject(pyobject, source_name, source_value, source_origin=None, start=0, len_pyobject=None):
-    # type: (Any, Any, Any, OriginType, int, Optional[int]) -> Any
+def taint_pyobject(pyobject, source_name, source_value, source_origin=None, start=0):
+    # type: (Any, Any, Any, OriginType, int) -> Any
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -87,9 +87,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    if not len_pyobject:
-        len_pyobject = len(pyobject)
-    pyobject_newid = new_pyobject_id(pyobject, len_pyobject)
+    pyobject_newid = new_pyobject_id(pyobject)
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8")
     if isinstance(source_value, (bytes, bytearray)):
@@ -97,7 +95,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None, star
     if source_origin is None:
         source_origin = OriginType.PARAMETER
     source = Source(source_name, source_value, source_origin)
-    pyobject_range = TaintRange(start, len_pyobject, source)
+    pyobject_range = TaintRange(start, len(pyobject), source)
     set_ranges(pyobject_newid, [pyobject_range])
     _set_metric_iast_executed_source(source_origin)
     return pyobject_newid
