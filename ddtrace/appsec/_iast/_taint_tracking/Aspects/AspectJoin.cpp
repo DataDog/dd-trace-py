@@ -51,7 +51,7 @@ aspect_join_str(PyObject* sep,
         }
     }
 
-    PyObject* new_result{ new_pyobject_id(result, PyUnicode_GET_LENGTH(result)) };
+    PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
     Py_DECREF(result);
     return new_result;
@@ -132,7 +132,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
         }
     }
 
-    PyObject* new_result{ new_pyobject_id(result, get_pyobject_size(result)) };
+    PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
     Py_DECREF(result);
     return new_result;
