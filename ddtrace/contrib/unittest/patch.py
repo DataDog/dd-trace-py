@@ -19,6 +19,7 @@ from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
@@ -26,6 +27,8 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
+from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -53,6 +56,32 @@ def get_version():
 def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
+
+
+def _start_coverage(root_dir: str):
+    coverage = _initialize_coverage(root_dir)
+    coverage.start()
+    return coverage
+
+
+def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
+    span_id = str(span.trace_id)
+    coverage_data.stop()
+    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
+    coverage_data.erase()
+    del coverage_data
+
+
+def _is_suite_coverage_enabled():
+    # TODO: implement skipping logic
+    is_skipped_by_itr = False
+    return (
+            _CIVisibility._instance._suite_skipping_mode
+            and _CIVisibility._instance._collect_coverage_enabled
+            and not is_skipped_by_itr
+    )
 
 
 def _store_test_span(item, span: ddtrace.Span):
@@ -212,6 +241,14 @@ def _is_valid_module_suite_call(func) -> bool:
     Validates that the mocked function is an actual function from `unittest`
     """
     return type(func).__name__ == "method" or type(func).__name__ == "instancemethod"
+
+
+def _is_suite_span(span: ddtrace.Span) -> bool:
+    return span.get_tag(_EVENT_TYPE) == _SUITE_TYPE
+
+
+def _is_test_span(span: ddtrace.Span) -> bool:
+    return span.get_tag(_EVENT_TYPE) == SpanTypes.TEST
 
 
 def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
@@ -419,7 +456,14 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             _CIVisibility._unittest_data["modules"][test_module_path]["module_span"] = test_module_span
         if test_suite_span is None and test_module_suite_path in _CIVisibility._unittest_data["suites"]:
             test_suite_span = _start_test_suite_span(instance)
-            _CIVisibility._unittest_data["suites"][test_module_suite_path]["suite_span"] = test_suite_span
+            suite_dict = _CIVisibility._unittest_data["suites"][test_module_suite_path]
+            suite_dict["suite_span"] = test_suite_span
+
+            if _is_suite_coverage_enabled():
+                root_directory = os.getcwd()
+                coverage = _start_coverage(root_directory)
+                suite_dict["coverage"] = coverage
+
         if not test_module_span or not test_suite_span:
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
@@ -594,7 +638,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     return span
 
 
-def _finish_span(current_span: ddtrace.Span):
+def _finish_span(current_span: ddtrace.Span, coverage_data):
     """
     Finishes active span and populates span status upwards
     """
@@ -604,6 +648,9 @@ def _finish_span(current_span: ddtrace.Span):
         _update_status_item(parent_span, current_status)
     elif not current_status:
         current_span.set_tag_str(test.SUITE, test.Status.FAIL.value)
+    if coverage_data and (_is_suite_span(current_span) or _is_test_span(current_span)):
+        root_directory = os.getcwd()
+        _detach_coverage(coverage_data, current_span, root_directory)
     current_span.finish()
 
 
