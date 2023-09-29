@@ -18,6 +18,7 @@ from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
+from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 
@@ -164,6 +165,9 @@ try:
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
+
+        if config.trace_methods:
+            _install_trace_methods(config.trace_methods)
     else:
         cleanup_loaded_modules()
 
