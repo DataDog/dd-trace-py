@@ -22,12 +22,18 @@ if python_supported_by_iast():
     "input_str, start_pos, end_pos, step, expected_result, tainted",
     [
         ("abcde", 0, 1, 1, "a", True),
+        ("abcde", "0", "1", 1, "a", False),
         ("abcde", 1, 2, 1, "b", True),
+        ("abcde", "1", 2, 1, "b", False),
         ("abc", 2, 3, 1, "c", True),
+        ("abc", 2, "3", 1, "c", False),
         ("abcde", 0, 2, 1, "ab", True),
+        ("abcde", 0, 2, "1", "ab", False),
         ("abcde", 0, 3, 1, "abc", True),
+        ("abcde", "0", "3", 1, "abc", False),
         ("abcde", 1, 3, 1, "bc", True),
         ("abcde", 1, 4, 1, "bcd", True),
+        ("abcde", 1, "4", "1", "bcd", False),
         ("abcde", 0, 4, 2, "ac", True),
         ("abcde", 0, 4, 3, "ad", True),
         ("abcde", 1, 5, 2, "bd", True),
@@ -46,21 +52,23 @@ if python_supported_by_iast():
     ],
 )
 def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, tainted):
-    result = mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
-    assert result == expected_result
-
-    tainted_input = taint_pyobject(
-        pyobject=input_str,
-        source_name="test_add_aspect_tainting_left_hand",
-        source_value="foo",
-        source_origin=OriginType.PARAMETER,
-    )
-    result = mod.do_slice_2(tainted_input, start_pos, end_pos, step)  # pylint: disable=no-member
-    assert result == expected_result
-    tainted_ranges = get_tainted_ranges(result)
     if not tainted:
-        assert len(tainted_ranges) == 0
+        with pytest.raises(TypeError) as excinfo:
+            mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
+        assert "slice indices must be integers or None or have an __index__ method" in str(excinfo.value)
     else:
+        result = mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
+        assert result == expected_result
+
+        tainted_input = taint_pyobject(
+            pyobject=input_str,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+        result = mod.do_slice_2(tainted_input, start_pos, end_pos, step)  # pylint: disable=no-member
+        assert result == expected_result
+        tainted_ranges = get_tainted_ranges(result)
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == len(expected_result)
