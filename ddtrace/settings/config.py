@@ -1,4 +1,5 @@
 from copy import deepcopy
+import multiprocessing
 import os
 import re
 from typing import List
@@ -13,6 +14,8 @@ from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -22,6 +25,7 @@ from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -92,7 +96,8 @@ def _parse_propagation_styles(name, default):
 
     - "datadog"
     - "b3multi"
-    - "b3 single header"
+    - "b3" (formerly 'b3 single header')
+    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "none"
 
@@ -112,7 +117,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
-        DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
+        DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
     envvar = os.getenv(name, default=default)
@@ -120,6 +125,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
+        if style == "b3 single header":
+            deprecate(
+                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            style = PROPAGATION_STYLE_B3_SINGLE
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -177,6 +190,8 @@ class Config(object):
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
+    _extra_services_queue = multiprocessing.get_context("fork").Queue(512)  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -285,6 +300,7 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
+        self._extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -388,7 +404,6 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
-        self._ci_visibility_unittest_enabled = asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_ENABLED", default=False))
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -410,12 +425,39 @@ class Config(object):
             + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
             + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
         )
+        self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)
 
         return self._config[name]
+
+    def _add_extra_service(self, service_name: str) -> None:
+        from queue import Full
+
+        if self._remote_config_enabled and service_name != self.service:
+            try:
+                self._extra_services_queue.put_nowait(service_name)
+            except Full:  # nosec
+                pass
+            except BaseException:
+                log.debug("unexpected failure with _add_extra_service", exc_info=True)
+
+    def _get_extra_services(self):
+        # type: () -> set[str]
+        from queue import Empty
+
+        try:
+            while True:
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) > 64:
+                    self._extra_services.pop()
+        except Empty:  # nosec
+            pass
+        except BaseException:
+            log.debug("unexpected failure with _get_extra_service", exc_info=True)
+        return self._extra_services
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
