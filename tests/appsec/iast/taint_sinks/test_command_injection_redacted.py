@@ -32,8 +32,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 def _taint_pyobject_multiranges(pyobject, elements):
     pyobject_ranges = []
 
-    len_pyobject = len(pyobject)
-    pyobject_newid = new_pyobject_id(pyobject, len_pyobject)
+    pyobject_newid = new_pyobject_id(pyobject)
 
     for element in elements:
         source_name, source_value, source_origin, start, len_range = element
