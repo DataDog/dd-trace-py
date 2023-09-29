@@ -6,9 +6,9 @@
 namespace py = pybind11;
 
 TaintRangePtr
-reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, long offset, int max_length)
+reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_LENGTH offset, RANGE_LENGTH max_length)
 {
-    int length;
+    RANGE_LENGTH length;
     if (max_length != -1)
         length = min(max_length, source_taint_range->length);
     else
@@ -21,7 +21,7 @@ reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, long o
 }
 
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
+shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
 {
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
                                                   source_taint_range->length,         // length
@@ -30,14 +30,20 @@ shift_taint_range(const TaintRangePtr& source_taint_range, long offset)
 }
 
 void
-TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object, long offset, int max_length, int orig_offset)
+TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
+                                  RANGE_LENGTH offset,
+                                  RANGE_LENGTH max_length,
+                                  RANGE_LENGTH orig_offset)
 {
     const auto& ranges = tainted_object->get_ranges();
     add_ranges_shifted(ranges, offset, max_length, orig_offset);
 }
 
 void
-TaintedObject::add_ranges_shifted(TaintRangeRefs ranges, long offset, int max_length, int orig_offset)
+TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
+                                  RANGE_LENGTH offset,
+                                  RANGE_LENGTH max_length,
+                                  RANGE_LENGTH orig_offset)
 {
     const auto to_add = (long)min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size());
     if (!ranges.empty() and to_add > 0) {
