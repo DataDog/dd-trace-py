@@ -59,6 +59,8 @@ deploy_to_di_backend:
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
+    - if: $CI_COMMIT_BRANCH =~ /(?:1.(?:\d+|x))/
+      when: on_success
     - when: manual
       allow_failure: true
   trigger:
