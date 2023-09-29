@@ -78,9 +78,9 @@ def _is_suite_coverage_enabled():
     # TODO: implement skipping logic
     is_skipped_by_itr = False
     return (
-            _CIVisibility._instance._suite_skipping_mode
-            and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped_by_itr
+        _CIVisibility._instance._suite_skipping_mode
+        and _CIVisibility._instance._collect_coverage_enabled
+        and not is_skipped_by_itr
     )
 
 
