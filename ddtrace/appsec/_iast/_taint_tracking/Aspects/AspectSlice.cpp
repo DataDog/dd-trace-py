@@ -89,15 +89,23 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         PyErr_Print();
         Py_DECREF(start);
         Py_DECREF(stop);
-        Py_DECREF(step);
+        if (step != nullptr) {
+            Py_DECREF(step);
+        }
         return nullptr;
     }
     PyObject* result = PyObject_GetItem(candidate_text, slice);
     auto res = slice_aspect(result, candidate_text, start, stop, step);
 
-    Py_DECREF(start);
-    Py_DECREF(stop);
-    Py_DECREF(step);
-    Py_DECREF(slice);
+    if (start != nullptr) {
+        Py_DECREF(start);
+    }
+    if (stop != nullptr) {
+        Py_DECREF(stop);
+    }
+    if (step != nullptr) {
+        Py_DECREF(step);
+    }
+    //    Py_DECREF(slice);
     return res;
 }
