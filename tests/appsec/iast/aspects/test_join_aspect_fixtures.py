@@ -18,54 +18,39 @@ class TestOperatorJoinReplacement(object):
     def test_string_join_tainted_joiner(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            pyobject="-joiner-",
-            source_name="joiner",
-            source_value="foo",
-            source_origin=OriginType.PARAMETER,
-            start=1,
-            len_pyobject=3,
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=1
         )
         it = ["a", "b", "c"]
 
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "joi"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "joi"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "joiner-b"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "joiner-c"
 
     def test_string_join_tainted_joiner_bytes(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            pyobject=b"-joiner-",
-            source_name="joiner",
-            source_value="foo",
-            source_origin=OriginType.PARAMETER,
-            start=1,
-            len_pyobject=3,
+            pyobject=b"-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=1
         )
         it = [b"a", b"b", b"c"]
         result = mod.do_join(string_input, it)
         assert result == b"a-joiner-b-joiner-c"
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == b"joi"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joi"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == b"joiner-b"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joiner-c"
 
     def test_string_join_tainted_joiner_bytes_bytearray(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
-            pyobject=b"-joiner-",
-            source_name="joiner",
-            source_value="foo",
-            source_origin=OriginType.PARAMETER,
-            start=1,
-            len_pyobject=3,
+            pyobject=b"-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=1
         )
         it = [bytearray(b"a"), bytearray(b"b"), bytearray(b"c")]
         result = mod.do_join(string_input, it)
         assert result == b"a-joiner-b-joiner-c"
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == b"joi"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joi"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == b"joiner-b"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == b"joiner-c"
 
     def test_string_join_tainted_joiner_bytearray(self):  # type: () -> None
         # taint "joi" from "-joiner-"
@@ -75,15 +60,14 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=3,
         )
         it = [bytearray(b"a"), bytearray(b"b"), bytearray(b"c")]
 
         result = mod.do_join(string_input, it)
         assert result == bytearray(b"a-joiner-b-joiner-c")
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytearray(b"joi")
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joi")
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytearray(b"joiner-b")
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joiner-c")
 
     def test_string_join_tainted_joiner_bytearray_bytes(self):  # type: () -> None
         # taint "joi" from "-joiner-"
@@ -93,52 +77,36 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=3,
         )
         it = [b"a", b"b", b"c"]
 
         result = mod.do_join(string_input, it)
         assert result == bytearray(b"a-joiner-b-joiner-c")
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytearray(b"joi")
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joi")
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == bytearray(b"joiner-b")
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == bytearray(b"joiner-c")
 
     def test_string_join_tainted_joined(self):  # type: () -> None
         string_input = "-joiner-"
         it = [
             taint_pyobject(
-                pyobject="aaaa",
-                source_name="joiner",
-                source_value="foo",
-                source_origin=OriginType.PARAMETER,
-                start=0,
-                len_pyobject=3,
+                pyobject="aaaa", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=0
             ),
             "bbbb",
             taint_pyobject(
-                pyobject="cccc",
-                source_name="joiner",
-                source_value="foo",
-                source_origin=OriginType.PARAMETER,
-                start=0,
-                len_pyobject=3,
+                pyobject="cccc", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=0
             ),
         ]
 
         result = mod.do_join(string_input, it)
         ranges = get_tainted_ranges(result)
         assert result == "aaaa-joiner-bbbb-joiner-cccc"
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "aaa"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "ccc"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "aaaa"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "cccc"
 
     def test_string_join_tainted_all(self):  # type: () -> None
         string_input = taint_pyobject(
-            pyobject="-joiner-",
-            source_name="joiner",
-            source_value="foo",
-            source_origin=OriginType.PARAMETER,
-            start=1,
-            len_pyobject=2,
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER, start=1
         )
         it = [
             taint_pyobject(
@@ -147,7 +115,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=1,
             ),
             "bbbb",
             taint_pyobject(
@@ -156,7 +123,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=4,
             ),
             taint_pyobject(
                 pyobject="dddd",
@@ -164,7 +130,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=3,
             ),
             taint_pyobject(
                 pyobject="eeee",
@@ -172,7 +137,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=2,
             ),
             taint_pyobject(
                 pyobject="ffff",
@@ -180,7 +144,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=3,
             ),
             taint_pyobject(
                 pyobject="gggg",
@@ -188,7 +151,6 @@ class TestOperatorJoinReplacement(object):
                 source_value="foo",
                 source_origin=OriginType.PARAMETER,
                 start=0,
-                len_pyobject=4,
             ),
         ]
 
@@ -196,7 +158,20 @@ class TestOperatorJoinReplacement(object):
         ranges = get_tainted_ranges(result)
         assert result == "aaaa-joiner-bbbb-joiner-cccc-joiner-dddd-joiner-eeee-joiner-ffff-joiner-gggg"
         pos = 0
-        for results in ("a", "jo", "jo", "cccc", "jo", "ddd", "jo", "ee", "jo", "fff", "jo", "gggg"):
+        for results in (
+            "aaaa",
+            "joiner-b",
+            "joiner-c",
+            "cccc",
+            "joiner-d",
+            "dddd",
+            "joiner-e",
+            "eeee",
+            "joiner-f",
+            "ffff",
+            "joiner-g",
+            "gggg",
+        ):
             assert result[ranges[pos].start : (ranges[pos].start + ranges[pos].length)] == results
             pos += 1
 
@@ -214,15 +189,14 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=3,
         )
         result = mod.do_join_tuple(tainted_base_string)
         assert result == "abcde1abcde2abcde3"
 
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abc"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abc"
-        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abc"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abcde"
 
     def test_string_join_set(self):  # type: () -> None
         # Not tainted
@@ -237,14 +211,13 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=3,
         )
         result = mod.do_join_set(tainted_base_string)
 
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abc"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abc"
-        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abc"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abcde"
 
     def test_string_join_generator(self):
         # type: () -> None
@@ -261,15 +234,14 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=3,
         )
         result = mod.do_join_generator(tainted_base_string)
         assert result == "abcdeabcdeabcde"
 
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abc"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abc"
-        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abc"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+        assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "abcde"
 
     def test_string_join_args_kwargs(self):
         # type: () -> None
@@ -285,14 +257,13 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=5,
         )
         result = mod.do_join_args_kwargs(tainted_base_string, ("f", "g"))
         assert result == "f-abcde-g"
 
         ranges = get_tainted_ranges(result)
         assert len(ranges) == 1
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde-g"
 
     def test_string_join_empty_iterable_joiner_tainted(self):
         # type: () -> None
@@ -308,7 +279,6 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=5,
         )
         result = mod.do_join_args_kwargs(tainted_base_string, "")
         assert result == ""
@@ -330,7 +300,6 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=4,
         )
         result = mod.do_join_args_kwargs(base_string, tainted_fghi)
         assert result == "fghi"
@@ -353,7 +322,6 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=2,
         )
         result = mod.do_join_args_kwargs(base_string, tainted_fg)
         assert result == "f+abcde-g"
@@ -377,13 +345,12 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=1,
         )
         result = mod.do_join_args_kwargs(base_string, tainted_fg)
         assert result == "f-abcde-g"
 
         ranges = get_tainted_ranges(result)
-        assert len(ranges) == 1
+        assert len(ranges) == 2
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "f"
 
     def test_string_join_iterable_second_half_tainted(self):
@@ -400,7 +367,6 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=1,
         )
         result = mod.do_join_args_kwargs(base_string, tainted_fg)
         assert result == "f-abcde-g"
@@ -423,13 +389,12 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=1,
         )
         result = mod.do_join_args_kwargs(base_string, tainted_fgh)
         assert result == "f+abcde-g+abcde-h"
 
         ranges = get_tainted_ranges(result)
-        assert len(ranges) == 1
+        assert len(ranges) == 2
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "g"
 
     def test_string_join_joiner_tainted(self):
@@ -441,13 +406,12 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=5,
         )
         result = mod.do_join_args_kwargs(tainted_base_string, "fg")
         assert result == "f-abcde-g"
 
         ranges = get_tainted_ranges(result)
-        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde"
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "abcde-g"
 
     def test_string_join_all_tainted(self):
         # type: () -> None
@@ -458,7 +422,6 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=1,
-            len_pyobject=5,
         )
         tainted_fghi = taint_pyobject(
             pyobject="fghi",
@@ -466,16 +429,15 @@ class TestOperatorJoinReplacement(object):
             source_value="foo",
             source_origin=OriginType.PARAMETER,
             start=0,
-            len_pyobject=4,
         )
         result = mod.do_join_args_kwargs(tainted_base_string, tainted_fghi)
         assert result == "f+abcde-g+abcde-h+abcde-i"
 
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "f"
-        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "abcde-g"
         assert result[ranges[2].start : (ranges[2].start + ranges[2].length)] == "g"
-        assert result[ranges[3].start : (ranges[3].start + ranges[3].length)] == "abcde"
+        assert result[ranges[3].start : (ranges[3].start + ranges[3].length)] == "abcde-h"
         assert result[ranges[4].start : (ranges[4].start + ranges[4].length)] == "h"
-        assert result[ranges[5].start : (ranges[5].start + ranges[5].length)] == "abcde"
+        assert result[ranges[5].start : (ranges[5].start + ranges[5].length)] == "abcde-i"
         assert result[ranges[6].start : (ranges[6].start + ranges[6].length)] == "i"
