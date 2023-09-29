@@ -263,6 +263,13 @@ def test_get_rev_list_git_lt_223(git_repo):
         )
 
 
+def test_invalid_git_version(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13a (invalid)"):
+        assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version (invalid)"):
+        assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
+
+
 def test_is_shallow_repository_true(git_repo):
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="true") as mock_git_subprocess:
         assert git._is_shallow_repository(cwd=git_repo) is True
