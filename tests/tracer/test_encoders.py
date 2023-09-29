@@ -755,47 +755,50 @@ def test_payload_corruption_v05():
     string_table_size = 1 << 12
     encoder = MsgpackEncoderV05(string_table_size, string_table_size)
 
-    # Generate Spans in one trace
-    with override_global_config({"_128_bit_trace_id_enabled": False}):
-        # Note - 128bit trace ids are encoded in chunks. This complicates this test so we ensure this
-        # feature is disabled.
-        traces = [[ddtrace.Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(5)]
+    # encode and decoded traces 100 times. This tests the string table flushing and resetting logic
+    for i in range(100):
+        # Generate Spans in one trace
+        with override_global_config({"_128_bit_trace_id_enabled": False}):
+            # Note - 128bit trace ids are encoded in chunks. This complicates this test so we ensure this
+            # feature is disabled.
+            traces = [[ddtrace.Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(5)]
 
-    for trace in traces:
-        for s in trace:
-            for x in "abcdefgijklmnopqrstuvwxyz":
-                s.set_tag_str(x, x * 100)
-            # Set start to zero to simplify the decoding span logic
-            s.start = 0
+        for trace in traces:
+            for s in trace:
+                for x in "abcdefgijklmnopqrstuvwxyz":
+                    for y in "abj":
+                        s.set_tag_str(x + y, x * 2 + y * 2)
+                # Set start to zero to simplify the decoding span logic
+                s.start = 0
 
-    # DEBUG: Print the contents of the string table
-    print("xxxxxx     string table before encoding     xxxxxxxxx")
-    print(encoder.stable.string_table_values)
+        # DEBUG: Print the contents of the string table
+        print("xxxxxx     string table before encoding     xxxxxxxxx")
+        print(encoder.stable.string_table_values)
 
-    # Queue traces in encoder
-    encoded_traces = []
-    for trace in traces:
-        try:
-            encoder.put(trace)
-            encoded_traces.append(trace)
-            # DEBUG: Print the contents of the string table
-            print("------------ string table after encoding --------------")
-            print(encoder.stable.string_table_values)
-        except Exception as e:
-            print("Class:{} message:{}".format(e.__class__, e))
+        # Queue traces in encoder
+        encoded_traces = []
+        for trace in traces:
+            try:
+                encoder.put(trace)
+                encoded_traces.append(trace)
+                # DEBUG: Print the contents of the string table
+                print("------------ string table after encoding --------------")
+                print(encoder.stable.string_table_values)
+            except Exception as e:
+                print("Class:{} message:{}".format(e.__class__, e))
 
-    assert len(encoded_traces) < len(traces), "we want to raise a buffer exception"
+        assert len(encoded_traces) < len(traces), "we want to raise a buffer exception"
 
-    # Encode all traces
-    encoded_bytes = encoder.encode()
-    # Recreate traces from encoded bytes
-    decoded_traces = _decode_v05_bytes(encoded_bytes)
+        # Encode all traces
+        encoded_bytes = encoder.encode()
+        # Recreate traces from encoded bytes
+        decoded_traces = _decode_v05_bytes(encoded_bytes)
 
-    # Ensure the encoded traces and the decoded trace have the same values
-    # If this fails the trace has been corrupted
-    assert len(decoded_traces) == len(encoded_traces)
-    for i in range(len(decoded_traces)):
-        for j in range(len(decoded_traces[i])):
-            og_span = encoded_traces[i][j]._pprint()
-            decoded_span = decoded_traces[i][j]._pprint()
-            assert og_span == decoded_span, "original span: {}, decoded span: {}".format(og_span, decoded_span)
+        # Ensure the encoded traces and the decoded trace have the same values
+        # If this fails the trace has been corrupted
+        assert len(decoded_traces) == len(encoded_traces)
+        for i in range(len(decoded_traces)):
+            for j in range(len(decoded_traces[i])):
+                og_span = encoded_traces[i][j]._pprint()
+                decoded_span = decoded_traces[i][j]._pprint()
+                assert og_span == decoded_span, "original span: {}, decoded span: {}".format(og_span, decoded_span)
