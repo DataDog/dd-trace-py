@@ -103,6 +103,7 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
     venvs=[
@@ -1310,7 +1311,7 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            env={"DD_PATCH_MODULES": "unittest:true"},
             pys=select_pys(),
         ),
         Venv(
