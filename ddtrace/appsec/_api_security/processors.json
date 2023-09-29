@@ -62,14 +62,6 @@
           {
             "inputs": [
               {
-                "address": "server.request.headers.no_cookies"
-              }
-            ],
-            "output": "_dd.appsec.s.req.headers"
-          },
-          {
-            "inputs": [
-              {
                 "address": "server.request.cookies"
               }
             ],
@@ -94,14 +86,6 @@
           {
             "inputs": [
               {
-                "address": "server.response.headers.no_cookies"
-              }
-            ],
-            "output": "_dd.appsec.s.res.headers"
-          },
-          {
-            "inputs": [
-              {
                 "address": "http.response.body"
               }
             ],
@@ -109,6 +93,61 @@
           }
         ],
         "scanners": [
+          {
+            "tags": {
+              "category": "pii"
+            }
+          }
+        ]
+      },
+      "evaluate": false,
+      "output": true
+    },
+    {
+      "id": "preprocessor-002",
+      "generator": "extract_schema",
+      "conditions": [
+        {
+          "operator": "equals",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "waf.context.processor",
+                "key_path": [
+                  "extract-schema"
+                ]
+              }
+            ],
+            "type": "boolean",
+            "value": true
+          }
+        }
+      ],
+      "parameters": {
+        "mappings": [
+          {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies"
+              }
+            ],
+            "output": "_dd.appsec.s.req.headers"
+          },
+          {
+            "inputs": [
+              {
+                "address": "server.response.headers.no_cookies"
+              }
+            ],
+            "output": "_dd.appsec.s.res.headers"
+          }
+        ],
+        "scanners": [
+          {
+            "tags": {
+              "category": "credentials"
+            }
+          },
           {
             "tags": {
               "category": "pii"
@@ -231,6 +270,90 @@
       "tags": {
         "type": "canadian_sin",
         "category": "pii"
+      }
+    },
+    {
+      "id": "mZy8XjZLReC9smpERXWnnw",
+      "name": "Bearer Authentication Scanner",
+      "key": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "authorization|www-authenticate",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 13
+          }
+        }
+      },
+      "value": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "^bearer\\s+[-a-z0-9._~+/]{4,}",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 11
+          }
+        }
+      },
+      "tags": {
+        "type": "bearer_token",
+        "category": "credentials"
+      }
+    },
+    {
+      "id": "9d7756e343cefa22a5c098e1092590f806eb5446",
+      "name": "Basic Authentication Scanner",
+      "key": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "authorization|www-authenticate",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 13
+          }
+        }
+      },
+      "value": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "^basic\\s+[A-Za-z0-9+/=]+",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 7
+          }
+        }
+      },
+      "tags": {
+        "type": "basic_auth",
+        "category": "credentials"
+      }
+    },
+    {
+      "id": "9d7756e343cefa22a5c098e1092590f806eb5446",
+      "name": "Digest Authentication Scanner",
+      "key": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "authorization|www-authenticate",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 13
+          }
+        }
+      },
+      "value": {
+        "operator": "match_regex",
+        "parameters": {
+          "regex": "^digest\\s+",
+          "options": {
+            "case_sensitive": false,
+            "min_length": 7
+          }
+        }
+      },
+      "tags": {
+        "type": "digest_auth",
+        "category": "credentials"
       }
     }
   ]
