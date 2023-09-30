@@ -17,11 +17,23 @@
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
-#define GET_FILENAME(frame) PyObject_GetAttrString(PyFrame_GetCode(frame), "co_filename")
+#define FRAME_DECREF(frame) Py_DECREF(frame)
+#define FILENAME_DECREF(filename) Py_DECREF(filename)
+#define FILENAME_XDECREF(filename) Py_XDECREF(filename)
+static inline PyObject* GET_FILENAME(PyFrameObject* frame) {
+    PyCodeObject* code = PyFrame_GetCode(frame);
+    if (!code) {
+        return NULL;
+    } 
+    return PyObject_GetAttrString((PyObject*)code, "co_filename");
+}
 #else
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
 #define GET_FILENAME(frame) frame->f_code->co_filename
+#define FRAME_DECREF(frame) 
+#define FILENAME_DECREF(filename) 
+#define FILENAME_XDECREF(filename) 
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
 /* See: https://bugs.python.org/issue44964 */
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
@@ -39,54 +51,69 @@
  * @return Tuple, string and integer.
  **/
 static PyObject*
-get_file_and_line(PyObject* Py_UNUSED(module), PyObject* args)
+get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
 {
-    PyThreadState* tstate = PyThreadState_GET();
-    PyFrameObject* frame;
-    PyObject* filename_o;
+    PyThreadState* tstate = PyThreadState_Get();
+    if(!tstate) {
+        return NULL;
+    }
+
     int line;
+    PyObject* filename_o = NULL;
+    PyObject* result = NULL;
+    PyObject *cwd_bytes = NULL;
+    char* cwd = NULL;
 
-    PyObject *cwd_obj = Py_None, *cwd_bytes;
-    char* cwd;
-    if (!PyArg_ParseTuple(args, "O", &cwd_obj))
+    if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
         return NULL;
-    if (cwd_obj != Py_None) {
-        if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes))
-            return NULL;
-        cwd = PyBytes_AsString(cwd_bytes);
-    } else {
+    }
+    cwd = PyBytes_AsString(cwd_bytes);
+    if (!cwd) {
+        Py_DECREF(cwd_bytes);
         return NULL;
     }
 
-    if (NULL != tstate && NULL != GET_FRAME(tstate)) {
-        frame = GET_FRAME(tstate);
-        while (NULL != frame) {
-            filename_o = GET_FILENAME(frame);
-            const char* filename = PyUnicode_AsUTF8(filename_o);
-            if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
-                (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
+    PyFrameObject* frame = GET_FRAME(tstate);
+    if (!frame) {
+        Py_DECREF(cwd_bytes);
+        return NULL;
+    }
 
-                frame = GET_PREVIOUS(frame);
-                continue;
-            }
-            /*
-             frame->f_lineno will not always return the correct line number
-             you need to call PyCode_Addr2Line().
-            */
-            line = GET_LINENO(frame);
-            return PyTuple_Pack(2, filename_o, Py_BuildValue("i", line));
+    while (NULL != frame) {
+        filename_o = GET_FILENAME(frame);
+        if (!filename_o) {
+            goto exit;
         }
+        const char* filename = PyUnicode_AsUTF8(filename_o);
+        if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
+            (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
+            PyFrameObject* prev_frame = GET_PREVIOUS(frame);
+            FRAME_DECREF(frame);
+            FILENAME_DECREF(filename_o);
+            frame = prev_frame;
+            continue;
+        }
+        /*
+         frame->f_lineno will not always return the correct line number
+         you need to call PyCode_Addr2Line().
+        */
+        line = GET_LINENO(frame);
+        PyObject* line_obj = Py_BuildValue("i", line);
+        if (!line_obj) {
+            goto exit;
+        }
+        result = PyTuple_Pack(2, filename_o, line_obj);
+        break;
     }
-#if PY_MAJOR_VERSION > 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 10
-    return Py_NewRef(Py_None);
-#else
-    Py_INCREF(Py_None);
-    return Py_None;
-#endif
+exit:
+    Py_DECREF(cwd_bytes);
+    FRAME_DECREF(frame);
+    FILENAME_XDECREF(filename_o);
+    return result;
 }
 
 static PyMethodDef StacktraceMethods[] = {
-    { "get_info_frame", (PyCFunction)get_file_and_line, METH_VARARGS, "stacktrace functions" },
+    { "get_info_frame", (PyCFunction)get_file_and_line, METH_O, "stacktrace functions" },
     { NULL, NULL, 0, NULL }
 };
 
@@ -94,13 +121,12 @@ static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
                                          "ddtrace.appsec._iast._stacktrace",
                                          "stacktrace module",
                                          -1,
-                                         StacktraceMethods };
+                                         StacktraceMethods};
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)
 {
-    PyObject* m;
-    m = PyModule_Create(&stacktrace);
+    PyObject* m = PyModule_Create(&stacktrace);
     if (m == NULL)
         return NULL;
     return m;
