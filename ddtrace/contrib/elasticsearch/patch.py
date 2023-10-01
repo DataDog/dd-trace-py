@@ -18,7 +18,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
-from ...internal.compat import urlencode
+from ...internal.compat import parse
 from ...internal.schema import schematize_service_name
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
@@ -141,15 +141,28 @@ def _get_perform_request(transport):
             if not span.sampled:
                 return func(*args, **kwargs)
 
-            method, url = args
-            params = kwargs.get("params") or {}
-            encoded_params = urlencode(params)
+            method, target = args
+            params = kwargs.get("params")
             body = kwargs.get("body")
+
+            # elastic_transport gets target url with query params already appended
+            parsed = parse.urlparse(target)
+            url = parsed.path
+            if params:
+                encoded_params = parse.urlencode(params)
+            else:
+                encoded_params = parsed.query
 
             span.set_tag_str(metadata.METHOD, method)
             span.set_tag_str(metadata.URL, url)
             span.set_tag_str(metadata.PARAMS, encoded_params)
-            for connection in instance.connection_pool.connections:
+            try:
+                # elasticsearch<8
+                connections = instance.connection_pool.connections
+            except AttributeError:
+                # elastic_transport
+                connections = instance.node_pool.all()
+            for connection in connections:
                 hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
                 if hostname:
                     span.set_tag_str(net.TARGET_HOST, hostname)
@@ -159,7 +172,12 @@ def _get_perform_request(transport):
                 span.set_tag_str(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
-                ser_body = instance.serializer.dumps(body)
+                try:
+                    # elasticsearch<8
+                    ser_body = instance.serializer.dumps(body)
+                except AttributeError:
+                    # elastic_transport
+                    ser_body = instance.serializers.dumps(body)
                 # Elasticsearch request bodies can be very large resulting in traces being too large
                 # to send.
                 # When this occurs, drop the value.
@@ -188,11 +206,16 @@ def _get_perform_request(transport):
 
             try:
                 # Optional metadata extraction with soft fail.
-                if isinstance(result, tuple) and len(result) == 2:
-                    # elasticsearch<2.4; it returns both the status and the body
-                    status, data = result
+                if isinstance(result, tuple):
+                    try:
+                        # elastic_transport returns a named tuple
+                        meta, data = result.meta, result.body
+                        status = meta.status
+                    except AttributeError:
+                        # elasticsearch<2.4; it returns both the status and the body
+                        status, data = result
                 else:
-                    # elasticsearch>=2.4; internal change for ``Transport.perform_request``
+                    # elasticsearch>=2.4,<8; internal change for ``Transport.perform_request``
                     # that just returns the body
                     data = result
 
