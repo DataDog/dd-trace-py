@@ -44,6 +44,7 @@ def _es_modules():
         "elasticsearch6",
         "elasticsearch7",
         "opensearchpy",
+        "elastic_transport",
     )
     for module_name in module_names:
         try:
@@ -71,38 +72,56 @@ def get_versions():
     return versions
 
 
-# NB: We are patching the default elasticsearch.transport module
+def _get_transport_module(elasticsearch):
+    try:
+        # elasticsearch7/opensearch async
+        return elasticsearch._async.transport
+    except AttributeError:
+        try:
+            # elasticsearch<8/opensearch sync
+            return elasticsearch.transport
+        except AttributeError:
+            # elastic_transport (elasticsearch8)
+            return elasticsearch
+
+
+# NB: We are patching the default elasticsearch transport module
 def patch():
     for elasticsearch in _es_modules():
-        _patch(elasticsearch)
+        _patch(_get_transport_module(elasticsearch))
 
 
-def _patch(elasticsearch):
-    # elasticsearch 8 is not yet supported
-    if getattr(elasticsearch, "_datadog_patch", False) or get_version_tuple(elasticsearch) >= (8, 0, 0):
+def _patch(transport):
+    if getattr(transport, "_datadog_patch", False):
         return
-    elasticsearch._datadog_patch = True
-    _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
-    Pin().onto(elasticsearch.transport.Transport)
-    if hasattr(elasticsearch, "_async"):
-        _w(elasticsearch._async.transport, "AsyncTransport.perform_request", _get_perform_request(elasticsearch))
-        Pin().onto(elasticsearch._async.transport.AsyncTransport)
+    for classname in ("Transport", "AsyncTransport"):
+        try:
+            cls = getattr(transport, classname)
+        except AttributeError:
+            continue
+        transport._datadog_patch = True
+        _w(cls, "perform_request", _get_perform_request(transport))
+        Pin().onto(cls)
 
 
 def unpatch():
     for elasticsearch in _es_modules():
-        _unpatch(elasticsearch)
+        _unpatch(_get_transport_module(elasticsearch))
 
 
-def _unpatch(elasticsearch):
-    if getattr(elasticsearch, "_datadog_patch", False):
-        elasticsearch._datadog_patch = False
-        _u(elasticsearch.transport.Transport, "perform_request")
-        if hasattr(elasticsearch, "_async"):
-            _u(elasticsearch._async.transport.AsyncTransport, "perform_request")
+def _unpatch(transport):
+    if not getattr(transport, "_datadog_patch", False):
+        return
+    for classname in ("Transport", "AsyncTransport"):
+        try:
+            cls = getattr(transport, classname)
+        except AttributeError:
+            continue
+        transport._datadog_patch = False
+        _u(cls, "perform_request")
 
 
-def _get_perform_request(elasticsearch):
+def _get_perform_request(transport):
     def _perform_request(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
@@ -162,7 +181,7 @@ def _get_perform_request(elasticsearch):
 
             try:
                 result = func(*args, **kwargs)
-            except elasticsearch.exceptions.TransportError as e:
+            except transport.TransportError as e:
                 span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
                 span.error = 1
                 raise
