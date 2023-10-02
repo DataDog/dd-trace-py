@@ -78,6 +78,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -210,6 +211,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
 subclass
