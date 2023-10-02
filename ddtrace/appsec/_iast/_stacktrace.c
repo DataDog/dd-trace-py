@@ -121,7 +121,7 @@ static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
                                          "ddtrace.appsec._iast._stacktrace",
                                          "stacktrace module",
                                          -1,
-                                         StacktraceMethods};
+                                         StacktraceMethods };
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)
