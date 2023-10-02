@@ -21,6 +21,7 @@ import six
 import ddtrace
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.internal import agent
+from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -176,6 +177,10 @@ class RemoteConfigClient(object):
                 self._headers["Datadog-Container-Id"] = container_id
 
         tags = ddtrace.config.tags.copy()
+
+        # Add git metadata tags, if available
+        gitmetadata.update_tags(tags)
+
         if ddtrace.config.env:
             tags["env"] = ddtrace.config.env
         if ddtrace.config.version:
