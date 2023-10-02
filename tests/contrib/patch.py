@@ -104,13 +104,15 @@ def noop_if_no_unpatch(f):
     return wrapper
 
 
-def emit_integration_and_version_to_test_agent(name, version):
+def emit_integration_and_version_to_test_agent(integration_name, version, module_name=None):
     # Define the data payload
     data = {
-        "integration_name": name,
+        "integration_name": integration_name,
         "integration_version": version,
         "tracer_version": TRACER_VERSION,
         "tracer_language": "python",
+        # we want the toplevel module name: ie for snowflake.connector, we want snowflake
+        "dependency_name": module_name.split(".")[0] if module_name else integration_name,
     }
     payload = json.dumps(data)
     conn = httplib.HTTPConnection(host="localhost", port=9126, timeout=10)
@@ -778,9 +780,11 @@ class PatchTestCase(object):
                 assert self.__module_name__ in versions
                 assert versions[self.__module_name__] != ""
                 for name, v in versions.items():
-                    emit_integration_and_version_to_test_agent(name, v)
+                    emit_integration_and_version_to_test_agent(self.__integration_name__, v, module_name=name)
             else:
                 version = self.__get_version__()
                 assert type(version) == str
                 assert version != ""
-                emit_integration_and_version_to_test_agent(self.__module_name__, version)
+                emit_integration_and_version_to_test_agent(
+                    self.__integration_name__, version, module_name=self.__module_name__
+                )
