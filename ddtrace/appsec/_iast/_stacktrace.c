@@ -18,22 +18,26 @@
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
 #define FRAME_DECREF(frame) Py_DECREF(frame)
+#define FRAME_XDECREF(frame) Py_XDECREF(frame)
 #define FILENAME_DECREF(filename) Py_DECREF(filename)
 #define FILENAME_XDECREF(filename) Py_XDECREF(filename)
-static inline PyObject* GET_FILENAME(PyFrameObject* frame) {
+static inline PyObject*
+GET_FILENAME(PyFrameObject* frame)
+{
     PyCodeObject* code = PyFrame_GetCode(frame);
     if (!code) {
         return NULL;
-    } 
+    }
     return PyObject_GetAttrString((PyObject*)code, "co_filename");
 }
 #else
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
 #define GET_FILENAME(frame) frame->f_code->co_filename
-#define FRAME_DECREF(frame) 
-#define FILENAME_DECREF(filename) 
-#define FILENAME_XDECREF(filename) 
+#define FRAME_DECREF(frame)
+#define FRAME_XDECREF(frame)
+#define FILENAME_DECREF(filename)
+#define FILENAME_XDECREF(filename)
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
 /* See: https://bugs.python.org/issue44964 */
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
@@ -54,14 +58,14 @@ static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
 {
     PyThreadState* tstate = PyThreadState_Get();
-    if(!tstate) {
+    if (!tstate) {
         return NULL;
     }
 
     int line;
     PyObject* filename_o = NULL;
     PyObject* result = NULL;
-    PyObject *cwd_bytes = NULL;
+    PyObject* cwd_bytes = NULL;
     char* cwd = NULL;
 
     if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
@@ -107,7 +111,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     }
 exit:
     Py_DECREF(cwd_bytes);
-    FRAME_DECREF(frame);
+    FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
     return result;
 }
