@@ -231,7 +231,7 @@ postgres_server: &postgres_server
 testagent: &testagent
   image: *testagent_image
   environment:
-    - LOG_LEVEL=DEBUG
+    - LOG_LEVEL=ERROR
     - SNAPSHOT_DIR=/snapshots
     - PORT=9126
     - SNAPSHOT_CI=1
