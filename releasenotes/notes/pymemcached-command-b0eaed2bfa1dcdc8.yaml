@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    pymemcache: add ``DD_TRACE_MEMCACHED_COMMAND_ENABLED`` environment variable for configuring the collection of memcached commands. This feature is disabled by default.
+upgrade:
+  - |
+    pymemcache: The ``memcached.query`` span tag will no longer be set by the integration. This command includes keys that can potentially contain sensitive information. If you require this span tag, you can retain the existing functionality by setting ``DD_TRACE_MEMCACHED_COMMAND_ENABLED=true``. This span tag can be redacted using ``DD_APM_REPLACE_TAGS`` in your Agent configuration.
