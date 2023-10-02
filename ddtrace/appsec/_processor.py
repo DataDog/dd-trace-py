@@ -130,8 +130,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def enabled(self):
         return self._ddwaf is not None
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         from ddtrace import config
         from ddtrace.appsec._ddwaf import DDWaf
 
