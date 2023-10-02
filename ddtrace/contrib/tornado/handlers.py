@@ -57,6 +57,14 @@ def execute(func, handler, args, kwargs):
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
+        for rule in handler.application.wildcard_router.rules:
+            if rule.matcher.match(handler.request) is not None and hasattr(rule.matcher, "_path"):
+                request_span.set_tag_str("http.route", rule.matcher._path)
+                break
+        else:
+            request_span.set_tag_str("http.route", '^$')
+
+
         return func(*args, **kwargs)
 
 
