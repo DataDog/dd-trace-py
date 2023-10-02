@@ -1,30 +1,23 @@
 from typing import Optional
-from typing import TYPE_CHECKING
 
-from ddtrace.appsec import _asm_request_context
-from ddtrace.contrib.trace_utils import set_user
-from ddtrace.internal import core
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span
-    from ddtrace import Tracer
-
+from ddtrace import Span
+from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import constants
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
-from ddtrace.internal.compat import six
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 
 
-def _asm_manual_keep(span):
-    # type: (Span) -> None
+def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
@@ -34,17 +27,15 @@ def _asm_manual_keep(span):
 
 
 def _track_user_login_common(
-    tracer,  # type: Tracer
-    success,  # type: bool
-    metadata=None,  # type: Optional[dict]
-    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
-    login=None,  # type: Optional[str]
-    name=None,  # type: Optional[str]
-    email=None,  # type: Optional[str]
-    span=None,  # type: Optional[Span]
-):
-    # type: (...) -> Optional[Span]
-
+    tracer: Tracer,
+    success: bool,
+    metadata: Optional[dict] = None,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    span: Optional[Span] = None,
+) -> Optional[Span]:
     if span is None:
         span = tracer.current_root_span()
     if span:
@@ -59,7 +50,7 @@ def _track_user_login_common(
             span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
 
         if metadata is not None:
-            for k, v in six.iteritems(metadata):
+            for k, v in metadata.items():
                 span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
 
         if login:
@@ -83,20 +74,19 @@ def _track_user_login_common(
 
 
 def track_user_login_success_event(
-    tracer,  # type: Tracer
-    user_id,  # type: str
-    metadata=None,  # type: Optional[dict]
-    login=None,  # type: Optional[str]
-    name=None,  # type: Optional[str]
-    email=None,  # type: Optional[str]
-    scope=None,  # type: Optional[str]
-    role=None,  # type: Optional[str]
-    session_id=None,  # type: Optional[str]
-    propagate=False,  # type: bool
-    login_events_mode=LOGIN_EVENTS_MODE.SDK,  # type: str
-    span=None,  # type: Optional[Span]
-):
-    # type: (...) -> None # noqa: E501
+    tracer: Tracer,
+    user_id: str,
+    metadata: Optional[dict] = None,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    scope: Optional[str] = None,
+    role: Optional[str] = None,
+    session_id: Optional[str] = None,
+    propagate: bool = False,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    span: Optional[Span] = None,
+) -> None:
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
     scope, role, session_id, propagate) will be passed to the `set_user` function that will be called
@@ -117,8 +107,13 @@ def track_user_login_success_event(
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
-def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login_events_mode=LOGIN_EVENTS_MODE.SDK):
-    # type: (Tracer, str, bool, Optional[dict], str) -> None
+def track_user_login_failure_event(
+    tracer: Tracer,
+    user_id: str,
+    exists: bool,
+    metadata: Optional[dict] = None,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+) -> None:
     """
     Add a new login failure tracking event.
     :param tracer: tracer instance to use
@@ -136,8 +131,9 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
 
-def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EVENTS_MODE.SDK):
-    # type: (Tracer, str, bool, str) -> None
+def track_user_signup_event(
+    tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
+) -> None:
     span = tracer.current_root_span()
     if span:
         success_str = "true" if success else "false"
@@ -160,8 +156,7 @@ def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EV
         )
 
 
-def track_custom_event(tracer, event_name, metadata):
-    # type: (Tracer, str, dict) -> None
+def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
     """
     Add a new custom tracking event.
 
@@ -190,12 +185,12 @@ def track_custom_event(tracer, event_name, metadata):
 
     span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
 
-    for k, v in six.iteritems(metadata):
+    for k, v in metadata.items():
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
         _asm_manual_keep(span)
 
 
-def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
+def should_block_user(tracer: Tracer, userid: str) -> bool:
     """
     Return true if the specified User ID should be blocked.
 
@@ -228,7 +223,7 @@ def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
     return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span))
 
 
-def block_request():  # type: () -> None
+def block_request() -> None:
     """
     Block the current request and return a 403 Unauthorized response. If the response
     has already been started to be sent this could not work. The behaviour of this function
@@ -242,7 +237,7 @@ def block_request():  # type: () -> None
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer, userid):  # type: (Tracer, str) -> None
+def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
