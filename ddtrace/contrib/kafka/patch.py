@@ -49,6 +49,7 @@ def get_version():
 class TracedProducer(confluent_kafka.Producer):
     def __init__(self, config, *args, **kwargs):
         super(TracedProducer, self).__init__(config, *args, **kwargs)
+        print("Creating TracedProducer")
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
@@ -109,6 +110,7 @@ def unpatch():
 
 
 def traced_produce(func, instance, args, kwargs):
+    print("[traced_produce]")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -122,6 +124,7 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
     if config._data_streams_enabled:
+        print("[traced_produced] DSM enabled")
         # inject data streams context
         core.dispatch("kafka.produce.start", [instance, args, kwargs])
 

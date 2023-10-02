@@ -2,16 +2,25 @@ from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 
+import traceback
 
 def dsm_kafka_message_produce(instance, args, kwargs):
     from . import data_streams_processor as processor
 
-    topic = core.get_item("kafka_topic")
-    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
-    encoded_pathway = pathway.encode()
-    headers = kwargs.get("headers", {})
-    headers[PROPAGATION_KEY] = encoded_pathway
-    kwargs["headers"] = headers
+    try:
+        print("[dsm_kafka_message_produce] before")
+        topic = core.get_item("kafka_topic")
+        my_processor = processor()
+        print(my_processor)
+        print("[dsm_kafka_message_produce] after")
+        pathway = my_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
+        print("[dsm_kafka_message_produce] done setting checkpoint")
+        encoded_pathway = pathway.encode()
+        headers = kwargs.get("headers", {})
+        headers[PROPAGATION_KEY] = encoded_pathway
+        kwargs["headers"] = headers
+    except:
+        traceback.print_exc()
 
 
 def dsm_kafka_message_consume(instance, message):
