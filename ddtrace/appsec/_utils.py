@@ -173,7 +173,6 @@ class _UserInfoRetriever(object):
 
         return self.find_in_user_model(self.possible_email_fields)
 
-    # JJJ cambiar
     def get_name(self):
         name = getattr(self.user, config._user_model_name_field, None)
         if name:
