@@ -472,6 +472,9 @@ jobs:
 
   test_logging:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'test_logging'
