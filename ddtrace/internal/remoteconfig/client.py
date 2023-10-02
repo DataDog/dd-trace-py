@@ -179,7 +179,7 @@ class RemoteConfigClient(object):
         tags = ddtrace.config.tags.copy()
 
         # Add git metadata tags, if available
-        gitmetadata.update_tags(tags)
+        gitmetadata.add_tags(tags)
 
         if ddtrace.config.env:
             tags["env"] = ddtrace.config.env

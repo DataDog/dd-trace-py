@@ -126,7 +126,7 @@ def clean_tags(tags):
     return tags
 
 
-def update_tags(tags):
+def add_tags(tags):
     clean_tags(tags)
 
     repository_url, commit_sha = get_git_tags()
