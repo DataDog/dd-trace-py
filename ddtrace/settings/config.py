@@ -191,7 +191,9 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)  # type: multiprocessing.Queue
+    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
+        512
+    )  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
