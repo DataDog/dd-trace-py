@@ -154,6 +154,8 @@ exclude-modules = '''
   | ddtrace.appsec._iast._ast.aspects
   | ddtrace.appsec._iast._taint_utils
   | ddtrace.appsec._iast.taint_sinks.sql_injection
+  # DSM specific contribs
+  | ddtrace.internal.datastreams.kafka
 )
 '''
 
