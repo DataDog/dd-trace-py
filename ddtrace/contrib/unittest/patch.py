@@ -311,14 +311,16 @@ def _finish_remaining_suites_and_modules(seen_suites: dict, seen_modules: dict):
     Forces all suite and module spans to finish and updates their statuses.
     """
     for suite in seen_suites.values():
-        if suite["suite_span"] and not suite["suite_span"].finished:
-            _update_status_item(suite["suite_span"]._parent, suite["suite_span"].get_tag(test.STATUS))
-            suite["suite_span"].finish()
+        test_suite_span = suite["suite_span"]
+        if test_suite_span and not test_suite_span.finished:
+            coverage = suite.get("coverage", None)
+            _finish_span(test_suite_span, coverage)
 
     for module in seen_modules.values():
-        if module["module_span"] and not module["module_span"].finished:
-            _update_status_item(module["module_span"]._parent, module["module_span"].get_tag(test.STATUS))
-            module["module_span"].finish()
+        test_module_span = module["module_span"]
+        if test_module_span and not test_module_span.finished:
+            coverage = module.get("coverage", None)
+            _finish_span(test_module_span, coverage)
     del _CIVisibility._unittest_data
 
 
@@ -334,7 +336,8 @@ def _update_remaining_suites_and_modules(
     suite_dict["remaining_tests"] -= 1
     if suite_dict["remaining_tests"] == 0:
         modules_dict["remaining_suites"] -= 1
-        _finish_span(test_suite_span)
+        coverage = suite_dict.get("coverage", None)
+        _finish_span(test_suite_span, coverage)
     if modules_dict["remaining_suites"] == 0:
         _finish_span(test_module_span)
 
