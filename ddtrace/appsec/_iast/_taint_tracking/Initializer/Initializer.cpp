@@ -157,7 +157,7 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(int start, int length, Source origin)
+Initializer::allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
