@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.peer.service.source": "db.name",
@@ -19,8 +18,7 @@
       "out.host": "127.0.0.1",
       "peer.service": "test",
       "runtime-id": "9f466d3fd1ef4e59ab6d72707e720ecf",
-      "span.kind": "client",
-      "sql.query": "select 'dba4x4'"
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.measured": 1,

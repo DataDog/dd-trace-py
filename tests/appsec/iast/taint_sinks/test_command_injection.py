@@ -6,8 +6,8 @@ import sys
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast.constants import VULN_CMDI
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
@@ -17,10 +17,10 @@ from tests.utils import override_global_config
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import OriginType  # noqa: F401
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -65,13 +65,17 @@ def test_ossystem(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = span_report.sources[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [
+            {"value": "dir "},
+            {"redacted": True},
+            {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
+        ]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
         assert source.name == "test_ossystem"
         assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        assert source.value is None
 
         line, hash_value = get_line_and_hash("test_ossystem", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH
@@ -101,13 +105,17 @@ def test_communicate(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = span_report.sources[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [
+            {"value": "dir "},
+            {"redacted": True},
+            {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
+        ]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
         assert source.name == "test_communicate"
         assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        assert source.value is None
 
         line, hash_value = get_line_and_hash("test_communicate", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH
@@ -135,13 +143,17 @@ def test_run(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = span_report.sources[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [
+            {"value": "dir "},
+            {"redacted": True},
+            {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
+        ]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
         assert source.name == "test_run"
         assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        assert source.value is None
 
         line, hash_value = get_line_and_hash("test_run", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH
@@ -170,13 +182,17 @@ def test_popen_wait(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = span_report.sources[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [
+            {"value": "dir "},
+            {"redacted": True},
+            {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
+        ]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
         assert source.name == "test_popen_wait"
         assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        assert source.value is None
 
         line, hash_value = get_line_and_hash("test_popen_wait", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH
@@ -205,13 +221,17 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
         vulnerability = list(span_report.vulnerabilities)[0]
         source = span_report.sources[0]
         assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "dir -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert vulnerability.evidence.valueParts == [
+            {"value": "dir "},
+            {"redacted": True},
+            {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
+        ]
         assert vulnerability.evidence.value is None
         assert vulnerability.evidence.pattern is None
         assert vulnerability.evidence.redacted is None
         assert source.name == "test_popen_wait_shell_true"
         assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        assert source.value is None
 
         line, hash_value = get_line_and_hash("test_popen_wait_shell_true", VULN_CMDI, filename=FIXTURES_PATH)
         assert vulnerability.location.path == FIXTURES_PATH

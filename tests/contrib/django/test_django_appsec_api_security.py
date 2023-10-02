@@ -50,7 +50,7 @@ def test_api_security(client, test_spans, tracer):
     import django
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0"}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -59,6 +59,7 @@ def test_api_security(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=2",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 200
@@ -107,6 +108,7 @@ def test_api_security(client, test_spans, tracer):
                 "_dd.appsec.s.req.headers",
                 [{"content-length": [8], "content-type": [8]}],
             ),
+            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.appsec.s.res.headers", headers_schema[django.__version__[0]]),
@@ -123,7 +125,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0", "DD_APPSEC_RULES": RULES_SRB}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -132,6 +134,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 403
@@ -146,6 +149,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
                 "_dd.appsec.s.req.headers",
                 [{"content-length": [8], "content-type": [8]}],
             ),
+            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
             ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
@@ -162,7 +166,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
     """Test if blocking is still working as expected with api security deactivated"""
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=False)), override_env(
-        {_constants.API_SECURITY.INTERVAL_PER_ROUTE: "0.0", "DD_APPSEC_RULES": RULES_SRB}
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -171,6 +175,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
             tracer,
             url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
             payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
         )
         assert response.status_code == 403
@@ -182,6 +187,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
         for name in [
             "_dd.appsec.s.req.body",
             "_dd.appsec.s.req.headers",
+            "_dd.appsec.s.req.cookies",
             "_dd.appsec.s.req.query",
             "_dd.appsec.s.req.params",
             "_dd.appsec.s.res.headers",

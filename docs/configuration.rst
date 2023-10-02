@@ -87,7 +87,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-         Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist.
+         Enables debug logging in the tracer.
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
      version_added:
@@ -135,11 +135,6 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: Enables :ref:`Logs Injection`.
-
-   DD_CALL_BASIC_CONFIG:
-     type: Boolean
-     default: False
-     description: Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
    DD_AGENT_HOST:
      type: String
@@ -231,11 +226,14 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
+         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+     version_added:
+       v1.19.0: added support for "resource"
+       v1.20.0: added support for "tags"
 
    DD_SPAN_SAMPLING_RULES:
      type: string
@@ -417,8 +415,20 @@ The following environment variables for the tracer are supported:
     
    DD_TRACE_SPAN_AGGREGATOR_RLOCK:
      type: Boolean
-     default: False
+     default: True
      description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
+     version_added:
+       v1.16.2: added with default of False
+       v1.19.0: default changed to True
+
+   DD_TRACE_METHODS:
+     type: String
+     default: ""
+     description: |
+        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Note that this setting is only compatible with ``ddtrace-run``.
+     version_added:
+       v2.1.0:
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -521,9 +531,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.  
+         set to ``true`` to work.
       version_added:
-         v1.15.0:
+         v1.17.0: Added support to the Django integration. No other integrations support this configuration.
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String

@@ -12,6 +12,7 @@ from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.datadog.profiling.utils import sanitize_string
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -190,9 +191,14 @@ class _PprofConverter(object):
 
     def _to_Function(
         self,
-        filename: str,
-        funcname: str,
-    ) -> pprof_FunctionType:
+        filename,  # type: str
+        funcname,  # type: str
+    ):
+        # type: (...) -> pprof_FunctionType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
+        filename = sanitize_string(filename)
+        funcname = sanitize_string(funcname)
         try:
             return self._functions[(filename, funcname)]
         except KeyError:
@@ -206,10 +212,15 @@ class _PprofConverter(object):
 
     def _to_Location(
         self,
-        filename: str,
-        lineno: int,
-        funcname: str,
-    ) -> pprof_LocationType:
+        filename,  # type: str
+        lineno,  # type: int
+        funcname,  # type: str
+    ):
+        # type: (...) -> pprof_LocationType
+        # filename/funcname are "guaranteed" to be str, but on 3.11 and later
+        # they may (erroneously?) be bytes.  Try to fix this.
+        filename = sanitize_string(filename)
+        funcname = sanitize_string(funcname)
         try:
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
@@ -225,7 +236,7 @@ class _PprofConverter(object):
             self._locations[(filename, lineno, funcname)] = location
             return location
 
-    def _str(self, string: str) -> int:
+    def _str(self, string: typing.Optional[str]) -> int:
         """Convert a string to an id from the string table."""
         return self._string_table.index(str(string))
 

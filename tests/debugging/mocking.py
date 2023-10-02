@@ -153,6 +153,9 @@ class TestDebugger(Debugger):
     def probe_status_logger(self):
         return self._probe_registry.logger
 
+    def log_probe_status(self):
+        self._probe_registry.log_probes_status()
+
     def assert_no_snapshots(self):
         assert len(self.test_queue) == 0
 

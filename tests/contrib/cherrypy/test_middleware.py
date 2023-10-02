@@ -584,7 +584,7 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
@@ -643,4 +643,4 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out

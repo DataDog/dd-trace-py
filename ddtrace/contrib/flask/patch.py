@@ -22,9 +22,10 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
@@ -111,12 +112,16 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 block_config = core.get_item(HTTP_REQUEST_BLOCKED)
-                if block_config.get("type", "auto") == "auto":
-                    ctype = "text/html" if "text/html" in headers_from_context else "text/json"
-                else:
-                    ctype = "text/" + block_config["type"]
+                desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
-                response_headers = [("content-type", ctype)]
+                if desired_type == "none":
+                    response_headers = []
+                else:
+                    if block_config.get("type", "auto") == "auto":
+                        ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                    else:
+                        ctype = "text/" + block_config["type"]
+                    response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
             else:
