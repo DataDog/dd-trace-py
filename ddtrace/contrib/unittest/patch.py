@@ -654,7 +654,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     return span
 
 
-def _finish_span(current_span: ddtrace.Span, coverage_data):
+def _finish_span(current_span: ddtrace.Span, coverage_data=None):
     """
     Finishes active span and populates span status upwards
     """
