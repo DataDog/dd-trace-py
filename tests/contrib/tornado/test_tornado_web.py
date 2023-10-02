@@ -42,6 +42,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.SuccessHandler" == request_span.resource
         assert "GET" == request_span.get_tag("http.method")
+        assert "^$" == request_span.get_tag("http.route")
         assert_span_http_status_code(request_span, 200)
         if config.tornado.trace_query_string:
             assert query_string == request_span.get_tag(http.QUERY_STRING)
@@ -84,6 +85,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/status_code/500") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
+        assert request_span.get_tag("http.route") == "/status_code/%s"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
