@@ -57,6 +57,7 @@ def test_kafka_offset_monitoring():
 
 def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
     code = """
+import mock
 import pytest
 import sys
 import time
@@ -72,8 +73,9 @@ def set_exit():
     global _exit
     _exit = True
 
-def run_test():
-    processor = DataStreamsProcessor("http://localhost:8126")
+@mock.patch("ddtrace.internal.datastreams.processor.DataStreamsProcessor._flush_stats", new_callable=fake_flush)
+def run_test(mock_flush):
+    processor = DataStreamsProcessor("http://localhost:9126")
     processor._flush_stats_with_backoff = fake_flush
     processor.stop(5)  # Stop period processing/flushing
 
@@ -96,4 +98,4 @@ run_test()
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
-    assert out.decode().strip() == "Fake flush called"
+    assert "Fake flush called" in out.decode().strip(), err.decode().strip()

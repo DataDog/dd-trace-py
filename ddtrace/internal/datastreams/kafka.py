@@ -1,6 +1,7 @@
 import time
 
 from confluent_kafka import TopicPartition
+import six
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -10,7 +11,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 
 
-INT_TYPES = (int,)
+INT_TYPES = six.integer_types
 
 
 def dsm_kafka_message_produce(instance, args, kwargs):
