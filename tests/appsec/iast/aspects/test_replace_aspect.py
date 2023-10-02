@@ -4,15 +4,19 @@ import sys
 
 import pytest
 
-
-try:
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+# try:
+#     from ddtrace.appsec.iast._taint_tracking import OriginType
+#     from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+#     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+#     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+#     import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
+# except (ImportError, AttributeError):
+#     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec.iast._taint_tracking import OriginType
+from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+import ddtrace.appsec.iast._taint_tracking.aspects as ddtrace_aspects
 
 
 @pytest.mark.parametrize(
