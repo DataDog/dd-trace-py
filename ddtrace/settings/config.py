@@ -239,12 +239,19 @@ class Config(object):
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
-        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
-        self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
+        self._apm_tracing_enabled = asbool(os.getenv("DD_APM_TRACING_ENABLED", default=True))
+        if self._apm_tracing_enabled:
+            self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+            self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+            self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
+            self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+            self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
+        else:
+            self._trace_sample_rate = "1"
+            self._trace_rate_limit = 0.017
+            self._trace_sampling_rules = None
+            self._priority_sampling = False
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -364,10 +371,14 @@ class Config(object):
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
-        self._trace_compute_stats = asbool(
-            os.getenv(
-                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+        self._trace_compute_stats = (
+            asbool(
+                os.getenv(
+                    "DD_TRACE_COMPUTE_STATS",
+                    os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default),
+                )
             )
+            and self._apm_tracing_enabled
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))

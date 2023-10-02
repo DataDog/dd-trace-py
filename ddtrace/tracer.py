@@ -243,7 +243,9 @@ class Tracer(object):
                 priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (not config._apm_tracing_enabled) or self._compute_stats
+                else {},
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
