@@ -128,7 +128,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         d.add_probes(probe)
 
         assert probe in d._probe_registry
-        assert _get_probe_location(probe) in sys.modules._locations
+        assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -137,7 +137,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         # Test that the probe was ejected
         assert probe not in d._probe_registry
 
-        assert _get_probe_location(probe) not in sys.modules._locations
+        assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
         trigger()
 
