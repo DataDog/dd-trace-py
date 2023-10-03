@@ -5,6 +5,8 @@ from libc.string cimport strlen
 
 from json import dumps as json_dumps
 import threading
+from json import dumps as json_dumps
+from numbers import Number
 
 from ._utils cimport PyBytesLike_Check
 
@@ -20,6 +22,7 @@ from ._utils cimport PyBytesLike_Check
 
 from ..constants import ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
+from .constants import MAX_UINT_64BITS
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -547,6 +550,46 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
+    cdef inline int _pack_links(self, object span_links):
+        ret = msgpack_pack_map(&self.pk, len(span_links))
+        if ret != 0:
+            return ret
+
+        for link in span_links:
+            d = link.to_dict()
+            # encode 128 bit trace ids usings two 64bit integers
+            d["trace_id_high"] = d["trace_id"] >> 64
+            d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
+
+            ret = msgpack_pack_map(&self.pk, len(d))
+            if ret != 0:
+                return ret
+
+            for k, v in d.items():
+                # pack key
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    return ret
+                # pack value
+                if isinstance(v, Number):
+                    ret = pack_number(&self.pk, v)
+                elif isinstance(v, str):
+                    ret = pack_text(&self.pk, v)
+                elif k == "attributes" and isinstance(v, dict):
+                    ret = msgpack_pack_map(&self.pk, len(v))
+                    for attr_k, attr_v in v.items():
+                        ret = pack_text(&self.pk, attr_k)
+                        if ret != 0:
+                            return ret
+                        ret = pack_text(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                else:
+                    ValueError(f"{v} has an unsupported type, type={type(v)}")
+                if ret != 0:
+                    return ret
+        return 0
+
     cdef inline int _pack_meta(self, object meta, char *dd_origin) except? -1:
         cdef Py_ssize_t L
         cdef int ret
@@ -613,8 +656,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
+        has_links = <bint> (len(span._links) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -689,6 +733,14 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
                 ret = pack_text(&self.pk, span.span_type)
+                if ret != 0:
+                    return ret
+
+            if has_links:
+                ret = pack_bytes(&self.pk, <char *> b"span_links", 10)
+                if ret != 0:
+                    return ret
+                ret = self._pack_links(span._links)
                 if ret != 0:
                     return ret
 
