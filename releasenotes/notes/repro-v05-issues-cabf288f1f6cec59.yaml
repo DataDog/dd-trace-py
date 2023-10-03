@@ -1,5 +1,4 @@
 ---
 other:
   - |
-    tracing: Improves the debuggability of trace encoding issues for the v0.5 encoding format.
-    Note this change may increase memory usage when ``DD_TRACE_API_VERSION=v0.5``.
+    tracing: Adds debug logs to track trace encoding issues when ``DD_TRACE_API_VERSION=v0.5``.
