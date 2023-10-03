@@ -1,29 +1,25 @@
 import os
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
+from urllib import parse
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 from ddtrace.settings import _config as config
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-
-    from ddtrace.internal.compat import text_type as unicode
-
-
 log = get_logger(__name__)
 
 
-def parse_form_params(body):
-    # type: (unicode) -> dict[unicode, unicode|list[unicode]]
+def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     """Return a dict of form data after HTTP form parsing"""
     body_params = body.replace("+", " ")
-    req_body = dict()  # type: dict[unicode, unicode|list[unicode]]
+    req_body: Dict[str, Union[str, list[str]]] = dict()
     for item in body_params.split("&"):
         key, equal, val = item.partition("=")
         if equal:
@@ -39,8 +35,7 @@ def parse_form_params(body):
     return req_body
 
 
-def parse_form_multipart(body):
-    # type: (unicode) -> dict[unicode, Any]
+def parse_form_multipart(body: str) -> Dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
@@ -122,14 +117,13 @@ def parse_response_body(raw_body):
         return req_body
 
 
-def _appsec_rc_features_is_enabled():
-    # type: () -> bool
+def _appsec_rc_features_is_enabled() -> bool:
     if config._remote_config_enabled:
         return APPSEC_ENV not in os.environ
     return False
 
 
-class _UserInfoRetriever(object):
+class _UserInfoRetriever:
     def __init__(self, user):
         self.user = user
 
