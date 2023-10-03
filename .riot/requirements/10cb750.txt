@@ -31,7 +31,7 @@ opentracing==2.4.0
 packaging==23.1
 pandas==2.0.3
 pandas-stubs==2.0.2.230605
-pillow==10.0.0
+pillow==10.0.1
 plotly==5.15.0
 pluggy==1.2.0
 pyparsing==3.0.9

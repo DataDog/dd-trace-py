@@ -25,7 +25,7 @@ numpy==1.21.6
 openai==0.26.5
 opentracing==2.4.0
 packaging==23.1
-pillow==9.5.0
+pillow==10.0.1
 pluggy==1.2.0
 pytest==7.4.0
 pytest-asyncio==0.21.0
