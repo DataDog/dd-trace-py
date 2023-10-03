@@ -718,11 +718,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
-    cdef dict _span_dict
+    cdef dict _encoded_spans
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         self._st = MsgpackStringTable(max_size)
-        self._span_dict = {}
+        self._encoded_spans = {}
 
     cpdef flush(self):
         with self._lock:
@@ -736,7 +736,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 return v05bytes
             finally:
                 self._reset_buffer()
-                self._span_dict = {}
+                self._encoded_spans = {}
 
     @property
     def stable(self):
@@ -754,7 +754,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 self._st.savepoint()
                 super(MsgpackEncoderV05, self).put(trace)
                 for span in trace:
-                    self._span_dict[span.span_id] = span
+                    self._encoded_spans[span.span_id] = span
             except Exception:
                 self._st.rollback()
                 raise
@@ -864,7 +864,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         table, _traces = unpacked
         for trace in _traces:
             for span in trace:
-                og_span = self._span_dict.get(span[4]) # correlate encoded span to a span in span_dict
+                og_span = self._encoded_spans.get(span[4]) # correlate encoded span to a span in span_dict
                 # structure of v0.5 encoded spans
                 # 		 0: Service   (uint32)
                 # 		 1: Name      (uint32)
