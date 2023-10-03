@@ -29,7 +29,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
+def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
     import psutil
 
     from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -55,11 +55,11 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
         tainted_string_2 = taint_pyobject(
             origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
         )
-        mod.propagation_path_3_prop(tainted_string_1, tainted_string_2)
+        mod.propagation_memory_check(tainted_string_1, tainted_string_2)
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert span_report.sources
-        assert span_report.vulnerabilities
+        assert len(span_report.sources) > 0
+        assert len(span_report.vulnerabilities) > 0
 
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()

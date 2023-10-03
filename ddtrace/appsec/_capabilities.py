@@ -1,20 +1,16 @@
 import base64
 import os
-import sys
 from typing import Optional
 
-from ddtrace import Tracer
-from ddtrace import config as ddconfig
+import ddtrace
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
-from ddtrace.internal.compat import to_bytes_py2
 
 
 def _appsec_rc_file_is_not_static():
     return "DD_APPSEC_RULES" not in os.environ
 
 
-def _appsec_rc_capabilities(test_tracer=None):
-    # type: (Optional[Tracer]) -> str
+def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> str:
     r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation
@@ -30,14 +26,10 @@ def _appsec_rc_capabilities(test_tracer=None):
     ...
     256         -> 100000000        -> b'\x01\x00'          -> b'AQA='
     """
-    if test_tracer is None:
-        from ddtrace import tracer
-    else:
-        tracer = test_tracer
-
+    tracer = ddtrace.tracer if test_tracer is None else test_tracer
     value = 0b0
     result = ""
-    if ddconfig._remote_config_enabled:
+    if ddtrace.config._remote_config_enabled:
         if _appsec_rc_features_is_enabled():
             value |= 1 << 1  # Enable ASM_ACTIVATION
         if tracer._appsec_processor and _appsec_rc_file_is_not_static():
@@ -50,12 +42,5 @@ def _appsec_rc_capabilities(test_tracer=None):
             value |= 1 << 8  # Enable ASM_CUSTOM_RULES
             value |= 1 << 9  # Enable ASM_CUSTOM_BLOCKING_RESPONSE
             value |= 1 << 10  # Enable ASM_TRUSTED_IPS
-
-        if sys.version_info.major < 3:
-            bytes_res = to_bytes_py2(value, (value.bit_length() + 7) // 8, "big")
-            # "type: ignore" because mypy does not notice this is for Python2 b64encode
-            result = str(base64.b64encode(bytes_res))  # type: ignore
-        else:
-            result = str(base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")), encoding="utf-8")
-
+        result = base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode()
     return result
