@@ -51,7 +51,7 @@ def patch_conn(conn):
     try:
         tags = {db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME), db.USER: conn.getinfo(pyodbc.SQL_USER_NAME)}
     except pyodbc.Error:
-        pass
+        tags = {}
     pin = Pin(service=None, tags=tags)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
     pin.onto(wrapped)
