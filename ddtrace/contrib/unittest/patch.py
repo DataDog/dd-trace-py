@@ -540,7 +540,10 @@ def _start_test_session_span(instance) -> ddtrace.Span:
     test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
     test_session_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
-
+    test_session_span.set_tag_str(
+        test.ITR_TEST_CODE_COVERAGE_ENABLED,
+        "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
+    )
     _store_module_identifier(instance)
     return test_session_span
 
@@ -575,6 +578,10 @@ def _start_test_module_span(instance) -> ddtrace.Span:
     test_module_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
     test_module_span.set_tag_str(test.MODULE, test_module_name)
     test_module_span.set_tag_str(test.MODULE_PATH, _extract_module_file_path(instance))
+    test_module_span.set_tag_str(
+        test.ITR_TEST_CODE_COVERAGE_ENABLED,
+        "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
+    )
     _store_suite_identifier(instance)
     return test_module_span
 
