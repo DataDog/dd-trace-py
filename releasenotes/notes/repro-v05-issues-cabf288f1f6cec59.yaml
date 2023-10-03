@@ -1,4 +1,0 @@
----
-other:
-  - |
-    tracing: Adds debug logs to track trace encoding issues when ``DD_TRACE_API_VERSION=v0.5``.
