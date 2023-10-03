@@ -1,7 +1,8 @@
 import functools
+from io import BytesIO
 import json
+from json import JSONDecodeError
 
-from six import BytesIO
 from wrapt import wrap_function_wrapper as _w
 from wrapt.importer import when_imported
 import xmltodict
@@ -15,12 +16,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 
-
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
