@@ -734,7 +734,7 @@ def test_verifying_v05_payloads():
         assert 0 < len(encoded) < len(traces), "Ensures BufferFull is raised and only a subset of traces are encoded"
         assert encoder.encode()
 
-    # Ensure EncodingValidationError is raised when the encoded span name does not match the original span name
+    # Ensure EncodingValidationError is raised when the encoded span name does not match the span name
     with override_global_config({"_trace_writer_log_err_payload": True}):
         with pytest.raises(EncodingValidationError) as e:
             og_span = Span("name", "service", "resource", "type")
@@ -773,7 +773,7 @@ def test_verifying_v05_payloads():
     # Ensure EncodingValidationError is raised when the encoded start does not match
     with override_global_config({"_trace_writer_log_err_payload": True}):
         with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
+            og_span = Span("name", "service", "resource", "type", start=10)
             encoder.put([og_span])
             og_span.start_ns = 100000001
             encoder.encode()
@@ -788,7 +788,7 @@ def test_verifying_v05_payloads():
             encoder.encode()
         assert "misencoded parent id" in e.value.args[0]
 
-    # Ensure EncodingValidationError is raised when the encoded tags do not match span tags
+    # Ensure EncodingValidationError is raised when the encoded tags do not match the span tag's
     with override_global_config({"_trace_writer_log_err_payload": True}):
         with pytest.raises(EncodingValidationError) as e:
             og_span = Span("name", "service", "resource", "type")
