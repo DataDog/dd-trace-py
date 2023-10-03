@@ -21,7 +21,7 @@ jinja2==2.11.3
 markupsafe==2.0.1
 mock==5.0.1
 opentelemetry-api==1.0.0
-opentelemetry-instrumentation==0.19b0
+opentelemetry-instrumentation==0.41b0
 opentelemetry-instrumentation-flask==0.19b0
 opentelemetry-instrumentation-wsgi==0.19b0
 opentelemetry-util-http==0.19b0
