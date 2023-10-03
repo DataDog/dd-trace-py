@@ -10,7 +10,7 @@ using namespace pybind11::literals;
 namespace py = pybind11;
 
 PyObject*
-new_pyobject_id(PyObject* tainted_object, Py_ssize_t object_length);
+new_pyobject_id(PyObject* tainted_object);
 
 PyObject*
 api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);

@@ -4,22 +4,15 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
 
-from ddtrace.internal.compat import PY3
-from ddtrace.internal.compat import text_type as unicode
 from ddtrace.internal.logger import get_logger
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Optional
-    from typing import Union
-
-    DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
-
-if PY3:
-    long = int
+DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -127,15 +120,13 @@ class ddwaf_object(ctypes.Structure):
 
     def __init__(
         self,
-        struct=None,
-        observator=_observator(),  # noqa : B008
-        max_objects=DDWAF_MAX_CONTAINER_SIZE,
-        max_depth=DDWAF_MAX_CONTAINER_DEPTH,
-        max_string_length=DDWAF_MAX_STRING_LENGTH,
-    ):
-        # type: (DDWafRulesType, _observator, int, int, int) -> None
-
-        def truncate_string(string):
+        struct: DDWafRulesType = None,
+        observator: _observator = _observator(),  # noqa : B008
+        max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
+        max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
+        max_string_length: int = DDWAF_MAX_STRING_LENGTH,
+    ) -> None:
+        def truncate_string(string: bytes) -> bytes:
             if len(string) > max_string_length - 1:
                 observator.truncation |= _TRUNC_STRING_LENGTH
                 # difference of 1 to take null char at the end on the C side into account
@@ -144,9 +135,9 @@ class ddwaf_object(ctypes.Structure):
 
         if isinstance(struct, bool):
             ddwaf_object_bool(self, struct)
-        elif isinstance(struct, (int, long)):
+        elif isinstance(struct, int):
             ddwaf_object_signed(self, struct)
-        elif isinstance(struct, unicode):
+        elif isinstance(struct, str):
             ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, truncate_string(struct))
@@ -176,12 +167,12 @@ class ddwaf_object(ctypes.Structure):
             map_o = ddwaf_object_map(self)
             # order is unspecified and could lead to problems if max_objects is reached
             for counter_object, (key, val) in enumerate(struct.items()):
-                if not isinstance(key, (bytes, unicode)):  # discards non string keys
+                if not isinstance(key, (bytes, str)):  # discards non string keys
                     continue
                 if counter_object >= max_objects:
                     observator.truncation |= _TRUNC_CONTAINER_SIZE
                     break
-                res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)
+                res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, str) else key)
                 obj = ddwaf_object(
                     val,
                     observator=observator,
@@ -191,43 +182,35 @@ class ddwaf_object(ctypes.Structure):
                 )
                 ddwaf_object_map_add(map_o, res_key, obj)
         elif struct is not None:
-            struct = str(struct)
-            if isinstance(struct, bytes):  # Python 2
-                ddwaf_object_string(self, truncate_string(struct))
-            else:  # Python 3
-                ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
+            ddwaf_object_string(self, truncate_string(str(struct).encode("UTF-8", errors="ignore")))
         else:
             ddwaf_object_null(self)
 
     @classmethod
-    def create_without_limits(cls, struct):
-        # type: (type, DDWafRulesType) -> ddwaf_object
+    def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
 
     @property
-    def struct(self):
-        # type: (ddwaf_object) -> Union[None, int, unicode, list[Any], dict[unicode, Any]]
-        """pretty printing of the python ddwaf_object"""
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
-            return None
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
-            return self.value.intValue
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
-            return self.value.uintValue
+    def struct(self) -> DDWafRulesType:
+        """Generate a python structure from ddwaf_object"""
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
             return self.value.stringValue.decode("UTF-8", errors="ignore")
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
-            return [self.value.array[i].struct for i in range(self.nbEntries)]
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
             return {
                 self.value.array[i].parameterName.decode("UTF-8", errors="ignore"): self.value.array[i].struct
                 for i in range(self.nbEntries)
             }
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
+            return [self.value.array[i].struct for i in range(self.nbEntries)]
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
+            return self.value.intValue
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
+            return self.value.uintValue
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
             return self.value.f64
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL:
+        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL or self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
             return None
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
@@ -318,14 +301,13 @@ class ddwaf_config(ctypes.Structure):
 
     def __init__(
         self,
-        max_container_size=0,
-        max_container_depth=0,
-        max_string_length=0,
-        key_regex=b"",
-        value_regex=b"",
+        max_container_size: int = 0,
+        max_container_depth: int = 0,
+        max_string_length: int = 0,
+        key_regex: bytes = b"",
+        value_regex: bytes = b"",
         free_fn=ddwaf_object_free,
-    ):
-        # type: (ddwaf_config, int, int, int, bytes, bytes, Optional[Any]) -> None
+    ) -> None:
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
         self.limits.max_string_length = max_string_length
@@ -342,8 +324,7 @@ ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstr
 
 
 class ddwaf_handle_capsule:
-    def __init__(self, handle):
-        # type: (ddwaf_handle) -> None
+    def __init__(self, handle: ddwaf_handle) -> None:
         self.handle = handle
         self.free_fn = ddwaf_destroy
 
@@ -360,8 +341,7 @@ class ddwaf_handle_capsule:
 
 
 class ddwaf_context_capsule:
-    def __init__(self, ctx):
-        # type: (ddwaf_context) -> None
+    def __init__(self, ctx: ddwaf_context) -> None:
         self.ctx = ctx
         self.free_fn = ddwaf_context_destroy
 
@@ -398,8 +378,7 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
 )
 
 
-def py_ddwaf_init(ruleset_map, config, info):
-    # type: (ddwaf_object, Any, Any) -> ddwaf_handle_capsule
+def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info))
 
 
@@ -413,8 +392,7 @@ ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwa
 )
 
 
-def py_ddwaf_update(handle, ruleset_map, info):
-    # type: (ddwaf_handle_capsule, ddwaf_object, Any) -> ddwaf_handle_capsule
+def py_ddwaf_update(handle: ddwaf_handle_capsule, ruleset_map: ddwaf_object, info) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_update(handle.handle, ruleset_map, ctypes.byref(info)))
 
 
@@ -434,8 +412,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_required_addresses(handle):
-    # type: (ddwaf_handle_capsule) -> list[unicode]
+def py_ddwaf_required_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
     obj = ddwaf_required_addresses(handle.handle, ctypes.byref(size))
     return [obj[i].decode("UTF-8") for i in range(size.value)]
@@ -447,8 +424,7 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
 )
 
 
-def py_ddwaf_context_init(handle):
-    # type: (ddwaf_handle_capsule) -> ddwaf_context_capsule
+def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule:
     return ddwaf_context_capsule(ddwaf_context_init(handle.handle))
 
 
