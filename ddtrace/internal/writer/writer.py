@@ -401,7 +401,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if hasattr(client.encoder, "stable"):
                 log.debug("Malformed String table: %s", client.encoder.stable.string_table_values)
             # After detecting a malformed payload disable logging for error payloads. This feature
-            # has the potentical to generate thousands of logs each
+            # has the potential to generate thousands of logs each containing up to 50MB of data.
             config._trace_writer_log_err_payload = False
             self._flush_queue_with_client(client, raise_exc)
             return
