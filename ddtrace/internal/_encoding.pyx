@@ -66,6 +66,10 @@ class BufferItemTooLarge(Exception):
     pass
 
 
+class EncodingValidationError(Exception):
+    pass
+
+
 cdef inline const char * string_to_buff(str s):
     IF PY_MAJOR_VERSION >= 3:
         return PyUnicode_AsUTF8(s)
@@ -269,7 +273,7 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def string_table_values(self):
-        return "_sp_len:{} _sp_id:{} pk_buf:{} pk_buff_size:{} max_size:{} table:{}".format(self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table)
+        return "_sp_len:{}\n_sp_id:{}\npk_buf:{}\npk_buff_size:{}\nmax_size:{}\ntable:{}".format(self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table)
 
     cdef rollback(self):
         if self._sp_len > 0:
@@ -714,9 +718,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
+    cdef dict _span_dict
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         self._st = MsgpackStringTable(max_size)
+        self._span_dict = {}
 
     cpdef flush(self):
         with self._lock:
@@ -725,9 +731,12 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                     PyLong_FromLong(<long> self.get_buffer()),
                     <Py_ssize_t> super(MsgpackEncoderV05, self).size,
                 )
-                return self._st.flush()
+                v05bytes = self._st.flush()
+                self._verify_encoding(v05bytes)
+                return v05bytes
             finally:
                 self._reset_buffer()
+                self._span_dict = {}
 
     @property
     def stable(self):
@@ -744,6 +753,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             try:
                 self._st.savepoint()
                 super(MsgpackEncoderV05, self).put(trace)
+                for span in trace:
+                    self._span_dict[span.span_id] = span
             except Exception:
                 self._st.rollback()
                 raise
@@ -838,6 +849,63 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         return 0
 
+    cpdef _verify_encoding(self, obj):
+        import msgpack
+
+        from ddtrace import config
+
+        if not config._trace_writer_log_err_payload:
+            return
+
+        unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+        if not unpacked or not unpacked[0]:
+            return unpacked
+
+        table, _traces = unpacked
+        for trace in _traces:
+            for span in trace:
+                og_span = self._span_dict.get(span[4]) # correlate encoded span to a span in span_dict
+                # structure of v0.5 encoded spans
+                # 		 0: Service   (uint32)
+                # 		 1: Name      (uint32)
+                # 		 2: Resource  (uint32)
+                # 		 3: TraceID   (uint64)
+                # 		 4: SpanID    (uint64)
+                # 		 5: ParentID  (uint64)
+                # 		 6: Start     (int64)
+                # 		 7: Duration  (int64)
+                # 		 8: Error     (int32)
+                # 		 9: Meta      (map[uint32]uint32)
+                # 		10: Metrics   (map[uint32]float64)
+                # 		11: Type      (uint32)
+                try:
+                    assert og_span.service == (table[span[0]].decode() or None), "misencoded service"
+                    assert og_span.name == (table[span[1]].decode() or None), "misencoded name"
+                    assert og_span.resource == (table[span[2]].decode() or None), "misencoded resource"
+                    assert og_span._trace_id_64bits == (span[3] or None), "misencoded trace id"
+                    assert og_span.span_id == (span[4] or None), "misencoded span id"
+                    assert og_span.parent_id == (span[5] or None), "misencoded parent id"
+                    assert og_span.start_ns == span[6], "misencoded start"
+                    assert og_span.duration_ns == (span[7] or None), "misencoded duration"
+                    assert og_span.error == span[8], "misencoded error"
+
+                    for k, v in span[9].items():
+                        k = table[k].decode()
+                        v = table[v].decode()
+                        if "dropped string of length" in k or "dropped string of length" in v:
+                            continue
+                        assert og_span._meta[k] == v,  "misencoded tag"
+
+                    for k, v in span[10].items():
+                        k = table[k].decode()
+                        if "dropped string of length" in k:
+                            continue
+                        assert og_span._metrics[k] == v, "misencoded metric"
+
+                    assert og_span.span_type == (table[span[11]].decode() or None),  "misencoded span type"
+                except Exception as e:
+                    e_message = str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint()) 
+                    raise EncodingValidationError(e_message)
 
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer

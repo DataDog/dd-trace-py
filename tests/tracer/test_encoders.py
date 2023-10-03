@@ -21,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
+from ddtrace.internal._encoding import EncodingValidationError
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
@@ -33,6 +34,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from tests.utils import DummyTracer
+from tests.utils import override_global_config
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -702,174 +704,88 @@ def test_json_encoder_traces_bytes():
         assert u"\ufffdspan.b" == span_c["name"]
 
 
-def _decode_v05_bytes(obj):
-    import msgpack
-
-    from ddtrace import Span
-
-    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
-
-    if not unpacked or not unpacked[0]:
-        return unpacked
-
-    table, _traces = unpacked
-
-    def resolve(span):
-        rebuilt_span = Span("temp")
-        # structure of v0.5 encoded spans
-        # 		 0: Service   (uint32)
-        # 		 1: Name      (uint32)
-        # 		 2: Resource  (uint32)
-        # 		 3: TraceID   (uint64)
-        # 		 4: SpanID    (uint64)
-        # 		 5: ParentID  (uint64)
-        # 		 6: Start     (int64)
-        # 		 7: Duration  (int64)
-        # 		 8: Error     (int32)
-        # 		 9: Meta      (map[uint32]uint32)
-        # 		10: Metrics   (map[uint32]float64)
-        # 		11: Type      (uint32)
-        rebuilt_span.service = table[span[0]].decode() or None
-        rebuilt_span.name = table[span[1]].decode() or None
-        rebuilt_span.resource = table[span[2]].decode() or None
-        rebuilt_span.trace_id = span[3] or None
-        rebuilt_span.span_id = span[4] or None
-        rebuilt_span.parent_id = span[5] or None
-        rebuilt_span.start = span[6]
-        rebuilt_span.duration_ns = span[7] or None
-        rebuilt_span.error = span[8]
-        rebuilt_span._meta = {table[k].decode(): table[v].decode() for k, v in span[9].items()}
-        rebuilt_span._metrics = {table[k].decode(): v for k, v in span[10].items()}
-        rebuilt_span.span_type = table[span[11]].decode() or None
-
-        return rebuilt_span
-
-    return [[resolve(span) for span in trace] for trace in _traces]
-
-
-def test_payload_corruption_v05():
-    import ddtrace
-    from ddtrace.internal.encoding import MsgpackEncoderV05
-    from tests.utils import override_global_config
-
+def test_verifying_v05_payloads():
     string_table_size = 4 * (1 << 12)
     encoder = MsgpackEncoderV05(string_table_size, string_table_size)
-    s_dict = {
-        "org_id": 2,
-        "trace_id": "3939227152590743338",
-        "span_id": "2162019064858654055",
-        "parent_id": "8490121054105183582",
-        "start": 1694536934.81535,
-        "end": 1694536992.33221,
-        "duration": 57.516860094,
-        "type": "some_type",
-        "service": "alerting-metric-evaluator",
-        "name": "grpc.server",
-        "resource": "Evaluate",
-        "resource_hash": "",
-        "host_id": 13666247359,
-        "hostname": "i-0befefd732760776e",
-        "env": "prod",
-        "host_groups": ["env:prod", "datacenter:us1.prod.dog"],
-        "meta": {
-            "app": "alerting_metric_query",
-            "language": "python",
-            "_dd.agent_rare_sampler.enabled": "false",
-            "ddtrace.version": "1.16.1",
-            "tracestate": "dd=s:0",
-            "_dd.tracer_version": "1.16.1",
-            "env": "prod",
-            "_dd.filter.type": "spans-sampling-processor",
-            "_dd.tags.container": "kube_replica_set:alerting-metric-evaluator-fast-785b6c6dcd,app:alerting-metric-"
-            "evaluator,log_format:dd-ame-amq,kube_ownerref_kind:replicaset,kube_deployment:alerting-metric-evaluator"
-            "-fast,short_image:alerting-metric-query,kube_qos:burstable,kube_container_name:alerting-metric-query-5,"
-            "image_name:464622532012.dkr.ecr.us-east-1.amazonaws.com/alerting-metric-query,image_tag:v19532234-"
-            "6dd430e9-focal-py3,pod_phase:running,dc_config_version:49461303e4133bf4155985c90fc703513b2bf156,"
-            "env:prod,kube_service:alerting-metric-evaluator-fast,cnab.installation:helm/v1::alerting-metric-"
-            "evaluator-fast.metrics-alerting.metrics1b.us1.prod.dog,image_id:464622532012.dkr.ecr.us-east-1."
-            "amazonaws.com/alerting-metric-query@sha256:b33e6713acc1053b769ab0136955c60c6bc8c4781d49fa257a"
-            "9da90e3785a99b,kube_namespace:metrics-alerting,service:alerting-metric-evaluator,release:"
-            "alerting-metric-evaluator-fast,team:metrics-alerting,cluster:alerting-metric-evaluator-fast,"
-            "git.commit.sha:6dd430e93a5e1fc08b976554b26da430ac1f92e9,git.repository_url:http://github.com/"
-            "datadog/dogweb,container.baseimage.isgbi:yes,container.baseimage.buildstamp:2023-08-10t03:23:19z,"
-            "container.baseimage.os:ubuntu focal lts,container.baseimage.name:images/base/gbi-ubuntu_2004,"
-            "pod_name:alerting-metric-evaluator-fast-785b6c6dcd-w7x24,kube_ownerref_name:alerting-metric-evaluator-"
-            "fast-785b6c6dcd,display_container_name:alerting-metric-query-5_alerting-metric-evaluator-fast-785b6c6dcd-"
-            "w7x24,container_id:0cb943f6b7103235971e886409f5a581966a9f4f9e3accc0265352fb8d354e8a,container_name:"
-            "alerting-metric-query-5",
-            "_dd.agent_version": "7.47.0",
-            "_dd.filter.id": "puzo6QWKQ7mXhoAX0y2KBw",
-            "traceparent": "00-000000000000000036aaf2396fbea72a-75d2f81dba01255e-00",
-            "_dd.ingestion_reason": "error",
-            "avg:aws.sqs.approximate_number_of_messages_visible{queuename:fury-raven-incoming-sqs}": "2023-09-12T16",
-            "version": "v19532234-6dd430e9-focal-py3",
-            "_dd.agent_hostname": "i-0befefd732760776e",
-        },
-        "metrics": {
-            "_dd.tracer_kr": 1,
-            "metrics-querier query_batch -q b'Cp4BCMdKEi5hd3Muc3FzLmFwcHJveGltYXRlX251bWJlcl9vZl9tZXNzYWdlc192aXNpYmI"
-            "zqSCqAYiBgjmqYKoBiohcXVldWVuYW1lOmZ1cnktcmF2ZW4taW5jb21pbmctc3FzMgEqOAJCAggCSAJQBFoDCKwCagB": 7,
-            "_top_level": 1,
-            "_dd.agent_priority_sampler.target_tps": 10,
-            "_dd1.sr.esusr": 0.001,
-            "_dd.agent_errors_sampler.target_tps": 10,
-            "_dd.errors_sr": 0.5,
-            "pb.Health": 1,
-            "_sampling_priority_v1": 0,
-            "_dd.top_level": 1,
-            "Check": 9543,
-        },
-        "ingestion_reason": "error",
-        "metadata": {"sds_info": []},
-    }
 
-    # encode and decoded traces 100 times. This tests the string table flushing and resetting logic
-    for i in range(100):
-        # Generate Spans in one trace
-        with override_global_config({"_128_bit_trace_id_enabled": False}):
-            # Note - 128bit trace ids are encoded in chunks. This complicates this test so we ensure this
-            # feature is disabled.
-            traces = [[ddtrace.Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(30)]
-
+    # Ensure EncodingValidationError is not raised when trace fields are encoded as expected
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        traces = [[Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(100)]
         for trace in traces:
             for s in trace:
-                # Set start to zero to simplify the decoding span logic
-                s.start = 0
-                # use values from trace that failed to decode
-                s.name = s_dict["name"]
-                s.service = s_dict["service"]
-                s.resource = s_dict["resource"]
-                s._meta = s_dict["meta"]
-                s._metrics = s_dict["metrics"]
+                s._meta = {
+                    "app": "ac_query",
+                    "language": "python",
+                    "key_for_long_string": "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1),
+                }
+                s._metrics = {
+                    "zqSCqAYiBgjmqYKoBiohcCKwCagB": 7,
+                    "_sampling_priority_v1": 0,
+                    "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1): 1,
+                }
 
-        # DEBUG: Print the contents of the string table
-        print("xxxxxx     string table before encoding     xxxxxxxxx")
-        print(encoder.stable.string_table_values)
-
-        # Queue traces in encoder
-        encoded_traces = []
+        encoded = []
         for trace in traces:
             try:
                 encoder.put(trace)
-                encoded_traces.append(trace)
-                # DEBUG: Print the contents of the string table
-                print("------------ string table after encoding --------------")
-                print(encoder.stable.string_table_values)
-            except Exception as e:
-                print("Class:{} message:{}".format(e.__class__, e))
+                encoded.append(trace)
+            except BufferFull:
+                pass
+        assert 0 < len(encoded) < len(traces), "Ensures BufferFull is raised and only a subset of traces are encoded"
+        assert encoder.encode()
 
-        assert len(encoded_traces) < len(traces), "we want to raise a buffer exception"
+    # Ensure EncodingValidationError is raised when the encoded span name does not match the original span name
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.name = "new_name"
+            encoder.encode()
+        assert "misencoded name" in e.value.args[0]
 
-        # Encode all traces
-        encoded_bytes = encoder.encode()
-        # Recreate traces from encoded bytes
-        decoded_traces = _decode_v05_bytes(encoded_bytes)
+    # Ensure EncodingValidationError is raised when the encoded service does not match the span service
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.service = "new_service"
+            encoder.encode()
+        assert "misencoded service" in e.value.args[0]
 
-        # Ensure the encoded traces and the decoded trace have the same values
-        # If this fails the trace has been corrupted
-        assert len(decoded_traces) == len(encoded_traces)
-        for i in range(len(decoded_traces)):
-            for j in range(len(decoded_traces[i])):
-                og_span = encoded_traces[i][j]._pprint()
-                decoded_span = decoded_traces[i][j]._pprint()
-                assert og_span == decoded_span, "original span: {}, decoded span: {}".format(og_span, decoded_span)
+    # Ensure EncodingValidationError is raised when the encoded resource does not match the span resource
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.resource = "new_resource"
+            encoder.encode()
+        assert "misencoded resource" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded tags do not match span tags
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            og_span._meta["hi"] = "tag"
+            encoder.put([og_span])
+            og_span._meta["hi"] = "new tag"
+            encoder.encode()
+        assert "misencoded tag" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded metrics do not match the metrics set on the span
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            og_span._metrics["hi"] = 1
+            encoder.put([og_span])
+            og_span._metrics["hi"] = 2
+            encoder.encode()
+        assert "misencoded metric" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded span type does not match the span type on the span
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.span_type = "new_span_type"
+            encoder.encode()
+        assert "misencoded span type" in e.value.args[0]

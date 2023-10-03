@@ -30,6 +30,7 @@ from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
+from .._encoding import EncodingValidationError
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
@@ -396,10 +397,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _flush_queue_with_client(self, client, raise_exc=False):
         # type: (WriterClientBase, bool) -> None
         n_traces = len(client.encoder)
+        encoded = None
         try:
             encoded = client.encoder.encode()
             if encoded is None:
                 return
+        except EncodingValidationError as e:
+            log.error("Encoding Error (or span was modified after finish): %s", str(e))
+            if hasattr(client.encoder, "stable"):
+                log.debug("Malformed String table: %s", client.encoder.stable.string_table_values)
+            # After detecting a malformed payload disable logging for error payloads. This feature
+            # has the potentical to generate thousands of logs each
+            config._trace_writer_log_err_payload = False
+            self._flush_queue_with_client(client, raise_exc)
+            return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
