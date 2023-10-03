@@ -62,6 +62,7 @@ from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
 from .span import Span
+from .tracing import _span_link
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -593,6 +594,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         span_api=SPAN_API_DATADOG,  # type: str
+        span_links=None,  # type: Optional[List[_span_link.SpanLink]]
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -691,6 +693,7 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
+                links=span_links,
             )
 
             # Extra attributes when from a local parent
@@ -714,6 +717,7 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
+                links=span_links,
             )
             span._local_root = span
             if config.report_hostname:
@@ -795,8 +799,8 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG):
-        # type: (str, Optional[str], Optional[str], Optional[str], str) -> Span
+    def trace(self, name, service=None, resource=None, span_type=None, span_api=SPAN_API_DATADOG, span_links=None):
+        # type: (str, Optional[str], Optional[str], Optional[str], str, Optional[List[_span_link.SpanLink]]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
@@ -845,6 +849,7 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
             span_api=span_api,
+            span_links=span_links,
         )
 
     def current_root_span(self):

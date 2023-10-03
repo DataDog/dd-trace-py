@@ -32,6 +32,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
 
@@ -396,6 +397,42 @@ def test_span_types(encoding, span, tags):
     trace = [span]
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+
+
+def test_span_links():
+    encoder = MSGPACK_ENCODERS["v0.5"](1 << 20, 1 << 20)
+
+    span = Span("name")
+
+    links = [
+        SpanLink(
+            trace_id=1,
+            span_id=2,
+            tracestate="congo=t61rcWkgMzE",
+            traceflags="01",
+            attributes={"moon": "ears"},
+            name="link_name",
+            kind="link_kind",
+        )
+    ]
+    for link in links:
+        span._set_span_link(link)
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    encoder.put([span])
+    decoded_trace = decode(encoder.encode())
+    assert len(decoded_trace) == 1
+    assert len(decoded_trace[0]) == 1
+
+    encoded_span_meta = decoded_trace[0][0][9]
+    assert b"_dd.span_links" in encoded_span_meta
+    assert (
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
+        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
+        b'"tracestate": "congo=t61rcWkgMzE", "traceflags": "01"}]'
+    )
 
 
 @pytest.mark.parametrize(
