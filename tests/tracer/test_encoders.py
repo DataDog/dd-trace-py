@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import contextlib
 import json
+import os
 import random
 import string
 import threading
@@ -704,6 +705,10 @@ def test_json_encoder_traces_bytes():
         assert u"\ufffdspan.b" == span_c["name"]
 
 
+@pytest.mark.skipif(
+    os.getenv("PYTHONOPTIMIZE", "").lower() in ("1", "t", "true"),
+    reason="Python optimize removes assertions from cython code",
+)
 def test_verifying_v05_payloads():
     string_table_size = 4 * (1 << 12)
     encoder = MsgpackEncoderV05(string_table_size, string_table_size)
