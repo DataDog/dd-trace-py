@@ -398,8 +398,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 return
         except EncodingValidationError as e:
             log.error("Encoding Error (or span was modified after finish): %s", str(e))
-            if hasattr(client.encoder, "stable"):
-                log.debug("Malformed String table: %s", client.encoder.stable.string_table_values)
+            if hasattr(e, "_debug_message"):
+                log.debug(e._debug_message)
             # After detecting a malformed payload disable logging for error payloads. This feature
             # has the potential to generate thousands of logs each containing up to 50MB of data.
             config._trace_writer_log_err_payload = False
