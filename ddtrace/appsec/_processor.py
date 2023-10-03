@@ -1,13 +1,17 @@
+import dataclasses
 import errno
 import json
+from json.decoder import JSONDecodeError
 import os
 import os.path
 import traceback
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
-
-import attr
-from six import ensure_binary
+from typing import Tuple
+from typing import Union
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
@@ -17,6 +21,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
@@ -29,31 +34,14 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Tuple
-    from typing import Union
-
-    from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
-    from ddtrace.span import Span
+from ddtrace.span import Span
 
 
 log = get_logger(__name__)
 
 
-def _transform_headers(data):
-    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]
-    normalized = {}  # type: Dict[str, Union[str, List[str]]]
+def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]:
+    normalized: Dict[str, Union[str, List[str]]] = {}
     headers = data if isinstance(data, list) else data.items()
     for header, value in headers:
         header = header.lower()
@@ -70,22 +58,17 @@ def _transform_headers(data):
     return normalized
 
 
-def get_rules():
-    # type: () -> str
+def get_rules() -> str:
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
 
 
-def get_appsec_obfuscation_parameter_key_regexp():
-    # type: () -> bytes
-    return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-    )
+def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
+    return os.getenvb(b"DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
 
 
-def get_appsec_obfuscation_parameter_value_regexp():
-    # type: () -> bytes
-    return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
+    return os.getenvb(
+        b"DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
 
@@ -114,8 +97,7 @@ _COLLECTED_REQUEST_HEADERS = {
 }
 
 
-def _set_headers(span, headers, kind):
-    # type: (Span, Any, str) -> None
+def _set_headers(span: Span, headers: Any, kind: str) -> None:
     from ddtrace.contrib.trace_utils import _normalize_tag_name
 
     for k in headers:
@@ -128,25 +110,27 @@ def _set_headers(span, headers, kind):
             span.set_tag(_normalize_tag_name(kind, key), value)
 
 
-def _get_rate_limiter():
-    # type: () -> RateLimiter
+def _get_rate_limiter() -> RateLimiter:
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
-@attr.s(eq=False)
+@dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-    rules = attr.ib(type=str, factory=get_rules)
-    obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
-    obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
-    _addresses_to_keep = attr.ib(type=Set[str], factory=set)
-    _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
+    rules: str = dataclasses.field(default_factory=get_rules)
+    obfuscation_parameter_key_regexp: bytes = dataclasses.field(
+        default_factory=get_appsec_obfuscation_parameter_key_regexp
+    )
+    obfuscation_parameter_value_regexp: bytes = dataclasses.field(
+        default_factory=get_appsec_obfuscation_parameter_value_regexp
+    )
+    _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
+    _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
 
     @property
     def enabled(self):
         return self._ddwaf is not None
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __post_init__(self) -> None:
         from ddtrace import config
         from ddtrace.appsec._ddwaf import DDWaf
 
@@ -196,16 +180,15 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_actions(self, rules):
+    def _update_actions(self, rules: Dict[str, Any]) -> None:
         new_actions = rules.get("actions", [])
-        self._actions = WAF_ACTIONS.DEFAULT_ACTONS
+        self._actions: Dict[str, Dict[str, Any]] = WAF_ACTIONS.DEFAULT_ACTIONS
         for a in new_actions:
             self._actions[a.get(WAF_ACTIONS.ID, None)] = a
         if "actions" in rules:
             del rules["actions"]
 
-    def _update_rules(self, new_rules):
-        # type: (Dict[str, Any]) -> bool
+    def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
         if not _appsec_rc_file_is_not_static():
             return result
@@ -223,8 +206,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
         return result
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
 
         if span.span_type != SpanTypes.WEB:
@@ -267,8 +249,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span, ctx, custom_data=None):
-        # type: (Span, ddwaf_context_capsule, dict[str, Any] | None) -> None | dict[str, Any]
+    def _waf_action(
+        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -411,16 +394,13 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results.derivatives
 
-    def _mark_needed(self, address):
-        # type: (str) -> None
+    def _mark_needed(self, address: str) -> None:
         self._addresses_to_keep.add(address)
 
-    def _is_needed(self, address):
-        # type: (str) -> bool
+    def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
