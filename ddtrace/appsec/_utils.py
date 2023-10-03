@@ -19,7 +19,7 @@ log = get_logger(__name__)
 def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     """Return a dict of form data after HTTP form parsing"""
     body_params = body.replace("+", " ")
-    req_body: Dict[str, Union[str, list[str]]] = dict()
+    req_body: Dict[str, Union[str, List[str]]] = dict()
     for item in body_params.split("&"):
         key, equal, val = item.partition("=")
         if equal:
