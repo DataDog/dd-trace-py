@@ -15,8 +15,7 @@
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
-      "out.host": "localhost",
-      "runtime-id": "27e4a57364294c508534900540eff0c3",
+      "runtime-id": "3240c93961714e949346dbdb4a9f964b",
       "span.kind": "client"
     },
     "metrics": {
@@ -24,10 +23,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40244
+      "process_id": 624
     },
-    "duration": 38135709,
-    "start": 1692709769424646129
+    "duration": 185128,
+    "start": 1696414416549766242
   }],
 [
   {
@@ -47,7 +46,7 @@
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "27e4a57364294c508534900540eff0c3",
+      "runtime-id": "3240c93961714e949346dbdb4a9f964b",
       "span.kind": "client"
     },
     "metrics": {
@@ -55,8 +54,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 40244
+      "process_id": 624
     },
-    "duration": 24317125,
-    "start": 1692709769508045379
+    "duration": 196644,
+    "start": 1696414416658822439
   }]]
