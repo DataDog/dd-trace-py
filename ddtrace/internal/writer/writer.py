@@ -353,8 +353,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._set_keep_rate(spans)
 
         try:
-            if hasattr(client.encoder, "stable"):
-                log.info("flushing string table: {}", client.encoder.stable.string_table_values)
             client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
@@ -382,9 +380,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
-        finally:
-            if hasattr(client.encoder, "stable"):
-                log.info("string table flushed: {}", client.encoder.stable.string_table_values)
 
     def flush_queue(self, raise_exc=False):
         try:
@@ -397,7 +392,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _flush_queue_with_client(self, client, raise_exc=False):
         # type: (WriterClientBase, bool) -> None
         n_traces = len(client.encoder)
-        encoded = None
         try:
             encoded = client.encoder.encode()
             if encoded is None:
