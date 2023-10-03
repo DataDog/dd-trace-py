@@ -40,19 +40,19 @@ get_unique_id(const PyObject* str)
 
 struct TaintRange
 {
-    int start = 0;
-    int length = 0;
+    RANGE_START start = 0;
+    RANGE_LENGTH length = 0;
     Source source;
 
     TaintRange() = default;
 
-    TaintRange(int start, int length, Source source)
+    TaintRange(RANGE_START start, RANGE_LENGTH length, Source source)
       : start(start)
       , length(length)
       , source(std::move(source))
     {}
 
-    inline void set_values(int start_, int length_, Source source_)
+    inline void set_values(RANGE_START start_, RANGE_LENGTH length_, Source source_)
     {
         start = start_;
         length = length_;
@@ -72,10 +72,10 @@ using TaintRangePtr = shared_ptr<TaintRange>;
 using TaintRangeRefs = vector<TaintRangePtr>;
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset);
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset);
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs&, long offset);
+api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset);
 
 TaintRangeRefs
 get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map);
@@ -85,7 +85,7 @@ get_ranges(const PyObject* string_input)
     return get_ranges(string_input, nullptr);
 }
 inline TaintRangeRefs
-api_get_ranges(const py::object string_input)
+api_get_ranges(const py::object& string_input)
 {
     return get_ranges(string_input.ptr());
 }
@@ -99,7 +99,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges)
     set_ranges(str, ranges, nullptr);
 }
 inline void
-api_set_ranges(const py::object str, const TaintRangeRefs& ranges)
+api_set_ranges(const py::object& str, const TaintRangeRefs& ranges)
 {
     set_ranges(str.ptr(), ranges);
 }
@@ -108,7 +108,7 @@ api_set_ranges(const py::object str, const TaintRangeRefs& ranges)
 std::tuple<TaintRangeRefs, TaintRangeRefs>
 are_all_text_all_ranges(const PyObject* candidate_text, const py::tuple& parameter_list);
 inline std::tuple<TaintRangeRefs, TaintRangeRefs>
-api_are_all_text_all_ranges(const py::object candidate_text, const py::tuple& parameter_list)
+api_are_all_text_all_ranges(const py::object& candidate_text, const py::tuple& parameter_list)
 {
     return are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
 }
@@ -119,7 +119,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 void
 set_fast_tainted_if_notinterned_unicode(const PyObject* objptr);
 inline void
-api_set_fast_tainted_if_unicode(const py::object obj)
+api_set_fast_tainted_if_unicode(const py::object& obj)
 {
     set_fast_tainted_if_notinterned_unicode(obj.ptr());
 }

@@ -27,6 +27,7 @@ from ddtrace.internal.utils.cache import cached
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Dict
+    from typing import List
     from typing import Generator
     from typing import Optional
     from typing import Pattern
@@ -364,11 +365,10 @@ def _get_blocked_template(accept_header_value):
     return BLOCKED_RESPONSE_JSON
 
 
-def parse_form_params(body):
-    # type: (unicode) -> dict[unicode, unicode|list[unicode]]
+def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     """Return a dict of form data after HTTP form parsing"""
     body_params = body.replace("+", " ")
-    req_body = dict()  # type: dict[unicode, unicode|list[unicode]]
+    req_body: Dict[str, Union[str, List[str]]] = dict()
     for item in body_params.split("&"):
         key, equal, val = item.partition("=")
         if equal:
@@ -384,8 +384,7 @@ def parse_form_params(body):
     return req_body
 
 
-def parse_form_multipart(body, headers=None):
-    # type: (unicode, Optional[Dict[Any, Any]]) -> dict[unicode, Any]
+def parse_form_multipart(body: str, headers: Dict = None) -> Dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json

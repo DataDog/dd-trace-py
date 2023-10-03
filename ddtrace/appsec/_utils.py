@@ -61,14 +61,13 @@ def parse_response_body(raw_body):
         return req_body
 
 
-def _appsec_rc_features_is_enabled():
-    # type: () -> bool
+def _appsec_rc_features_is_enabled() -> bool:
     if config._remote_config_enabled:
         return APPSEC_ENV not in os.environ
     return False
 
 
-class _UserInfoRetriever(object):
+class _UserInfoRetriever:
     def __init__(self, user):
         self.user = user
 
@@ -112,7 +111,6 @@ class _UserInfoRetriever(object):
 
         return self.find_in_user_model(self.possible_email_fields)
 
-    # JJJ cambiar
     def get_name(self):
         name = getattr(self.user, config._user_model_name_field, None)
         if name:
