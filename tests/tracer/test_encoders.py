@@ -761,6 +761,33 @@ def test_verifying_v05_payloads():
             encoder.encode()
         assert "misencoded resource" in e.value.args[0]
 
+    # Ensure EncodingValidationError is raised when the encoded duration does not match
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.duration_ns = 55
+            encoder.encode()
+        assert "misencoded duration" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded start does not match
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type")
+            encoder.put([og_span])
+            og_span.start_ns = 100000001
+            encoder.encode()
+        assert "misencoded start" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded parent_id does not match
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type", parent_id=1)
+            encoder.put([og_span])
+            og_span.parent_id = 2
+            encoder.encode()
+        assert "misencoded parent id" in e.value.args[0]
+
     # Ensure EncodingValidationError is raised when the encoded tags do not match span tags
     with override_global_config({"_trace_writer_log_err_payload": True}):
         with pytest.raises(EncodingValidationError) as e:
