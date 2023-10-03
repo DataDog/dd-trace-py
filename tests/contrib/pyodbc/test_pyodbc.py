@@ -282,7 +282,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
             assert span.service == "pyodbc"
             assert span.name == "pyodbc.query"
             assert span.span_type == "sql"
-            assert span.get_tag("db.system") == "pyodbc"
+            assert span.get_tag("db.system") == "SQLite"
             assert span.get_tag("db.user") == ""
             assert span.error == 0
         finally:
