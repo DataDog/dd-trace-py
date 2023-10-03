@@ -63,7 +63,7 @@ class AstVisitor(ast.NodeTransformer):
             # Replacement function for indexes and ranges
             "slices": {
                 "index": "ddtrace_aspects.index_aspect",
-                # "slice": "ddtrace_aspects.slice_aspect",
+                "slice": "ddtrace_aspects.slice_aspect",
             },
             # Replacement functions for modules
             "module_functions": {
@@ -132,6 +132,7 @@ class AstVisitor(ast.NodeTransformer):
         self.module_name = module_name
 
         self._aspect_index = self._aspects_spec["slices"]["index"]
+        self._aspect_slice = self._aspects_spec["slices"]["slice"]
         self._aspect_functions = self._aspects_spec["functions"]
         self._aspect_operators = self._aspects_spec["operators"]
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
@@ -671,17 +672,15 @@ class AstVisitor(ast.NodeTransformer):
         )
         if isinstance(subscr_node.slice, ast.Slice):
             # Slice[0:1:2]. The other cases in this if are Indexes[0]
-            # TODO: Add stlice
-            # aspect_split = self._aspect_slice.split(".")
-            # call_node.func.attr = aspect_split[1]
-            # call_node.func.value.id = aspect_split[0]
-            # none_node = self._none_constant(subscr_node)
-            # lower = subscr_node.slice.lower if subscr_node.slice.lower is not None else none_node
-            # upper = subscr_node.slice.upper if subscr_node.slice.upper is not None else none_node
-            # step = subscr_node.slice.step if subscr_node.slice.step is not None else none_node
-            # call_node.args.extend([subscr_node.value, lower, upper, step])
-            # self.ast_modified = True
-            return subscr_node
+            aspect_split = self._aspect_slice.split(".")
+            call_node.func.attr = aspect_split[1]
+            call_node.func.value.id = aspect_split[0]
+            none_node = self._none_constant(subscr_node)
+            lower = none_node if subscr_node.slice.lower is None else subscr_node.slice.lower
+            upper = none_node if subscr_node.slice.upper is None else subscr_node.slice.upper
+            step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
+            call_node.args.extend([subscr_node.value, lower, upper, step])
+            self.ast_modified = True
         elif PY39_PLUS:
             if self._is_string_node(subscr_node.slice):
                 return subscr_node

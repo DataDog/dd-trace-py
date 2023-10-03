@@ -19,7 +19,8 @@
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
-            "ddtrace/version.py"
+            "ddtrace/version.py",
+            "ddtrace/settings/config.py"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -116,7 +117,8 @@
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
-            "ddtrace/contrib/flask_cache/*"
+            "ddtrace/contrib/flask_cache/*",
+            "ddtrace/contrib/flask_login/*"
         ],
         "fastapi": [
             "ddtrace/contrib/fastapi/*"
@@ -612,6 +614,7 @@
             "@contrib",
             "@appsec",
             "@asgi",
+            "@wsgi",
             "@django",
             "@dbapi",
             "@pg",
@@ -664,6 +667,7 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
+            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
@@ -1058,6 +1062,7 @@
             "@tracing",
             "@wsgi",
             "tests/contrib/wsgi/*",
+            "tests/contrib/django/test_django_wsgi.py",
             "tests/contrib/uwsgi/__init__.py",
             "tests/snapshots/tests.contrib.wsgi.*"
         ],

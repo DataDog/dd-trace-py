@@ -103,6 +103,7 @@ venv = Venv(
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
     venvs=[
@@ -910,6 +911,19 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="flask_login",
+            command="pytest {cmdargs} tests/contrib/flask_login",
+            pys="3.11",
+            pkgs={
+                "flask": "~=1.0.4",
+                "flask-login": "~=0.6.2",
+                "Jinja2": "~=2.11.0",
+                "markupsafe": "<2.0",
+                "itsdangerous": "<2.0",
+                "werkzeug": "<2.0",
+            },
+        ),
+        Venv(
             name="mako",
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
@@ -1310,7 +1324,7 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            env={"DD_PATCH_MODULES": "unittest:true"},
             pys=select_pys(),
         ),
         Venv(
