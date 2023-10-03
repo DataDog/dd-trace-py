@@ -274,7 +274,9 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def string_table_values(self):
-        return "_sp_len:{}\n_sp_id:{}\npk_buf:{}\npk_buff_size:{}\nmax_size:{}\ntable:{}".format(self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table)
+        return "_sp_len:{}\n_sp_id:{}\npk_buf:{}\npk_buff_size:{}\nmax_size:{}\ntable:{}".format(
+            self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table
+        )
 
     cdef rollback(self):
         if self._sp_len > 0:
@@ -865,7 +867,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         table, _traces = unpacked
         for trace in _traces:
             for span in trace:
-                og_span = self._encoded_spans.get(span[4]) # correlate encoded span to a span in span_dict
+                og_span = self._encoded_spans.get(span[4])  # correlate encoded span to a span in span_dict
                 # structure of v0.5 encoded spans
                 # 		 0: Service   (uint32)
                 # 		 1: Name      (uint32)
@@ -905,7 +907,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
                     assert og_span.span_type == (table[span[11]].decode() or None),  "misencoded span type"
                 except Exception as e:
-                    e_message = str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint()) 
+                    e_message = str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint())
                     raise EncodingValidationError(e_message)
 
 cdef class Packer(object):
