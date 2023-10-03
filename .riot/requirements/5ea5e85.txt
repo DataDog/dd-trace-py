@@ -36,7 +36,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.0
-urllib3==2.0.2
+urllib3==1.26.17
 werkzeug==2.2.3
 wheel==0.40.0
 zipp==3.15.0

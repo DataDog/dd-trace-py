@@ -49,7 +49,7 @@ sqlparse==0.4.4
 twisted[tls]==22.10.0
 txaio==23.1.1
 typing-extensions==4.7.1
-urllib3==2.0.4
+urllib3==1.26.17
 zope-interface==6.0
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -34,4 +34,4 @@ sortedcontainers==2.4.0
 starlette==0.26.1
 tomli==2.0.1
 typing-extensions==4.7.0
-urllib3==1.26.15
+urllib3==1.26.17

@@ -28,5 +28,5 @@ pytest-mock==3.10.0
 requests==2.28.2
 sortedcontainers==2.4.0
 tomli==2.0.1
-urllib3==1.26.15
+urllib3==1.26.17
 werkzeug==1.0.1

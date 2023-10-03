@@ -38,7 +38,7 @@ sqlalchemy==1.2.19
 sqlparse==0.4.4
 tomli==2.0.1
 typing-extensions==4.7.1
-urllib3==2.0.3
+urllib3==1.26.17
 vine==5.0.0
 wcwidth==0.2.6
 zope-event==5.0

@@ -39,7 +39,7 @@ pytest-mock==3.10.0
 requests==2.28.1
 sortedcontainers==2.4.0
 tomli==2.0.1
-urllib3==1.26.15
+urllib3==1.26.17
 werkzeug==2.1.2
 wrapt==1.15.0
 zipp==3.15.0

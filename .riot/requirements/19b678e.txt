@@ -40,7 +40,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.0
-urllib3==1.26.15
+urllib3==1.26.17
 wrapt==1.15.0
 yarl==1.8.2
 zope-event==4.6

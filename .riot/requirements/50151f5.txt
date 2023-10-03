@@ -26,5 +26,5 @@ pytest-cov==4.1.0
 pytest-mock==3.11.1
 requests==2.31.0
 sortedcontainers==2.4.0
-urllib3==2.0.4
+urllib3==1.26.17
 werkzeug==2.3.6

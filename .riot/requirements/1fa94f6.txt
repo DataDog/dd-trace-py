@@ -65,7 +65,7 @@ sortedcontainers==2.4.0
 sshpubkeys==3.3.1
 types-pyyaml==6.0.12.8
 typing-extensions==4.7.0
-urllib3==1.26.15
+urllib3==1.26.17
 websocket-client==1.5.1
 werkzeug==2.2.3
 wrapt==1.15.0

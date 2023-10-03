@@ -31,6 +31,6 @@ pytest-mock==3.10.0
 python-dateutil==2.8.2
 six==1.16.0
 sortedcontainers==2.4.0
-urllib3==1.26.15
+urllib3==1.26.17
 wrapt==1.15.0
 yarl==1.8.2
