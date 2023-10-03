@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from json.decoder import JSONDecodeError
+import json
 import os
 from typing import Any
 from typing import Dict
@@ -86,7 +86,7 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
                 ruleset[feature] = []
             ruleset[feature] += rules
             log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
-        except JSONDecodeError:
+        except json.JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
