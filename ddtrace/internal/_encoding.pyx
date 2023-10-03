@@ -7,6 +7,7 @@ import threading
 
 from ._utils cimport PyBytesLike_Check
 
+
 # Do not use an absolute import here Cython<3.0.0 will
 #   import `ddtrace.internal.constants` instead when this
 #   package is installed in editable mode
