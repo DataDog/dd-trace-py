@@ -121,7 +121,7 @@ def replace_aspect(orig_function, origstr, *args, **kwargs):
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
-    if not isinstance(origstr, TEXT_TYPES):
+    if not isinstance(origstr, (str, bytes)):
         return origstr.replace(*args, **kwargs)
     try:
         return _replace_aspect(origstr, *args, **kwargs)
