@@ -324,7 +324,7 @@ def asm_request_context_manager(
     headers: Any = None,
     headers_case_sensitive: bool = False,
     block_request_callable: Optional[Callable] = None,
-) -> Generator[_DataHandler | None, None, None]:
+) -> Generator[Optional[_DataHandler], None, None]:
     """
     The ASM context manager
     """
