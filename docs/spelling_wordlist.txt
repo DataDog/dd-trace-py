@@ -171,6 +171,7 @@ prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
