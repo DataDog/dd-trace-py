@@ -1,3 +1,4 @@
+import os
 import time
 
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
@@ -52,3 +53,49 @@ def test_kafka_offset_monitoring():
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1)] == 34
     assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2)] == 10
     assert processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1)] == 14
+
+
+def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
+    code = """
+import mock
+import pytest
+import sys
+import time
+
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+from ddtrace.internal.atexit import register_on_exit_signal
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called")
+
+_exit = False
+def set_exit():
+    global _exit
+    _exit = True
+
+@mock.patch("ddtrace.internal.datastreams.processor.DataStreamsProcessor._flush_stats", new_callable=fake_flush)
+def run_test(mock_flush):
+    processor = DataStreamsProcessor("http://localhost:9126")
+    processor._flush_stats_with_backoff = fake_flush
+    processor.stop(5)  # Stop period processing/flushing
+
+    now = time.time()
+    processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 1)
+    now_ns = int(now * 1e9)
+    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    aggr_key = (",".join(["direction:out", "topic:topicA", "type:kafka"]), 1, 2)
+    assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key].full_pathway_latency.count == 1
+
+    counter = 0
+    while counter < 500 and not _exit:
+        counter += 1
+        time.sleep(0.1)
+
+register_on_exit_signal(set_exit)
+run_test()
+"""
+
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode().strip(), err.decode().strip()
