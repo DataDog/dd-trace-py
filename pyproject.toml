@@ -35,7 +35,7 @@ dependencies = [
     "setuptools; python_version>='3.12'",
     "six>=1.12.0",
     "typing_extensions",
-    "wrapt>=1.15.0",
+    "wrapt~=1.15",
     "xmltodict>=0.12",
 ]
 
