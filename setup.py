@@ -544,7 +544,7 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
-        "psutil==5.6.7",
+        "psutil>=5.6.7",
         "setuptools; python_version>='3.12'",
         "wrapt==1.15.0",
     ]
