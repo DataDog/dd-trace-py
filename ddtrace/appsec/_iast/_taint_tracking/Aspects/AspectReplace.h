@@ -10,4 +10,4 @@
 namespace py = pybind11;
 
 PyObject*
-api_replace_aspect(PyObject* str, PyObject* substr, PyObject* replstr, Py_ssize_t maxcount);
+api_replace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
