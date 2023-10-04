@@ -180,6 +180,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - store_test_results:
+          path: artifacts
+      - store_artifacts:
+          path: artifacts
       - save_cache:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
