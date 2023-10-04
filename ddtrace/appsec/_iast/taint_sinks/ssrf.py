@@ -3,8 +3,6 @@ from typing import Callable
 from typing import Dict
 from typing import Set
 
-import six
-
 from ddtrace.settings import _config
 
 from .. import oce
@@ -39,7 +37,7 @@ class SSRF(VulnerabilityBase):
     @classmethod
     def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> VULNERABILITY_TOKEN_TYPE:
         ret = {}  # type: VULNERABILITY_TOKEN_TYPE
-        for vuln, text in six.iteritems(vulns_to_text):
+        for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
             authority = []
             authority_found = _AUTHORITY_REGEXP.findall(text)
@@ -95,7 +93,7 @@ class SSRF(VulnerabilityBase):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
