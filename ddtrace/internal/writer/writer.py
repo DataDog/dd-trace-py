@@ -400,10 +400,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             log.error("Encoding Error (or span was modified after finish): %s", str(e))
             if hasattr(e, "_debug_message"):
                 log.debug(e._debug_message)
-            # After detecting a malformed payload disable logging for error payloads. This feature
-            # has the potential to generate thousands of logs each containing up to 50MB of data.
-            config._trace_writer_log_err_payload = False
-            self._flush_queue_with_client(client, raise_exc)
             return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)

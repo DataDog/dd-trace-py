@@ -553,7 +553,6 @@ def test_trace_with_invalid_encoding_for_v05_payload():
         tracer.flush()
 
     log.error.assert_has_calls([mock.call("Encoding Error (or span was modified after finish): %s", AnyStr())])
-
     log.debug.assert_has_calls([mock.call(AnyStringWithText("Malformed String table values"))])
 
 
