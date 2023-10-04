@@ -278,13 +278,13 @@ def test_metrics():
     from tests.integration.test_integration import _test_metrics
     from tests.utils import AnyInt
 
-    assert t._partial_flush_min_spans == 500
+    assert t._partial_flush_min_spans == 300
     _test_metrics(
         t,
         http_sent_bytes=AnyInt(),
-        http_sent_traces=30,
-        writer_accepted_traces=30,
-        buffer_accepted_traces=30,
+        http_sent_traces=50,
+        writer_accepted_traces=50,
+        buffer_accepted_traces=50,
         buffer_accepted_spans=15000,
         http_requests=1,
     )
@@ -344,7 +344,9 @@ def test_single_trace_too_large():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"})
+@parametrize_with_all_encodings(
+    env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false", "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(8 << 20)}
+)
 def test_single_trace_too_large_partial_flush_disabled():
     import mock
 
@@ -677,8 +679,8 @@ def test_writer_configured_correctly_from_env():
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
 
-    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
-    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
     assert ddtrace.tracer._writer._interval == 1.0
 
 
@@ -706,8 +708,8 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
 assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
