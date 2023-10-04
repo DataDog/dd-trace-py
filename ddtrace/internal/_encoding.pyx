@@ -884,7 +884,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 try:
                     assert og_span.service == (table[span[0]].decode() or None), f"misencoded service: {table[span[0]]}"
                     assert og_span.name == (table[span[1]].decode() or None), f"misencoded name: {table[span[1]]}"
-                    assert og_span.resource == (table[span[2]].decode() or None), f"misencoded resource: {table[span[2]]}"
+                    assert og_span.resource == (
+                        table[span[2]].decode() or None
+                    ), f"misencoded resource: {table[span[2]]}"
                     assert og_span._trace_id_64bits == (span[3] or None), f"misencoded trace id: {span[3]}"
                     assert og_span.span_id == (span[4] or None), f"misencoded span id: {span[4]}"
                     assert og_span.parent_id == (span[5] or None), f"misencoded parent id: {span[5]}"
@@ -905,7 +907,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                             continue
                         assert og_span._metrics[k] == v, f"misencoded metric: k={k} v={v}"
 
-                    assert og_span.span_type == (table[span[11]].decode() or None), f"misencoded span type: {table[span[11]]}"
+                    assert og_span.span_type == (
+                        table[span[11]].decode() or None
+                    ), f"misencoded span type: {table[span[11]]}"
                 except Exception as e:
                     eve = EncodingValidationError(
                         f"{str(e)}\nDecoded Span does not match encoded span: {og_span._pprint()}"
