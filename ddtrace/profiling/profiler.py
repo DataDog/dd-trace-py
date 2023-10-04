@@ -27,8 +27,6 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import file
-from ddtrace.profiling.exporter import http
 from ddtrace.settings.profiling import config
 
 from . import _asyncio
@@ -138,6 +136,10 @@ class _ProfilerInstance(service.Service):
         # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import file
+
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
             ]
@@ -187,6 +189,10 @@ class _ProfilerInstance(service.Service):
             )
 
         if self._export_py_enabled:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import http
+
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
