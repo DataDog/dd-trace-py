@@ -115,8 +115,10 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
-        "opensearchpy",
+        # Starting with version 8, the default transport which is what we
+        # actually patch is found in the separate elastic_transport package
         "elastic_transport",
+        "opensearchpy",
     ),
     "psycopg": (
         "psycopg",
