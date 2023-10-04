@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    This relax some dependencies version restrictions, to avoid installation issues of ddrace 2.0.0
