@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    elasticsearch: This introduces tracing for elasticsearch 8 and async client.
+    elasticsearch: This introduces tracing for Elasticsearch 8 and the async Elasticsearch client.
