@@ -219,14 +219,15 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> None:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
     if not config._appsec_enabled:
-        return
+        return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
-        callback(custom_data)
+        return callback(custom_data)
     else:
         log.warning("WAF callback called but not set")
+        return None
 
 
 def set_ip(ip: Optional[str]) -> None:
