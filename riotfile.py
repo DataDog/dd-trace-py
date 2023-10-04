@@ -713,7 +713,7 @@ venv = Venv(
                         "elasticsearch": [
                             "==7.15.0",
                             "<8",
-                            "==8.0.1", # 8.0.0 has a bug that interferes with tests
+                            "==8.0.1",  # 8.0.0 has a bug that interferes with tests
                             latest,
                         ]
                     },
@@ -742,7 +742,7 @@ venv = Venv(
         Venv(
             name="elasticsearch-async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
-            env={"AIOHTTP_NO_EXTENSIONS": "1"}, # needed until aiohttp is updated to support python 3.12
+            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
                 Venv(
                     pys=select_pys(),

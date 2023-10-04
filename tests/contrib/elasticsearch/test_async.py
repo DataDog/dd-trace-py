@@ -39,10 +39,12 @@ def do_test(tmpdir, es_module, async_class):
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
     # results. This generates sqlite3 spans during the test run which interfere
     # with the snapshot. So disable sqlite3.
-    env.update({
-        "DD_TRACE_SQLITE3_ENABLED": "false",
-        "DD_TRACE_AIOHTTP_ENABLED": "false",
-    })
+    env.update(
+        {
+            "DD_TRACE_SQLITE3_ENABLED": "false",
+            "DD_TRACE_AIOHTTP_ENABLED": "false",
+        }
+    )
     p = subprocess.Popen(
         ["ddtrace-run", sys.executable, "test.py"],
         stdout=subprocess.PIPE,
