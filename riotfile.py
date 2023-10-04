@@ -711,19 +711,19 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "elasticsearch": [
-                            "==7.15.0",
-                            "<8",
+                            "~=7.13.0",  # latest to support unofficial Elasticsearch servers, released Jul 2021
+                            "~=7.17",
                             "==8.0.1",  # 8.0.0 has a bug that interferes with tests
                             latest,
                         ]
                     },
                 ),
-                Venv(pys=select_pys(), pkgs={"elasticsearch1": latest}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch2": latest}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch5": latest}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch6": latest}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": latest}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch8": latest}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.13.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.0.1", latest]}),
             ],
         ),
         Venv(
