@@ -279,10 +279,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             idx = choice["index"]
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
             if integration.is_pc_sampled_span(span) and choice.get("message"):
-                span.set_tag_str(
-                    "openai.response.choices.%d.message.content" % idx,
-                    integration.trunc(choice.get("message", {}).get("content", "")),
-                )
+                content = choice.get("message", {}).get("content", "") or ""
+                span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
                 span.set_tag_str(
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message", {}).get("role", "")),
