@@ -882,48 +882,39 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 # 		10: Metrics   (map[uint32]float64)
                 # 		11: Type      (uint32)
                 try:
-                    assert og_span.service == (table[span[0]].decode() or None), "misencoded service: {}".format(
-                        table[span[0]]
-                    )
-                    assert og_span.name == (table[span[1]].decode() or None), "misencoded name: {}".format(
-                        table[span[1]]
-                    )
-                    assert og_span.resource == (table[span[2]].decode() or None), "misencoded resource: {}".format(
-                        table[span[2]]
-                    )
-                    assert og_span._trace_id_64bits == (span[3] or None), "misencoded trace id: {}".format(span[3])
-                    assert og_span.span_id == (span[4] or None), "misencoded span id: {}".format(span[4])
-                    assert og_span.parent_id == (span[5] or None), "misencoded parent id: {}".format(span[5])
-                    assert og_span.start_ns == span[6], "misencoded start: {}".format(span[6])
-                    assert og_span.duration_ns == (span[7] or None), "misencoded duration: {}".format(span[7])
-                    assert og_span.error == span[8], "misencoded error type: {}".format(span[8])
+                    assert og_span.service == (table[span[0]].decode() or None), f"misencoded service: {table[span[0]]}"
+                    assert og_span.name == (table[span[1]].decode() or None), f"misencoded name: {table[span[1]]}"
+                    assert og_span.resource == (table[span[2]].decode() or None), f"misencoded resource: {table[span[2]]}"
+                    assert og_span._trace_id_64bits == (span[3] or None), f"misencoded trace id: {span[3]}"
+                    assert og_span.span_id == (span[4] or None), f"misencoded span id: {span[4]}"
+                    assert og_span.parent_id == (span[5] or None), f"misencoded parent id: {span[5]}"
+                    assert og_span.start_ns == span[6], f"misencoded start: {span[6]}"
+                    assert og_span.duration_ns == (span[7] or None), f"misencoded duration: {span[7]}"
+                    assert og_span.error == span[8], f"misencoded error type: {span[8]}"
 
                     for k, v in span[9].items():
                         k = table[k].decode()
                         v = table[v].decode()
                         if "dropped string of length" in k or "dropped string of length" in v:
                             continue
-                        assert og_span._meta[k] == v,  "misencoded tag: k={} v={}".format(k, v)
+                        assert og_span._meta[k] == v,  f"misencoded tag: k={k} v={v}"
 
                     for k, v in span[10].items():
                         k = table[k].decode()
                         if "dropped string of length" in k:
                             continue
-                        assert og_span._metrics[k] == v, "misencoded metric: k={} v={}".format(k, v)
+                        assert og_span._metrics[k] == v, f"misencoded metric: k={k} v={v}"
 
-                    assert og_span.span_type == (table[span[11]].decode() or None), "misencoded span type: {}".format(
-                        table[span[11]]
-                    )
+                    assert og_span.span_type == (table[span[11]].decode() or None), f"misencoded span type: {table[span[11]]}"
                 except Exception as e:
                     eve = EncodingValidationError(
-                        str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint())
+                        f"{str(e)}\nDecoded Span does not match encoded span: {og_span._pprint()}"
                     )
                     setattr(
                         eve,
                         "_debug_message",
-                        "Malformed String table values\ntable:{}\ntraces:{}\nencoded_bytes:{}\nspans:{}".format(
-                            table, packed_traces, encoded_bytes, self._encoded_spans
-                        ),
+                        f"Malformed String table values\ntable:{table}\ntraces:{packed_traces}"
+                        f"\nencoded_bytes:{encoded_bytes}\nspans:{self._encoded_spans}"
                     )
                     raise eve
 

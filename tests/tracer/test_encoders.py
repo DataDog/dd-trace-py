@@ -746,7 +746,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.name = "new_name"
             encoder.encode()
-        assert "misencoded name" in e.value.args[0]
+        assert "misencoded name: b'name'" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded service does not match the span service
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -755,7 +755,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.service = "new_service"
             encoder.encode()
-        assert "misencoded service" in e.value.args[0]
+        assert "misencoded service: b'service'" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded resource does not match the span resource
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -764,7 +764,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.resource = "new_resource"
             encoder.encode()
-        assert "misencoded resource" in e.value.args[0]
+        assert "misencoded resource: b'resource'" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded duration does not match
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -773,7 +773,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.duration_ns = 55
             encoder.encode()
-        assert "misencoded duration" in e.value.args[0]
+        assert "misencoded duration: 0" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded start does not match
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -782,7 +782,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.start_ns = 100000001
             encoder.encode()
-        assert "misencoded start" in e.value.args[0]
+        assert "misencoded start: 10" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded parent_id does not match
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -791,7 +791,25 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.parent_id = 2
             encoder.encode()
-        assert "misencoded parent id" in e.value.args[0]
+        assert "misencoded parent id: 1" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded trace id does not match
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type", trace_id=1)
+            encoder.put([og_span])
+            og_span.trace_id = 2
+            encoder.encode()
+        assert "misencoded trace id: 1" in e.value.args[0]
+
+    # Ensure EncodingValidationError is raised when the encoded span id does not match
+    with override_global_config({"_trace_writer_log_err_payload": True}):
+        with pytest.raises(EncodingValidationError) as e:
+            og_span = Span("name", "service", "resource", "type", span_id=1)
+            encoder.put([og_span])
+            og_span.span_id = 2
+            encoder.encode()
+        assert "misencoded span id: 1" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded tags do not match the span tag's
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -801,7 +819,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span._meta["hi"] = "new tag"
             encoder.encode()
-        assert "misencoded tag" in e.value.args[0]
+        assert "misencoded tag: k=hi v=tag" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded metrics do not match the metrics set on the span
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -811,7 +829,7 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span._metrics["hi"] = 2
             encoder.encode()
-        assert "misencoded metric" in e.value.args[0]
+        assert "misencoded metric: k=hi v=1" in e.value.args[0]
 
     # Ensure EncodingValidationError is raised when the encoded span type does not match the span type on the span
     with override_global_config({"_trace_writer_log_err_payload": True}):
@@ -820,4 +838,4 @@ def test_verifying_v05_payloads():
             encoder.put([og_span])
             og_span.span_type = "new_span_type"
             encoder.encode()
-        assert "misencoded span type" in e.value.args[0]
+        assert "misencoded span type: b'type'" in e.value.args[0]
