@@ -2,6 +2,7 @@ from copy import deepcopy
 import multiprocessing
 import os
 import re
+import sys
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -191,7 +192,9 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork").Queue(512)  # type: multiprocessing.Queue
+    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
+        512
+    )  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -243,7 +246,7 @@ class Config(object):
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
