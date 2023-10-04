@@ -1,4 +1,5 @@
 from typing import Optional
+from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import BufferedEncoder
@@ -42,7 +43,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                 self._headers["Datadog-Container-Id"] = container_id
 
         if di_config._tags_in_qs and di_config.tags:
-            self.ENDPOINT += "?ddtags=" + di_config.tags
+            self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         # Make it retryable

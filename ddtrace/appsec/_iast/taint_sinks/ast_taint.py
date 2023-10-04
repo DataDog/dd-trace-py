@@ -1,6 +1,9 @@
 from typing import TYPE_CHECKING
 
+from .._metrics import _set_metric_iast_executed_sink
+from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
+from .path_traversal import check_and_report_path_traversal
 from .weak_randomness import WeakRandomness
 
 
@@ -26,6 +29,9 @@ def ast_funcion(
 
     if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
+        _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
-
+    elif hasattr(func, "__module__") and DEFAULT_PATH_TRAVERSAL_FUNCTIONS.get(func.__module__):
+        if func_name in DEFAULT_PATH_TRAVERSAL_FUNCTIONS[func.__module__]:
+            check_and_report_path_traversal(*args, **kwargs)
     return func(*args, **kwargs)

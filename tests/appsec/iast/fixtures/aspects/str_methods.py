@@ -159,8 +159,7 @@ def do_translate(s, translate_dict):
     return s.translate(translate_dict)
 
 
-def do_decode_simple(s):
-    # type: (bytes, str, str) -> str
+def do_decode_simple(s: bytes) -> str:
     return s.decode()
 
 
@@ -990,7 +989,7 @@ def do_rstrip_2(s):  # type: (str) -> str
     return s.rstrip()
 
 
-def do_index(c, i):  # type: (str, int) -> str
+def do_index(c: str, i: int) -> str:
     return c[i]
 
 

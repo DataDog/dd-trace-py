@@ -1,3 +1,5 @@
+from typing import Any
+
 from ddtrace.internal.logger import get_logger
 
 from .. import oce
@@ -44,11 +46,13 @@ def patch():
     _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
 
-def open_path_traversal(*args, **kwargs):
+def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
     if oce.request_has_quota and PathTraversal.has_quota():
         try:
+            from .._metrics import _set_metric_iast_executed_sink
             from .._taint_tracking import is_pyobject_tainted
 
+            _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
             if is_pyobject_tainted(args[0]):
                 PathTraversal.report(evidence_value=args[0])
         except Exception:
@@ -56,4 +60,7 @@ def open_path_traversal(*args, **kwargs):
     else:
         log.debug("IAST: no vulnerability quota to analyze more sink points")
 
+
+def open_path_traversal(*args, **kwargs):
+    check_and_report_path_traversal(*args, **kwargs)
     return open(*args, **kwargs)

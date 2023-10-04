@@ -4,22 +4,21 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import List
+from typing import Set
 
 from six import iteritems
 
 from .._metrics import _set_metric_iast_instrumented_propagation
+from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import List
 
 
 PY3 = sys.version_info[0] >= 3
 PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
 PY38_PLUS = sys.version_info >= (3, 8, 0)
+PY39_PLUS = sys.version_info >= (3, 9, 0)
 
 CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
@@ -61,6 +60,11 @@ class AstVisitor(ast.NodeTransformer):
                 "zfill": "ddtrace_aspects.zfill_aspect",
                 "ljust": "ddtrace_aspects.ljust_aspect",
             },
+            # Replacement function for indexes and ranges
+            "slices": {
+                "index": "ddtrace_aspects.index_aspect",
+                "slice": "ddtrace_aspects.slice_aspect",
+            },
             # Replacement functions for modules
             "module_functions": {
                 "BytesIO": "ddtrace_aspects.stringio_aspect",
@@ -96,6 +100,7 @@ class AstVisitor(ast.NodeTransformer):
             # This is a set since all functions will be replaced by taint_sink_functions
             "taint_sinks": {
                 "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+                "path_traversal": DEFAULT_PATH_TRAVERSAL_FUNCTIONS,
                 "other": {
                     "load",
                     "run",
@@ -126,6 +131,8 @@ class AstVisitor(ast.NodeTransformer):
         self.filename = filename
         self.module_name = module_name
 
+        self._aspect_index = self._aspects_spec["slices"]["index"]
+        self._aspect_slice = self._aspects_spec["slices"]["slice"]
         self._aspect_functions = self._aspects_spec["functions"]
         self._aspect_operators = self._aspects_spec["operators"]
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
@@ -135,9 +142,11 @@ class AstVisitor(ast.NodeTransformer):
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points
-        self._taint_sink_replace_random = self._aspects_spec["taint_sinks"]["weak_randomness"]
-        self._taint_sink_replace_other = self._aspects_spec["taint_sinks"]["other"]
-        self._taint_sink_replace_any = self._taint_sink_replace_random.union(self._taint_sink_replace_other)
+        self._taint_sink_replace_any = self._merge_taint_sinks(
+            self._aspects_spec["taint_sinks"]["other"],
+            self._aspects_spec["taint_sinks"]["weak_randomness"],
+            *[functions for module, functions in self._aspects_spec["taint_sinks"]["path_traversal"].items()],
+        )
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
@@ -159,6 +168,15 @@ class AstVisitor(ast.NodeTransformer):
             self.codetype = CODE_TYPE_SITE_PACKAGES
         elif "lib/python" in self.filename:
             self.codetype = CODE_TYPE_STDLIB
+
+    @staticmethod
+    def _merge_taint_sinks(*args_functions: Set[str]) -> Set[str]:
+        merged_set = set()
+
+        for functions in args_functions:
+            merged_set.update(functions)
+
+        return merged_set
 
     def _is_string_node(self, node):  # type: (Any) -> bool
         if PY30_37 and isinstance(node, ast.Bytes):
@@ -277,6 +295,15 @@ class AstVisitor(ast.NodeTransformer):
 
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
+
+    def _assign_node(self, from_node, targets, value):  # type: (Any, List[Any], Any) -> Any
+        return self._node(
+            ast.Assign,
+            from_node,
+            targets=targets,
+            value=value,
+            type_comment=None,
+        )
 
     def find_insert_position(self, module_node):  # type: (ast.Module) -> int
         insert_position = 0
@@ -544,4 +571,138 @@ class AstVisitor(ast.NodeTransformer):
 
         self.ast_modified = True
         _set_metric_iast_instrumented_propagation()
+        return call_node
+
+    def visit_AugAssign(self, augassign_node):  # type: (ast.AugAssign) -> Any
+        """Replace an inplace add or multiply."""
+        if isinstance(augassign_node.target, ast.Subscript):
+            # Can't augassign to function call, ignore this node
+            augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
+            self.generic_visit(augassign_node)
+            return augassign_node
+
+        # TODO: Replace an inplace add or multiply (+= / *=)
+        return augassign_node
+
+    def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
+        """
+        Decompose multiple assignment into single ones and
+        check if any item in the targets list is if type Subscript and if
+        that's the case further decompose it to use a temp variable to
+        avoid assigning to a function call.
+        """
+        # a = b = c
+        # __dd_tmp = c
+        # a = __dd_tmp
+
+        ret_nodes = []
+
+        if len(assign_node.targets) > 1:
+            # Multiple assignments, assign the value to a temporal variable
+            tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
+            assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
+            assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
+            ret_nodes.append(assign_to_tmp)
+            self.ast_modified = True
+        else:
+            assign_value = assign_node.value  # type: ignore
+
+        for target in assign_node.targets:
+            if isinstance(target, ast.Subscript):
+                # We can't assign to a function call, which is anyway going to rewrite
+                # the index destination so we just ignore that target
+                target.avoid_convert = True  # type: ignore[attr-defined]
+            elif isinstance(target, (List, ast.Tuple)):
+                # Same for lists/tuples on the left side of the assignment
+                for element in target.elts:
+                    if isinstance(element, ast.Subscript):
+                        element.avoid_convert = True  # type: ignore[attr-defined]
+
+            # Create a normal assignment. This way we decompose multiple assignments
+            # like (a = b = c) into a = b and a = c so the transformation above
+            # is possible.
+            # Decompose it into a normal, not multiple, assignment
+            new_assign_value = copy.copy(assign_value)
+
+            new_target = copy.copy(target)
+
+            single_assign = self._assign_node(assign_node, [new_target], new_assign_value)
+
+            self.generic_visit(single_assign)
+            ret_nodes.append(single_assign)
+
+        if len(ret_nodes) == 1:
+            return ret_nodes[0]
+
+        return ret_nodes
+
+    def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
+        # del replaced_index(foo, bar) would fail so avoid converting the right hand side
+        # since it's going to be deleted anyway
+
+        for target in assign_node.targets:
+            if isinstance(target, ast.Subscript):
+                target.avoid_convert = True  # type: ignore[attr-defined]
+
+        self.generic_visit(assign_node)
+        return assign_node
+
+    def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
+        """
+        Turn an indexes[1] and slices[0:1:2] into the replacement function call
+        Optimization: dont convert if the indexes are strings
+        """
+        self.generic_visit(subscr_node)
+
+        # We mark nodes to avoid_convert (check visit_Delete, visit_AugAssign, visit_Assign) due to complex
+        # expressions that raise errors when try to replace with index aspects
+        if hasattr(subscr_node, "avoid_convert"):
+            return subscr_node
+
+        # Optimization: String literal slices and indexes are not patched
+        if self._is_string_node(subscr_node.value):
+            return subscr_node
+
+        attr_node = self._attr_node(subscr_node, "")
+
+        call_node = self._call_node(
+            subscr_node,
+            func=attr_node,
+            args=[],
+        )
+        if isinstance(subscr_node.slice, ast.Slice):
+            # Slice[0:1:2]. The other cases in this if are Indexes[0]
+            aspect_split = self._aspect_slice.split(".")
+            call_node.func.attr = aspect_split[1]
+            call_node.func.value.id = aspect_split[0]
+            none_node = self._none_constant(subscr_node)
+            lower = none_node if subscr_node.slice.lower is None else subscr_node.slice.lower
+            upper = none_node if subscr_node.slice.upper is None else subscr_node.slice.upper
+            step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
+            call_node.args.extend([subscr_node.value, lower, upper, step])
+            self.ast_modified = True
+        elif PY39_PLUS:
+            if self._is_string_node(subscr_node.slice):
+                return subscr_node
+            # In Py39+ the if subscr_node.slice member is not a Slice, is directly an unwrapped value
+            # for the index (e.g. Constant for a number, Name for a var, etc)
+            aspect_split = self._aspect_index.split(".")
+            call_node.func.attr = aspect_split[1]
+            call_node.func.value.id = aspect_split[0]
+            call_node.args.extend([subscr_node.value, subscr_node.slice])
+        # TODO: python 3.8 isn't working correctly with index_aspect, tests raise:
+        #  corrupted size vs. prev_size in fastbins
+        #  Test failed with exit code -6
+        #  https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/46665/workflows/3cf1257c-feaf-4653-bb9c-fb840baa1776/jobs/3031799
+        # elif isinstance(subscr_node.slice, ast.Index):
+        #     if self._is_string_node(subscr_node.slice.value):  # type: ignore[attr-defined]
+        #         return subscr_node
+        #     aspect_split = self._aspect_index.split(".")
+        #     call_node.func.attr = aspect_split[1]
+        #     call_node.func.value.id = aspect_split[0]
+        #     call_node.args.extend([subscr_node.value, subscr_node.slice.value])  # type: ignore[attr-defined]
+        else:
+            return subscr_node
+
+        self.ast_modified = True
         return call_node

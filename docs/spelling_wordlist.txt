@@ -78,6 +78,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -171,6 +172,7 @@ prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -210,6 +212,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
 subclass
@@ -266,3 +269,4 @@ Gitlab
 Enablement
 hotspot
 CMake
+libdatadog

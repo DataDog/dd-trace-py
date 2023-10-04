@@ -30,15 +30,15 @@ as_formatted_evidence(const StrType& text,
                       const optional<const py::dict>& new_ranges);
 
 py::bytearray
-_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
+api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);
 
 template<class StrType>
 StrType
-_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-_convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
 void
 pyexport_aspect_helpers(py::module& m);
