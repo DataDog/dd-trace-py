@@ -98,6 +98,11 @@ def _is_test_coverage_enabled():
     )
 
 
+def _add_skipped_by_itr_marker(test_object):
+    test_object.__class__.__unittest_skip__ = True
+    test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
+
+
 def _store_test_span(item, span: ddtrace.Span):
     """Store datadog span at `unittest` test instance."""
     item._datadog_span = span
@@ -313,8 +318,7 @@ def _populate_suites_and_modules(test_objects: list, seen_suites: dict, seen_mod
                 os.path.splitext(test_module_path)[0], test_suite_name
             )
             if _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name):
-                test_object.__class__.__unittest_skip__ = True
-                test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
+                _add_skipped_by_itr_marker(test_object)
 
         seen_suites[test_module_suite_path]["remaining_tests"] += 1
 
