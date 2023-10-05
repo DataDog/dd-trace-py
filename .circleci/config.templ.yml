@@ -180,10 +180,14 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
-      - store_test_results:
-          path: artifacts
+      - run:
+          name: "Store Test Agent Supported Integrations Data"
+          command: |
+            [ -d "./artifacts" ] || mkdir -p "./artifacts"
+            curl -o "artifacts/$(curl -sI << parameters.trace_agent_url >>/test/integrations/tested_versions | awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')" << parameters.trace_agent_url >>/test/integrations/tested_versions
       - store_artifacts:
           path: artifacts
+          destination: supported-integrations
       - save_cache:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
