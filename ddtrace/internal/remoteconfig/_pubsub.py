@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
+from ddtrace.internal.service import ServiceStatus
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -85,6 +86,8 @@ class PubSub(object):
     _subscriber = None  # type: RemoteConfigSubscriber
 
     def start_subscriber(self):
+        if self._subscriber.status is ServiceStatus.RUNNING:
+            return
         self._subscriber.start()
 
     def restart_subscriber(self, join=False):

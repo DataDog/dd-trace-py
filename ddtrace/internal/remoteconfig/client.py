@@ -516,6 +516,7 @@ class RemoteConfigClient(object):
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
+            log.debug("[%s][P: %s] Received RC data: %r", os.getpid(), os.getppid(), data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
