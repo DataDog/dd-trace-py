@@ -14,8 +14,8 @@ try:
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
+import bytecode as bc
 from bytecode import Bytecode
-from bytecode import CompilerFlags
 from bytecode import Instr
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -38,9 +38,7 @@ Wrapper = Callable[[FunctionType, Tuple[Any], Dict[str, Any]], Any]
 
 def _add(lineno):
     if PY >= (3, 11):
-        from bytecode import BinaryOp
-
-        return Instr("BINARY_OP", BinaryOp.ADD, lineno=lineno)
+        return Instr("BINARY_OP", bc.BinaryOp.ADD, lineno=lineno)
 
     return Instr("INPLACE_ADD", lineno=lineno)
 
@@ -111,8 +109,8 @@ def wrap_bytecode(wrapper, wrapped):
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
-    varargs = bool(code.co_flags & CompilerFlags.VARARGS)
-    varkwargs = bool(code.co_flags & CompilerFlags.VARKEYWORDS)
+    varargs = bool(code.co_flags & bc.CompilerFlags.VARARGS)
+    varkwargs = bool(code.co_flags & bc.CompilerFlags.VARKEYWORDS)
     nargs = code.co_argcount
     argnames = code.co_varnames[:nargs]
     try:
@@ -137,9 +135,7 @@ def wrap_bytecode(wrapper, wrapped):
         ]
 
         if code.co_cellvars:
-            from bytecode import CellVar
-
-            instrs[0:0] = [Instr("MAKE_CELL", CellVar(_), lineno=lineno) for _ in code.co_cellvars]
+            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]
 
         if code.co_freevars:
             instrs.insert(0, Instr("COPY_FREE_VARS", len(code.co_freevars), lineno=lineno))
@@ -148,7 +144,7 @@ def wrap_bytecode(wrapper, wrapped):
     if nargs:
         instrs.extend(
             [
-                Instr("LOAD_DEREF", CellVar(argname), lineno=lineno)
+                Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
                 if PY >= (3, 11) and argname in code.co_cellvars
                 else Instr("LOAD_FAST", argname, lineno=lineno)
                 for argname in argnames
@@ -192,7 +188,7 @@ def wrap_bytecode(wrapper, wrapped):
 
     # If the function has special flags set, like the generator, async generator
     # or coroutine, inject unraveling code before the return opcode.
-    if CompilerFlags.GENERATOR & code.co_flags and not (CompilerFlags.COROUTINE & code.co_flags):
+    if bc.CompilerFlags.GENERATOR & code.co_flags and not (bc.CompilerFlags.COROUTINE & code.co_flags):
         wrap_generator(instrs, code, lineno)
     elif PY3:
         wrap_async(instrs, code, lineno)
@@ -245,7 +241,7 @@ def wrap(f, wrapper):
         nargs += code.kwonlyargcount
     except AttributeError:
         pass
-    nargs += bool(code.flags & CompilerFlags.VARARGS) + bool(code.flags & CompilerFlags.VARKEYWORDS)
+    nargs += bool(code.flags & bc.CompilerFlags.VARARGS) + bool(code.flags & bc.CompilerFlags.VARKEYWORDS)
     code.argnames = f.__code__.co_varnames[:nargs]
 
     f.__code__ = code.to_code()
