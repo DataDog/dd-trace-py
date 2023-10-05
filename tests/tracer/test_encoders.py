@@ -706,8 +706,8 @@ def test_json_encoder_traces_bytes():
 
 
 @pytest.mark.skipif(
-    os.getenv("PYTHONOPTIMIZE", "").lower() in ("1", "t", "true"),
-    reason="Python optimize removes assertions from cython code",
+    os.getenv("PYTHONOPTIMIZE", "").lower() in ("1", "t", "true") or six.PY2,
+    reason="Python optimize removes assertions from cython code. PY2 byte string formatting fails assertions",
 )
 def test_verifying_v05_payloads():
     string_table_size = 4 * (1 << 12)
