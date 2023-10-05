@@ -952,7 +952,9 @@ def test_unshallow_repository_upstream():
             "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
             side_effect=ValueError,
         ):
-            with mock.patch("ddtrace.internal.ci_visibility.git_client._extract_upstream", return_value="myupstream"):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client._extract_upstream_sha", return_value="myupstreamsha"
+            ):
                 with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
                     CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
                     mock_git_subprocess_command.assert_called_once_with(
@@ -963,7 +965,7 @@ def test_unshallow_repository_upstream():
                             "--filter=blob:none",
                             "--recurse-submodules=no",
                             "origin",
-                            "myupstream",
+                            "myupstreamsha",
                         ],
                         cwd="/path/to/repo",
                     )

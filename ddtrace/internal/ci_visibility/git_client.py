@@ -8,7 +8,7 @@ from typing import Tuple  # noqa
 
 from ddtrace.ext import ci
 from ddtrace.ext.git import _extract_clone_defaultremotename
-from ddtrace.ext.git import _extract_upstream
+from ddtrace.ext.git import _extract_upstream_sha
 from ddtrace.ext.git import _get_rev_list
 from ddtrace.ext.git import _is_shallow_repository
 from ddtrace.ext.git import _unshallow_repository
@@ -243,7 +243,7 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _unshallow_repository_to_upstream(cls, remote, cwd=None):
         # type (str, Optional[str) -> None
-        upstream = _extract_upstream(cwd=cwd)
+        upstream = _extract_upstream_sha(cwd=cwd)
         log.debug("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
         log.debug("Unshallowing to upstream")

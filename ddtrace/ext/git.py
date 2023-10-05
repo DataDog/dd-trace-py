@@ -106,9 +106,9 @@ def _extract_clone_defaultremotename(cwd=None):
     return output
 
 
-def _extract_upstream(cwd=None):
+def _extract_upstream_sha(cwd=None):
     # type: (Optional[str]) -> str
-    output = _git_subprocess_cmd("rev-parse --abbrev-ref --symbolic-full-name @{upstream}", cwd=cwd)
+    output = _git_subprocess_cmd("rev-parse @{upstream}", cwd=cwd)
     return output
 
 
