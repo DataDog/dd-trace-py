@@ -233,7 +233,7 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
 
-            rc.start_subscribers()
+            mock_pubsub.start_subscriber()
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)

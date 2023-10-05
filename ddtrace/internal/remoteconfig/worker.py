@@ -92,7 +92,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
         self._client.renew_id()
         for pubsub in self._client.get_pubsubs():
-            pubsub.restart_subscriber(True)
+            pubsub.restart_subscriber()
 
     def _poll_data(self, test_tracer=None):
         """Force subscribers to poll new data. This function is only used in tests"""
