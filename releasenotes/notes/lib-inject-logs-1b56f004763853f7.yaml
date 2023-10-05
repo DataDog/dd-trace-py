@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: changes the log output to opt-in. Logging to stderr could interfere with applications. Logs can still be sent to stderr using `DD_TRACE_DEBUG=1`.
