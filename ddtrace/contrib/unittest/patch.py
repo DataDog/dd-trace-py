@@ -37,8 +37,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
-log = get_logger(__name__)
 
+log = get_logger(__name__)
 _global_skipped_elements = 0
 
 # unittest default settings
@@ -82,9 +82,9 @@ def _is_suite_coverage_enabled():
     # TODO: implement suite skipping logic
     is_skipped_by_itr = False
     return (
-            _CIVisibility._instance._suite_skipping_mode
-            and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped_by_itr
+        _CIVisibility._instance._suite_skipping_mode
+        and _CIVisibility._instance._collect_coverage_enabled
+        and not is_skipped_by_itr
     )
 
 
@@ -92,9 +92,9 @@ def _is_test_coverage_enabled():
     # TODO: implement test skipping logic
     is_skipped = False
     return (
-            not _CIVisibility._instance._suite_skipping_mode
-            and _CIVisibility._instance._collect_coverage_enabled
-            and not is_skipped
+        not _CIVisibility._instance._suite_skipping_mode
+        and _CIVisibility._instance._collect_coverage_enabled
+        and not is_skipped
     )
 
 
@@ -129,9 +129,9 @@ def _is_test_suite(item) -> bool:
 
 def _is_test(item) -> bool:
     if (
-            type(item) == unittest.TestSuite
-            or not hasattr(item, "_testMethodName")
-            or (ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"))
+        type(item) == unittest.TestSuite
+        or not hasattr(item, "_testMethodName")
+        or (ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"))
     ):
         return False
     return True
@@ -267,9 +267,9 @@ def _is_test_span(span: ddtrace.Span) -> bool:
 
 def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     return (
-            hasattr(instance, "progName")
-            or hasattr(_CIVisibility, "_datadog_entry")
-            and _CIVisibility._datadog_entry == "cli"
+        hasattr(instance, "progName")
+        or hasattr(_CIVisibility, "_datadog_entry")
+        and _CIVisibility._datadog_entry == "cli"
     )
 
 
@@ -309,12 +309,12 @@ def _populate_suites_and_modules(test_objects: list, seen_suites: dict, seen_mod
 
         if _CIVisibility.test_skipping_enabled():
             test_name = _extract_test_method_name(test_object)
-            test_module_suite_path_without_extension = "{}/{}".format(os.path.splitext(test_module_path)[0],
-                                                                      test_suite_name)
+            test_module_suite_path_without_extension = "{}/{}".format(
+                os.path.splitext(test_module_path)[0], test_suite_name
+            )
             if _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name):
                 test_object.__class__.__unittest_skip__ = True
                 test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
-
 
         seen_suites[test_module_suite_path]["remaining_tests"] += 1
 
@@ -338,8 +338,7 @@ def _finish_remaining_suites_and_modules(seen_suites: dict, seen_modules: dict):
 
 
 def _update_remaining_suites_and_modules(
-        test_module_suite_path: str, test_module_path: str, test_module_span: ddtrace.Span,
-        test_suite_span: ddtrace.Span
+    test_module_suite_path: str, test_module_path: str, test_module_span: ddtrace.Span, test_suite_span: ddtrace.Span
 ):
     """
     Updates the remaining test suite and test counter and finishes spans when these have finished their execution.
