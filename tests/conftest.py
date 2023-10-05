@@ -7,6 +7,7 @@ from os.path import splitext
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
+import threading
 import time
 
 from _pytest.runner import call_and_report
@@ -376,7 +377,7 @@ def git_repo(git_repo_empty):
 
 def _stop_remote_config_worker():
     if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service()
+        remoteconfig_poller._stop_service(True)
         remoteconfig_poller._worker = None
 
 
@@ -388,3 +389,7 @@ def remote_config_worker():
         yield
     finally:
         _stop_remote_config_worker()
+
+    # Check remote config poller and Subscriber threads stop correctly
+    # we have 2 threads: main thread and telemetry thread. TODO: verify if that alive thread is a bug
+    assert threading.active_count() == 2
