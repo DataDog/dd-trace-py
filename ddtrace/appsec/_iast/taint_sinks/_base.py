@@ -11,7 +11,6 @@ from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings import _config
 
 from .. import oce
-from .._metrics import _set_metric_iast_executed_sink
 from .._overhead_control_engine import Operation
 from .._utils import _has_to_scrub
 from .._utils import _is_evidence_value_parts
@@ -131,8 +130,6 @@ class VulnerabilityBase(Operation):
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
-
-            _set_metric_iast_executed_sink(cls.vulnerability_type)
 
             report = core.get_item(IAST.CONTEXT_KEY, span=span)
             if report:
