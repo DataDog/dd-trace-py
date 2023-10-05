@@ -62,7 +62,6 @@ from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
 from .span import Span
-from .tracing import _span_link
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -73,6 +72,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
     from typing import Union
     from typing import Tuple
+    from .tracing import _span_link
 
 from typing import Callable
 from typing import TypeVar

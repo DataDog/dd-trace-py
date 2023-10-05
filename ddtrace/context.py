@@ -142,8 +142,11 @@ class Context(object):
         else:
             trace_id = "{:032x}".format(self.trace_id)
 
-        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+        return "00-{}-{:016x}-{}".format(trace_id, self.span_id, self._traceflags)
+
+    @property
+    def _traceflags(self):
+        return "{:02x}".format(1 if self.sampling_priority and self.sampling_priority > 0 else 0)
 
     @property
     def _tracestate(self):

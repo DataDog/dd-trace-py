@@ -533,14 +533,39 @@ class Span(object):
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
 
+    def link_span(self, context, attributes=None):
+        # type: (Context, Optional[Dict[str, Any]]) -> None
+        """Defines a causal relationship between two spans"""
+        if not context.trace_id or not context.span_id:
+            raise ValueError("Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+
+        self._set_span_link(
+            trace_id=context.trace_id,
+            span_id=context.span_id,
+            tracestate=context._tracestate,
+            traceflags=context._traceflags,
+            attributes=attributes,
+        )
+
+    def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
+        # type: (int, int, Optional[str], Optional[str], Optional[Dict[str, Any]]) -> None
+        if attributes is None:
+            attributes = dict()
+
+        self._links.append(
+            _span_link.SpanLink(
+                trace_id=trace_id,
+                span_id=span_id,
+                tracestate=tracestate,
+                flags=traceflags,
+                attributes=attributes,
+            )
+        )
+
     def _links_to_json(self):
         if self._links:
             return json.dumps([link.to_dict() for link in self._links])
         return ""
-
-    def _set_span_link(self, span_link):
-        # type: (_span_link.SpanLink) -> None
-        self._links.append(span_link)
 
     def finish_with_ancestors(self):
         # type: () -> None
