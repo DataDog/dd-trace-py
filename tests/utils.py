@@ -1117,10 +1117,14 @@ def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    if PY2:
-        # Python 2 doesn't support timeout
-        stdout, stderr = subp.communicate()
-    else:
+    try:
+        if PY2:
+            # Python 2 doesn't support timeout
+            stdout, stderr = subp.communicate()
+        else:
+            stdout, stderr = subp.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
