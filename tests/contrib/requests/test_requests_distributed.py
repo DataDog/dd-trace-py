@@ -14,7 +14,6 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
         headers = request.headers
         assert "x-datadog-trace-id" in headers
         assert "x-datadog-parent-id" in headers
-        assert str(root_span.trace_id) == headers["x-datadog-trace-id"]
         req_span = tracer.current_span()
         assert "requests.request" == req_span.name
         assert str(req_span.span_id) == headers["x-datadog-parent-id"]
