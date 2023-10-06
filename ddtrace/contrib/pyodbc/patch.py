@@ -6,6 +6,7 @@ from ddtrace.internal.schema import schematize_service_name
 
 from ... import Pin
 from ... import config
+from ...ext import db
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
@@ -47,7 +48,11 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    pin = Pin(service=None)
+    try:
+        tags = {db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME), db.USER: conn.getinfo(pyodbc.SQL_USER_NAME)}
+    except pyodbc.Error:
+        tags = {}
+    pin = Pin(service=None, tags=tags)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped
