@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where the library failed to install due to dependency conflicts caused by restrictive
+    version specifiers on the psutil and Wrapt libraries.
