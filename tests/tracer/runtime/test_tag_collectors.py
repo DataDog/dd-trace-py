@@ -71,7 +71,7 @@ def test_tracer_tags_config():
     )
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(cleanenv=True)
 def test_tracer_tags_service_from_code():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace

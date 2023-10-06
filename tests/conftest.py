@@ -25,6 +25,9 @@ from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
+DEFAULT_SUBPROCESS_ENV = {}
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
@@ -205,7 +208,14 @@ def run_function_from_file(item, params=None):
         args.append("-m")
 
     # Override environment variables for the subprocess
-    env = os.environ.copy()
+    if marker.kwargs.get("cleanenv", False):
+        env = {}
+    else:
+        env = os.environ.copy()
+
+    if marker.kwargs.get("usedefaultenv", False):
+        env.update(DEFAULT_SUBPROCESS_ENV)
+
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path

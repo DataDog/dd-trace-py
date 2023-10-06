@@ -105,6 +105,7 @@ venv = Venv(
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "DD_ENV": "circleci",
     },
     venvs=[
         Venv(
