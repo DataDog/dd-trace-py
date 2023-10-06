@@ -42,7 +42,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.SuccessHandler" == request_span.resource
         assert "GET" == request_span.get_tag("http.method")
-        assert "^$" == request_span.get_tag("http.route")
+        assert "/success/" == request_span.get_tag("http.route")
         assert_span_http_status_code(request_span, 200)
         if config.tornado.trace_query_string:
             assert query_string == request_span.get_tag(http.QUERY_STRING)
@@ -88,6 +88,25 @@ class TestTornadoWeb(TornadoTestCase):
         assert request_span.get_tag("http.route") == "/status_code/%s"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
+
+    def test_nested_application(self):
+        """
+        Test an endpoint which sets the status code to 500 but doesn't raise an exception
+
+        We expect the resulting span to be marked as an error
+        """
+        response1 = self.fetch("/nested_app/handler1/")
+        response2 = self.fetch("/nested_app/handler2/")
+        assert 200 == response1.code
+        assert 200 == response2.code
+
+        traces = self.pop_traces()
+        assert 2 == len(traces)
+
+        for (i, trace) in enumerate(traces, start=1):
+            request_span = trace[0]
+            assert_span_http_status_code(request_span, 200)
+            assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method

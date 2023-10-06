@@ -1,3 +1,5 @@
+from collections import deque
+
 from tornado.web import HTTPError
 
 from ddtrace import config
@@ -55,17 +57,31 @@ def execute(func, handler, args, kwargs):
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
+        http_route = _find_route(handler.application.default_router.rules, handler.request)
+        request_span.set_tag_str("http.route", http_route)
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
-        for rule in handler.application.wildcard_router.rules:
-            if rule.matcher.match(handler.request) is not None and hasattr(rule.matcher, "_path"):
-                request_span.set_tag_str("http.route", rule.matcher._path)
-                break
-        else:
-            request_span.set_tag_str("http.route", '^$')
-
-
         return func(*args, **kwargs)
+
+
+def _find_route(initial_rule_set, request):
+    """
+    We have to walk through the same chain of rules that tornado does to find a matching rule.
+    """
+    rules = deque()
+
+    for rule in initial_rule_set:
+        rules.append(rule)
+
+    while len(rules) > 0:
+        rule = rules.popleft()
+        if rule.matcher.match(request) is not None:
+            if hasattr(rule.matcher, "_path"):
+                return rule.matcher._path
+            elif hasattr(rule.target, "rules"):
+                rules.extendleft(rule.target.rules)
+
+    return "^$"
 
 
 def on_finish(func, handler, args, kwargs):
