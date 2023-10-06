@@ -10,14 +10,15 @@ from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._signal import utils
 from ddtrace.internal import runtime
-from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
 meter = metrics.get_meter("probe.status")
+
+
+ErrorInfo = Tuple[str, str]
 
 
 class ProbeStatusLogger(object):
@@ -27,8 +28,8 @@ class ProbeStatusLogger(object):
         self._encoder = encoder
         self._retry_queue = deque()  # type: deque[Tuple[str, float]]
 
-    def _payload(self, probe, status, message, timestamp, exc_info=None):
-        # type: (Probe, str, str, float, Optional[ExcInfoType]) -> str
+    def _payload(self, probe, status, message, timestamp, error=None):
+        # type: (Probe, str, str, float, Optional[ErrorInfo]) -> str
         payload = {
             "service": self._service,
             "timestamp": int(timestamp * 1e3),  # milliseconds
@@ -46,19 +47,17 @@ class ProbeStatusLogger(object):
 
         add_tags(payload)
 
-        if exc_info is not None:
-            exc_type, exc, tb = exc_info
-            assert exc_type is not None and tb is not None, exc_info  # nosec
+        if error is not None:
+            error_type, message = error
             payload["debugger"]["diagnostics"]["exception"] = {  # type: ignore[index]
-                "type": exc_type.__name__,
-                "message": str(exc),
-                "stacktrace": utils.capture_stack(tb.tb_frame),
+                "type": error_type,
+                "message": message,
             }
 
         return json.dumps(payload)
 
-    def _write(self, probe, status, message, exc_info=None):
-        # type: (Probe, str, str, Optional[ExcInfoType]) -> None
+    def _write(self, probe, status, message, error=None):
+        # type: (Probe, str, str, Optional[ErrorInfo]) -> None
         if self._retry_queue:
             meter.distribution("backlog.size", len(self._retry_queue))
 
@@ -80,7 +79,7 @@ class ProbeStatusLogger(object):
                     meter.increment("backlog.buffer_full")
                     return
 
-            payload = self._payload(probe, status, message, now, exc_info)
+            payload = self._payload(probe, status, message, now, error)
 
             try:
                 self._encoder.put(payload)
@@ -108,13 +107,6 @@ class ProbeStatusLogger(object):
             message or "Probe %s instrumented correctly" % probe.probe_id,
         )
 
-    def error(self, probe, message=None, exc_info=None):
-        # type: (Probe, Optional[str], Optional[ExcInfoType]) -> None
-        if message is None and exc_info is None:
-            raise ValueError("Either message or exc_info must be provided")
-
-        if exc_info is not None and message is None:
-            _, exc, _ = exc_info
-            message = "Probe %s instrumentation failed: %r" % (probe.probe_id, exc)
-
-        self._write(probe, "ERROR", message, exc_info)  # type: ignore[arg-type]
+    def error(self, probe, error=None):
+        # type: (Probe, Optional[ErrorInfo]) -> None
+        self._write(probe, "ERROR", "Failed to instrument probe %s" % probe.probe_id, error)
