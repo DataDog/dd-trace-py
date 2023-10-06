@@ -435,34 +435,34 @@ else:
     else:
         debug_compile_args = []
 
-if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
-    ext_modules = [
-        Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-            ],
-            extra_compile_args=debug_compile_args,
-        ),
-    ]
-    if platform.system() not in ("Windows", ""):
-        ext_modules.append(
-            Extension(
-                "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
-                sources=[
-                    "ddtrace/appsec/_iast/_stacktrace.c",
-                ],
-                extra_compile_args=debug_compile_args,
-            )
-        )
+# if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
+#     ext_modules = [
+#         Extension(
+#             "ddtrace.profiling.collector._memalloc",
+#             sources=[
+#                 "ddtrace/profiling/collector/_memalloc.c",
+#                 "ddtrace/profiling/collector/_memalloc_tb.c",
+#                 "ddtrace/profiling/collector/_memalloc_heap.c",
+#             ],
+#             extra_compile_args=debug_compile_args,
+#         ),
+#     ]
+#     if platform.system() not in ("Windows", ""):
+#         ext_modules.append(
+#             Extension(
+#                 "ddtrace.appsec._iast._stacktrace",
+#                 # Sort source files for reproducibility
+#                 sources=[
+#                     "ddtrace/appsec/_iast/_stacktrace.c",
+#                 ],
+#                 extra_compile_args=debug_compile_args,
+#             )
+#         )
 
-        if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
-else:
-    ext_modules = []
+#         if sys.version_info >= (3, 6, 0):
+#             ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
+# else:
+#     ext_modules = []
 
 
 def get_ddup_ext():
