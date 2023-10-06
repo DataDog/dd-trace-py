@@ -183,8 +183,13 @@ commands:
       - run:
           name: "Store Test Agent Supported Integrations Data"
           command: |
-            [ -d "./artifacts" ] || mkdir -p "./artifacts"
-            curl -o "artifacts/$(curl -sI << parameters.trace_agent_url >>/test/integrations/tested_versions | awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')" << parameters.trace_agent_url >>/test/integrations/tested_versions
+            if [[ -z "$(curl -s << parameters.trace_agent_url >>/test/integrations/tested_versions)" ]]; then
+              echo "Response body is empty. Skipping saving integration artifacts."
+            else
+              [ -d "./artifacts" ] || mkdir -p "./artifacts"
+              curl -o "artifacts/$(curl -sI << parameters.trace_agent_url >>/test/integrations/tested_versions |
+              awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')" << parameters.trace_agent_url >>/test/integrations/tested_versions
+            fi
       - store_artifacts:
           path: artifacts
           destination: supported-integrations
