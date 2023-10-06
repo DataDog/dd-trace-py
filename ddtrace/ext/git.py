@@ -101,7 +101,14 @@ def _set_safe_directory():
 
 
 def _extract_clone_defaultremotename(cwd=None):
-    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName")
+    # type: (Optional[str]) -> str
+    output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName", cwd=cwd)
+    return output
+
+
+def _extract_upstream_sha(cwd=None):
+    # type: (Optional[str]) -> str
+    output = _git_subprocess_cmd("rev-parse @{upstream}", cwd=cwd)
     return output
 
 
@@ -111,22 +118,22 @@ def _is_shallow_repository(cwd=None):
     return output.strip() == "true"
 
 
-def _unshallow_repository(cwd=None):
-    # type (Optional[str]) -> None
-    remote_name = _extract_clone_defaultremotename(cwd)
-    head_sha = extract_commit_sha(cwd)
+def _unshallow_repository(cwd=None, repo=None, refspec=None):
+    # type (Optional[str], Optional[str], Optional[str]) -> None
 
     cmd = [
         "fetch",
+        '--shallow-since="1 month ago"',
         "--update-shallow",
         "--filter=blob:none",
         "--recurse-submodules=no",
-        '--shallow-since="1 month ago"',
-        remote_name,
-        head_sha,
     ]
+    if repo is not None:
+        cmd.append(repo)
+    if refspec is not None:
+        cmd.append(refspec)
 
-    _git_subprocess_cmd(cmd, cwd=cwd)
+    return _git_subprocess_cmd(cmd, cwd=cwd)
 
 
 def extract_user_info(cwd=None):
@@ -143,7 +150,11 @@ def extract_user_info(cwd=None):
 
 def extract_git_version(cwd=None):
     output = _git_subprocess_cmd("--version")
-    version_info = tuple([int(part) for part in output.split()[-1].split(".")])
+    try:
+        version_info = tuple([int(part) for part in output.split()[2].split(".")])
+    except ValueError:
+        log.error("Git version not found, it is not following the desired version format: %s", output)
+        return 0, 0, 0
     return version_info
 
 
