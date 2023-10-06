@@ -46,12 +46,8 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         index_range_map.emplace_back(nullptr);
         index++;
     }
-//    py::print("RANGES!!!!!!!!!!1");
-//    py::print(index_range_map);
     py::list pylist{ py::cast(index_range_map) };
     auto res{ pylist[py::slice(start, stop, step)].cast<TaintRangeRefs>() };
-//    py::print("RANGES RES!!!!!!!!!!1");
-//    py::print(res);
     return res;
 }
 
