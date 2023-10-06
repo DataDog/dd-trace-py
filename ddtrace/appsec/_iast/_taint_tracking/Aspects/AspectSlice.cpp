@@ -12,9 +12,6 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
         auto taint_range{ index_range_map.at(index) };
         if (taint_range != current_range) {
             if (current_range) {
-                new_ranges.emplace_back(initializer->allocate_taint_range(current_start, index, current_range->source));
-                new_ranges.emplace_back(
-                  initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
                 new_ranges.emplace_back(
                   initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
             }
@@ -49,8 +46,12 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         index_range_map.emplace_back(nullptr);
         index++;
     }
+//    py::print("RANGES!!!!!!!!!!1");
+//    py::print(index_range_map);
     py::list pylist{ py::cast(index_range_map) };
     auto res{ pylist[py::slice(start, stop, step)].cast<TaintRangeRefs>() };
+//    py::print("RANGES RES!!!!!!!!!!1");
+//    py::print(res);
     return res;
 }
 
