@@ -115,15 +115,30 @@ def wrap_bytecode(wrapper, wrapped):
         Instr("LOAD_CONST", wrapped, lineno=lineno),
     ]
     if PY >= (3, 11):
-        # THis is required to start a new frame
+        # From insert_prefix_instructions
         instrs[0:0] = [
             Instr("RESUME", 0, lineno=lineno - 1),
             Instr("PUSH_NULL", lineno=lineno),
         ]
 
+        if code.co_cellvars:
+            from bytecode import CellVar
+
+            instrs[0:0] = [Instr("MAKE_CELL", CellVar(_), lineno=lineno) for _ in code.co_cellvars]
+
+        if code.co_freevars:
+            instrs.insert(0, Instr("COPY_FREE_VARS", len(code.co_freevars), lineno=lineno))
+
     # Build the tuple of all the positional arguments
     if nargs:
-        instrs.extend([Instr("LOAD_FAST", argname, lineno=lineno) for argname in argnames])
+        instrs.extend(
+            [
+                Instr("LOAD_DEREF", CellVar(argname), lineno=lineno)
+                if PY >= (3, 11) and argname in code.co_cellvars
+                else Instr("LOAD_FAST", argname, lineno=lineno)
+                for argname in argnames
+            ]
+        )
         instrs.append(Instr("BUILD_TUPLE", nargs, lineno=lineno))
         if varargs:
             instrs.extend(
@@ -198,6 +213,8 @@ def wrap(f, wrapper):
 
     code = wrap_bytecode(wrapper, wrapped)
     code.freevars = f.__code__.co_freevars
+    if PY >= (3, 11):
+        code.cellvars = f.__code__.co_cellvars
     code.name = f.__code__.co_name
     code.filename = f.__code__.co_filename
     code.flags = f.__code__.co_flags
