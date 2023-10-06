@@ -3,6 +3,7 @@ from typing import Any
 from typing import Mapping
 from typing import Optional
 from urllib import parse
+import uuid
 
 import ddtrace
 from ddtrace import Span
@@ -22,6 +23,7 @@ from ...internal import core
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
+from ddtrace.internal import accupath
 
 
 log = get_logger(__name__)
@@ -111,86 +113,88 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        try:
-            headers = _extract_headers(scope)
-        except Exception:
-            log.warning("failed to decode headers for distributed tracing", exc_info=True)
-            headers = {}
-        else:
-            trace_utils.activate_distributed_headers(
-                self.tracer, int_config=self.integration_config, request_headers=headers
-            )
+
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
         pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
-        with pin.tracer.trace(
-            name=operation_name,
-            service=trace_utils.int_service(None, self.integration_config),
-            resource=resource,
-            span_type=SpanTypes.WEB,
-        ) as span, core.context_with_data(
-            "asgi.__call__",
-            remote_addr=scope.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            environ=scope,
-            middleware=self,
-            span=span,
-        ) as ctx:
-            span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-            ctx.set_item("req_span", span)
-
-            # set span.kind to the type of request being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-            if "datadog" not in scope:
-                scope["datadog"] = {"request_spans": [span]}
+        with core.context_with_data(f"asgi.request- uuid {uuid.uuid4()}"):
+            try:
+                headers = _extract_headers(scope)
+            except Exception:
+                log.warning("failed to decode headers for distributed tracing", exc_info=True)
+                headers = {}
             else:
-                scope["datadog"]["request_spans"].append(span)
+                trace_utils.activate_distributed_headers(
+                    self.tracer, int_config=self.integration_config, request_headers=headers
+                )
+            with pin.tracer.trace(
+                name=operation_name,
+                service=trace_utils.int_service(None, self.integration_config),
+                resource=resource,
+                span_type=SpanTypes.WEB,
+            ) as span, core.context_with_data(
+                "asgi.__call__",
+                remote_addr=scope.get("REMOTE_ADDR"),
+                headers=headers,
+                headers_case_sensitive=True,
+                environ=scope,
+                middleware=self,
+                span=span,
+            ) as ctx:
+                span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                ctx.set_item("req_span", span)
 
-            if self.span_modifier:
-                self.span_modifier(span, scope)
+                # set span.kind to the type of request being performed
+                span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-            sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
-            if sample_rate is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+                if "datadog" not in scope:
+                    scope["datadog"] = {"request_spans": [span]}
+                else:
+                    scope["datadog"]["request_spans"].append(span)
 
-            host_header = None
-            for key, value in scope["headers"]:
-                if key == b"host":
-                    try:
-                        host_header = value.decode("ascii")
-                    except UnicodeDecodeError:
-                        log.warning(
-                            "failed to decode host header, host from http headers will not be considered", exc_info=True
-                        )
-                    break
-            method = scope.get("method")
-            server = scope.get("server")
-            scheme = scope.get("scheme", "http")
-            parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
-            full_path = scope.get("root_path", "") + scope.get("path", "")
-            if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-            elif server and len(server) == 2:
-                port = server[1]
-                default_port = self.default_ports.get(scheme, None)
-                server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-            else:
-                url = None
-            query_string = scope.get("query_string")
-            if query_string:
-                query_string = bytes_to_str(query_string)
-                if url:
-                    url = f"{url}?{query_string}"
-            if not self.integration_config.trace_query_string:
-                query_string = None
-            body = None
-            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
-            if result:
-                receive, body = await result.value
+                if self.span_modifier:
+                    self.span_modifier(span, scope)
+
+                sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
+                if sample_rate is not None:
+                    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+                host_header = None
+                for key, value in scope["headers"]:
+                    if key == b"host":
+                        try:
+                            host_header = value.decode("ascii")
+                        except UnicodeDecodeError:
+                            log.warning(
+                                "failed to decode host header, host from http headers will not be considered", exc_info=True
+                            )
+                        break
+                method = scope.get("method")
+                server = scope.get("server")
+                scheme = scope.get("scheme", "http")
+                parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
+                full_path = scope.get("root_path", "") + scope.get("path", "")
+                if host_header:
+                    url = "{}://{}{}".format(scheme, host_header, full_path)
+                elif server and len(server) == 2:
+                    port = server[1]
+                    default_port = self.default_ports.get(scheme, None)
+                    server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
+                    url = "{}://{}{}".format(scheme, server_host, full_path)
+                else:
+                    url = None
+                query_string = scope.get("query_string")
+                if query_string:
+                    query_string = bytes_to_str(query_string)
+                    if url:
+                        url = f"{url}?{query_string}"
+                if not self.integration_config.trace_query_string:
+                    query_string = None
+                body = None
+                result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+                if result:
+                    receive, body = await result.value
 
             client = scope.get("client")
             if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
@@ -214,62 +218,65 @@ class TraceMiddleware:
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
 
-            async def wrapped_send(message):
-                try:
-                    response_headers = _extract_headers(message)
-                except Exception:
-                    log.warning("failed to extract response headers", exc_info=True)
-                    response_headers = None
+                async def wrapped_send(message):
+                    try:
+                        response_headers = _extract_headers(message)
+                    except Exception:
+                        log.warning("failed to extract response headers", exc_info=True)
+                        response_headers = None
+                    log.debug("teague.bick - in wrapped send")
+                    core.dispatch('http.response.header.injection', [response_headers, resource])
 
-                if span and message.get("type") == "http.response.start" and "status" in message:
-                    status_code = message["status"]
-                    trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status_code, response_headers=response_headers
-                    )
-                    core.dispatch("asgi.start_response", ("asgi",))
-                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
+                    if span and message.get("type") == "http.response.start" and "status" in message:
+                        status_code = message["status"]
+                        trace_utils.set_http_meta(
+                            span, self.integration_config, status_code=status_code, response_headers=response_headers
+                        )
+                        core.dispatch("asgi.start_response", ("asgi",))
+                    core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
 
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    raise trace_utils.InterruptException("wrapped_send")
-                try:
-                    return await send(message)
-                finally:
-                    # Per asgi spec, "more_body" is used if there is still data to send
-                    # Close the span if "http.response.body" has no more data left to send in the
-                    # response.
-                    if (
-                        message.get("type") == "http.response.body"
-                        and not message.get("more_body", False)
-                        # If the span has an error status code delay finishing the span until the
-                        # traceback and exception message is available
-                        and span.error == 0
-                    ):
-                        span.finish()
+                    if core.get_item(HTTP_REQUEST_BLOCKED):
+                        raise trace_utils.InterruptException("wrapped_send")
+                    try:
+                        return await send(message)
+                    finally:
+                        # Per asgi spec, "more_body" is used if there is still data to send
+                        # Close the span if "http.response.body" has no more data left to send in the
+                        # response.
+                        if (
+                            message.get("type") == "http.response.body"
+                            and not message.get("more_body", False)
+                            # If the span has an error status code delay finishing the span until the
+                            # traceback and exception message is available
+                            and span.error == 0
+                        ):
+                            span.finish()
 
-            async def wrapped_blocked_send(message):
-                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
-                if result:
-                    status, headers, content = result.value
-                else:
-                    status, headers, content = 403, [], b""
-                if span and message.get("type") == "http.response.start":
-                    message["headers"] = headers
-                    message["status"] = int(status)
-                    core.dispatch("asgi.finalize_response", (None, headers))
-                elif message.get("type") == "http.response.body":
-                    message["body"] = (
+                async def wrapped_blocked_send(message):
+                    result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                    core.dispatch('http.response.header.injection', headers, status)
+                    if result:
+                        status, headers, content = result.value
+                    else:
+                        status, headers, content = 403, [], b""
+                    if span and message.get("type") == "http.response.start":
+                        message["headers"] = headers
+                        message["status"] = int(status)
+                        core.dispatch("asgi.finalize_response", (None, headers))
+                    elif message.get("type") == "http.response.body":
+                        message["body"] = (
                         content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
                     )
-                    message["more_body"] = False
-                    core.dispatch("asgi.finalize_response", (content, None))
-                try:
-                    return await send(message)
-                finally:
-                    trace_utils.set_http_meta(
-                        span, self.integration_config, status_code=status, response_headers=headers
-                    )
-                    if message.get("type") == "http.response.body" and span.error == 0:
-                        span.finish()
+                        message["more_body"] = False
+                        core.dispatch("asgi.finalize_response", (content, None))
+                    try:
+                        return await send(message)
+                    finally:
+                        trace_utils.set_http_meta(
+                            span, self.integration_config, status_code=status, response_headers=headers
+                        )
+                        if message.get("type") == "http.response.body" and span.error == 0:
+                            span.finish()
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))

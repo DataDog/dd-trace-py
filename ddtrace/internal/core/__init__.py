@@ -281,6 +281,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def get_item(data_key, span=None):
+    log.debug(f"teague.bick.core - getting {data_key} in context {_CURRENT_CONTEXT.get().identifier}")
     # type: (str, Optional[Span]) -> Optional[Any]
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
@@ -306,6 +307,7 @@ def set_safe(data_key, data_value):
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
+    log.debug(f"teague.bick.core - setting {data_key} with value {data_value} in context {_CURRENT_CONTEXT.get().identifier}")
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)

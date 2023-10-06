@@ -49,6 +49,10 @@ def _configure_ddtrace_debug_logger(logger):
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
+    if asbool(os.environ.get("DD_ACCUPATH_DEBUG", "false")):
+        accupath_logger = logging.getLogger("accupath")
+        accupath_logger.setLevel(logging.DEBUG)
+        accupath_logger.debug("debug mode has been enabled for the accupath product")
 
 def _configure_ddtrace_file_logger(logger):
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()

@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal import core
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -98,7 +99,8 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
-    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
+    import uuid
+    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span, core.context_with_data(f'requests.{uuid.uuid4()}'):
         span.set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -112,6 +114,7 @@ def _wrap_send(func, instance, args, kwargs):
         analytics_enabled = cfg.get("analytics_enabled")
         if analytics_enabled:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
+        core.dispatch("http.request.start", [])  # Must be before propagator injection
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
@@ -130,6 +133,7 @@ def _wrap_send(func, instance, args, kwargs):
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
+                    core.dispatch("http.response.header.extraction", [response_headers, response.status_code])
 
                 trace_utils.set_http_meta(
                     span,

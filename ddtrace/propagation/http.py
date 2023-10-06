@@ -18,6 +18,7 @@ else:
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace.tracing._span_link import SpanLink
+from ddtrace.internal import core
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -231,6 +232,8 @@ class _DatadogMultiHeader:
         else:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
 
+        core.dispatch("http.request.header.injection", [headers])
+
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         sampling_priority = span_context.sampling_priority
         # Propagate priority only if defined
@@ -281,6 +284,8 @@ class _DatadogMultiHeader:
             trace_id = int(trace_id_str)
         except ValueError:
             trace_id = 0
+
+        core.dispatch("http.request.header.extraction", [headers])
 
         if trace_id <= 0 or trace_id > _MAX_UINT_64BITS:
             log.warning(
@@ -960,7 +965,8 @@ class HTTPPropagator(object):
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
-                for prop_style in config._propagation_style_extract:
+                log.debug("teague.bick - trying to extract context propagation styles %s", config._propagation_style_extract)
+                for prop_style in ['datadog']: #config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
                     if config.propagation_http_baggage_enabled is True:

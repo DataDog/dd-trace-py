@@ -35,6 +35,7 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+import ddtrace.internal.accupath  # required to load accupath
 
 from . import _hooks
 from .constants import ENV_KEY
@@ -274,7 +275,6 @@ class Tracer(object):
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from .internal.datastreams.processor import DataStreamsProcessor
-
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
             register_on_exit_signal(self._atexit)
 

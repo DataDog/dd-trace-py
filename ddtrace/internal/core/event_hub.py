@@ -8,6 +8,9 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace import config
+from ddtrace.internal.logger import get_logger
+
+log = get_logger(__name__)
 
 
 _listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}
@@ -101,6 +104,7 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
         try:
             local_hook(*args)
         except Exception:
+            log.debug("Teague.Bick - Core error", exc_info=True)
             if config._raise:
                 raise
 
