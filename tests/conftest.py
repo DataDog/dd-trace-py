@@ -204,11 +204,11 @@ def run_function_from_file(item, params=None):
     if run_module:
         args.append("-m")
 
+    env = {}
+
     # Override environment variables for the subprocess
-    if marker.kwargs.get("cleanenv", False):
-        env = {}
-    else:
-        env = os.environ.copy()
+    if marker.kwargs.get("passenv", False):
+        env.update(os.environ)
 
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))

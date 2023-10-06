@@ -70,7 +70,7 @@ class TestRuntimeTags(TracerTestCase):
                 assert tags == [("env", "staging.dog")]
 
 
-@pytest.mark.subprocess(cleanenv=True)
+@pytest.mark.subprocess()
 def test_runtime_tags_empty():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
@@ -81,7 +81,7 @@ def test_runtime_tags_empty():
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
 
 
-@pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"}, cleanenv=True)
+@pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
 def test_runtime_tags_usm():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
@@ -97,7 +97,7 @@ def test_runtime_tags_usm():
     assert tags["version"] == "1.2.3"
 
 
-@pytest.mark.subprocess(env={"DD_TAGS": "version:1.2.3,custom:tag,test:key", "DD_VERSION": "4.5.6"}, cleanenv=True)
+@pytest.mark.subprocess(env={"DD_TAGS": "version:1.2.3,custom:tag,test:key", "DD_VERSION": "4.5.6"})
 def test_runtime_tags_dd_tags():
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 
@@ -113,7 +113,7 @@ def test_runtime_tags_dd_tags():
     assert tags["version"] == "4.5.6"
 
 
-@pytest.mark.subprocess(cleanenv=True)
+@pytest.mark.subprocess()
 def test_runtime_tags_manual_tracer_tags():
     from ddtrace import tracer
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags

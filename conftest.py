@@ -40,8 +40,8 @@ def pytest_configure(config):
                 err: the expected stderr of the subprocess, or None to ignore.
                 args: the command line arguments to pass to the subprocess.
                 env: the environment variables to override for the subprocess.
-                cleanenv: boolean defining whether or not the environment should
-                    be cleaned first
+                passenv: boolean defining whether or not the subprocess
+                    environment should inherit the original environment
                 parametrize: whether to parametrize the test function. This is
                     similar to the `parametrize` marker, but arguments are
                     passed to the subprocess via environment variables.

@@ -410,6 +410,7 @@ class DDLoggerTestCase(BaseTestCase):
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={"DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "true"},
+    passenv=True,
     out=lambda _: "MyThread - ERROR - Hello from thread" in _ and "Dummy" not in _,
 )
 def test_logger_no_dummy_thread_name_after_module_cleanup():
