@@ -129,18 +129,21 @@ def non_auto_commit_consumer(tracer, kafka_topic):
 
 @pytest.fixture
 def serializing_producer(tracer):
-    _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    _producer = confluent_kafka.SerializingProducer(
+        {"bootstrap.servers": BOOTSTRAP_SERVERS, "value.serializer": lambda x, y: x}
+    )
     Pin.override(_producer, tracer=tracer)
     return _producer
 
 
 @pytest.fixture
 def deserializing_consumer(tracer, kafka_topic):
-    _consumer = confluent_kafka.Consumer(
+    _consumer = confluent_kafka.DeserializingConsumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
+            "value.deserializer": lambda x, y: x,
         }
     )
     Pin.override(_consumer, tracer=tracer)
@@ -288,15 +291,16 @@ def retry_until_not_none(factory):
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
         pass
-    serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    serializing_producer.produce(kafka_topic, value=PAYLOAD, key="test_key_2")
     serializing_producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
+        print(message)
         message = deserializing_consumer.poll(1.0)
     buckets = dsm_processor._buckets
     assert len(buckets) == 1

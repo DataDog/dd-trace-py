@@ -42,9 +42,9 @@ def get_version():
     return getattr(confluent_kafka, "__version__", "")
 
 
-class TracedProducer(confluent_kafka.Producer):
+class TracedProducerMixin:
     def __init__(self, config, *args, **kwargs):
-        super(TracedProducer, self).__init__(config, *args, **kwargs)
+        super(TracedProducerMixin, self).__init__(config, *args, **kwargs)
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
@@ -59,11 +59,27 @@ class TracedProducer(confluent_kafka.Producer):
     __nonzero__ = __bool__
 
 
-class TracedConsumer(confluent_kafka.Consumer):
+class TracedConsumerMixin:
     def __init__(self, config, *args, **kwargs):
-        super(TracedConsumer, self).__init__(config, *args, **kwargs)
+        super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
+
+
+class TracedConsumer(confluent_kafka.Consumer, TracedConsumerMixin):
+    pass
+
+
+class TracedProducer(confluent_kafka.Producer, TracedProducerMixin):
+    pass
+
+
+class TracedDeserializingConsumer(confluent_kafka.DeserializingConsumer, TracedConsumerMixin):
+    pass
+
+
+class TracedSerializingProducer(confluent_kafka.SerializingProducer, TracedProducerMixin):
+    pass
 
 
 def patch():
@@ -74,9 +90,9 @@ def patch():
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
     if _SerializingProducer is not None:
-        confluent_kafka.SerializingProducer = TracedProducer
+        confluent_kafka.SerializingProducer = TracedSerializingProducer
     if _DeserializingConsumer is not None:
-        confluent_kafka.DeserializingConsumer = TracedConsumer
+        confluent_kafka.DeserializingConsumer = TracedDeserializingConsumer
 
     trace_utils.wrap(TracedProducer, "produce", traced_produce)
     trace_utils.wrap(TracedConsumer, "poll", traced_poll)
