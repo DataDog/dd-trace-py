@@ -775,8 +775,6 @@ class PatchTestCase(object):
             the APM Telemetry integrations payload event, and by APM analytics to inform of dd-trace-py
             current supported integration versions.
             """
-            # import pdb
-            # breakpoint()
             if hasattr(self, "__get_versions__") and self.__get_versions__ is not None:
                 assert self.__get_version__() == ""
                 versions = self.__get_versions__()
