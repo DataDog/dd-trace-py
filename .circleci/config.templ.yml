@@ -188,7 +188,7 @@ commands:
             else
               [ -d "./artifacts" ] || mkdir -p "./artifacts"
               curl -o "artifacts/$(curl -sI << parameters.trace_agent_url >>/test/integrations/tested_versions |
-              awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')" << parameters.trace_agent_url >>/test/integrations/tested_versions
+              awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')_supported_versions.csv" << parameters.trace_agent_url >>/test/integrations/tested_versions
             fi
       - store_artifacts:
           path: artifacts
