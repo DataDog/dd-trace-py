@@ -47,6 +47,8 @@ HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
 HTTP_HEADER_ORIGIN = "x-datadog-origin"
+
+
 _HTTP_HEADER_B3_SINGLE = "b3"
 _HTTP_HEADER_B3_TRACE_ID = "x-b3-traceid"
 _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
@@ -152,10 +154,12 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _inject(span_context, headers):
+        log.debug("teague.bick - x")
         # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
+        log.debug("teague.bick - y")
 
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
@@ -166,6 +170,10 @@ class _DatadogMultiHeader:
             span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = _get_64_highest_order_bits_as_hex(span_context.trace_id)
         else:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
+        log.debug("teague.bick - z")
+
+        from ddtrace.internal.acupath.processor import inject_context
+        inject_context(headers)
 
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         sampling_priority = span_context.sampling_priority
@@ -209,6 +217,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
+        log.debug("teague.bick - extracting from headers %r", headers)
         trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
         if trace_id_str is None:
             return None
@@ -216,6 +225,12 @@ class _DatadogMultiHeader:
             trace_id = int(trace_id_str)
         except ValueError:
             trace_id = 0
+
+        from ddtrace.internal.acupath.processor import extract_acupath_information
+        extract_acupath_information(headers)
+        from ddtrace.internal.acupath.processor import report_information_to_backend
+        report_information_to_backend()
+
 
         if trace_id <= 0 or trace_id > _MAX_UINT_64BITS:
             log.warning(
@@ -855,13 +870,17 @@ class HTTPPropagator(object):
             return Context()
 
         try:
+            log.debug("teague.bick - trying to extract context propagation headers")
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
             # loop through the extract propagation styles specified in order
-            for prop_style in config._propagation_style_extract:
+            log.debug("teague.bick - trying to extract context propagation styles %s", config._propagation_style_extract)
+            for prop_style in ['datadog']: #config._propagation_style_extract:
                 propagator = _PROP_STYLES[prop_style]
+                log.debug("teague.bick - trying to extract context propagation style %s", prop_style)
                 context = propagator._extract(normalized_headers)  # type: ignore
                 if context is not None:
+                    log.debug("teague.bick - returning context %r", context)
                     return context
 
         except Exception:
