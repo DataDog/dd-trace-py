@@ -207,6 +207,12 @@ To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variab
 
 See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 
+Release Notes
+-------------
+
+You can view historical release notes for all past versions of this repository on
+`GitHub <https://github.com/DataDog/dd-trace-py/releases>`_.
+
 Indices and tables
 ==================
 
@@ -228,4 +234,3 @@ Indices and tables
     versioning
     upgrading
     api
-    release_notes
