@@ -42,7 +42,6 @@ def pytest_configure(config):
                 env: the environment variables to override for the subprocess.
                 cleanenv: boolean defining whether or not the environment should
                     be cleaned first
-                usedefaultenv: use the predefined default environment
                 parametrize: whether to parametrize the test function. This is
                     similar to the `parametrize` marker, but arguments are
                     passed to the subprocess via environment variables.
