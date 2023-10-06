@@ -444,7 +444,7 @@ class Config(object):
                 self._extra_services_queue.put_nowait(service_name)
             except Full:  # nosec
                 pass
-            except BaseException:
+            except Exception:
                 log.debug("unexpected failure with _add_extra_service", exc_info=True)
 
     def _get_extra_services(self):
@@ -458,7 +458,7 @@ class Config(object):
                     self._extra_services.pop()
         except Empty:  # nosec
             pass
-        except BaseException:
+        except Exception:
             log.debug("unexpected failure with _get_extra_service", exc_info=True)
         return self._extra_services
 
