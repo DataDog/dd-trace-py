@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Increases the maximum payload size and buffer size from 8MB to 20MB. Also decreases the maximum number of spans in trace chunks when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``. This ensures large traces are correctly encoded and submitted.
+    This should decrease the occurrence of "failed to send traces" error logs.
