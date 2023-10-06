@@ -3,9 +3,11 @@ from json import loads
 import logging
 import os
 import re
+from typing import Any
 from typing import Callable
 from typing import ContextManager
-from typing import TYPE_CHECKING
+from typing import Dict
+from typing import List
 from typing import Union
 
 from ddtrace.constants import USER_ID_KEY
@@ -22,18 +24,6 @@ from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Generator
-    from typing import Optional
-    from typing import Pattern
-    from typing import Tuple
-
-from ddtrace.internal.compat import text_type as unicode
 
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
