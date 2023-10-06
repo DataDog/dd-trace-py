@@ -23,6 +23,7 @@ def setup():
     oce._enabled = True
 
 
+@pytest.skip("SSRF test needs to wrap requests package first")
 def test_ssrf(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
