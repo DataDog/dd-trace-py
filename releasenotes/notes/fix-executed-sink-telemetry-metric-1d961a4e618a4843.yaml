@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    IAST: fix executed sink telemetry metric as it is not really linked to vulnerability report.
