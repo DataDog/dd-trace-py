@@ -1,75 +1,55 @@
 import re
-from typing import List
+from typing import Callable
+from typing import Dict
 from typing import Set
-from typing import TYPE_CHECKING
-from typing import Union
-
-import six
 
 from ddtrace.settings import _config
 
 from .. import oce
+from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
-from ..constants import EVIDENCE_CMDI
-from ..constants import VULN_CMDI
+from ..constants import EVIDENCE_SSRF
+from ..constants import VULNERABILITY_TOKEN_TYPE
+from ..constants import VULN_SSRF
+from ..reporter import IastSpanReporter
+from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained
 
 
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Dict
-
-    from ..reporter import IastSpanReporter
-    from ..reporter import Vulnerability
-
-_INSIDE_QUOTES_REGEXP = re.compile(r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s*(.*)")
+_AUTHORITY_REGEXP = re.compile(r"(?:\/\/([^:@\/]+)(?::([^@\/]+))?@).*")
+_QUERY_FRAGMENT_REGEXP = re.compile(r"[?#&]([^=&;]+)=(?P<QUERY>[^?#&]+)")
 
 
 @oce.register
-class CommandInjection(VulnerabilityBase):
-    vulnerability_type = VULN_CMDI
-    evidence_type = EVIDENCE_CMDI
+class SSRF(VulnerabilityBase):
+    vulnerability_type = VULN_SSRF
+    evidence_type = EVIDENCE_SSRF
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
         if isinstance(evidence_value, (str, bytes, bytearray)):
-            from .._taint_tracking import taint_ranges_as_evidence_info
-
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
-        super(CommandInjection, cls).report(evidence_value=evidence_value, sources=sources)
+        super(SSRF, cls).report(evidence_value=evidence_value, sources=sources)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text):
-        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
-
-        ret = {}  # type: Dict[int, Dict[str, Any]]
-        for vuln, text in six.iteritems(vulns_to_text):
+    def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> VULNERABILITY_TOKEN_TYPE:
+        ret = {}  # type: VULNERABILITY_TOKEN_TYPE
+        for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
+            authority = []
+            authority_found = _AUTHORITY_REGEXP.findall(text)
+            if authority_found:
+                authority = list(authority_found[0])
+            query = [value for param, value in _QUERY_FRAGMENT_REGEXP.findall(text)]
             ret[vuln_hash] = {
-                "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),
+                "tokens": set(authority + query),
             }
             ret[vuln_hash]["token_positions"] = _scrub_get_tokens_positions(text, ret[vuln_hash]["tokens"])
 
         return ret
-
-    @classmethod
-    def replace_tokens(
-        cls,
-        vuln,
-        vulns_to_tokens,
-        has_range=False,
-    ):
-        ret = vuln.evidence.value
-        replaced = False
-
-        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-            ret = ret.replace(token, "")
-            replaced = True
-
-        return ret, replaced
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
@@ -92,7 +72,7 @@ class CommandInjection(VulnerabilityBase):
             # Check the evidence's value/s
             for vuln in report.vulnerabilities:
                 vulnerability_text = cls._get_vulnerability_text(vuln)
-                if _has_to_scrub(vulnerability_text) or _INSIDE_QUOTES_REGEXP.match(vulnerability_text):
+                if _has_to_scrub(vulnerability_text) or _AUTHORITY_REGEXP.match(vulnerability_text):
                     vulns_to_text[vuln] = vulnerability_text
                     found = True
                     break
@@ -113,7 +93,7 @@ class CommandInjection(VulnerabilityBase):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
@@ -171,21 +151,7 @@ class CommandInjection(VulnerabilityBase):
         return report
 
 
-def _iast_report_cmdi(shell_args):
-    # type: (Union[str, List[str]]) -> None
-    report_cmdi = ""
-    from .._metrics import _set_metric_iast_executed_sink
-    from .._taint_tracking import get_tainted_ranges
-    from .._taint_tracking.aspects import join_aspect
-
-    if isinstance(shell_args, (list, tuple)):
-        for arg in shell_args:
-            if get_tainted_ranges(arg):
-                report_cmdi = join_aspect(" ".join, " ", shell_args)
-                break
-    elif get_tainted_ranges(shell_args):
-        report_cmdi = shell_args
-
-    if report_cmdi:
-        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
-        CommandInjection.report(evidence_value=report_cmdi)
+def _iast_report_ssrf(func: Callable, *args, **kwargs):
+    report_ssrf = kwargs.get("url", False)
+    if report_ssrf:
+        SSRF.report(evidence_value=report_ssrf)
