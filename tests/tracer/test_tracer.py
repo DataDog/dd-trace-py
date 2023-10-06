@@ -1134,7 +1134,7 @@ def test_threaded_import():
     import threading
 
     def thread_target():
-        import ddtrace
+        import ddtrace  # noqa: F401
 
     t = threading.Thread(target=thread_target)
     t.start()
