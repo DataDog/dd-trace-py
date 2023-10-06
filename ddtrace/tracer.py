@@ -6,6 +6,7 @@ import os
 from os import environ
 from os import getpid
 import sys
+import threading
 from threading import RLock
 from typing import TYPE_CHECKING
 
@@ -276,7 +277,8 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        register_on_exit_signal(self._atexit)
+        if threading.current_thread() is threading.main_thread():
+            register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 

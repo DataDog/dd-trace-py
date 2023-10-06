@@ -138,7 +138,8 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
         )(self._flush_stats)
 
-        register_on_exit_signal(partial(_atexit, obj=self))
+        if threading.current_thread() is threading.main_thread():
+            register_on_exit_signal(partial(_atexit, obj=self))
         self.start()
 
     def on_checkpoint_creation(
