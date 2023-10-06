@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+   dynamic instrumentation: fix an issue that caused the probe instrumentation
+   error details from being reported for visualization in the UI.
