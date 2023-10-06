@@ -288,8 +288,7 @@ def get_probes(config, status_logger):
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
-            message=str(e),
-            exc_info=sys.exc_info(),
+            error=(type(e).__name__, str(e)),
         )
         return []
 
