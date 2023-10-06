@@ -8,11 +8,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
-<<<<<<< HEAD
-from ddtrace.ext import SpanTypes
-=======
 from ddtrace.contrib.trace_utils import set_user
->>>>>>> 2.x
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
