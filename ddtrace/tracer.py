@@ -6,11 +6,11 @@ import os
 from os import environ
 from os import getpid
 import sys
-import threading
 from threading import RLock
 from typing import TYPE_CHECKING
 
 from ddtrace import config
+from ddtrace import _threading as ddtrace_threading
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -277,7 +277,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        if threading.current_thread() is threading.main_thread():
+        if ddtrace_threading.current_thread() is ddtrace_threading.main_thread():
             register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()

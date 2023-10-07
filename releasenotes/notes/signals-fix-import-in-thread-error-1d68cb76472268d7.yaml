@@ -1,0 +1,3 @@
+fixes:
+  - |
+    signals: This fix resolves an issue where including exit signal handling caused imports of ddtrace in a thread to fail.

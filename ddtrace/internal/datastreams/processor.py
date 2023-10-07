@@ -5,7 +5,6 @@ from functools import partial
 import gzip
 import os
 import struct
-import threading
 import time
 import typing
 from typing import DefaultDict
@@ -21,6 +20,7 @@ import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace import _threading as ddtrace_threading
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
@@ -138,7 +138,7 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
         )(self._flush_stats)
 
-        if threading.current_thread() is threading.main_thread():
+        if ddtrace_threading.current_thread() is ddtrace_threading.main_thread():
             register_on_exit_signal(partial(_atexit, obj=self))
         self.start()
 
