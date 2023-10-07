@@ -96,14 +96,14 @@ def patch():
 def _patch(transport):
     if getattr(transport, "_datadog_patch", False):
         return
-    for classname in ("Transport", "AsyncTransport"):
-        try:
-            cls = getattr(transport, classname)
-        except AttributeError:
-            continue
+    if hasattr(transport, "Transport"):
         transport._datadog_patch = True
-        _w(cls, "perform_request", _get_perform_request(transport))
-        Pin().onto(cls)
+        _w(transport.Transport, "perform_request", _get_perform_request(transport))
+        Pin().onto(transport.Transport)
+    if hasattr(transport, "AsyncTransport"):
+        transport._datadog_patch = True
+        _w(transport.AsyncTransport, "perform_request", _get_perform_request_async(transport))
+        Pin().onto(transport.AsyncTransport)
 
 
 def unpatch():
@@ -123,11 +123,12 @@ def _unpatch(transport):
         _u(cls, "perform_request")
 
 
-def _get_perform_request(transport):
+def _get_perform_request_coro(transport):
     def _perform_request(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
-            return func(*args, **kwargs)
+            yield func(*args, **kwargs)
+            return
 
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
@@ -141,7 +142,8 @@ def _get_perform_request(transport):
 
             # Don't instrument if the trace is not sampled
             if not span.sampled:
-                return func(*args, **kwargs)
+                yield func(*args, **kwargs)
+                return
 
             method, target = args
             params = kwargs.get("params")
@@ -200,7 +202,7 @@ def _get_perform_request(transport):
             span = quantize(span)
 
             try:
-                result = func(*args, **kwargs)
+                result = yield func(*args, **kwargs)
             except transport.TransportError as e:
                 span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
                 span.error = 1
@@ -230,6 +232,36 @@ def _get_perform_request(transport):
             if status:
                 span.set_tag(http.STATUS_CODE, status)
 
-            return result
+            return
+
+    return _perform_request
+
+
+def _get_perform_request(transport):
+    _perform_request_coro = _get_perform_request_coro(transport)
+
+    def _perform_request(func, instance, args, kwargs):
+        coro = _perform_request_coro(func, instance, args, kwargs)
+        result = next(coro)
+        try:
+            coro.send(result)
+        except StopIteration:
+            pass
+        return result
+
+    return _perform_request
+
+
+def _get_perform_request_async(transport):
+    _perform_request_coro = _get_perform_request_coro(transport)
+
+    async def _perform_request(func, instance, args, kwargs):
+        coro = _perform_request_coro(func, instance, args, kwargs)
+        result = await next(coro)
+        try:
+            coro.send(result)
+        except StopIteration:
+            pass
+        return result
 
     return _perform_request
