@@ -462,7 +462,7 @@ else:
 #         if sys.version_info >= (3, 6, 0):
 #             ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
 # else:
-#     ext_modules = []
+ext_modules = []
 
 
 def get_ddup_ext():
