@@ -1141,18 +1141,6 @@ def test_threaded_import():
     t.join()
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
-def test_threaded_import():
-    import threading
-
-    def thread_target():
-        import ddtrace  # noqa: F401
-
-    t = threading.Thread(target=thread_target)
-    t.start()
-    t.join()
-
-
 def test_runtime_id_parent_only():
     tracer = ddtrace.Tracer()
 
