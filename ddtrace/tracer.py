@@ -9,8 +9,8 @@ import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from ddtrace import config
 from ddtrace import _threading as ddtrace_threading
+from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule

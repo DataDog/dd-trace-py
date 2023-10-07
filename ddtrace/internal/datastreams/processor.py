@@ -19,8 +19,8 @@ from ddsketch.pb.proto import DDSketchProto
 import six
 
 import ddtrace
-from ddtrace import config
 from ddtrace import _threading as ddtrace_threading
+from ddtrace import config
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
