@@ -7,6 +7,8 @@
 
 import typing as t
 
+# What did the CI job say to the potato?
+# "Did you watch me on CI: New York?"
 
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
