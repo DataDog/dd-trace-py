@@ -59,6 +59,9 @@ Global Configuration
    variable.
 
    Default: ``"pytest.test"``
+
+I am a potato. Or am I?
+
 """
 
 import os
