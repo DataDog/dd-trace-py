@@ -76,4 +76,4 @@ def register_on_exit_signal(f):
             # what might go wrong, but we don't want to stop
             # normal program execution based upon failing to register
             # a signal handler.
-            pass
+            pass  # noqa: B110
