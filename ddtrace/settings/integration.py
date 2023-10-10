@@ -61,7 +61,6 @@ class IntegrationConfig(AttrDict):
             "http_tag_query_string",
             self.get_http_tag_query_string(getattr(self, "default_http_tag_query_string", None)),
         )
-        self.http.trace_query_string = self.http_tag_query_string
 
     def _get_analytics_settings(self):
         # type: () -> Tuple[Optional[bool], float]

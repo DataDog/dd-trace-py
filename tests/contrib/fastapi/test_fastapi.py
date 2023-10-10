@@ -188,7 +188,8 @@ def test_read_item_nonexistent_item(client, tracer, test_spans):
 
 
 def test_read_item_query_string(client, tracer, test_spans):
-    response = client.get("/items/foo?q=query", headers={"X-Token": "DataDog"})
+    with override_http_config("fastapi", dict(trace_query_string=True)):
+        response = client.get("/items/foo?q=query", headers={"X-Token": "DataDog"})
 
     assert response.status_code == 200
     assert response.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
@@ -213,7 +214,8 @@ def test_read_item_query_string(client, tracer, test_spans):
 
 
 def test_200_multi_query_string(client, tracer, test_spans):
-    r = client.get("/items/foo?name=Foo&q=query", headers={"X-Token": "DataDog"})
+    with override_http_config("fastapi", dict(trace_query_string=True)):
+        r = client.get("/items/foo?name=Foo&q=query", headers={"X-Token": "DataDog"})
 
     assert r.status_code == 200
     assert r.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
