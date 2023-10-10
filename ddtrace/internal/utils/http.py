@@ -378,7 +378,7 @@ def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Dict = None) -> Dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
