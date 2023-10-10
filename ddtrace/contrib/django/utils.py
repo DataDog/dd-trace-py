@@ -398,7 +398,7 @@ def _after_request_tags(pin, span, request, response):
                 request_headers=request_headers,
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+                request_path_params=request.resolver_match.kwargs if getattr(request, "resolver_match") is not None else None,
                 request_body=_extract_body(request),
                 peer_ip=core.get_item("http.request.remote_ip", span=span),
                 headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
