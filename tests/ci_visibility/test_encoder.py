@@ -298,7 +298,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"test_module_id": int(given_test_span.get_tag("test_module_id")),
                 b"test_session_id": int(given_test_span.get_tag("test_session_id")),
                 b"test_suite_id": int(given_test_span.get_tag("test_suite_id")),
-                b"trace_id": given_test_span.trace_id,
+                b"trace_id": given_test_span._trace_id_64bits,
                 b"type": given_test_span.span_type.encode("utf-8"),
             },
             b"type": given_test_span.span_type.encode("utf-8"),
