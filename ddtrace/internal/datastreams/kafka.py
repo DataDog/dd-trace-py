@@ -13,7 +13,7 @@ from ddtrace.internal.utils import set_argument_value
 INT_TYPES = (int,)
 
 
-def dsm_kafka_message_produce(instance, args, kwargs):
+def dsm_kafka_message_produce(instance, args, kwargs, is_serializing):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
@@ -29,9 +29,10 @@ def dsm_kafka_message_produce(instance, args, kwargs):
     try:
         on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
     except ArgumentError:
-        on_delivery_kwarg = "callback"
-        on_delivery_arg = 4
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+        if not is_serializing:
+            on_delivery_kwarg = "callback"
+            on_delivery_arg = 4
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
 
     def wrapped_callback(err, msg):
         if err is None:

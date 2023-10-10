@@ -66,19 +66,19 @@ class TracedConsumerMixin:
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
 
-class TracedConsumer(confluent_kafka.Consumer, TracedConsumerMixin):
+class TracedConsumer(TracedConsumerMixin, confluent_kafka.Consumer):
     pass
 
 
-class TracedProducer(confluent_kafka.Producer, TracedProducerMixin):
+class TracedProducer(TracedProducerMixin, confluent_kafka.Producer):
     pass
 
 
-class TracedDeserializingConsumer(confluent_kafka.DeserializingConsumer, TracedConsumerMixin):
+class TracedDeserializingConsumer(TracedConsumerMixin, confluent_kafka.DeserializingConsumer):
     pass
 
 
-class TracedSerializingProducer(confluent_kafka.SerializingProducer, TracedProducerMixin):
+class TracedSerializingProducer(TracedProducerMixin, confluent_kafka.SerializingProducer):
     pass
 
 
@@ -94,23 +94,29 @@ def patch():
     if _DeserializingConsumer is not None:
         confluent_kafka.DeserializingConsumer = TracedDeserializingConsumer
 
-    trace_utils.wrap(TracedProducer, "produce", traced_produce)
-    trace_utils.wrap(TracedConsumer, "poll", traced_poll)
-    trace_utils.wrap(TracedConsumer, "commit", traced_commit)
+    for producer in (TracedProducer, TracedSerializingProducer):
+        trace_utils.wrap(producer, "produce", traced_produce)
+    for consumer in (TracedConsumer, TracedDeserializingConsumer):
+        trace_utils.wrap(consumer, "poll", traced_poll)
+        trace_utils.wrap(consumer, "commit", traced_commit)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
+    Pin().onto(confluent_kafka.SerializingProducer)
+    Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         confluent_kafka._datadog_patch = False
 
-    if trace_utils.iswrapped(TracedProducer.produce):
-        trace_utils.unwrap(TracedProducer, "produce")
-    if trace_utils.iswrapped(TracedConsumer.poll):
-        trace_utils.unwrap(TracedConsumer, "poll")
-    if trace_utils.iswrapped(TracedConsumer.commit):
-        trace_utils.unwrap(TracedConsumer, "commit")
+    for producer in (TracedProducer, TracedSerializingProducer):
+        if trace_utils.iswrapped(producer.produce):
+            trace_utils.unwrap(producer, "produce")
+    for consumer in (TracedConsumer, TracedDeserializingConsumer):
+        if trace_utils.iswrapped(consumer.poll):
+            trace_utils.unwrap(consumer, "poll")
+        if trace_utils.iswrapped(consumer.commit):
+            trace_utils.unwrap(consumer, "commit")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -133,7 +139,7 @@ def traced_produce(func, instance, args, kwargs):
         value = None
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
-    core.dispatch("kafka.produce.start", [instance, args, kwargs])
+    core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer)])
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
