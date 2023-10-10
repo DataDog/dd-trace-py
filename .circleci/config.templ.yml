@@ -873,6 +873,12 @@ jobs:
           pattern: "starlette"
           snapshot: true
 
+  structlog:
+  <<: *contrib_job
+  steps:
+    - run_test:
+        pattern: 'structlog'
+
   sqlalchemy:
     <<: *contrib_job_small
     docker:

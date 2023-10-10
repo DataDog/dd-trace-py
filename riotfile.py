@@ -1044,6 +1044,14 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="structlog",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/structlog",
+            pkgs={
+                "structlog": latest,
+            },
+        ),
+        Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[

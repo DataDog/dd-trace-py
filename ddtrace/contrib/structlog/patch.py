@@ -1,12 +1,13 @@
 import structlog
-
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
-from ...internal.utils import get_argument_value, set_argument_value
+from ...internal.utils import get_argument_value
+from ...internal.utils import set_argument_value
 from ..trace_utils import unwrap as _u
+
 
 RECORD_ATTR_TRACE_ID = "dd.trace_id"
 RECORD_ATTR_SPAN_ID = "dd.span_id"
@@ -31,12 +32,13 @@ def get_version():
 
 def tracer_injection(_, __, event_dict):
 
-    # get correlation ids from current tracer context
     span = ddtrace.tracer.current_span()
+    trace_id = None
 
-    trace_id = span.trace_id
-    if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
-        trace_id = span._trace_id_64bits
+    if span:
+        trace_id = span.trace_id
+        if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+            trace_id = span._trace_id_64bits
 
     dd_trace_id, dd_span_id = (trace_id, span.span_id) if span else (None, None)
 
