@@ -151,6 +151,53 @@ class _DatadogMultiHeader:
         return key.startswith("_dd.p.")
 
     @staticmethod
+    def _get_tags_value(headers):
+        return _extract_header_value(
+            _POSSIBLE_HTTP_HEADER_TAGS,
+            headers,
+            default="",
+        )
+
+    @staticmethod
+    def _extract_meta(tags_value):
+        # Do not fail if the tags are malformed
+        try:
+            meta = {
+                k: v
+                for (k, v) in decode_tagset_string(tags_value).items()
+                if (
+                    k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
+                    and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+                )
+            }
+        except TagsetMaxSizeDecodeError:
+            meta = {
+                "_dd.propagation_error": "extract_max_size",
+            }
+            log.warning("failed to decode x-datadog-tags", exc_info=True)
+        except TagsetDecodeError:
+            meta = {
+                "_dd.propagation_error": "decoding_error",
+            }
+            log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
+        return meta
+
+    @staticmethod
+    def _put_together_trace_id(meta, low_64_bits):
+        # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
+        # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+        # Here we reconstruct the full 128 bit trace_id.
+        trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
+        try:
+            if len(trace_id_hob_hex) != 16:
+                raise ValueError("Invalid size")
+            # combine highest and lowest order hex values to create a 128 bit trace_id
+            return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
+        except ValueError:
+            meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+            log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+
+    @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
@@ -238,46 +285,13 @@ class _DatadogMultiHeader:
         )
 
         meta = None
-        tags_value = _extract_header_value(
-            _POSSIBLE_HTTP_HEADER_TAGS,
-            headers,
-            default="",
-        )
-        if tags_value:
-            # Do not fail if the tags are malformed
-            try:
-                meta = {
-                    k: v
-                    for (k, v) in decode_tagset_string(tags_value).items()
-                    if (
-                        k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
-                        and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-                    )
-                }
-            except TagsetMaxSizeDecodeError:
-                meta = {
-                    "_dd.propagation_error": "extract_max_size",
-                }
-                log.warning("failed to decode x-datadog-tags", exc_info=True)
-            except TagsetDecodeError:
-                meta = {
-                    "_dd.propagation_error": "decoding_error",
-                }
-                log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
+        tags_value = _DatadogMultiHeader._get_tags_value(headers)
+        if tags_value:
+            meta = _DatadogMultiHeader._extract_meta(tags_value)
         if meta and _HIGHER_ORDER_TRACE_ID_BITS in meta:
-            # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
-            # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
-            # Here we reconstruct the full 128 bit trace_id.
-            trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
-            try:
-                if len(trace_id_hob_hex) != 16:
-                    raise ValueError("Invalid size")
-                # combine highest and lowest order hex values to create a 128 bit trace_id
-                trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
-            except ValueError:
-                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
-                log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+            trace_id = _DatadogMultiHeader._put_together_trace_id(meta, trace_id)
+
             # After the full trace id is reconstructed this tag is no longer required
             del meta[_HIGHER_ORDER_TRACE_ID_BITS]
 
