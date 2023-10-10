@@ -24,7 +24,6 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
     s1.link_span(s2.context, link_attributes)
 """
 
-
 from typing import Optional
 
 import attr
@@ -88,8 +87,8 @@ class SpanLink:
             "span_id": self.span_id,
         }
         if self.attributes:
-            d["attributes"] = self.attributes
-        if self._drop_attributes > 0:
+            d["attributes"] = {k: str(v) for k, v in self.attributes.items()}
+        if self._dropped_attributes > 0:
             d["dropped_attributes_count"] = self._dropped_attributes
         if self.tracestate:
             d["tracestate"] = self.tracestate

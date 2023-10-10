@@ -4,6 +4,7 @@ from libc cimport stdint
 from libc.string cimport strlen
 
 import threading
+from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
 
@@ -796,7 +797,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        span_links = span._links_to_json()
+        span_links = ""
+        if span._links:
+            span_links = json_dumps([link.to_dict() for link in span._links])
+
         ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:
             return ret

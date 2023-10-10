@@ -1,4 +1,3 @@
-import json
 import math
 import pprint
 import sys
@@ -561,11 +560,6 @@ class Span(object):
                 attributes=attributes,
             )
         )
-
-    def _links_to_json(self):
-        if self._links:
-            return json.dumps([link.to_dict() for link in self._links])
-        return ""
 
     def finish_with_ancestors(self):
         # type: () -> None
