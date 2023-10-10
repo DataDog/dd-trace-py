@@ -7,7 +7,8 @@ from typing import List
 from typing import Tuple
 
 from bytecode import Bytecode
-from bytecode import Instr
+
+from ddtrace.internal.assembly import Assembly
 
 from .compat import PYTHON_VERSION_INFO as PY
 
@@ -22,6 +23,41 @@ class InvalidLine(Exception):
     """
     Raised when trying to inject a hook on an invalid line, e.g. a comment or a blank line.
     """
+
+
+INJECTION_ASSEMBLY = Assembly()
+if PY >= (3, 12):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        push_null
+        load_const      {hook}
+        load_const      {arg}
+        call            1
+        pop_top
+        """
+    )
+elif PY >= (3, 11):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        push_null
+        load_const      {hook}
+        load_const      {arg}
+        precall         1
+        call            1
+        pop_top
+        """
+    )
+else:
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        load_const      {hook}
+        load_const      {arg}
+        call_function   1
+        pop_top
+        """
+    )
+
+_INJECT_HOOK_OPCODES = [_.name for _ in INJECTION_ASSEMBLY]
 
 
 def _inject_hook(code, hook, lineno, arg):
@@ -58,45 +94,8 @@ def _inject_hook(code, hook, lineno, arg):
     # Additionally, we must discard the return value (top of the stack) to
     # restore the stack to the state prior to the call.
     for i in locs:
-        if PY < (3, 11):
-            code[i:i] = Bytecode(
-                [
-                    Instr("LOAD_CONST", hook, lineno=lineno),
-                    Instr("LOAD_CONST", arg, lineno=lineno),
-                    Instr("CALL_FUNCTION", 1, lineno=lineno),
-                    Instr("POP_TOP", lineno=lineno),
-                ]
-            )
-        elif PY >= (3, 12):
-            code[i:i] = Bytecode(
-                [
-                    Instr("PUSH_NULL", lineno=lineno),
-                    Instr("LOAD_CONST", hook, lineno=lineno),
-                    Instr("LOAD_CONST", arg, lineno=lineno),
-                    Instr("CALL", 1, lineno=lineno),
-                    Instr("POP_TOP", lineno=lineno),
-                ]
-            )
-        else:
-            # Python 3.11
-            code[i:i] = Bytecode(
-                [
-                    Instr("PUSH_NULL", lineno=lineno),
-                    Instr("LOAD_CONST", hook, lineno=lineno),
-                    Instr("LOAD_CONST", arg, lineno=lineno),
-                    Instr("PRECALL", 1, lineno=lineno),
-                    Instr("CALL", 1, lineno=lineno),
-                    Instr("POP_TOP", lineno=lineno),
-                ]
-            )
+        code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-
-# Default to Python 3.11 opcodes
-_INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
-if PY < (3, 11):
-    _INJECT_HOOK_OPCODES = ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-elif PY >= (3, 12):
-    _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "CALL", "POP_TOP"]
 
 _INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
 _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
