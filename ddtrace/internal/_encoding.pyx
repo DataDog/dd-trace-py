@@ -4,7 +4,6 @@ from libc cimport stdint
 from libc.string cimport strlen
 
 import threading
-from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
 
