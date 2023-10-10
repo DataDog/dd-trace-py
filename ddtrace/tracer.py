@@ -6,7 +6,6 @@ import os
 from os import environ
 from os import getpid
 import sys
-import threading
 from threading import RLock
 from typing import TYPE_CHECKING
 
