@@ -20,7 +20,7 @@ config._add(
         _default_service=schematize_service_name("fastapi"),
         request_span_name="fastapi.request",
         distributed_tracing=True,
-        trace_query_string=True,  # Default to global config
+        trace_query_string=None,  # Default to global config
     ),
 )
 
