@@ -76,4 +76,4 @@ def register_on_exit_signal(f):
             # what might go wrong, but we don't want to stop
             # normal program execution based upon failing to register
             # a signal handler.
-            pass  # noqa: B110
+            log.debug("Encountered an exception while registering a signal for %r" % f, exc_info=True)
