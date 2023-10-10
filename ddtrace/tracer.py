@@ -277,8 +277,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        if threading.current_thread() is threading.main_thread():
-            register_on_exit_signal(self._atexit)
+        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
