@@ -44,18 +44,15 @@ class RemoteConfigSubscriber(object):
 
     def _worker(self):
         self.is_running = True
-        while self.is_running:
-            try:
-                self._get_data_from_connector_and_exec()
-            except Exception:
-                log.debug(
-                    "[%s][P: %s] Subscriber %s get an error", os.getpid(), os.getppid(), self._name, exc_info=True
-                )
-            time.sleep(self.interval)
+        try:
+            self._get_data_from_connector_and_exec()
+        except Exception:
+            log.debug("[%s][P: %s] Subscriber %s get an error", os.getpid(), os.getppid(), self._name, exc_info=True)
+        time.sleep(self.interval)
 
     def start(self):
-        log.debug("[%s][P: %s] Subscriber %s starts %s", os.getpid(), os.getppid(), self._name, self.is_running)
-        if not self.is_running:
+        if not self.is_running and self._th_worker is None:
+            log.debug("[%s][P: %s] Subscriber %s starts %s", os.getpid(), os.getppid(), self._name, self.is_running)
             self._th_worker = PeriodicThread(
                 target=self._worker,
                 interval=self.interval,
@@ -63,9 +60,24 @@ class RemoteConfigSubscriber(object):
                 name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             )
             self._th_worker.start()
+        else:
+            is_alive = False
+            if self._th_worker is not None:
+                is_alive = self._th_worker.is_alive()
+            log.debug(
+                "[%s][P: %s] Subscriber %s is trying to start but the subscriber status is %s "
+                "and subscriber thread is %s (is alive: %s)",
+                os.getpid(),
+                os.getppid(),
+                self._name,
+                self.is_running,
+                self._th_worker,
+                is_alive,
+            )
 
-    def force_restart(self):
+    def force_restart(self, join):
         self.is_running = False
+        self.stop(join)
         log.debug(
             "[%s][P: %s] Subscriber %s worker restarts. Status: %s",
             os.getpid(),
@@ -83,3 +95,4 @@ class RemoteConfigSubscriber(object):
             if join:
                 self._th_worker.join()
             log.debug("[%s][P: %s] Subscriber %s. Stopped", os.getpid(), os.getppid(), self._name)
+            self._th_worker = None
