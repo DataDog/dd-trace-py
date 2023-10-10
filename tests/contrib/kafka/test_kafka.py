@@ -300,7 +300,6 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     serializing_producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
-        print(message)
         message = deserializing_consumer.poll(1.0)
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
