@@ -364,4 +364,4 @@ class ElasticsearchPatchTest(TracerTestCase):
         versions = get_versions()
         assert len(versions) > 0
         for module_name, v in versions.items():
-            emit_integration_and_version_to_test_agent(module_name, v)
+            emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
