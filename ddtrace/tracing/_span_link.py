@@ -86,9 +86,11 @@ class SpanLink:
         d = {
             "trace_id": self.trace_id,
             "span_id": self.span_id,
-            "attributes": self.attributes,
-            "dropped_attributes": self._dropped_attributes,
         }
+        if self.attributes:
+            d["attributes"] = self.attributes
+        if self._drop_attributes > 0:
+            d["dropped_attributes_count"] = self._dropped_attributes
         if self.tracestate:
             d["tracestate"] = self.tracestate
         if self.flags:

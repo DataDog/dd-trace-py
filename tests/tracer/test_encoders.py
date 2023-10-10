@@ -408,8 +408,12 @@ def test_span_link_v05_encoding():
         span_id=2,
         tracestate="congo=t61rcWkgMzE",
         traceflags="01",
-        attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"},
+        attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
     )
+
+    assert span._links
+    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
+    span._links[0]._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -424,7 +428,7 @@ def test_span_link_v05_encoding():
     assert (
         encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
         b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
-        b'"dropped_attributes": 0, "tracestate": "congo=t61rcWkgMzE", "flags": "01"}]'
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": "01"}]'
     )
 
 
