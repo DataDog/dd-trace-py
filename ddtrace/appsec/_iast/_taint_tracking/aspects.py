@@ -134,7 +134,11 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
     ):
         return candidate_text[start:stop:step]
     try:
-        return _slice_aspect(candidate_text, start, stop, step)
+        result = _slice_aspect(candidate_text, start, stop, step)
+        expected_result = candidate_text[start:stop:step]
+        if result != expected_result:
+            return expected_result
+        return result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e), traceback.format_exc())
         return candidate_text[start:stop:step]

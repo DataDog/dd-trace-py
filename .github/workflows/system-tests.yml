@@ -33,6 +33,7 @@ jobs:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
           - weblog-variant: django-poc
+          - weblog-variant: fastapi
         #   runs django-poc for 3.12
           - weblog-variant: python3.12
       fail-fast: false
