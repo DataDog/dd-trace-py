@@ -146,7 +146,8 @@ class Context(object):
 
     @property
     def _traceflags(self):
-        return "{:02x}".format(1 if self.sampling_priority and self.sampling_priority > 0 else 0)
+        # type: () -> str
+        return "01" if self.sampling_priority and self.sampling_priority > 0 else "00"
 
     @property
     def _tracestate(self):

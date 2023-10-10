@@ -3,6 +3,7 @@ from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
 
+from json import dumps as json_dumps
 import threading
 
 from ._utils cimport PyBytesLike_Check
@@ -18,7 +19,7 @@ from ._utils cimport PyBytesLike_Check
 #   in both `ddtrace` and `ddtrace.internal`
 
 from ..constants import ORIGIN_KEY
-from ..constants import _SPAN_LINKS_KEY
+from .constants import _SPAN_LINKS_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5

@@ -17,6 +17,7 @@ import pytest
 import six
 
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -32,6 +33,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
 
@@ -401,14 +403,18 @@ def test_span_types(encoding, span, tags):
 def test_span_link_v05_encoding():
     encoder = MSGPACK_ENCODERS["v0.5"](1 << 20, 1 << 20)
 
-    span = Span("name")
-
-    span._set_span_link(
-        trace_id=1,
-        span_id=2,
-        tracestate="congo=t61rcWkgMzE",
-        traceflags="01",
-        attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
+    span = Span(
+        "s1",
+        context=Context(sampling_priority=1),
+        links=[
+            SpanLink(
+                trace_id=1,
+                span_id=2,
+                tracestate="congo=t61rcWkgMzE",
+                flags="01",
+                attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
+            )
+        ],
     )
 
     assert span._links

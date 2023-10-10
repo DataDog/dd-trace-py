@@ -10,7 +10,6 @@ _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
 
 ORIGIN_KEY = "_dd.origin"
-_SPAN_LINKS_KEY = "_dd.span_links"
 USER_ID_KEY = "_dd.p.usr.id"
 HOSTNAME_KEY = "_dd.hostname"
 RUNTIME_FAMILY = "_dd.runtime_family"

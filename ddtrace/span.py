@@ -536,7 +536,7 @@ class Span(object):
         # type: (Context, Optional[Dict[str, Any]]) -> None
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
-            raise ValueError("Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+            raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
 
         self._set_span_link(
             trace_id=context.trace_id,
