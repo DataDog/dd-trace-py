@@ -19,14 +19,11 @@ def current_span(tracer=None):
 
 
 class StructLogTestCase(TracerTestCase):
-
     def setUp(self):
         patch()
         self.cf = structlog.testing.CapturingLoggerFactory()
         structlog.configure(
-            processors=[
-                structlog.processors.JSONRenderer()
-            ],
+            processors=[structlog.processors.JSONRenderer()],
             logger_factory=self.cf,
         )
         self.logger = structlog.getLogger()

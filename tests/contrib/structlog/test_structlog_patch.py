@@ -21,15 +21,15 @@ class TestStructlogPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
 
     def assert_module_patched(self, structlog):
-        pass
+        self.assert_wrapped(structlog.configure)
 
     def assert_not_module_patched(self, structlog):
-        pass
+        self.assert_not_wrapped(structlog.configure)
 
     def assert_not_module_double_patched(self, structlog):
-        pass
+        self.assert_not_double_wrapped(structlog.configure)
 
     def assert_module_implements_get_version(self):
         version = get_version()
         assert type(version) == str
-        assert version != ''
+        assert version != ""
