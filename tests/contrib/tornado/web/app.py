@@ -312,12 +312,17 @@ def make_app(settings=None):
         settings = {}
     settings["ui_modules"] = uimodules
 
+    nested_application = tornado.web.Application(
+        [(r"/nested_app/handler1/", SuccessHandler), (r"/nested_app/handler2/", SuccessHandler)], **settings
+    )
+
     return tornado.web.Application(
         [
             # custom handlers
             (r"/success/", SuccessHandler),
             (r"/status_code/([0-9]+)", ResponseStatusHandler),
-            (r"/nested/", NestedHandler),
+            (r"/nested/.*", NestedHandler),
+            (r"/nested_app/.*", nested_application),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),
             (r"/exception/", ExceptionHandler),
