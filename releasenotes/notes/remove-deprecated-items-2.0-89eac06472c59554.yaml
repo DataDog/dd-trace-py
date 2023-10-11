@@ -1,0 +1,118 @@
+---
+upgrade:
+  - ".. _remove-dd-gevent-patch-all:
+
+
+    ``DD_GEVENT_PATCH_ALL`` is removed.
+    There is no special configuration necessary to make ddtrace work with gevent if using ddtrace-run.
+    
+
+    "
+  - ".. _remove-aws-tag-all-params:
+
+
+    ``DD_AWS_TAG_ALL_PARAMS`` is removed.
+    The boto/botocore/aiobotocore integrations no longer collect all API parameters by default.
+
+    "
+  - ".. _rename-remote-config-poll-seconds:
+
+
+    ``DD_REMOTECONFIG_POLL_SECONDS`` is removed.
+    Use the environment variable ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS`` instead.
+
+    "
+  - ".. _remove-appsec-private-constants:
+
+
+    ``APPSEC_ENABLED``, ``APPSEC_JSON``, ``APPSEC_EVENT_RULE_VERSION``, ``APPSEC_EVENT_RULE_ERRORS``,
+    ``APPSEC_EVENT_RULE_LOADED``, ``APPSEC_EVENT_RULE_ERROR_COUNT``, ``APPSEC_WAF_DURATION``, ``APPSEC_WAF_DURATION_EXT``,
+    ``APPSEC_WAF_TIMEOUTS``, ``APPSEC_WAF_VERSION``, ``APPSEC_ORIGIN_VALUE``, ``APPSEC_BLOCKED``,
+    ``IAST_JSON``, ``IAST_ENABLED``, ``IAST_CONTEXT_KEY`` are removed.
+     This should not affect existing code as these deprecated ASM constants were meant for private use only. 
+
+    "
+  - ".. _remove-fastapi-starlette-span-modifier:
+
+
+    ``ddtrace.contrib.starlette.get_resource``, ``ddtrace.contrib.starlette.span_modifier``, and
+    ``ddtrace.contrib.fastapi.span_modifier`` are removed.
+    The starlette and fastapi integrations now provide the full route and not just the mounted route for sub-applications.
+ 
+
+    "
+  - ".. _remove-fastapi-starlette-aggregate-resources:
+
+
+    ``ddtrace.contrib.starlette.config['aggregate_resources']`` and ``ddtrace.contrib.fastapi.config['aggregate_resources']``
+    are removed.
+    The starlette and fastapi integrations no longer have the option to ``aggregate_resources``, as it
+    now occurs by default.
+     
+
+    "
+  - ".. _remove-grpc-port-key:
+
+
+    ``ddtrace.contrib.grpc.constants.GRPC_PORT_KEY`` is removed.
+    Use ``ddtrace.ext.net.TARGET_PORT`` instead.
+
+
+    "
+  - ".. _remove-cassandra-row-count:
+
+
+    ``ddtrace.ext.cassandra.ROW_COUNT`` is removed.
+    Use ``ddtrace.ext.db.ROWCOUNT`` instead.
+
+
+    "
+  - ".. _remove-mongo-row-count:
+
+
+    ``ddtrace.ext.mongo.ROW_COUNT`` is removed.
+    Use ``ddtrace.ext.db.ROWCOUNT`` instead.
+
+
+    "
+  - ".. _remove-sql-row-count:
+
+
+    ``ddtrace.ext.sql.ROW_COUNT`` is removed.
+    Use ``ddtrace.ext.db.ROWCOUNT`` instead.
+
+
+    "
+  - ".. _remove-trace-ci-visibility-filter:
+
+
+    ``ddtrace.filters.TraceCiVisibilityFilter`` is removed.
+
+
+    "
+  - ".. _remove-dd-log-format:
+
+
+    ``ddtrace.tracer.DD_LOG_FORMAT`` is removed.
+    As an alternative, please follow the log injection formatting as provided in the
+    `log injection docs <https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#update-log-format>`_.
+
+
+    "
+  - ".. _remove-basic-config:
+
+
+    ``DD_CALL_BASIC_CONFIG`` is removed.
+    There is no special configuration necessary to replace ``DD_CALL_BASIC_CONFIG``.
+    The ddtrace logger will log to stdout by default or additionally to a file specified by ``DD_TRACE_LOG_FILE``.
+
+
+    "
+  - ".. _remove-trace-obfuscation-query-string-pattern:
+
+
+    ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` is removed.
+    Use ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` instead.
+
+
+    "

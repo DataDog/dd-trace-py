@@ -1,0 +1,3 @@
+features:
+  - |
+    data_streams: Adds public api ``set_produce_checkpoint`` and ``set_consume_checkpoint``

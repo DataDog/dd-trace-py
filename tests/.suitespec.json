@@ -12,13 +12,15 @@
             "hatch.toml",
             "tests/conftest.py",
             "tests/__init__.py",
-            "tests/.suitespec.json"
+            "tests/.suitespec.json",
+            ".circleci/*"
         ],
         "core": [
             "ddtrace/internal/*",
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
-            "ddtrace/version.py"
+            "ddtrace/version.py",
+            "ddtrace/settings/config.py"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -115,7 +117,8 @@
         ],
         "flask": [
             "ddtrace/contrib/flask/*",
-            "ddtrace/contrib/flask_cache/*"
+            "ddtrace/contrib/flask_cache/*",
+            "ddtrace/contrib/flask_login/*"
         ],
         "fastapi": [
             "ddtrace/contrib/fastapi/*"
@@ -147,9 +150,6 @@
         ],
         "pyramid": [
             "ddtrace/contrib/pyramid/*"
-        ],
-        "pylons": [
-            "ddtrace/contrib/pylons/*"
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
@@ -220,8 +220,7 @@
         "molten": [
             "ddtrace/contrib/molten/*"
         ],
-        "boto": [
-            "ddtrace/contrib/boto/*",
+        "botocore": [
             "ddtrace/contrib/botocore/*",
             "ddtrace/contrib/aiobotocore/*"
         ],
@@ -460,20 +459,12 @@
             "@vendor",
             "tests/vendor/*"
         ],
-        "boto": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@boto",
-            "tests/contrib/boto/*"
-        ],
         "botocore": [
             "@bootstrap",
             "@core",
             "@contrib",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/botocore/*"
         ],
         "test_logging": [
@@ -528,15 +519,6 @@
             "@pg",
             "tests/contrib/asyncpg/*",
             "tests/snapshots/tests.contrib.{suite}.*"
-        ],
-        "pylons": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@appsec",
-            "@pylons",
-            "tests/contrib/pylons/*"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -632,6 +614,7 @@
             "@contrib",
             "@appsec",
             "@asgi",
+            "@wsgi",
             "@django",
             "@dbapi",
             "@pg",
@@ -684,6 +667,7 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
+            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
@@ -970,7 +954,7 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@boto",
+            "@botocore",
             "tests/contrib/aiobotocore/*"
         ],
         "aiomysql": [
@@ -1078,6 +1062,7 @@
             "@tracing",
             "@wsgi",
             "tests/contrib/wsgi/*",
+            "tests/contrib/django/test_django_wsgi.py",
             "tests/contrib/uwsgi/__init__.py",
             "tests/snapshots/tests.contrib.wsgi.*"
         ],

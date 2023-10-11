@@ -1,8 +1,7 @@
 import sys
 
-from bytecode import Compare
+import bytecode as bc
 from bytecode import Instr
-from bytecode import Label
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
@@ -28,27 +27,104 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 # except StopIteration:
 #     return
 # -----------------------------------------------------------------------------
-if PY >= (3, 11):
+if PY >= (3, 12):
 
     def wrap_generator(instrs, code, lineno):
-        from bytecode import TryBegin
-        from bytecode import TryEnd
-
         instrs[0:0] = [
             Instr("RETURN_GENERATOR", lineno=lineno),
             Instr("POP_TOP", lineno=lineno),
         ]
 
-        stopiter = Label()
-        loop = Label()
-        genexit = Label()
-        exc = Label()
-        propagate = Label()
-        _yield = Label()
+        stopiter = bc.Label()
+        loop = bc.Label()
+        genexit = bc.Label()
+        exc = bc.Label()
+        propagate = bc.Label()
+        _yield = bc.Label()
 
-        try_stopiter = TryBegin(stopiter, push_lasti=False)
-        try_stopiter_2 = TryBegin(stopiter, push_lasti=False)
-        try_except = TryBegin(genexit, push_lasti=True)
+        try_stopiter = bc.TryBegin(stopiter, push_lasti=False)
+        try_stopiter_2 = bc.TryBegin(stopiter, push_lasti=False)
+        try_except = bc.TryBegin(genexit, push_lasti=True)
+
+        instrs[-1:] = [
+            try_stopiter,
+            Instr("COPY", 1, lineno=lineno),
+            Instr("STORE_FAST", "__ddgen", lineno=lineno),
+            Instr("LOAD_ATTR", (False, "send"), lineno=lineno),
+            Instr("STORE_FAST", "__ddgensend", lineno=lineno),
+            Instr("PUSH_NULL", lineno=lineno),
+            Instr("LOAD_CONST", next, lineno=lineno),
+            Instr("LOAD_FAST", "__ddgen", lineno=lineno),
+            loop,
+            Instr("CALL", 1, lineno=lineno),
+            bc.TryEnd(try_stopiter),
+            _yield,
+            try_except,
+            Instr("YIELD_VALUE", 3, lineno=lineno),
+            Instr("RESUME", 1, lineno=lineno),
+            Instr("PUSH_NULL", lineno=lineno),
+            Instr("SWAP", 2, lineno=lineno),
+            Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
+            Instr("SWAP", 2, lineno=lineno),
+            Instr("JUMP_BACKWARD", loop, lineno=lineno),
+            bc.TryEnd(try_except),
+            try_stopiter_2,
+            genexit,  # except GeneratorExit:
+            Instr("PUSH_EXC_INFO", lineno=lineno),
+            Instr("LOAD_CONST", GeneratorExit, lineno=lineno),
+            Instr("CHECK_EXC_MATCH", lineno=lineno),
+            Instr("POP_JUMP_IF_FALSE", exc, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+            Instr("LOAD_FAST", "__ddgen", lineno=lineno),
+            Instr("LOAD_ATTR", (True, "close"), lineno=lineno),
+            Instr("CALL", 0, lineno=lineno),
+            Instr("SWAP", 2, lineno=lineno),
+            Instr("POP_EXCEPT", lineno=lineno),
+            Instr("RETURN_VALUE", lineno=lineno),
+            exc,  # except:
+            Instr("POP_TOP", lineno=lineno),
+            Instr("PUSH_NULL", lineno=lineno),
+            Instr("LOAD_FAST", "__ddgen", lineno=lineno),
+            Instr("LOAD_ATTR", (False, "throw"), lineno=lineno),
+            Instr("PUSH_NULL", lineno=lineno),
+            Instr("LOAD_CONST", sys.exc_info, lineno=lineno),
+            Instr("CALL", 0, lineno=lineno),
+            Instr("CALL_FUNCTION_EX", 0, lineno=lineno),
+            Instr("SWAP", 2, lineno=lineno),
+            Instr("POP_EXCEPT", lineno=lineno),
+            Instr("JUMP_BACKWARD", _yield, lineno=lineno),
+            bc.TryEnd(try_stopiter_2),
+            stopiter,  # except StopIteration:
+            Instr("PUSH_EXC_INFO", lineno=lineno),
+            Instr("LOAD_CONST", StopIteration, lineno=lineno),
+            Instr("CHECK_EXC_MATCH", lineno=lineno),
+            Instr("POP_JUMP_IF_FALSE", propagate, lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+            Instr("POP_EXCEPT", lineno=lineno),
+            Instr("RETURN_CONST", None, lineno=lineno),
+            propagate,
+            Instr("RERAISE", 0, lineno=lineno),
+        ]
+
+
+elif PY >= (3, 11):
+
+    def wrap_generator(instrs, code, lineno):
+        instrs[0:0] = [
+            Instr("RETURN_GENERATOR", lineno=lineno),
+            Instr("POP_TOP", lineno=lineno),
+        ]
+
+        stopiter = bc.Label()
+        loop = bc.Label()
+        genexit = bc.Label()
+        exc = bc.Label()
+        propagate = bc.Label()
+        _yield = bc.Label()
+
+        try_stopiter = bc.TryBegin(stopiter, push_lasti=False)
+        try_stopiter_2 = bc.TryBegin(stopiter, push_lasti=False)
+        try_except = bc.TryBegin(genexit, push_lasti=True)
 
         instrs[-1:] = [
             try_stopiter,
@@ -62,7 +138,7 @@ if PY >= (3, 11):
             loop,
             Instr("PRECALL", 1, lineno=lineno),
             Instr("CALL", 1, lineno=lineno),
-            TryEnd(try_stopiter),
+            bc.TryEnd(try_stopiter),
             _yield,
             try_except,
             Instr("YIELD_VALUE", lineno=lineno),
@@ -72,7 +148,7 @@ if PY >= (3, 11):
             Instr("LOAD_FAST", "__ddgensend", lineno=lineno),
             Instr("SWAP", 2, lineno=lineno),
             Instr("JUMP_BACKWARD", loop, lineno=lineno),
-            TryEnd(try_except),
+            bc.TryEnd(try_except),
             try_stopiter_2,
             genexit,  # except GeneratorExit:
             Instr("PUSH_EXC_INFO", lineno=lineno),
@@ -100,7 +176,7 @@ if PY >= (3, 11):
             Instr("SWAP", 2, lineno=lineno),
             Instr("POP_EXCEPT", lineno=lineno),
             Instr("JUMP_BACKWARD", _yield, lineno=lineno),
-            TryEnd(try_stopiter_2),
+            bc.TryEnd(try_stopiter_2),
             stopiter,  # except StopIteration:
             Instr("PUSH_EXC_INFO", lineno=lineno),
             Instr("LOAD_CONST", StopIteration, lineno=lineno),
@@ -120,7 +196,7 @@ else:
     def _compare_exc(label, lineno):
         """Compat helper for comparing exceptions."""
         if PY < (3, 9):
-            return Instr("COMPARE_OP", Compare.EXC_MATCH, lineno=lineno)
+            return Instr("COMPARE_OP", bc.Compare.EXC_MATCH, lineno=lineno)
         return Instr("JUMP_IF_NOT_EXC_MATCH", label, lineno=lineno)
 
     def _jump_if_false(label, lineno):
@@ -154,12 +230,12 @@ else:
         return Instr("CALL_FUNCTION_EX", 0, lineno=lineno)
 
     def wrap_generator(instrs, code, lineno):
-        stopiter = Label()
-        loop = Label()
-        genexit = Label()
-        exc = Label()
-        propagate = Label()
-        _yield = Label()
+        stopiter = bc.Label()
+        loop = bc.Label()
+        genexit = bc.Label()
+        exc = bc.Label()
+        propagate = bc.Label()
+        _yield = bc.Label()
 
         instrs[-1:] = [
             _setup_block(stopiter, lineno),

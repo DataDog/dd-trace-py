@@ -1,0 +1,175 @@
+---
+prelude: >
+  The Datadog APM Python team is happy to announce the release of v2.0.0 of ddtrace.
+  This release drops support for Python 2.7, 3.5, and 3.6. This release adds
+  support for Python 3.12.
+
+
+  .. important::
+
+    If you are on version of Python not supported by v2, we will continue to
+    maintain the ddtrace v1 with bug fixes.
+
+
+  .. note::
+    Before upgrading to v2.0.0, we recommend users install ``ddtrace~=1.20.0``
+    and enable deprecation warnings. All removals to the library interface and
+    environment variables in v2 were deprecated in the 1.x release line.
+
+
+  .. note::
+    The changes to environment variables apply only to the configuration of the
+    ddtrace library and not the Datadog Agent.
+
+
+  Upgrading summary
+
+  ~~~~~~~~~~~~~~~~~
+
+
+  Functionality changes
+
+  *********************
+
+  The default logging configuration functionality of ddtrace has been changed
+  to avoid conflicting with application logging configurations. ``DD_CALL_BASIC_CONFIG``
+  has been removed and the ddtrace logger will log to stdout by default, or a log file
+  as specified using ``DD_TRACE_LOG_FILE``.
+
+
+  Setting the environment variable ``DD_TRACE_PROPAGATION_STYLE='b3'``, 
+  which previously enabled ``b3multi`` now enables ``b3 single header``.
+  ``b3 single header`` still works but is deprecated for ``b3``.
+  Simplified: ``b3`` used to enable ``b3multi``, but now enables ``b3 single header``
+  to better align with Opentelemetry's terms.
+
+
+  Removed deprecated environment variables
+
+  ****************************************
+
+  These environment variables have been removed. In all cases the same
+  functionality is provided by other environment variables and replacements are
+  provided as recommended actions for upgrading.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 45, 45, 10
+
+    * - Variable
+      - Replacement
+      - Note
+    * - ``DD_GEVENT_PATCH_ALL``
+      - None
+      - :ref:`📝<remove-dd-gevent-patch-all>`
+    * - ``DD_AWS_TAG_ALL_PARAMS``
+      - None
+      - :ref:`📝<remove-aws-tag-all-params>`
+    * - ``DD_REMOTECONFIG_POLL_SECONDS``
+      - ``DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS``
+      - :ref:`📝<rename-remote-config-poll-seconds>`
+    * - ``DD_CALL_BASIC_CONFIG``
+      - None
+      - :ref:`📝<remove-basic-config>`
+    * - ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATERN``
+      - ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP``
+      - :ref:`📝<remove-trace-obfuscation-query-string-pattern>`
+
+
+  Removed deprecated library interfaces
+
+  *************************************
+
+  These methods and module attributes have been removed. Where the same
+  functionality is provided by a different public method or module attribute, a
+  recommended action is provided for upgrading. In a few limited cases, because
+  the interface was no longer used or had been moved to the internal interface,
+  it was removed and so no action is provided for upgrading.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 45, 45, 10
+
+    * - Module
+      - Method/Attribute
+      - Note
+    * - ``ddtrace.constants``
+      - ``APPSEC_ENABLED``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * - 
+      - ``APPSEC_JSON``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * - 
+      - ``APPSEC_EVENT_RULE_VERSION``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_EVENT_RULE_ERRORS``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_EVENT_RULE_LOADED``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_EVENT_RULE_ERROR_COUNT``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_WAF_DURATION``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_WAF_DURATION_EXT``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_WAF_TIMEOUTS``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_WAF_VERSION``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_ORIGIN_VALUE``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``APPSEC_BLOCKED``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``IAST_JSON``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``IAST_ENABLED``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * -
+      - ``IAST_CONTEXT_KEY``
+      - :ref:`📝<remove-appsec-private-constants>`
+    * - ``ddtrace.contrib.fastapi.patch``
+      - ``span_modifier``
+      - :ref:`📝<remove-fastapi-starlette-span-modifier>`
+    * - 
+      - ``aggregate_resources``
+      - :ref:`📝<remove-fastapi-starlette-aggregate-resources>`
+    * - ``ddtrace.contrib.starlette.patch``
+      - ``span_modifier``
+      - :ref:`📝<remove-fastapi-starlette-span-modifier>`
+    * - 
+      - ``aggregate_resources``
+      - :ref:`📝<remove-fastapi-starlette-aggregate-resources>`
+    * - 
+      - ``get_resource``
+      - :ref:`📝<remove-fastapi-starlette-span-modifier>`
+    * - ``ddtrace.contrib.grpc.constants``
+      - ``GRPC_PORT_KEY``
+      - :ref:`📝<remove-grpc-port-key>`
+    * - ``ddtrace.ext.cassandra``
+      - ``ROW_COUNT``
+      - :ref:`📝<remove-cassandra-row-count>`
+    * - ``ddtrace.ext.mongo``
+      - ``ROWS``
+      - :ref:`📝<remove-mongo-row-count>`
+    * - ``ddtrace.ext.sql``
+      - ``ROWS``
+      - :ref:`📝<remove-sql-row-count>`
+    * - ``ddtrace.filters``
+      - ``TraceCiVisibilityFilter``
+      - :ref:`📝<remove-trace-ci-visibility-filter>`
+    * - ``ddtrace.tracer``
+      - ``DD_LOG_FORMAT``
+      - :ref:`📝<remove-dd-log-format>`

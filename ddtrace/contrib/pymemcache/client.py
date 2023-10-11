@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Iterable
 
@@ -10,11 +11,11 @@ from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
+import wrapt
 
 # 3p
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -28,10 +29,19 @@ from ...ext import net
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cache_operation
+from ...internal.utils.formats import asbool
 from ...pin import Pin
 
 
 log = get_logger(__name__)
+
+
+config._add(
+    "pymemcache",
+    {
+        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+    },
+)
 
 
 # keep a reference to the original unpatched clients
@@ -317,9 +327,10 @@ def _trace(func, p, method_name, *args, **kwargs):
         # with the application
         try:
             span.set_tags(p.tags)
-            vals = _get_query_string(args)
-            query = "{}{}{}".format(method_name, " " if vals else "", vals)
-            span.set_tag_str(memcachedx.QUERY, query)
+            if config.pymemcache.command_enabled:
+                vals = _get_query_string(args)
+                query = "{}{}{}".format(method_name, " " if vals else "", vals)
+                span.set_tag_str(memcachedx.QUERY, query)
         except Exception:
             log.debug("Error setting relevant pymemcache tags")
 
