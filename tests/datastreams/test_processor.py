@@ -76,7 +76,6 @@ def set_exit():
 @mock.patch("ddtrace.internal.datastreams.processor.DataStreamsProcessor._flush_stats", new_callable=fake_flush)
 def run_test(mock_flush):
     processor = DataStreamsProcessor("http://localhost:9126")
-    processor._flush_stats_with_backoff = fake_flush
     processor.stop(5)  # Stop period processing/flushing
 
     now = time.time()
