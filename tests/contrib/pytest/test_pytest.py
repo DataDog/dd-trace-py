@@ -3098,3 +3098,56 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[2].get_tag("test.module") == "test_package"
         assert test_spans[2].get_tag("test.suite") == "test_names.py"
         assert test_spans[2].get_tag("test.name") == "TestClassTwo.test_ok"
+
+    def test_pytest_ddtrace_name_hooks(self):
+        with open("conftest.py", "w") as fd:
+            fd.write(
+                textwrap.dedent(
+                    """
+                import pytest
+
+                def pytest_ddtrace_get_item_module_name(item):
+                    return "module_test." + item.name
+
+                def pytest_ddtrace_get_item_suite_name(item):
+                    return "suite_test." + item.name
+
+                def pytest_ddtrace_get_item_test_name(item):
+                    return "name_test." + item.name
+                """
+                )
+            )
+        package_outer_dir = self.testdir.mkpydir("test_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_hooks.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def test_ok():
+                        assert True
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.status") == "pass"
+
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.module") == "module_test.test_ok"
+
+        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
+        assert suite_span.get_tag("test.module") == "module_test.test_ok"
+        assert suite_span.get_tag("test.suite") == "suite_test.test_ok"
+
+        test_span = [span for span in spans if span.get_tag("type") == "test"][0]
+        assert test_span.get_tag("test.module") == "module_test.test_ok"
+        assert test_span.get_tag("test.suite") == "suite_test.test_ok"
+        assert test_span.get_tag("test.name") == "name_test.test_ok"
