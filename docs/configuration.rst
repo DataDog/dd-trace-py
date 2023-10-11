@@ -178,9 +178,9 @@ The following environment variables for the tracer are supported:
          ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
          Domain Socket.
 
-         Example for UDP url: ``DD_TRACE_AGENT_URL=udp://localhost:8125``
+         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
 
-         Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
+         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
 
    DD_TRACE_AGENT_TIMEOUT_SECONDS:
      type: Float
