@@ -33,19 +33,19 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
-    read_homepage_lock = asyncio.Semaphore(1)
+    async_condition = asyncio.Condition()
 
     @app.get("/")
-    async def read_homepage(sleep: bool = Header(...)):  # noqa: B008
-        if sleep:
-            async with read_homepage_lock:
-                await read_homepage_lock.acquire()
+    async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
+        async with async_condition:
+            if sleep:
+                await async_condition.wait()
                 return {"Homepage Read": "Sleep"}
-        else:
-            try:
-                return {"Homepage Read": "Success"}
-            finally:
-                read_homepage_lock.release()
+            else:
+                try:
+                    return {"Homepage Read": "Success"}
+                finally:
+                    async_condition.notify_all()
 
     @app.get("/items/{item_id}", response_model=Item)
     async def read_item(item_id: str, x_token: str = Header(...)):  # noqa: B008
