@@ -63,6 +63,7 @@ import time
 
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.tracer import Tracer
 
 def fake_flush(*args, **kwargs):
     print("Fake flush called")
@@ -73,7 +74,8 @@ def set_exit():
     _exit = True
 
 def run_test():
-    processor = DataStreamsProcessor("http://localhost:8126")
+    tracer = Tracer()
+    processor = tracer.data_streams_processor
     processor._flush_stats_with_backoff = fake_flush
     processor.stop(5)  # Stop period processing/flushing
 
