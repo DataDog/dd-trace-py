@@ -3,8 +3,10 @@ version: "3"
 
 services:
     elasticsearch:
-        image: elasticsearch:2.4-alpine
-        platform: linux/amd64
+        image: elasticsearch:7.17.13
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
         ports:
             - "127.0.0.1:9200:9200"
     opensearch:

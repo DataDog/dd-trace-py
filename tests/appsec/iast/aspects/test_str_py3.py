@@ -3,7 +3,7 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
+    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
     from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
     from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
@@ -23,12 +23,7 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         assert as_formatted_evidence(string_input) == ":+-foo-+:"
 
-    @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
     def test_string_build_string_tainted(self):  # type: () -> None
-        # import tests.appsec.iast.fixtures.aspects.str_methods_py3 as mod
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
         string_input = "foo"
         result = mod_py3.do_fmt_value(string_input)  # pylint: disable=no-member
         assert result == "foo     bar"
@@ -36,28 +31,57 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         result = mod_py3.do_fmt_value(string_input)  # pylint: disable=no-member
         assert result == "foo     bar"
-        assert as_formatted_evidence(result) == ":+-foo     bar-+:"
+        assert as_formatted_evidence(result) == ":+-foo-+:     bar"
 
-    @pytest.mark.skip(reason="IAST isn't working correctly with Format strings")
-    def test_string_format_tainted(self):
+    def test_string_fstring_tainted(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
+        string_input = "foo"
+        result = mod_py3.do_repr_fstring(string_input)
+        assert result == "'foo'"
 
-        setup(bytes.join, bytearray.join)
         string_input = create_taint_range_with_format(":+-foo-+:")
 
         result = mod_py3.do_repr_fstring(string_input)  # pylint: disable=no-member
-        assert as_formatted_evidence(result) == ":+-foo       -+:"
+        assert as_formatted_evidence(result) == "':+-foo-+:'"
 
-    def test_string_fstring_twice_tainted(self):
+    def test_string_fstring_with_format_tainted(self):
         # type: () -> None
-        from ddtrace.appsec.iast._taint_tracking import setup
+        string_input = "foo"
+        result = mod_py3.do_repr_fstring_with_format(string_input)
+        assert result == "'foo'     "
 
-        setup(bytes.join, bytearray.join)
+        string_input = create_taint_range_with_format(":+-foo-+:")
+
+        result = mod_py3.do_repr_fstring_with_format(string_input)  # pylint: disable=no-member
+        assert as_formatted_evidence(result) == "':+-foo-+:'     "
+
+    def test_string_fstring_repr_str_twice_tainted(self):
+        # type: () -> None
+        string_input = "foo"
+
+        result = mod_py3.do_repr_fstring_twice(string_input)  # pylint: disable=no-member
+        assert result == "'foo' 'foo'"
+
+        string_input = create_taint_range_with_format(":+-foo-+:")
+
+        result = mod_py3.do_repr_fstring_twice(string_input)  # pylint: disable=no-member
+        assert result == "'foo' 'foo'"
+        assert as_formatted_evidence(result) == "':+-foo-+:' ':+-foo-+:'"
+
+    def test_string_fstring_repr_object_twice_tainted(self):
+        # type: () -> None
+        string_input = "foo"
+        result = mod.MyObject(string_input)
+        assert repr(result) == "foo a"
+
+        result = mod_py3.do_repr_fstring_twice(result)  # pylint: disable=no-member
+        assert result == "foo a foo a"
+
         string_input = create_taint_range_with_format(":+-foo-+:")
         obj = mod.MyObject(string_input)  # pylint: disable=no-member
 
         result = mod_py3.do_repr_fstring_twice(obj)  # pylint: disable=no-member
+        assert result == "foo a foo a"
         assert as_formatted_evidence(result) == ":+-foo-+: a :+-foo-+: a"
 
     def test_string_fstring_twice_different_objects_tainted(self):  # type: () -> None
@@ -66,4 +90,13 @@ class TestOperatorsReplacement(BaseReplacement):
         obj2 = mod.MyObject(string_input)  # pylint: disable=no-member
 
         result = mod_py3.do_repr_fstring_twice_different_objects(obj, obj2)  # pylint: disable=no-member
+        assert result == "foo a foo a"
         assert as_formatted_evidence(result) == ":+-foo-+: a :+-foo-+: a"
+
+    def test_string_fstring_twice_different_objects_tainted_twice(self):  # type: () -> None
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        obj = mod.MyObject(string_input)  # pylint: disable=no-member
+
+        result = mod_py3.do_repr_fstring_with_format_twice(obj)  # pylint: disable=no-member
+        assert result == "foo a      foo a      "
+        assert as_formatted_evidence(result) == ":+-foo-+: a      :+-foo-+: a      "

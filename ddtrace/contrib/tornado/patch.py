@@ -1,10 +1,10 @@
 import os
 
 import tornado
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import application
 from . import context_provider
@@ -21,6 +21,11 @@ config._add(
         distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(tornado, "version", "")
 
 
 def patch():

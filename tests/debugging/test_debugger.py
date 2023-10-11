@@ -2,7 +2,6 @@ from collections import Counter
 import os.path
 import sys
 from threading import Thread
-from time import sleep
 
 import mock
 from mock.mock import call
@@ -47,15 +46,13 @@ def simple_debugger_test(probe, func):
         probe_id = probe.probe_id
 
         d.add_probes(probe)
-        sleep(0.2)
+
         try:
             func()
         except Exception:
             pass
-        # wait for uploader to write snapshots
-        sleep(0.2)
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
         payloads = list(d.uploader.payloads)
         assert payloads
         for snapshots in payloads:
@@ -129,21 +126,18 @@ def test_debugger_probe_new_delete(probe, trigger):
     with debugger() as d:
         probe_id = probe.probe_id
         d.add_probes(probe)
-        sleep(0.5)
 
         assert probe in d._probe_registry
-        assert _get_probe_location(probe) in sys.modules._locations
+        assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
         trigger()
 
         d.remove_probes(probe)
 
-        sleep(0.5)
-
         # Test that the probe was ejected
         assert probe not in d._probe_registry
 
-        assert _get_probe_location(probe) not in sys.modules._locations
+        assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -159,7 +153,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         trigger()
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
 
         (payload,) = d.uploader.payloads
         assert payload
@@ -237,11 +231,9 @@ def test_debugger_invalid_condition():
             ),
             good_probe(),
         )
-        sleep(0.5)
         Stuff().instancestuff()
-        sleep(0.1)
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
         for snapshots in d.uploader.payloads[1:]:
             assert snapshots
             assert all(s["debugger.snapshot"]["probe"]["id"] != "foo" for s in snapshots)
@@ -278,11 +270,9 @@ def test_debugger_invalid_line():
             ),
             good_probe(),
         )
-        sleep(0.5)
         Stuff().instancestuff()
-        sleep(0.1)
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
         for snapshots in d.uploader.payloads[1:]:
             assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidline" for s in snapshots)
             assert snapshots
@@ -299,15 +289,13 @@ def test_debugger_invalid_source_file(log):
             ),
             good_probe(),
         )
-        sleep(0.5)
         Stuff().instancestuff()
-        sleep(0.1)
 
         log.error.assert_called_once_with(
             "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", None
         )
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
         for snapshots in d.uploader.payloads[1:]:
             assert all(s["debugger.snapshot"]["probe"]["id"] != "invalidsource" for s in snapshots)
             assert snapshots
@@ -354,16 +342,13 @@ def test_debugger_tracer_correlation():
                 condition=None,
             )
         )
-        sleep(1)
 
         with d._tracer.trace("test-span") as span:
             trace_id = span.trace_id
             span_id = span.span_id
-            sleep(1)
             Stuff().instancestuff()
-            sleep(1)
 
-        assert d.uploader.queue
+        d.uploader.wait_for_payloads()
         assert d.uploader.payloads
         for snapshots in d.uploader.payloads[1:]:
             assert snapshots
@@ -392,10 +377,11 @@ def test_debugger_captured_exception():
 
 def test_debugger_multiple_threads():
     with debugger() as d:
-        d.add_probes(
+        probes = [
             good_probe(),
             create_snapshot_line_probe(probe_id="thread-test", source_file="tests/submod/stuff.py", line=40),
-        )
+        ]
+        d.add_probes(*probes)
 
         callables = [Stuff().instancestuff, lambda: Stuff().propertystuff]
         threads = [Thread(target=callables[_ % len(callables)]) for _ in range(10)]
@@ -406,16 +392,8 @@ def test_debugger_multiple_threads():
         for t in threads:
             t.join()
 
-        d.uploader.wait_for_payloads(
-            lambda q: q and all(len(snapshots) >= len(callables) for snapshots in d.uploader.payloads)
-        )
-
-        for snapshots in d.uploader.payloads[1:]:
-            assert len(snapshots) >= len(callables)
-            assert {s["debugger.snapshot"]["probe"]["id"] for s in snapshots} == {
-                "probe-instance-method",
-                "thread-test",
-            }
+        q = d.collector.wait(cond=lambda q: len(q) >= len(callables))
+        assert {_.probe.probe_id for _ in q} == {p.probe_id for p in probes}
 
 
 @pytest.fixture
@@ -445,7 +423,6 @@ def create_stuff_line_metric_probe(kind, value=None):
 def test_debugger_metric_probe_simple_count(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
-        sleep(0.5)
         Stuff().instancestuff()
         assert call("probe.test.counter", 1.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
 
@@ -453,7 +430,6 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
-        sleep(0.5)
         Stuff().instancestuff(40)
         assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
 
@@ -461,7 +437,6 @@ def test_debugger_metric_probe_count_value(mock_metrics):
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
-        sleep(0.5)
         Stuff().instancestuff(41)
         assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
 
@@ -469,7 +444,6 @@ def test_debugger_metric_probe_guage_value(mock_metrics):
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
-        sleep(0.5)
         Stuff().instancestuff(42)
         assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
 
@@ -477,7 +451,6 @@ def test_debugger_metric_probe_histogram_value(mock_metrics):
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
-        sleep(0.5)
         Stuff().instancestuff(43)
         assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
 
@@ -490,34 +463,42 @@ def test_debugger_multiple_function_probes_on_same_function():
             probe_id="probe-instance-method-%d" % i,
             module="tests.submod.stuff",
             func_qname="Stuff.instancestuff",
+            rate=float("inf"),
         )
         for i in range(3)
     ]
 
     with debugger() as d:
         d.add_probes(*probes)
-        sleep(0.5)
 
         assert Stuff.instancestuff.__dd_wrappers__ == {probe.probe_id: probe for probe in probes}
         Stuff().instancestuff(42)
 
-        d.remove_probes(probes[1])
+        d.collector.wait(
+            lambda q: Counter(s.probe.probe_id for s in q)
+            == {
+                "probe-instance-method-0": 1,
+                "probe-instance-method-1": 1,
+                "probe-instance-method-2": 1,
+            }
+        )
 
-        sleep(2.5)
+        d.remove_probes(probes[1])
 
         assert "probe-instance-method-1" not in Stuff.instancestuff.__dd_wrappers__
 
         Stuff().instancestuff(42)
 
-        assert Counter(s.probe.probe_id for s in d.test_queue) == {
-            "probe-instance-method-0": 2,
-            "probe-instance-method-2": 2,
-            "probe-instance-method-1": 1,
-        }
+        d.collector.wait(
+            lambda q: Counter(s.probe.probe_id for s in q)
+            == {
+                "probe-instance-method-0": 2,
+                "probe-instance-method-2": 2,
+                "probe-instance-method-1": 1,
+            }
+        )
 
         d.remove_probes(probes[0], probes[2])
-
-        sleep(2.1)
 
         Stuff().instancestuff(42)
 
@@ -532,7 +513,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa
+import wrapt as wrapt  # noqa
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -552,7 +533,6 @@ def test_debugger_function_probe_on_wrapped_function(stuff):
 
     with debugger() as d:
         d.add_probes(*probes)
-        sleep(0.5)
 
         stuff.Stuff().instancestuff(42)
 
@@ -573,7 +553,6 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 
     with debugger() as d:
         d.add_probes(*probes)
-        sleep(0.5)
 
         wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
         assert stuff.Stuff.instancestuff.__code__ is stuff.Stuff.instancestuff.__wrapped__.__code__
@@ -605,7 +584,6 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
                 condition=None,
             )
         )
-        sleep(0.5)
 
         stuff.Stuff().instancestuff(42)
 
@@ -616,7 +594,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -639,15 +617,17 @@ def test_probe_status_logging(remote_config_worker):
 
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1})
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2})
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3})
 
 
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -684,6 +664,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
         assert versions(queue, "INSTALLED") == [1, 2]
         assert versions(queue, "RECEIVED") == [1]
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 1})
         assert versions(queue, "INSTALLED") == [1, 2, 2]
 
@@ -692,7 +673,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 
-    with debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0) as d:
         d.add_probes(
             create_snapshot_function_probe(
                 probe_id="duration-probe",
@@ -710,7 +691,7 @@ def test_debugger_function_probe_duration(duration):
 def test_debugger_condition_eval_then_rate_limit():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -726,7 +707,7 @@ def test_debugger_condition_eval_then_rate_limit():
         for i in range(100):
             Stuff().instancestuff(i)
 
-        sleep(0.5)
+        d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot generated by the 42 call.
         assert d.signal_state_counter[SignalState.SKIP_COND] == 99
@@ -740,7 +721,7 @@ def test_debugger_condition_eval_then_rate_limit():
 def test_debugger_condition_eval_error_get_reported_once():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -754,7 +735,7 @@ def test_debugger_condition_eval_error_get_reported_once():
         for i in range(100):
             Stuff().instancestuff(i)
 
-        sleep(0.5)
+        d.uploader.wait_for_payloads()
 
         # We expect to see just the snapshot with error only.
         assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
@@ -868,7 +849,7 @@ def test_debugger_lambda_fuction_access_locals():
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -887,9 +868,7 @@ def test_debugger_log_live_probe_generate_messages():
         Stuff().instancestuff(123)
         Stuff().instancestuff(456)
 
-        sleep(0.5)
-
-        (msgs,) = d.uploader.payloads
+        (msgs,) = d.uploader.wait_for_payloads()
         msg1, msg2 = msgs
         assert "hello world ERROR 123!" == msg1["message"], msg1
         assert "hello world ERROR 456!" == msg2["message"], msg2
@@ -1013,7 +992,7 @@ class SpanProbeTestCase(TracerTestCase):
 def test_debugger_modified_probe():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -1026,9 +1005,7 @@ def test_debugger_modified_probe():
 
         Stuff().instancestuff()
 
-        sleep(0.2)
-
-        ((msg,),) = d.uploader.payloads
+        ((msg,),) = d.uploader.wait_for_payloads()
         assert "hello world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 1, msg
 
@@ -1044,9 +1021,7 @@ def test_debugger_modified_probe():
 
         Stuff().instancestuff()
 
-        sleep(0.2)
-
-        _, (msg,) = d.uploader.payloads
+        _, (msg,) = d.uploader.wait_for_payloads(lambda q: len(q) == 2)
         assert "hello brave new world" == msg["message"], msg
         assert msg["debugger.snapshot"]["probe"]["version"] == 2, msg
 

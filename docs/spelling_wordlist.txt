@@ -27,7 +27,9 @@ app
 appsec
 aredis
 args
+ascii
 asgi
+asm
 async
 asyncio
 asyncpg
@@ -69,12 +71,14 @@ datastores
 dbapi
 ddtrace
 deprecations
+deserializing
 django
 docstring
 doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -85,6 +89,7 @@ entrypoint
 entrypoints
 env
 enqueuer
+eol
 exec
 fastapi
 formatter
@@ -103,6 +108,7 @@ httplib
 https
 httpx
 iPython
+iast
 ini
 InitContainer
 initializer
@@ -132,6 +138,7 @@ metadata
 microservices
 middleware
 middlewares
+misencoded
 moderations
 mongoengine
 multiline
@@ -141,11 +148,13 @@ mypy
 mysql
 mysqlclient
 mysqldb
+msgpack
 namespace
 NeedsAppKey
 obfuscator
 openai
 opensearch
+opentelemetry
 opentracer
 opentracing
 otel
@@ -163,6 +172,7 @@ prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -202,6 +212,8 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
+stdout
 stringable
 subclass
 subdirectory
@@ -223,6 +235,7 @@ unittest
 unix
 unpatch
 unpatched
+unobfuscated
 unregister
 unshallow
 unvendored
@@ -231,12 +244,14 @@ url
 urls
 username
 uvicorn
+vendored
 versioned
 vertica
 w3c
 whitelist
 whitespace
 workflow
+Wrapt
 wsgi
 xfail
 yaaredis
@@ -251,3 +266,7 @@ programmatically
 DES
 Blowfish
 Gitlab
+Enablement
+hotspot
+CMake
+libdatadog

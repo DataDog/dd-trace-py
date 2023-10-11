@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where errors during streamed requests resulted in unfinished spans.

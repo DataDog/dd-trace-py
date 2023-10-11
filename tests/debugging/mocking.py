@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import json
 from time import sleep
 from typing import Any
+from typing import Generator
 
 from envier import En
 
@@ -100,6 +101,20 @@ class TestSignalCollector(SignalCollector):
         self.test_queue.append(snapshot)
         return super(TestSignalCollector, self)._enqueue(snapshot)
 
+    @property
+    def queue(self):
+        return self.test_queue
+
+    def wait(self, cond=lambda q: q, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() <= end:
+            if cond(self.test_queue):
+                return self.test_queue
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
+
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
@@ -131,8 +146,15 @@ class TestDebugger(Debugger):
         return self._uploader
 
     @property
+    def collector(self):
+        return self._collector
+
+    @property
     def probe_status_logger(self):
         return self._probe_registry.logger
+
+    def log_probe_status(self):
+        self._probe_registry.log_probes_status()
 
     def assert_no_snapshots(self):
         assert len(self.test_queue) == 0
@@ -145,7 +167,7 @@ class TestDebugger(Debugger):
 
 @contextmanager
 def _debugger(config_to_override, config_overrides):
-    # type: (En, Any) -> None
+    # type: (En, Any) -> Generator[TestDebugger, None, None]
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
@@ -171,7 +193,7 @@ def _debugger(config_to_override, config_overrides):
 
 @contextmanager
 def debugger(**config_overrides):
-    # type: (Any) -> None
+    # type: (Any) -> Generator[TestDebugger, None, None]
     """Test with the debugger enabled."""
     with _debugger(di_config, config_overrides) as debugger:
         yield debugger
@@ -179,6 +201,7 @@ def debugger(**config_overrides):
 
 @contextmanager
 def exception_debugging(**config_overrides):
+    # type: (Any) -> Generator[TestDebugger, None, None]
     config_overrides.setdefault("enabled", True)
 
     with _debugger(ed_config, config_overrides) as ed:

@@ -1,12 +1,12 @@
 import os
 
 import urllib3
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -36,6 +36,11 @@ config._add(
         "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(urllib3, "__version__", "")
 
 
 def patch():

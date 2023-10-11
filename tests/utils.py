@@ -11,6 +11,7 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
+import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -29,7 +30,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -95,6 +95,7 @@ def override_global_config(values):
     # List of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
+        "_tracing_enabled",
         "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",
@@ -124,11 +125,19 @@ def override_global_config(values):
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
+        "_remote_config_enabled",
+        "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
+        "_trace_api",
+        "_trace_writer_buffer_size",
+        "_trace_writer_payload_size",
+        "_trace_writer_interval_seconds",
+        "_trace_writer_connection_reuse",
+        "_trace_writer_log_err_payload",
     ]
 
     # Grab the current values of all keys
@@ -1089,6 +1098,11 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
+class AnyStringWithText(str):
+    def __eq__(self, other):
+        return self in other
+
+
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
@@ -1108,10 +1122,14 @@ def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    if PY2:
-        # Python 2 doesn't support timeout
-        stdout, stderr = subp.communicate()
-    else:
+    try:
+        if PY2:
+            # Python 2 doesn't support timeout
+            stdout, stderr = subp.communicate()
+        else:
+            stdout, stderr = subp.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 

@@ -3,6 +3,8 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from openai import version
+
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
@@ -35,6 +37,11 @@ config._add(
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return version.VERSION
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
@@ -342,6 +349,7 @@ def _patched_make_session(func, args, kwargs):
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
+    err = None
     if openai_api_key:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
@@ -350,22 +358,23 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
         hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
         hook.send(None)
 
-        resp, error = yield
+        resp, err = yield
 
         # Record any error information
-        if error is not None:
+        if err is not None:
             span.set_exc_info(*sys.exc_info())
             integration.metric(span, "incr", "request.error", 1)
 
         # Pass the response and the error to the hook
         try:
-            hook.send((resp, error))
+            hook.send((resp, err))
         except StopIteration as e:
-            if error is None:
+            if err is None:
                 return e.value
     finally:
-        # Streamed responses will be finished when the generator exits.
-        if not kwargs.get("stream"):
+        # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
+        # Streamed responses with error will need to be finished manually as well.
+        if not kwargs.get("stream") or err is not None:
             span.finish()
             integration.metric(span, "dist", "request.duration", span.duration_ns)
 

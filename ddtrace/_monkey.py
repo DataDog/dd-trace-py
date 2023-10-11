@@ -3,7 +3,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
@@ -89,6 +89,7 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "subprocess": True,
+    "unittest": True,
 }
 
 
@@ -109,10 +110,14 @@ _PATCHED_MODULES = set()
 _MODULES_FOR_CONTRIB = {
     "elasticsearch": (
         "elasticsearch",
+        "elasticsearch1",
         "elasticsearch2",
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        # Starting with version 8, the default transport which is what we
+        # actually patch is found in the separate elastic_transport package
+        "elastic_transport",
         "opensearchpy",
     ),
     "psycopg": (
@@ -164,7 +169,14 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
             )
         else:
             imported_module.patch()
-            telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "")
+            if hasattr(imported_module, "get_versions"):
+                versions = imported_module.get_versions()
+                for name, v in versions.items():
+                    telemetry_writer.add_integration(name, True, PATCH_MODULES.get(module) is True, "", version=v)
+            else:
+                version = imported_module.get_version()
+                telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
+
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
 
@@ -202,7 +214,7 @@ def patch_all(**patch_modules):
 
     patch(raise_errors=False, **modules)
     if config._iast_enabled:
-        from ddtrace.appsec.iast._patch_modules import patch_iast
+        from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()
 
@@ -236,12 +248,10 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         with _LOCK:
             _PATCHED_MODULES.add(contrib)
 
-    patched_modules = _get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)",
-        len(patched_modules),
+        "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
         len(contribs),
-        ",".join(patched_modules),
+        ",".join(contribs),
     )
 
 

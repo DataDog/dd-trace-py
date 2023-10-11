@@ -3,11 +3,15 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
+from cassandra import __version__
+
 
 try:
     import cassandra.cluster as cassandra_cluster
 except AttributeError:
     from cassandra import cluster as cassandra_cluster
+
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -30,7 +34,6 @@ from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-from ...vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -43,6 +46,11 @@ PAGE_NUMBER = "_ddtrace_page_number"
 
 # Original connect connect function
 _connect = cassandra_cluster.Cluster.connect
+
+
+def get_version():
+    # type: () -> str
+    return __version__
 
 
 def patch():

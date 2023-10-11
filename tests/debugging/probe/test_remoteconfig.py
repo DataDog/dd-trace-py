@@ -1,5 +1,4 @@
 import random
-from time import sleep
 from uuid import uuid4
 
 import mock
@@ -40,6 +39,13 @@ class MockConfig(object):
                 del self.probes[probe_id]
             except KeyError:
                 pass
+
+
+class SyncProbeRCAdapter(ProbeRCAdapter):
+    def __init__(self, *args, **kwargs):
+        super(SyncProbeRCAdapter, self).__init__(*args, **kwargs)
+        # Prevent the worker thread from starting. We call methods manually.
+        self._subscriber.is_running = True
 
 
 def config_metadata(config_id=None):
@@ -127,7 +133,7 @@ def test_poller_env_version(env, version, expected, remote_config_worker, mock_c
             ]
         )
 
-        adapter = ProbeRCAdapter(None, callback, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, callback, status_logger=None)
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         remoteconfig_poller._poll_data()
@@ -141,14 +147,10 @@ def test_poller_remove_probe():
     def cb(e, ps):
         events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
 
-    def validate_events(expected):
-        assert events == expected
-        events.clear()
-
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = ProbeRCAdapter(None, cb, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, cb, status_logger=None)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -166,11 +168,9 @@ def test_poller_remove_probe():
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+        }
 
         adapter.append_and_publish(
             False,
@@ -179,11 +179,10 @@ def test_poller_remove_probe():
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
+        }
 
     finally:
         di_config.diagnostics_interval = old_interval
@@ -195,15 +194,10 @@ def test_poller_remove_multiple_probe():
     def cb(e, ps):
         events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
 
-    def validate_events(expected):
-        assert events == expected
-        events.clear()
-
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = float("inf")
     try:
-        adapter = ProbeRCAdapter(None, cb, status_logger=None)
-        # Wait to allow the next call to the adapter to generate a status event
+        adapter = SyncProbeRCAdapter(None, cb, status_logger=None)
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append(
             {
@@ -234,12 +228,10 @@ def test_poller_remove_multiple_probe():
         adapter.publish()
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+        }
 
         adapter.append_and_publish(
             False,
@@ -248,11 +240,12 @@ def test_poller_remove_multiple_probe():
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
+        }
+
         adapter.append_and_publish(
             False,
             "",
@@ -260,11 +253,12 @@ def test_poller_remove_multiple_probe():
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.DELETED_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
+        }
     finally:
         di_config.diagnostics_interval = old_interval
 
@@ -306,9 +300,9 @@ def test_poller_events(remote_config_worker, mock_config):
 
     metadata = config_metadata()
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = float("inf")
     try:
-        adapter = ProbeRCAdapter(None, callback, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, callback, status_logger=None)
         remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": 2}, "", metadata)
         remoteconfig_poller._poll_data()
@@ -334,16 +328,18 @@ def test_poller_events(remote_config_worker, mock_config):
         adapter.append_and_publish({"test": 3}, "", metadata)
         remoteconfig_poller._poll_data()
 
-        # Wait to allow the next call to the adapter to generate a status event
-        sleep(0.5)
+        adapter._subscriber._send_status_update()
+
         adapter.append_and_publish({"test": 4}, "", metadata)
         remoteconfig_poller._poll_data()
-        sleep(0.5)
+
+        adapter._subscriber._send_status_update()
+
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
             (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
         }, events
     finally:
         di_config.diagnostics_interval = old_interval
@@ -355,14 +351,10 @@ def test_multiple_configs(remote_config_worker):
     def cb(e, ps):
         events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
 
-    def validate_events(expected):
-        assert events == expected
-        events.clear()
-
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = float("inf")
     try:
-        adapter = ProbeRCAdapter(None, cb, status_logger=mock.Mock())
+        adapter = SyncProbeRCAdapter(None, cb, status_logger=mock.Mock())
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -380,11 +372,9 @@ def test_multiple_configs(remote_config_worker):
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+        }
 
         adapter.append_and_publish(
             {
@@ -401,11 +391,10 @@ def test_multiple_configs(remote_config_worker):
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+        }
 
         adapter.append_and_publish(
             {
@@ -422,36 +411,36 @@ def test_multiple_configs(remote_config_worker):
         )
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+        }
 
-        sleep(0.5)
+        adapter._subscriber._send_status_update()
 
-        # testing two things:
-        #  1. after sleep 0.5 probe status should report 2 probes
-        #  2. bad config raises ValueError
         with pytest.raises(InvalidProbeConfiguration):
             adapter.append_and_publish({}, "", config_metadata("not-supported"))
             remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2", "probe3"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
+        }
 
         # remove configuration
         adapter.append_and_publish(None, "", config_metadata("metricProbe_probe2"))
         remoteconfig_poller._poll_data()
 
-        validate_events(
-            {
-                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
-            }
-        )
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            (ProbePollerEvent.NEW_PROBES, frozenset({"probe3"})),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
+            (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
+        }
 
     finally:
         di_config.diagnostics_interval = old_interval
@@ -556,12 +545,14 @@ def test_modified_probe_events(remote_config_worker, mock_config):
 
     metadata = config_metadata()
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = float("inf")
     try:
-        adapter = ProbeRCAdapter(None, cb, None)
+        adapter = SyncProbeRCAdapter(None, cb, None)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
-        sleep(0.5)
+
+        adapter._subscriber._send_status_update()
+
         adapter.append_and_publish({"test": 5}, "", metadata)
         remoteconfig_poller._poll_data()
 
@@ -578,8 +569,9 @@ def test_modified_probe_events(remote_config_worker, mock_config):
         )
         adapter.append_and_publish({"test": 6}, "", metadata)
         remoteconfig_poller._poll_data()
-        # Wait to allow the next call to the adapter to generate a status event
-        sleep(0.5)
+
+        adapter._subscriber._send_status_update()
+
         adapter.append_and_publish({"test": 7}, "", metadata)
         remoteconfig_poller._poll_data()
 
@@ -587,7 +579,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
             (ProbePollerEvent.STATUS_UPDATE, frozenset()),
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
             (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe1"])),
-            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset()),
         ]
     finally:
         di_config.diagnostics_interval = old_interval
@@ -601,18 +593,18 @@ def test_expression_compilation_error(remote_config_worker, mock_config_exc):
 
     metadata = config_metadata()
     old_interval = di_config.diagnostics_interval
-    di_config.diagnostics_interval = 0.5
+    di_config.diagnostics_interval = float("inf")
     try:
         status_logger = mock.Mock()
-        adapter = ProbeRCAdapter(None, cb, status_logger=status_logger)
+        adapter = SyncProbeRCAdapter(None, cb, status_logger=status_logger)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
-        sleep(0.5)
+
         adapter.append_and_publish({"id": "error", "version": 0}, "", metadata)
         remoteconfig_poller._poll_data()
 
         status_logger.error.assert_called_once()
-        assert status_logger.error.call_args[1]["message"] == "test exception"
+        assert status_logger.error.call_args[1]["error"] == ("Exception", "test exception")
         assert status_logger.error.call_args[1]["probe"].probe_id == "error"
     finally:
         di_config.diagnostics_interval = old_interval

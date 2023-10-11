@@ -1,4 +1,4 @@
-name: Build Python 3.6+
+name: Build Python 3
 
 on:
   workflow_call:
@@ -44,7 +44,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels python 3.6 and above
+      - name: Build wheels
         uses: pypa/cibuildwheel@v2.14.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
@@ -53,6 +53,7 @@ jobs:
           CIBW_BUILD: ${{ inputs.cibw_build }}
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
 
       - uses: actions/upload-artifact@v3
         with:

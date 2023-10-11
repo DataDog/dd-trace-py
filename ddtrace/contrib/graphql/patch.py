@@ -44,12 +44,18 @@ from .. import trace_utils
 from ...ext import SpanTypes
 
 
-_graphql_version = parse_version(graphql.__version__)
+_graphql_version_str = graphql.__version__
+_graphql_version = parse_version(_graphql_version_str)
 
 if _graphql_version < (3, 0):
     from graphql.language.ast import Document
 else:
     from graphql.language.ast import DocumentNode as Document
+
+
+def get_version():
+    # type: () -> str
+    return _graphql_version_str
 
 
 config._add(
@@ -277,7 +283,7 @@ def _get_source_str(obj):
         source_str = obj
     elif isinstance(obj, Source):
         source_str = obj.body
-    elif isinstance(obj, Document):
+    elif isinstance(obj, Document) and obj.loc is not None:
         source_str = obj.loc.source.body
     else:
         source_str = ""

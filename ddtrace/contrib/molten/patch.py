@@ -1,11 +1,11 @@
 import os
 
 import molten
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ... import Pin
@@ -39,6 +39,11 @@ config._add(
         distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(molten, "__version__", "")
 
 
 def patch():

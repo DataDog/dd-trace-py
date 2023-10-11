@@ -1,11 +1,11 @@
 import os
 
 import pymysql
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
-from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
@@ -23,6 +23,12 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(pymysql, "__version__", "")
+
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",

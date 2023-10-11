@@ -2,31 +2,35 @@ import sys
 
 import pytest
 
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._utils import _is_python_version_supported
-from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec.iast.taint_sinks.path_traversal import patch as path_traversal_patch
-from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
-from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
-from ddtrace.appsec.iast.taint_sinks.weak_hash import patch as weak_hash_patch
-from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._utils import _is_python_version_supported
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
+from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
+from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
+from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
+from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
+from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 if sys.version_info >= (3, 6):
-    from ddtrace.appsec.iast._patches.json_tainting import patch as json_patch
-    from ddtrace.appsec.iast._patches.json_tainting import unpatch_iast as json_unpatch
+    from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+    from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
 
 
 def iast_span(tracer, env, request_sampling="100"):
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
     VulnerabilityBase._reset_cache()
-    with override_env(env):
+    with override_global_config(dict(_iast_enabled=True)), override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:
             weak_hash_patch()
             weak_cipher_patch()
             path_traversal_patch()
+            sqli_sqlite_patch()
             if sys.version_info >= (3, 6):
                 json_patch()
             oce.acquire_request(span)
@@ -34,6 +38,7 @@ def iast_span(tracer, env, request_sampling="100"):
             oce.release_request()
             weak_hash_unpatch()
             weak_cipher_unpatch()
+            sqli_sqlite_unpatch()
             if sys.version_info >= (3, 6):
                 json_unpatch()
 
@@ -86,14 +91,14 @@ def iast_span_only_sha1(tracer):
         yield t
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def iast_context():
     if _is_python_version_supported():
-        from ddtrace.appsec.iast._taint_tracking import contexts_reset
-        from ddtrace.appsec.iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import reset_context
 
-        create_context()
+        _ = create_context()
         yield
-        contexts_reset()
+        reset_context()
     else:
         yield

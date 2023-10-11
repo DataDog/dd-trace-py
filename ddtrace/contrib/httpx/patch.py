@@ -4,6 +4,7 @@ import typing
 import httpx
 from six import ensure_binary
 from six import ensure_text
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -23,15 +24,21 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
+    from wrapt import BoundFunctionWrapper
+
     from ddtrace import Span
-    from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(httpx, "__version__", "")
+
 
 config._add(
     "httpx",

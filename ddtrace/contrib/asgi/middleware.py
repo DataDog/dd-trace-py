@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import ddtrace
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import utils as appsec_utils
+from ddtrace.appsec import _utils as appsec_utils
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -39,6 +39,11 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def bytes_to_str(str_or_bytes):

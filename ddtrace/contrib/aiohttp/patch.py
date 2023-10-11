@@ -1,5 +1,7 @@
 import os
 
+import aiohttp
+import wrapt
 from yarl import URL
 
 from ddtrace import config
@@ -9,7 +11,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor import wrapt
 
 from ...ext import SpanKind
 from ...ext import SpanTypes
@@ -41,6 +42,11 @@ config._add(
         default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return aiohttp.__version__
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):

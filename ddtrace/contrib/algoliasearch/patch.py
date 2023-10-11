@@ -1,3 +1,5 @@
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -6,7 +8,6 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import SPAN_KIND
@@ -19,6 +20,7 @@ SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
 
 try:
+    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
@@ -28,6 +30,11 @@ try:
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
     algoliasearch_version = (0, 0)
+
+
+def get_version():
+    # type: () -> str
+    return VERSION
 
 
 def patch():

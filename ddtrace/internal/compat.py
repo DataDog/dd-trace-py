@@ -23,9 +23,8 @@ from typing import Union
 import warnings
 
 import six
-
-from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -279,22 +278,6 @@ else:
 
 
 try:
-    from pep562 import Pep562  # noqa
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        if sys.version_info < (3, 7):
-            Pep562(module_name)
-
-
-except ImportError:
-
-    def ensure_pep562(module_name):
-        # type: (str) -> None
-        pass
-
-
-try:
     from collections.abc import Iterable  # noqa
 except ImportError:
     from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
@@ -326,7 +309,7 @@ def to_bytes_py2(n, length, byteorder):
 
 NoneType = type(None)
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long, complex])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
@@ -491,3 +474,13 @@ except ImportError:
         # type: (Iterable[str]) -> str
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
+
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager  # type: ignore[no-redef]
+    def nullcontext(enter_result=None):
+        yield enter_result

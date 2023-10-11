@@ -15,6 +15,7 @@ from django.views.generic import TemplateView
 import mock
 import pytest
 from six import ensure_text
+import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -37,7 +38,6 @@ from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import override_config
@@ -1220,7 +1220,6 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
-        "_dd.p.dm": "-0",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1422,14 +1421,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1468,7 +1467,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_template_cache.get_tags() == expected_meta

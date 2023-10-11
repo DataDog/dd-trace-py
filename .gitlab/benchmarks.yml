@@ -10,6 +10,7 @@ variables:
   timeout: 1h
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    - export CMAKE_BUILD_PARALLEL_LEVEL=12
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/relenv-microbenchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
@@ -18,9 +19,11 @@ variables:
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
     name: "reports"
+    when: always
     paths:
       - reports/
     expire_in: 3 months
+  allow_failure: true  # Allow failure, so partial results are uploaded
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -81,3 +84,8 @@ benchmark-otel-span:
   extends: .benchmarks
   variables:
     SCENARIO: "otel_span"
+
+appsec-iast-propagation:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "appsec_iast_propagation"

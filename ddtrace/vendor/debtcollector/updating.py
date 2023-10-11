@@ -15,7 +15,7 @@
 #    under the License.
 
 import six
-from .. import wrapt
+import wrapt
 if six.PY3:
     import inspect
     Parameter = inspect.Parameter

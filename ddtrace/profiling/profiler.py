@@ -27,8 +27,6 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import file
-from ddtrace.profiling.exporter import http
 from ddtrace.settings.profiling import config
 
 from . import _asyncio
@@ -118,6 +116,8 @@ class _ProfilerInstance(service.Service):
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
@@ -136,6 +136,10 @@ class _ProfilerInstance(service.Service):
         # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import file
+
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
             ]
@@ -185,6 +189,10 @@ class _ProfilerInstance(service.Service):
             )
 
         if self._export_py_enabled:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import http
+
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
@@ -218,14 +226,19 @@ class _ProfilerInstance(service.Service):
             default_max_events=config.max_events,
         )
 
-        self._collectors = [
-            stack.StackCollector(
-                r,
-                tracer=self.tracer,
-                endpoint_collection_enabled=self.endpoint_collection_enabled,
-            ),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),
-        ]
+        self._collectors = []
+
+        if self._stack_collector_enabled:
+            self._collectors.append(
+                stack.StackCollector(
+                    r,
+                    tracer=self.tracer,
+                    endpoint_collection_enabled=self.endpoint_collection_enabled,
+                )  # type: ignore[call-arg]
+            )
+
+        if self._lock_collector_enabled:
+            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
 
         if _asyncio.is_asyncio_available():
 

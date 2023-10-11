@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    openai: This introduces official tracing support for Azure OpenAI services, specifically for completions, 
+    chat completions, and embeddings using models deployed on Azure OpenAI endpoints.

@@ -1,9 +1,10 @@
 import importlib
 
+import wrapt
+
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -116,6 +117,13 @@ config._add(
         },
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    import vertica_python
+
+    return vertica_python.__version__
 
 
 def patch():

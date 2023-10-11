@@ -1,11 +1,14 @@
+from collections import deque
 from types import FunctionType
 from typing import Any
 from typing import Callable
+from typing import Deque
 from typing import List
 from typing import Tuple
 
 from bytecode import Bytecode
-from bytecode import Instr
+
+from ddtrace.internal.assembly import Assembly
 
 from .compat import PYTHON_VERSION_INFO as PY
 
@@ -22,6 +25,41 @@ class InvalidLine(Exception):
     """
 
 
+INJECTION_ASSEMBLY = Assembly()
+if PY >= (3, 12):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        push_null
+        load_const      {hook}
+        load_const      {arg}
+        call            1
+        pop_top
+        """
+    )
+elif PY >= (3, 11):
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        push_null
+        load_const      {hook}
+        load_const      {arg}
+        precall         1
+        call            1
+        pop_top
+        """
+    )
+else:
+    INJECTION_ASSEMBLY.parse(
+        r"""
+        load_const      {hook}
+        load_const      {arg}
+        call_function   1
+        pop_top
+        """
+    )
+
+_INJECT_HOOK_OPCODES = [_.name for _ in INJECTION_ASSEMBLY]
+
+
 def _inject_hook(code, hook, lineno, arg):
     # type: (Bytecode, HookType, int, Any) -> None
     """Inject a hook at the given line number inside an abstract code object.
@@ -30,60 +68,34 @@ def _inject_hook(code, hook, lineno, arg):
     identifier for the hook itself. This should be kept in case the hook needs
     to be removed.
     """
-    for i, instr in enumerate(code):  # noqa: B007
+    # DEV: In general there are no guarantees for bytecode to be "linear",
+    # meaning that a line number can occur multiple times. We need to find all
+    # occurrences and inject the hook at each of them. An example of when this
+    # happens is with finally blocks, which are duplicated at the end of the
+    # bytecode.
+    locs = deque()  # type: Deque[int]
+    last_lineno = None
+    for i, instr in enumerate(code):
         try:
+            if instr.lineno == last_lineno:
+                continue
+            last_lineno = instr.lineno
             if instr.lineno == lineno:
-                # gotcha!
-                break
+                locs.appendleft(i)
         except AttributeError:
             # pseudo-instruction (e.g. label)
             pass
-    else:
+
+    if not locs:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
     # DEV: This is the bytecode equivalent of
     # >>> hook(arg)
     # Additionally, we must discard the return value (top of the stack) to
     # restore the stack to the state prior to the call.
-    if PY < (3, 11):
-        code[i:i] = Bytecode(
-            [
-                Instr("LOAD_CONST", hook, lineno=lineno),
-                Instr("LOAD_CONST", arg, lineno=lineno),
-                Instr("CALL_FUNCTION", 1, lineno=lineno),
-                Instr("POP_TOP", lineno=lineno),
-            ]
-        )
-    elif PY >= (3, 12):
-        code[i:i] = Bytecode(
-            [
-                Instr("PUSH_NULL", lineno=lineno),
-                Instr("LOAD_CONST", hook, lineno=lineno),
-                Instr("LOAD_CONST", arg, lineno=lineno),
-                Instr("CALL", 1, lineno=lineno),
-                Instr("POP_TOP", lineno=lineno),
-            ]
-        )
-    else:
-        # Python 3.11
-        code[i:i] = Bytecode(
-            [
-                Instr("PUSH_NULL", lineno=lineno),
-                Instr("LOAD_CONST", hook, lineno=lineno),
-                Instr("LOAD_CONST", arg, lineno=lineno),
-                Instr("PRECALL", 1, lineno=lineno),
-                Instr("CALL", 1, lineno=lineno),
-                Instr("POP_TOP", lineno=lineno),
-            ]
-        )
+    for i in locs:
+        code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-
-# Default to Python 3.11 opcodes
-_INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "PRECALL", "CALL", "POP_TOP"]
-if PY < (3, 11):
-    _INJECT_HOOK_OPCODES = ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
-elif PY >= (3, 12):
-    _INJECT_HOOK_OPCODES = ["PUSH_NULL", "LOAD_CONST", "LOAD_CONST", "CALL", "POP_TOP"]
 
 _INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
 _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
@@ -96,6 +108,7 @@ def _eject_hook(code, hook, line, arg):
     The hook is identified by its argument. This ensures that only the right
     hook is ejected.
     """
+    locs = deque()  # type: Deque[int]
     for i, instr in enumerate(code):
         try:
             # DEV: We look at the expected opcode pattern to match the injected
@@ -106,17 +119,18 @@ def _eject_hook(code, hook, line, arg):
                 and code[i + _INJECT_ARG_OPCODE_POS].arg is arg
                 and [code[_].name for _ in range(i, i + len(_INJECT_HOOK_OPCODES))] == _INJECT_HOOK_OPCODES
             ):
-                # gotcha!
-                break
+                locs.appendleft(i)
         except AttributeError:
             # pseudo-instruction (e.g. label)
             pass
         except IndexError:
             pass
-    else:
+
+    if not locs:
         raise InvalidLine("Line %d does not contain a hook" % line)
 
-    del code[i : i + len(_INJECT_HOOK_OPCODES)]
+    for i in locs:
+        del code[i : i + len(_INJECT_HOOK_OPCODES)]
 
 
 def _function_with_new_code(f, abstract_code):

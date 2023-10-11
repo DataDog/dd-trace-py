@@ -3,8 +3,9 @@ import sqlite3
 import sqlite3.dbapi2
 import sys
 
+import wrapt
+
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
@@ -28,6 +29,11 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return sqlite3.sqlite_version
 
 
 def patch():

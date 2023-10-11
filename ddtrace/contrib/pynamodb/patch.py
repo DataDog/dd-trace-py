@@ -3,12 +3,12 @@ Trace queries to botocore api done via a pynamodb client
 """
 
 import pynamodb.connection.base
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -33,6 +33,11 @@ config._add(
         "_default_service": schematize_service_name("pynamodb"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(pynamodb, "__version__", "")
 
 
 def patch():

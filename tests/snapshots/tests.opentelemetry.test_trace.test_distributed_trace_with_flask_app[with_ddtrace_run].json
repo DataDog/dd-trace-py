@@ -1,27 +1,24 @@
 [[
   {
     "name": "test-otel-distributed-trace",
-    "service": "",
+    "service": null,
     "resource": "test-otel-distributed-trace",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+      "runtime-id": "8d35d684fb45476e9eefce2af7928f52"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 22384
+      "process_id": 500
     },
-    "duration": 29102381,
-    "start": 1691164175242619057
+    "duration": 22783125,
+    "start": 1692985768049390669
   },
      {
        "name": "flask.request",
@@ -31,8 +28,8 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
-       "error": 0,
        "meta": {
+         "_dd.base_service": "",
          "_dd.p.dm": "-0",
          "component": "flask",
          "flask.endpoint": "otel",
@@ -44,9 +41,9 @@
          "http.url": "http://0.0.0.0:8000/otel",
          "http.useragent": "python-requests/2.28.1",
          "language": "python",
-         "runtime-id": "8ba0e02cba7a4577ba7ac49cd36cd9a5",
+         "runtime-id": "c9c1831139db432cb96bec4f13de02f4",
          "span.kind": "server",
-         "traceparent": "00-0000000000000000d069ba1aa6463ee4-e72f99ef82f1f156-01",
+         "traceparent": "00-0000000000000000b90d8e59817784be-94120f4149690bb5-01",
          "tracestate": "dd=s:1;t.dm:-0"
        },
        "metrics": {
@@ -54,10 +51,10 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 22394
+         "process_id": 510
        },
-       "duration": 23286770,
-       "start": 1691164175247945534
+       "duration": 20940459,
+       "start": 1692985768050919460
      },
         {
           "name": "flask.application",
@@ -66,16 +63,14 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
+            "_dd.base_service": "",
             "component": "flask",
             "flask.endpoint": "otel",
             "flask.url_rule": "/otel"
           },
-          "duration": 22377800,
-          "start": 1691164175248637093
+          "duration": 20517875,
+          "start": 1692985768051128919
         },
            {
              "name": "flask.try_trigger_before_first_request_functions",
@@ -84,14 +79,12 @@
              "trace_id": 0,
              "span_id": 5,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 40121,
-             "start": 1691164175248900802
+             "duration": 10959,
+             "start": 1692985768051207710
            },
            {
              "name": "flask.preprocess_request",
@@ -100,14 +93,12 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 46645,
-             "start": 1691164175249086603
+             "duration": 13333,
+             "start": 1692985768051270544
            },
            {
              "name": "flask.dispatch_request",
@@ -116,14 +107,12 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 21608644,
-             "start": 1691164175249214101
+             "duration": 20136125,
+             "start": 1692985768051315752
            },
               {
                 "name": "tests.opentelemetry.flask_app.otel",
@@ -132,14 +121,12 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
-                "type": "",
-                "error": 0,
                 "meta": {
-                  "_dd.p.dm": "-0",
+                  "_dd.base_service": "",
                   "component": "flask"
                 },
-                "duration": 21521916,
-                "start": 1691164175249294491
+                "duration": 20106916,
+                "start": 1692985768051335919
               },
                  {
                    "name": "otel-flask-manual-span",
@@ -148,13 +135,11 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 11,
-                   "type": "",
-                   "error": 0,
                    "meta": {
-                     "_dd.p.dm": "-0"
+                     "_dd.base_service": ""
                    },
-                   "duration": 31006,
-                   "start": 1691164175270774594
+                   "duration": 39500,
+                   "start": 1692985768071392002
                  },
            {
              "name": "flask.process_response",
@@ -163,14 +148,12 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 15944,
-             "start": 1691164175270865786
+             "duration": 17250,
+             "start": 1692985768071503002
            },
            {
              "name": "flask.do_teardown_request",
@@ -179,14 +162,12 @@
              "trace_id": 0,
              "span_id": 9,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 12430,
-             "start": 1691164175270956112
+             "duration": 11958,
+             "start": 1692985768071595252
            },
            {
              "name": "flask.do_teardown_appcontext",
@@ -195,14 +176,12 @@
              "trace_id": 0,
              "span_id": 10,
              "parent_id": 3,
-             "type": "",
-             "error": 0,
              "meta": {
-               "_dd.p.dm": "-0",
+               "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 9767,
-             "start": 1691164175270992027
+             "duration": 7917,
+             "start": 1692985768071627585
            },
         {
           "name": "flask.response",
@@ -211,12 +190,10 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
-            "_dd.p.dm": "-0",
+            "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 181899,
-          "start": 1691164175271026277
+          "duration": 196500,
+          "start": 1692985768071656294
         }]]

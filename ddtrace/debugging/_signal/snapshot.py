@@ -8,7 +8,7 @@ from typing import cast
 
 import attr
 
-from ddtrace.debugging import safety
+from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -144,7 +144,7 @@ class Snapshot(LogSignal):
 
         probe = self.probe
         frame = self.frame
-        _args = list(self.args or safety.get_args(frame))
+        _args = list(self.args or _safety.get_args(frame))
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             return
@@ -190,7 +190,7 @@ class Snapshot(LogSignal):
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
-                self.args or safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
+                self.args or _safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
             )
         self.duration = duration
         self.state = SignalState.DONE
@@ -213,8 +213,8 @@ class Snapshot(LogSignal):
                 return
 
             self.line_capture = _capture_context(
-                self.args or safety.get_args(frame),
-                safety.get_locals(frame),
+                self.args or _safety.get_args(frame),
+                _safety.get_locals(frame),
                 sys.exc_info(),
                 limits=probe.limits,
             )

@@ -1,9 +1,13 @@
 import sqlalchemy
-
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from wrapt import wrap_function_wrapper as _w
 
 from ..trace_utils import unwrap
 from .engine import _wrap_create_engine
+
+
+def get_version():
+    # type: () -> str
+    return getattr(sqlalchemy, "__version__", "")
 
 
 def patch():

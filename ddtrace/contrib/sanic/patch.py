@@ -1,6 +1,8 @@
 import asyncio
 
 import sanic
+import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
@@ -14,8 +16,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...internal.logger import get_logger
@@ -26,6 +26,11 @@ log = get_logger(__name__)
 config._add("sanic", dict(_default_service=schematize_service_name("sanic"), distributed_tracing=True))
 
 SANIC_VERSION = (0, 0, 0)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(sanic, "__version__", "")
 
 
 def _get_current_span(request):

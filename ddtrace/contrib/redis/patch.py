@@ -2,15 +2,16 @@ import os
 
 import redis
 from six import PY3
+import wrapt
 
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
+from ..trace_utils_redis import _run_redis_command
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
@@ -22,6 +23,11 @@ config._add(
         "cmd_max_length": int(os.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(redis, "__version__", "")
 
 
 def patch():
@@ -121,8 +127,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args):
-            return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
+            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command
 

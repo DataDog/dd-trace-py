@@ -7,8 +7,8 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "httpx",
       "http.method": "GET",
@@ -17,17 +17,16 @@
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "75e629a190f54866a5d1c4c299c99fe2",
+      "runtime-id": "4ebd9f57f446448abfdc8318a41ba0b0",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85259
+      "process_id": 64752
     },
-    "duration": 8285000,
-    "start": 1667242896883459000
+    "duration": 2346167,
+    "start": 1692711099011120967
   }]]

@@ -1,10 +1,10 @@
 import os
 
 import falcon
+import wrapt
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
@@ -20,6 +20,11 @@ config._add(
         distributed_tracing=asbool(os.getenv("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(falcon, "__version__", "")
 
 
 def patch():

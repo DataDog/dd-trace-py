@@ -376,15 +376,20 @@ def git_repo(git_repo_empty):
 
 def _stop_remote_config_worker():
     if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service()
+        remoteconfig_poller._stop_service(True)
         remoteconfig_poller._worker = None
 
 
 @pytest.fixture
 def remote_config_worker():
-    remoteconfig_poller.disable()
+    remoteconfig_poller.disable(join=True)
     remoteconfig_poller._client = RemoteConfigClient()
     try:
         yield
     finally:
         _stop_remote_config_worker()
+
+    # Check remote config poller and Subscriber threads stop correctly
+    # we have 2 threads: main thread and telemetry thread. TODO: verify if that alive thread is a bug
+    # TODO: this assert doesn't work in CI, threading.active_count() > 50
+    # assert threading.active_count() == 2

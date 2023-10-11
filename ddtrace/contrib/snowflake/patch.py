@@ -1,8 +1,9 @@
 import os
 
+import wrapt
+
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
@@ -26,6 +27,17 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    try:
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
+
+        c = sys.modules.get("snowflake.connector")
+    return str(c.__version__)
 
 
 class _SFTracedCursor(TracedCursor):

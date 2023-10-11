@@ -2,11 +2,11 @@ import os
 import sys
 
 import six
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -38,6 +38,11 @@ config._add(
         "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def _wrap_init(func, instance, args, kwargs):

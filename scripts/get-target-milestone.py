@@ -127,8 +127,8 @@ def get_next_minor_version(branch):
     ... ])
     >>> get_next_minor_version("1.x")
     'v1.21.0'
-    >>> get_next_minor_version("2.x")  # doesn't exist
-    'v2.0.0'
+    >>> get_next_minor_version("3.x")  # doesn't exist
+    'v3.0.0'
     >>> get_next_minor_version("0.x")
     'v0.52.0'
     >>> get_next_minor_version("6.x")
@@ -159,8 +159,8 @@ def get_next_patch_version(branch):
     ... ])
     >>> get_next_patch_version("1.4")
     'v1.4.7'
-    >>> get_next_patch_version("2.0")  # doesn't exist
-    'v2.0.0'
+    >>> get_next_patch_version("3.0")  # doesn't exist
+    'v3.0.0'
     >>> get_next_patch_version("0.51")  # don't increment if most recent is an rc
     'v0.51.0'
     >>> get_next_patch_version("6.0")

@@ -1,6 +1,7 @@
 from importlib import import_module
 import inspect
 import os
+from typing import List
 
 from ddtrace import Pin
 from ddtrace import config
@@ -14,6 +15,8 @@ try:
 # catch async function syntax errors when using Python<3.7 with no async support
 except SyntaxError:
     pass
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
@@ -21,7 +24,6 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
@@ -74,6 +76,19 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
+PATCHED_VERSIONS = {}
+
+
+def get_versions():
+    # type: () -> List[str]
+    return PATCHED_VERSIONS
+
+
 def _psycopg_modules():
     module_names = (
         "psycopg",
@@ -98,6 +113,8 @@ def _patch(psycopg_module):
     if getattr(psycopg_module, "_datadog_patch", False):
         return
     psycopg_module._datadog_patch = True
+
+    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 

@@ -1,10 +1,10 @@
 import os
 
 import jinja2
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -23,6 +23,11 @@ config._add(
         "service_name": os.getenv("DD_JINJA2_SERVICE_NAME"),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(jinja2, "__version__", "")
 
 
 def patch():

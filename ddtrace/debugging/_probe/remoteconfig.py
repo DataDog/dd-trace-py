@@ -1,3 +1,4 @@
+from itertools import count
 import os
 import sys
 import time
@@ -287,8 +288,7 @@ def get_probes(config, status_logger):
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
-            message=str(e),
-            exc_info=sys.exc_info(),
+            error=(type(e).__name__, str(e)),
         )
         return []
 
@@ -313,40 +313,44 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     def __init__(self, data_connector, callback, name, status_logger):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
         self._configs = {}  # type: Dict[str, Dict[str, Probe]]
-        self._status_timestamp = time.time()
+        self._status_timestamp_sequence = count(
+            time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
+        )
+        self._status_timestamp = next(self._status_timestamp_sequence)
         self._status_logger = status_logger
-        self._next_status_update_timestamp()
 
     def _exec_callback(self, data, test_tracer=None):
         # Check if it is time to re-emit probe status messages.
         # DEV: We use the periodic signal from the remote config client worker
         # thread to avoid having to spawn a separate thread for this.
         if time.time() > self._status_timestamp:
-            log.debug(
-                "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
-                os.getpid(),
-                os.getppid(),
-            )
-            probes = [probe for config in self._configs.values() for probe in config.values()]
-            self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
-            self._next_status_update_timestamp()
+            self._send_status_update()
+            self._status_timestamp = next(self._status_timestamp_sequence)
 
-        if data:
-            metadatas = data["metadata"]
-            rc_configs = data["config"]
-            # DEV: We emit a status update event here to avoid having to spawn a
-            # separate thread for this.
-            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-            for idx in range(len(rc_configs)):
-                if metadatas[idx] is None:
-                    log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
-                    return
+        if not data:
+            # Nothing else to do.
+            return
 
-                self._update_probes_for_config(metadatas[idx]["id"], rc_configs[idx])
+        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+        for metadata, config in zip(data["metadata"], data["config"]):
+            if metadata is None:
+                log.debug(
+                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                    os.getpid(),
+                    os.getppid(),
+                )
+                continue
 
-    def _next_status_update_timestamp(self):
-        # type: () -> None
-        self._status_timestamp = time.time() + di_config.diagnostics_interval
+            self._update_probes_for_config(metadata["id"], config)
+
+    def _send_status_update(self):
+        log.debug(
+            "[%s][P: %s] Dynamic Instrumentation: emitting probe status log messages",
+            os.getpid(),
+            os.getppid(),
+        )
+
+        self._callback(ProbePollerEvent.STATUS_UPDATE, [])
 
     def _dispatch_probe_events(self, prev_probes, next_probes):
         # type: (Dict[str, Probe], Dict[str, Probe]) -> None

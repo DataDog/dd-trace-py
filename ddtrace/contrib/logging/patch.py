@@ -1,12 +1,12 @@
 import logging
 
 import attr
+from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
-from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
 
 
@@ -25,6 +25,11 @@ config._add(
         tracer=None,
     ),
 )  # by default, override here for custom tracer
+
+
+def get_version():
+    # type: () -> str
+    return getattr(logging, "__version__", "")
 
 
 @attr.s(slots=True)

@@ -7,23 +7,22 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "psycopg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "4165259776d24f23aae066cf1adfca38",
+      "runtime-id": "5e80c5a691c84329bbe0464d28854fae",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 98154
+      "process_id": 75387
     },
-    "duration": 9097000,
-    "start": 1650568907426444000
+    "duration": 3607708,
+    "start": 1692712154644657553
   }]]

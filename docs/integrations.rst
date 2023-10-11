@@ -181,6 +181,12 @@ Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
 
+.. _flask_login:
+
+Flask Login
+^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.flask_login
+
 
 .. _futures:
 
@@ -450,6 +456,13 @@ SQLite
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.tornado
+
+
+.. _unittest:
+
+unittest
+^^^^^^^^
+.. automodule:: ddtrace.contrib.unittest
 
 
 .. _urllib3:

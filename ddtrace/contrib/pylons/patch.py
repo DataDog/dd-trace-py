@@ -1,11 +1,12 @@
 import os
 
+import pylons
 import pylons.wsgiapp
+import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
@@ -18,6 +19,11 @@ config._add(
         distributed_tracing=asbool(os.getenv("DD_PYLONS_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(pylons, "__version__", "")
 
 
 def patch():

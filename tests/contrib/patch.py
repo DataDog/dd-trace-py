@@ -6,7 +6,8 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
-from ddtrace.vendor import wrapt
+import wrapt
+
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
@@ -296,6 +297,12 @@ class PatchTestCase(object):
             """
             raise NotImplementedError(self.assert_not_module_double_patched.__doc__)
 
+        def assert_module_implements_get_version(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            raise NotImplementedError(self.assert_module_implements_get_version.__doc__)
+
         @raise_if_no_attrs
         def test_import_patch(self):
             """
@@ -315,6 +322,12 @@ class PatchTestCase(object):
             self.assert_not_module_patched(module)
             self.__patch_func__()
             self.assert_module_patched(module)
+
+        def test_get_version(self):
+            """
+            Module patch should implement get_version returning the str version
+            """
+            self.assert_module_implements_get_version()
 
         @raise_if_no_attrs
         def test_patch_import(self):
@@ -683,7 +696,9 @@ class PatchTestCase(object):
                         """
                         import sys
 
-                        from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
+                        from ddtrace.internal.module import ModuleWatchdog
+
+                        from wrapt import wrap_function_wrapper as wrap
 
                         patched = False
 
@@ -698,7 +713,7 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 

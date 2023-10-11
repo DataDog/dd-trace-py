@@ -21,7 +21,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
         return 0
 
     try:
-        from ddtrace.vendor import psutil
+        import psutil
 
         total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
     except Exception:
@@ -153,6 +153,28 @@ class ProfilingConfig(En):
         help_type="Mapping",
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
+
+    class Stack(En):
+        __item__ = __prefix__ = "stack"
+
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Whether to enable the stack profiler",
+        )
+
+    class Lock(En):
+        __item__ = __prefix__ = "lock"
+
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Whether to enable the lock profiler",
+        )
 
     class Memory(En):
         __item__ = __prefix__ = "memory"

@@ -2,13 +2,13 @@ import os
 
 # 3p
 import kombu
+import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.vendor import wrapt
 
 # project
 from .. import trace_utils
@@ -28,6 +28,11 @@ from .utils import extract_conn_tags
 from .utils import get_body_length_from_args
 from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
+
+
+def get_version():
+    # type: () -> str
+    return str(kombu.__version__)
 
 
 # kombu default settings

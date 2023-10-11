@@ -19,6 +19,9 @@ from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
+from .constants import SAMPLING_AGENT_DECISION
+from .constants import SAMPLING_LIMIT_DECISION
+from .constants import SAMPLING_RULE_DECISION
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
@@ -42,7 +45,7 @@ from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
-from .internal.sampling import update_sampling_decision
+from .internal.sampling import set_sampling_decision_maker
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -277,8 +280,14 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-    def set_tag(self, key, value=None):
-        # type: (_TagNameType, Any) -> None
+    def _override_sampling_decision(self, decision):
+        self.context.sampling_priority = decision
+        set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
+        for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
+            if key in self._local_root._metrics:
+                del self._local_root._metrics[key]
+
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -337,12 +346,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = USER_KEEP
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
+            self._override_sampling_decision(USER_KEEP)
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = USER_REJECT
-            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
+            self._override_sampling_decision(USER_REJECT)
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -365,8 +372,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_tag_str(self, key, value):
-        # type: (_TagNameType, Text) -> None
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -378,23 +384,19 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key):
-        # type: (_TagNameType) -> None
+    def _remove_tag(self, key: _TagNameType) -> None:
         if key in self._meta:
             del self._meta[key]
 
-    def get_tag(self, key):
-        # type: (_TagNameType) -> Optional[Text]
+    def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self):
-        # type: () -> _MetaDictType
+    def get_tags(self) -> _MetaDictType:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags):
-        # type: (_MetaDictType) -> None
+    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -402,8 +404,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    def set_metric(self, key, value):
-        # type: (_TagNameType, NumericType) -> None
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         # This method sets a numeric tag value for the given key.
 
         # Enforce a specific connstant for `_dd.measured`
@@ -434,19 +435,16 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
-    def set_metrics(self, metrics):
-        # type: (_MetricDictType) -> None
+    def set_metrics(self, metrics: _MetricDictType) -> None:
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
 
-    def get_metric(self, key):
-        # type: (_TagNameType) -> Optional[NumericType]
+    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def get_metrics(self):
-        # type: () -> _MetricDictType
+    def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
         return self._metrics.copy()
 

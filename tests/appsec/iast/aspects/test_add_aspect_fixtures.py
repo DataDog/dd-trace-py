@@ -5,9 +5,9 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -16,11 +16,6 @@ mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
 class TestOperatorAddReplacement(unittest.TestCase):
-    def setUp(self):
-        from ddtrace.appsec.iast._taint_tracking import setup
-
-        setup(bytes.join, bytearray.join)
-
     def test_nostring_operator_add(self):
         # type: () -> None
         assert mod.do_operator_add_params(2, 3) == 5

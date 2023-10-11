@@ -12,6 +12,7 @@ import attr
 import six
 
 from ddtrace import config
+from ddtrace.constants import BASE_SERVICE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
@@ -22,6 +23,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
@@ -263,15 +265,21 @@ class SpanAggregator(SpanProcessor):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", None)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", None)
-            # The telemetry metrics writer can be shutdown before the tracer.
-            # This ensures all tracer metrics always sent.
-            telemetry_writer.periodic()
+            if config._telemetry_enabled:
+                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
+                # Here we submit the remanining span creation metrics without restarting the periodic thread.
+                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
+                telemetry_writer._is_periodic = False
+                telemetry_writer._enabled = True
+                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+                # before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_created", "integration_name", None)
+                # on_span_finish(...) queues span finish metrics in batches of 100.
+                # This ensures all remaining counts are sent before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_finished", "integration_name", None)
+                telemetry_writer.periodic(True)
+                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
+                telemetry_writer.disable()
 
         try:
             self._writer.stop(timeout)
@@ -363,3 +371,23 @@ class PeerServiceProcessor(TraceProcessor):
         if tag in self._mapping:
             span.set_tag_str(self._config.remap_tag_name, tag)
             span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])
+
+
+class BaseServiceProcessor(TraceProcessor):
+    def __init__(self):
+        self._global_service = schematize_service_name((config.service or "").lower())
+
+    def process_trace(self, trace):
+        if not trace:
+            return
+
+        traces_to_process = filter(
+            lambda x: x.service and x.service.lower() != self._global_service,
+            trace,
+        )
+        any(map(lambda x: self._update_dd_base_service(x), traces_to_process))
+
+        return trace
+
+    def _update_dd_base_service(self, span):
+        span.set_tag_str(key=BASE_SERVICE_KEY, value=self._global_service)
