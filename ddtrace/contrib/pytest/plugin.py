@@ -334,7 +334,7 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     _store_span(pytest_module_item, test_suite_span)
 
     if should_enable_coverage:
-        _attach_coverage(item)
+        _attach_coverage(pytest_module_item)
     return test_suite_span
 
 
