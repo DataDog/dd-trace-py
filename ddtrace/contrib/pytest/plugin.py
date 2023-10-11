@@ -236,6 +236,7 @@ def _get_item_name(item):
     if hasattr(item, "cls") and item.cls:
         if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
             return "%s.%s" % (item.cls.__name__, item.name)
+    return item.name
 
 
 def _is_test_unskippable(item):
