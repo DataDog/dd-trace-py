@@ -108,7 +108,6 @@ class StructLogTestCase(TracerTestCase):
                 self.logger.info("Hello!")
             return span
 
-
         span = generate_log_in_span()
         output = self.cf.logger.calls
 
