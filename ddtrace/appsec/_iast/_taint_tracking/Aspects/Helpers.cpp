@@ -309,6 +309,30 @@ parse_params(size_t position,
     return default_value;
 }
 
+TaintRangePtr*
+get_tainted_ranges_array(PyObject* tainted_object, TaintRangeMapType* tx_taint_map)
+{
+    const auto& to = get_tainted_object(tainted_object, tx_taint_map);
+    Py_ssize_t to_len = get_pyobject_size(tainted_object);
+    TaintRangePtr* tainted_ranges = new TaintRangePtr[to_len];
+    // initialize array
+    for (Py_ssize_t i = 0; i < to_len; i++) {
+        tainted_ranges[i] = nullptr;
+    }
+
+    if (to) {
+        // Insert taint ranges
+        for (TaintRangePtr tr : to->get_ranges()) {
+            for (int i = 0; i < to_len; i++) {
+                if (tr->start < i and tr->start + tr->length > i)
+                    tainted_ranges[i] = tr;
+            }
+        }
+    }
+
+    return tainted_ranges;
+}
+
 void
 pyexport_aspect_helpers(py::module& m)
 {

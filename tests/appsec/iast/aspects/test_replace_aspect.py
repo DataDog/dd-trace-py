@@ -48,6 +48,7 @@ def test_replace_aspect_type_error(obj1, obj2):
     "obj1, obj2, should_be_tainted",
     [
         ("Hello ", "world", False),
+        ("Hello ", "world", True),
         (b"bye ", b"".join((b"bye", b" ")), False),
         ("🙀", "".join(("🙀", "")), False),
         ("a", "b", False),
@@ -74,6 +75,43 @@ def test_replace_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     assert result == obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
         assert result is not obj2
-    assert is_pyobject_tainted(result) == should_be_tainted
+    assert is_pyobject_tainted(result) == False
     if should_be_tainted:
         assert get_tainted_ranges(result) == get_tainted_ranges(obj2)
+
+
+@pytest.mark.parametrize(
+    "obj1, obj2, orig_should_be_tainted, result_should_be_tainted",
+    [
+        ("Hello ", "world", False, False),
+        ("Hello ", "world", True, True),
+        (b"bye ", b"".join((b"bye", b" ")), False, False),
+        ("🙀", "".join(("🙀", "")), False, False),
+        ("a", "b", False, False),
+        (b"a", b"a", False, False),
+        (b"a", b"a", True, False),
+        (b"Hi", b"", False, False),
+        (b"Hi ", b" world", False, False),
+        (bytearray(b"a"), bytearray(b"b"), False, False),
+    ],
+)
+@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
+def test_replace_aspect_tainting_left_hand(obj1, obj2, orig_should_be_tainted, result_should_be_tainted):
+
+    if orig_should_be_tainted:
+        obj1 = taint_pyobject(
+            pyobject=obj1,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=obj1,
+            source_origin=OriginType.PARAMETER,
+        )
+        if len(obj1):
+            assert get_tainted_ranges(obj1)
+
+    result = ddtrace_aspects.replace_aspect(obj1.replace, obj1, obj2, obj2)
+    assert result == obj1
+    if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
+        assert result is not obj2
+    assert is_pyobject_tainted(result) == result_should_be_tainted
+    if result_should_be_tainted:
+        assert get_tainted_ranges(result) == get_tainted_ranges(obj1)

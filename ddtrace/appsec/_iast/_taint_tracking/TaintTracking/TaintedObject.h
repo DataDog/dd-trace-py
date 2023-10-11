@@ -61,3 +61,6 @@ class TaintedObject
 
 void
 pyexport_taintedobject(py::module& m);
+
+TaintRangePtr
+reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH max_length);

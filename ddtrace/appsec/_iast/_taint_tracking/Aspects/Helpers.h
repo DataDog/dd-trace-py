@@ -40,5 +40,8 @@ template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
 
+TaintRangePtr*
+get_tainted_ranges_array(PyObject* tainted_object, TaintRangeMapType* tx_taint_map);
+
 void
 pyexport_aspect_helpers(py::module& m);
