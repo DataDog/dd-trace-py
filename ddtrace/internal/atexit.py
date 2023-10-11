@@ -10,8 +10,8 @@ import signal
 import threading
 import typing
 
-from ddtrace.internal.utils import signals
 from ddtrace.internal.compat import main_thread
+from ddtrace.internal.utils import signals
 
 
 log = logging.getLogger(__name__)
