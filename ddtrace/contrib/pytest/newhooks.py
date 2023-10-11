@@ -12,18 +12,15 @@ import pytest
 
 
 @pytest.hookspec(firstresult=True)
-def pytest_ddtrace_get_item_module_name(item):
-    # type (Pytest.item) -> str
+def pytest_ddtrace_get_item_module_name(item: pytest.Item) -> str:
     """Returns the module name to use when reporting CI Visibility results, should be unique"""
 
 
 @pytest.hookspec(firstresult=True)
-def pytest_ddtrace_get_item_suite_name(item):
-    # type (Pytest.item) -> str
+def pytest_ddtrace_get_item_suite_name(item: pytest.Item) -> str:
     """Returns the suite name to use when reporting CI Visibility result, should be unique"""
 
 
 @pytest.hookspec(firstresult=True)
-def pytest_ddtrace_get_item_test_name(item):
-    # type (Pytest.item) -> str
+def pytest_ddtrace_get_item_test_name(item: pytest.Item) -> str:
     """Returns the test name to use when reporting CI Visibility result, should be unique"""
