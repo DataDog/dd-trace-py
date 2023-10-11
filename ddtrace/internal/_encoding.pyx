@@ -19,7 +19,7 @@ from ._utils cimport PyBytesLike_Check
 #   in both `ddtrace` and `ddtrace.internal`
 
 from ..constants import ORIGIN_KEY
-from .constants import _SPAN_LINKS_KEY
+from .constants import SPAN_LINKS_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -820,7 +820,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
         if span_links:
-            ret = self._pack_string(_SPAN_LINKS_KEY)
+            ret = self._pack_string(SPAN_LINKS_KEY)
             if ret != 0:
                 return ret
             ret = self._pack_string(span_links)
