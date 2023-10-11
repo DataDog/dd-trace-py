@@ -58,7 +58,8 @@ def _w_configure(func, instance, args, kwargs):
 
     dd_processor = [tracer_injection]
 
-    # Only inject values if there is some sort of processing.
+    # Only inject values if there is some sort of pre-existing processing with a valid renderer.
+    # Without this assumption, the logs will not format correctly since it can't accept the injected values
     # This way we do not change their format and mess up any existing logs
 
     arg_processors = get_argument_value(args, kwargs, 0, "processors", True)

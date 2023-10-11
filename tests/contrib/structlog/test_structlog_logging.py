@@ -192,3 +192,28 @@ class StructLogTestCase(TracerTestCase):
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
+
+    def test_no_processors(self):
+        # Ensure nothing is injected if there is no valid rendering in processors
+        structlog.configure(processors=[], logger_factory=self.cf)
+        self.logger = structlog.getLogger()
+
+        def func():
+            span = self.tracer.trace("test.logging")
+            self.logger.info("Hello!")
+            if span:
+                span.finish()
+            return span
+
+        with self.override_config("structlog", dict(tracer=self.tracer)):
+            func()
+            output = self.cf.logger.calls
+
+            assert output[0].kwargs["event"] == "Hello!"
+            assert "dd.trace_id" not in output[0].kwargs
+            assert "dd.span_id" not in output[0].kwargs
+            assert "dd.env" not in output[0].kwargs
+            assert "dd.service" not in output[0].kwargs
+            assert "dd.version" not in output[0].kwargs
+
+            self.cf.logger.calls.clear()
