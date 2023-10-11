@@ -1378,6 +1378,8 @@ venv = Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
                         "boto": latest,
+                        "botocore": "~=1.19.0",
+                        "boto3": "~=1.16.0",
                         "python-jose[cryptography]": "~=3.2.0",
                         # Moto drops support for python2.7 after 1.x.x and no longer offers < 1.0.0
                         "moto": "~=1.3.0",

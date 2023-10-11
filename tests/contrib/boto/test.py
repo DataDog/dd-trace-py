@@ -9,10 +9,10 @@ import boto.kms
 import boto.s3
 import boto.sqs
 import boto.sts
-from moto import mock_ec2
-from moto import mock_lambda
-from moto import mock_s3
-from moto import mock_sts
+from moto import mock_ec2_deprecated
+from moto import mock_lambda_deprecated
+from moto import mock_s3_deprecated
+from moto import mock_sts_deprecated
 
 # project
 from ddtrace import Pin
@@ -36,7 +36,7 @@ class BotoTest(TracerTestCase):
         super(BotoTest, self).setUp()
         patch()
 
-    @mock_ec2
+    @mock_ec2_deprecated
     def test_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
@@ -74,7 +74,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.name, "ec2.command")
         self.assertEqual(span.span_type, "http")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_service_default_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -88,7 +88,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.ec2")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_service_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -102,7 +102,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.ec2")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_service_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -116,7 +116,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_default_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -130,7 +130,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.ec2")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -144,7 +144,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.ec2")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -158,7 +158,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -172,7 +172,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "ec2.command")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -186,7 +186,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "aws.ec2.request")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     def test_analytics_enabled_with_rate(self):
         with self.override_config("boto", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -199,7 +199,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
-    @mock_ec2
+    @mock_ec2_deprecated
     def test_analytics_enabled_without_rate(self):
         with self.override_config("boto", dict(analytics_enabled=True)):
             ec2 = boto.ec2.connect_to_region("us-west-2")
@@ -269,7 +269,7 @@ class BotoTest(TracerTestCase):
 
         return create_span
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_service_name_default_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -288,7 +288,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.s3")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_service_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -307,7 +307,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.s3")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_service_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -326,7 +326,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -345,7 +345,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "s3.command")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -364,7 +364,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "aws.s3.request")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_name_default_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -383,7 +383,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.s3")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -402,7 +402,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.s3")
 
-    @mock_s3
+    @mock_s3_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
@@ -421,27 +421,27 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_s3_client(self):
         span = self._test_s3_client()
         # DEV: Not currently supported
         self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
         self.assertIsNone(span.get_tag("bucketname"))
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_s3_client_no_params(self):
         with self.override_config("boto", dict(tag_no_params=True)):
             span = self._test_s3_client()
             self.assertIsNone(span.get_tag("aws.s3.bucket_name"))
             self.assertIsNone(span.get_tag("bucketname"))
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_s3_client_all_params(self):
         with self.override_config("boto", dict(tag_all_params=True)):
             span = self._test_s3_client()
             self.assertEqual(span.get_tag("path"), "/")
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_s3_client_no_params_all_params(self):
         # DEV: Test no params overrides all params
         with self.override_config("boto", dict(tag_no_params=True, tag_all_params=True)):
@@ -450,7 +450,7 @@ class BotoTest(TracerTestCase):
             self.assertIsNone(span.get_tag("bucketname"))
             self.assertIsNone(span.get_tag("path"))
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_s3_put(self):
         s3 = boto.s3.connect_to_region("us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
@@ -484,7 +484,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(spans[2].get_tag("span.kind"), "client")
         self.assertEqual(spans[2].resource, "s3.put")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     def test_unpatch(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
@@ -495,7 +495,7 @@ class BotoTest(TracerTestCase):
         spans = self.pop_spans()
         assert not spans, spans
 
-    @mock_s3
+    @mock_s3_deprecated
     def test_double_patch(self):
         s3 = boto.s3.connect_to_region("us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
@@ -509,7 +509,7 @@ class BotoTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
 
-    @mock_lambda
+    @mock_lambda_deprecated
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
@@ -533,7 +533,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.service, "test-boto-tracing.lambda")
         self.assertEqual(span.resource, "lambda.get")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_service_name_default_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -545,7 +545,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.lambda")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_service_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -557,7 +557,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.lambda")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_service_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -569,7 +569,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_unspecified_service_name_default_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -581,7 +581,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.lambda")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -593,7 +593,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "aws.lambda")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -605,7 +605,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -617,7 +617,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "lambda.command")
 
-    @mock_lambda
+    @mock_lambda_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -629,7 +629,7 @@ class BotoTest(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "aws.lambda.request")
 
-    @mock_sts
+    @mock_sts_deprecated
     def test_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sts)
@@ -648,7 +648,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.service, "test-boto-tracing.sts")
         self.assertEqual(span.resource, "sts.getfederationtoken")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_default_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -662,7 +662,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, "aws.sts")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -676,7 +676,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, "aws.sts")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_v1_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -690,7 +690,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, "mysvc")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_default_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -704,7 +704,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, "aws.sts")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -718,7 +718,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, "aws.sts")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -732,7 +732,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME)
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -746,7 +746,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         self.assertEqual(span.name, "sts.command")
 
-    @mock_sts
+    @mock_sts_deprecated
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
@@ -783,7 +783,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
         self.assertEqual(span.resource, "elasticache")
 
-    @mock_ec2
+    @mock_ec2_deprecated
     def test_ec2_client_ot(self):
         """OpenTracing compatibility check of the test_ec2_client test."""
         ec2 = boto.ec2.connect_to_region("us-west-2")
