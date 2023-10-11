@@ -10,6 +10,7 @@ import signal
 import threading
 import typing
 
+from ddtrace.internal.compat import main_thread
 from ddtrace.internal.utils import signals
 
 
@@ -67,7 +68,7 @@ def register_on_exit_signal(f):
     def handle_exit(sig, frame):
         f()
 
-    if threading.current_thread() is threading.main_thread():
+    if threading.current_thread() is main_thread:
         try:
             signals.handle_signal(signal.SIGTERM, handle_exit)
             signals.handle_signal(signal.SIGINT, handle_exit)
