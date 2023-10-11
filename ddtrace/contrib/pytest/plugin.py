@@ -502,7 +502,7 @@ def pytest_collection_modifyitems(session, config, items):
         for item in items:
             test_is_unskippable = _is_test_unskippable(item)
 
-            item_name = _get_item_name(item)
+            item_name = item.config.hook.pytest_ddtrace_get_item_test_name(item)
 
             if test_is_unskippable:
                 log.debug("Test %s in module %s is marked as unskippable", (item_name, item.module))
@@ -556,8 +556,6 @@ def pytest_runtest_protocol(item, nextitem):
             ]
         )
     )
-
-    item_name = _get_item_name(item)
 
     test_session_span = _extract_span(item.session)
 
