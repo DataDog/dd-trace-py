@@ -11,7 +11,6 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -30,6 +29,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1098,11 +1098,6 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
-class AnyStringWithText(str):
-    def __eq__(self, other):
-        return self in other
-
-
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
@@ -1122,14 +1117,10 @@ def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    try:
-        if PY2:
-            # Python 2 doesn't support timeout
-            stdout, stderr = subp.communicate()
-        else:
-            stdout, stderr = subp.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        subp.terminate()
+    if PY2:
+        # Python 2 doesn't support timeout
+        stdout, stderr = subp.communicate()
+    else:
         stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 

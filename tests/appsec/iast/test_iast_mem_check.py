@@ -3,8 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
@@ -18,6 +17,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
     [
         ("taintsource1", "taintsource2"),
         ("taintsource", "taintsource"),
+        ("1", "1"),
         (b"taintsource1", "taintsource2"),
         (b"taintsource1", b"taintsource2"),
         ("taintsource1", b"taintsource2"),
@@ -29,19 +29,15 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
-    import psutil
-
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import initializer_size
-    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from tests.appsec.iast.fixtures.propagation_path import propagation_memory_check
-
-    expected_result = propagation_memory_check(origin1, origin2)
+def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import active_map_addreses_size
+    from ddtrace.appsec.iast._taint_tracking import create_context
+    from ddtrace.appsec.iast._taint_tracking import initializer_size
+    from ddtrace.appsec.iast._taint_tracking import num_objects_tainted
+    from ddtrace.appsec.iast._taint_tracking import reset_context
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.vendor import psutil
 
     start_memory = psutil.Process(os.getpid()).memory_info().rss
 
@@ -58,14 +54,11 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         tainted_string_2 = taint_pyobject(
             origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
         )
-        result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
-
-        assert result == expected_result
+        mod.propagation_path_3_prop(tainted_string_1, tainted_string_2)
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert len(span_report.sources) > 0
-        assert len(span_report.vulnerabilities) > 0
-        assert len(get_tainted_ranges(result)) == 6
+        assert span_report.sources
+        assert span_report.vulnerabilities
 
         if _num_objects_tainted == 0:
             _num_objects_tainted = num_objects_tainted()

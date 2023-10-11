@@ -1,4 +1,3 @@
-import os
 import time
 
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey

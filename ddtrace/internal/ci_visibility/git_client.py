@@ -7,8 +7,6 @@ from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
 from ddtrace.ext import ci
-from ddtrace.ext.git import _extract_clone_defaultremotename
-from ddtrace.ext.git import _extract_upstream_sha
 from ddtrace.ext.git import _get_rev_list
 from ddtrace.ext.git import _is_shallow_repository
 from ddtrace.ext.git import _unshallow_repository
@@ -26,7 +24,10 @@ from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
+from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -47,11 +48,12 @@ class CIVisibilityGitClient(object):
     def __init__(
         self,
         api_key,
+        app_key,
         requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
         base_url="",
     ):
-        # type: (str, int, str) -> None
-        self._serializer = CIVisibilityGitClientSerializerV1(api_key)
+        # type: (str, str, int, str) -> None
+        self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
         self._worker = None  # type: Optional[Process]
         self._response = RESPONSE
         self._requests_mode = requests_mode
@@ -67,7 +69,7 @@ class CIVisibilityGitClient(object):
             self._worker = Process(
                 target=CIVisibilityGitClient._run_protocol,
                 args=(self._serializer, self._requests_mode, self._base_url, self._tags, self._response),
-                kwargs={"cwd": cwd, "log_level": log.level},
+                kwargs={"cwd": cwd},
             )
             self._worker.start()
 
@@ -86,10 +88,8 @@ class CIVisibilityGitClient(object):
         _tags=None,  # Optional[Dict[str, str]]
         _response=None,  # Optional[Response]
         cwd=None,  # Optional[str]
-        log_level=0,  # int
     ):
         # type: (...) -> None
-        log.setLevel(log_level)
         if _tags is None:
             _tags = {}
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
@@ -98,6 +98,7 @@ class CIVisibilityGitClient(object):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             try:
                 cls._unshallow_repository(cwd=cwd)
+                log.debug("Unshallowing done")
             except ValueError:
                 log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
@@ -151,16 +152,18 @@ class CIVisibilityGitClient(object):
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
+            AGENTLESS_APP_KEY_HEADER_NAME: serializer.app_key,
         }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
         if headers is not None:
             _headers.update(headers)
         try:
             conn = get_connection(url)
-            log.debug("Sending request: %s %s %s %s", "POST", url, payload, _headers)
+            log.debug("Sending request: %s %s %s %s", ("POST", url, payload, _headers))
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
             log.debug("Response status: %s", resp.status)
@@ -206,53 +209,14 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _unshallow_repository(cls, cwd=None):
         # type () -> None
-        try:
-            remote = _extract_clone_defaultremotename()
-        except ValueError as e:
-            log.debug("Failed to get default remote: %s", e)
-            return
-
-        try:
-            CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
-            return
-        except ValueError as e:
-            log.debug("Could not unshallow repository to local head: %s", e)
-
-        try:
-            CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
-            return
-        except ValueError as e:
-            log.debug("Could not unshallow to upstream: %s", e)
-
-        log.debug("Unshallowing to default")
-        try:
-            _unshallow_repository(cwd=cwd, repo=remote)
-            log.debug("Unshallowing to default successful")
-            return
-        except ValueError as e:
-            log.debug("Unshallowing failed: %s", e)
-
-    @classmethod
-    def _unshallow_repository_to_local_head(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
-        head = extract_commit_sha(cwd=cwd)
-        log.debug("Unshallowing to local head %s", head)
-        _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
-        log.debug("Unshallowing to local head successful")
-
-    @classmethod
-    def _unshallow_repository_to_upstream(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
-        upstream = _extract_upstream_sha(cwd=cwd)
-        log.debug("Unshallowing to upstream %s", upstream)
-        _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
-        log.debug("Unshallowing to upstream")
+        _unshallow_repository(cwd=cwd)
 
 
 class CIVisibilityGitClientSerializerV1(object):
-    def __init__(self, api_key):
-        # type: (str) -> None
+    def __init__(self, api_key, app_key):
+        # type: (str, str) -> None
         self.api_key = api_key
+        self.app_key = app_key
 
     def search_commits_encode(self, repo_url, latest_commits):
         # type: (str, list[str]) -> str

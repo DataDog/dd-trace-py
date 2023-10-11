@@ -6,7 +6,7 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
-from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 

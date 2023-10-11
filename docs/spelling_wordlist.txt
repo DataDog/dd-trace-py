@@ -29,7 +29,6 @@ aredis
 args
 ascii
 asgi
-asm
 async
 asyncio
 asyncpg
@@ -78,7 +77,6 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
-dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -89,7 +87,6 @@ entrypoint
 entrypoints
 env
 enqueuer
-eol
 exec
 fastapi
 formatter
@@ -154,7 +151,6 @@ NeedsAppKey
 obfuscator
 openai
 opensearch
-opentelemetry
 opentracer
 opentracing
 otel
@@ -172,7 +168,6 @@ prepended
 profiler
 protobuf
 proxying
-psutil
 psycopg
 py
 pyenv
@@ -212,8 +207,6 @@ sqlite
 stacktrace
 starlette
 statsd
-stderr
-stdout
 stringable
 subclass
 subdirectory
@@ -269,4 +262,3 @@ Gitlab
 Enablement
 hotspot
 CMake
-libdatadog

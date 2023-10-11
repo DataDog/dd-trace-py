@@ -40,6 +40,7 @@ from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
 from .constants import TELEMETRY_ASM_ENABLED
+from .constants import TELEMETRY_CALL_BASIC_CONFIG
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
@@ -189,7 +190,7 @@ class TelemetryWriter(PeriodicService):
         self._error = (0, "")  # type: Tuple[int, str]
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
-        self._enabled = config._telemetry_enabled
+        self._disabled = False
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
@@ -208,7 +209,7 @@ class TelemetryWriter(PeriodicService):
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if not self._enabled:
+        if not config._telemetry_enabled:
             return False
 
         if self.status == ServiceStatus.RUNNING:
@@ -216,6 +217,7 @@ class TelemetryWriter(PeriodicService):
 
         if self._is_periodic:
             self.start()
+            atexit.register(self.app_shutdown)
             return True
 
         self.status = ServiceStatus.RUNNING
@@ -227,7 +229,7 @@ class TelemetryWriter(PeriodicService):
         Disable the telemetry collection service and drop the existing integrations and events
         Once disabled, telemetry collection can not be re-enabled.
         """
-        self._enabled = False
+        self._disabled = True
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
             self.stop()
@@ -243,7 +245,7 @@ class TelemetryWriter(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v2: app-started, app-closing, app-integrations-change
         """
-        if self.enable():
+        if not self._disabled and self.enable():
             event = {
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
@@ -289,21 +291,18 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def _app_started_event(self, register_app_shutdown=True):
-        # type: (bool) -> None
+    def _app_started_event(self):
+        # type: () -> None
         """Sent when TelemetryWriter is enabled or forks"""
-        if self._forked or self.started:
+        if self._forked:
             # app-started events should only be sent by the main process
             return
         #  List of configurations to be collected
 
-        self.started = True
-        if register_app_shutdown:
-            atexit.register(self.app_shutdown)
-
         self.add_configurations(
             [
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                (TELEMETRY_CALL_BASIC_CONFIG, config._call_basic_config, "unknown"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, config._appsec_enabled, "unknown"),
@@ -596,10 +595,18 @@ class TelemetryWriter(PeriodicService):
         for telemetry_event in telemetry_events:
             self._client.send_event(telemetry_event)
 
+    def start(self, *args, **kwargs):
+        # type: (...) -> None
+        super(TelemetryWriter, self).start(*args, **kwargs)
+        # Queue app-started event after the telemetry worker thread is running
+        if self.started is False:
+            self._app_started_event()
+            self._app_dependencies_loaded_event()
+            self.started = True
+
     def app_shutdown(self):
         self._app_closing_event()
         self.periodic(force_flush=True)
-        self.disable()
 
     def reset_queues(self):
         # type: () -> None
@@ -625,12 +632,7 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        if self._is_periodic:
-            self.stop(join=False)
-
-        # Enable writer service in child process to avoid interpreter shutdown
-        # error in Python 3.12
-        self.enable()
+        self.stop(join=False)
 
     def _restart_sequence(self):
         self._sequence = itertools.count(1)

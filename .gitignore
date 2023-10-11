@@ -25,7 +25,7 @@ ddtrace/internal/_tagset.c
 ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/_ddwaf/libddwaf/
+ddtrace/appsec/ddwaf/libddwaf/
 libddwaf*.sha256
 ddtrace/internal/datadog/profiling/libdatadog/
 
@@ -138,9 +138,9 @@ ddtrace/_version.py
 artifacts/
 
 # IAST cpp
-ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/*
-ddtrace/appsec/_iast/_taint_tracking/_deps/*
-ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
+ddtrace/appsec/iast/_taint_tracking/cmake-build-debug/*
+ddtrace/appsec/iast/_taint_tracking/_deps/*
+ddtrace/appsec/iast/_taint_tracking/CMakeFiles/*
 
 # CircleCI generated config
 .circleci/config.gen.yml

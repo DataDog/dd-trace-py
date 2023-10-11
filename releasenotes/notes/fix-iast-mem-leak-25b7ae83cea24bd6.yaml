@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    This fix eliminates some reference leaks and C-API usage in the ``_iast`` module.

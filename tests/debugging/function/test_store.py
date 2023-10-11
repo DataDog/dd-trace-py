@@ -203,9 +203,7 @@ def test_function_inject_wrap_commutativity():
         # Unwrapping
         store.unwrap(stuff.modulestuff)
 
-        assert stuff.modulestuff.__code__ is not code
-        if sys.version_info < (3, 12):
-            assert stuff.modulestuff.__code__ == code
+        assert stuff.modulestuff.__code__ is not code and stuff.modulestuff.__code__ == code
 
 
 def test_function_wrap_inject_commutativity():
@@ -230,6 +228,4 @@ def test_function_wrap_inject_commutativity():
         assert stuff.modulestuff.__code__ is not code
         store.eject_hook(stuff.modulestuff, hook, lo, 42)
 
-        assert stuff.modulestuff.__code__ is not code
-        if sys.version_info < (3, 12):
-            assert stuff.modulestuff.__code__ == code
+        assert stuff.modulestuff.__code__ is not code and stuff.modulestuff.__code__ == code

@@ -102,7 +102,7 @@
           {
             "inputs": [
               {
-                "address": "server.response.body"
+                "address": "http.response.body"
               }
             ],
             "output": "_dd.appsec.s.res.body"

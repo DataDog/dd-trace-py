@@ -1,8 +1,8 @@
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
-from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast
+from ddtrace.appsec.iast.constants import VULN_WEAK_CIPHER_TYPE
+from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast
 from ddtrace.internal import core
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc2
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc4

@@ -1,7 +1,5 @@
-import json
 import os
 import sys
-from warnings import warn
 
 import mock
 import pytest
@@ -37,13 +35,7 @@ def ensure_no_module_watchdog():
         yield
     finally:
         if was_installed:
-            if ModuleWatchdog.is_installed():
-                warn(
-                    "ModuleWatchdog still installed after test run. This might also be caused by a test that failed "
-                    "while a ModuleWatchdog was installed."
-                )
-            else:
-                ModuleWatchdog.install()
+            ModuleWatchdog.install()
 
 
 @pytest.fixture
@@ -58,18 +50,11 @@ def module_watchdog():
 
 
 def test_watchdog_install_uninstall():
-    assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
-
+    assert not isinstance(sys.modules, ModuleWatchdog)
     ModuleWatchdog.install()
-
-    assert ModuleWatchdog.is_installed()
-    assert isinstance(sys.meta_path[0], ModuleWatchdog)
-
+    assert isinstance(sys.modules, ModuleWatchdog)
     ModuleWatchdog.uninstall()
-
-    assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not isinstance(sys.modules, ModuleWatchdog)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -171,40 +156,30 @@ def test_import_module_hook_for_module_not_yet_imported():
     ModuleWatchdog.uninstall()
 
 
-@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(json)))
+@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
 def test_module_deleted():
-    import gc
     import os
     import sys
 
+    from mock import mock
+
     from ddtrace.internal.module import ModuleWatchdog
 
-    if "json" in sys.modules:
-        del sys.modules["json"]
-        gc.collect()
-
-    name = "json"
+    name = "tests.test_module"
     path = os.getenv("MODULE_ORIGIN")
-
-    class Counter(object):
-        count = 0
-
-        def __call__(self, _):
-            self.count += 1
-
-    hook = Counter()
+    hook = mock.Mock()
 
     ModuleWatchdog.register_origin_hook(path, hook)
     ModuleWatchdog.register_module_hook(name, hook)
 
     __import__(name)
 
-    assert hook.count == 2, hook.count
+    calls = [mock.call(sys.modules[name])] * 2
+    hook.assert_has_calls(calls)
 
     assert path in ModuleWatchdog._instance._origin_map
 
     del sys.modules[name]
-    gc.collect()
 
     assert path not in ModuleWatchdog._instance._origin_map
 
@@ -212,7 +187,8 @@ def test_module_deleted():
     # new hook calls are triggered
     __import__(name)
 
-    assert hook.count == 4
+    calls.extend([mock.call(sys.modules[name])] * 2)
+    hook.assert_has_calls(calls)
 
     ModuleWatchdog.uninstall()
 
@@ -365,6 +341,25 @@ def test_module_watchdog_propagation():
 
     Bob.uninstall()
     Alice.uninstall()
+
+
+def test_module_watchdog_dict_shallow_copy():
+    # Save original reference to sys.modules
+    original_sys_modules = sys.modules
+
+    ModuleWatchdog.install()
+
+    # Ensure that we have replaced sys.modules
+    assert original_sys_modules is not sys.modules
+
+    # Make a shallow copy of both using the dict constructor
+    original_modules = set(dict(original_sys_modules).keys())
+    new_modules = set(dict(sys.modules).keys())
+
+    # Ensure that they match
+    assert original_modules == new_modules
+
+    ModuleWatchdog.uninstall()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="LazyLoader was introduced in Python 3.5")

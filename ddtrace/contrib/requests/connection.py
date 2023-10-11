@@ -53,17 +53,6 @@ def _extract_query_string(uri):
     return uri[start:end]
 
 
-def _wrap_request(func, instance, args, kwargs):
-    """This function wraps `request.request`, which includes all request verbs like `request.get` and `request.post`.
-    IAST needs to wrap this function because `Session.send` is too late, as we require the raw arguments of the request.
-    """
-    if config._iast_enabled:
-        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
-
-        _iast_report_ssrf(func, *args, **kwargs)
-    return func(*args, **kwargs)
-
-
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # TODO[manu]: we already offer a way to provide the Global Tracer

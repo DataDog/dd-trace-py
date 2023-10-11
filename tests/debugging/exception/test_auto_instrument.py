@@ -121,6 +121,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             assert len(d.test_queue) == 3
 
             snapshots = {str(s.uuid): s for s in d.test_queue}
+            print(snapshots.keys())
 
             if PY < (3, 0):
                 stacks = [["c", "b_chain"], ["b_chain"], ["a"]]
@@ -135,6 +136,8 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 exc_id = span.get_tag("_dd.debug.error.exception_id")
 
                 info = {k: v for k, v in enumerate(stacks[n], start=1)}
+
+                print(span._meta["error.stack"], info)
 
                 for i in range(1, len(info) + 1):
                     fn = info[i]

@@ -2,10 +2,9 @@
 Generic dbapi tracing code.
 """
 import six
-import wrapt
 
 from ddtrace import config
-from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.appsec.iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -20,6 +19,7 @@ from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...pin import Pin
+from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
 
@@ -110,11 +110,9 @@ class TracedCursor(wrapt.ObjectProxy):
 
             if _is_iast_enabled():
                 try:
-                    from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-                    from ddtrace.appsec._iast._taint_utils import check_tainted_args
-                    from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
+                    from ddtrace.appsec.iast._taint_utils import check_tainted_args
+                    from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
 
-                    _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                     if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                         SqlInjection.report(evidence_value=args[0])
                 except Exception:

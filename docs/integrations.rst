@@ -181,12 +181,6 @@ Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
 
-.. _flask_login:
-
-Flask Login
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.flask_login
-
 
 .. _futures:
 

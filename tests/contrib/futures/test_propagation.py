@@ -359,17 +359,7 @@ def test_concurrent_futures_with_gevent():
     import os
     import sys
 
-    # Temporarily suppress warnings for Python 3.12 as os.fork() will generate a
-    # DeprecationWarning. See https://github.com/python/cpython/pull/100229/
-    if sys.version_info >= (3, 12):
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            pid = os.fork()
-    else:
-        pid = os.fork()
-
+    pid = os.fork()
     if pid == 0:
         from gevent import monkey
 

@@ -17,8 +17,6 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
-import wrapt
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -36,6 +34,7 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -516,10 +515,10 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        from ddtrace.appsec._iast._utils import _is_iast_enabled
+        from ddtrace.appsec.iast._utils import _is_iast_enabled
 
         if _is_iast_enabled():
-            from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
+            from ddtrace.appsec.iast.taint_sinks.insecure_cookie import asm_check_cookies
 
             if request_cookies:
                 asm_check_cookies(request_cookies)

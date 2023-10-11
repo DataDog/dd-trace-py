@@ -7,7 +7,6 @@ from os.path import join
 import sys
 import typing
 from typing import cast
-from weakref import WeakValueDictionary as wvdict
 
 
 if typing.TYPE_CHECKING:
@@ -16,6 +15,7 @@ if typing.TYPE_CHECKING:
     from typing import Callable
     from typing import DefaultDict
     from typing import Dict
+    from typing import Iterator
     from typing import List
     from typing import Optional
     from typing import Set
@@ -223,11 +223,12 @@ class _ImportHookChainedLoader(Loader):
             callback(module)
 
 
-class ModuleWatchdog(object):
+class ModuleWatchdog(dict):
     """Module watchdog.
 
-    Hooks into the import machinery to detect when modules are loaded/unloaded.
-    This is also responsible for triggering any registered import hooks.
+    Replace the standard ``sys.modules`` dictionary to detect when modules are
+    loaded/unloaded. This is also responsible for triggering any registered
+    import hooks.
 
     Subclasses might customize the default behavior by overriding the
     ``after_import`` method, which is triggered on every module import, once
@@ -239,22 +240,31 @@ class ModuleWatchdog(object):
     def __init__(self):
         # type: () -> None
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
+        self._om = None  # type: Optional[Dict[str, ModuleType]]
+        self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
+    def __getitem__(self, item):
+        # type: (str) -> ModuleType
+        return self._modules.__getitem__(item)
+
+    def __setitem__(self, name, module):
+        # type: (str, ModuleType) -> None
+        self._modules.__setitem__(name, module)
+
     @property
     def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
+        # type: () -> Dict[str, ModuleType]
         if self._om is None:
             try:
-                self._om = wvdict({origin(module): module for module in sys.modules.values()})
+                self._om = {origin(module): module for module in sys.modules.values()}
             except RuntimeError:
                 # The state of sys.modules might have been mutated by another
                 # thread. We try to build the full mapping at the next occasion.
                 # For now we take the more expensive route of building a list of
                 # the current values, which might be incomplete.
-                return wvdict({origin(module): module for module in list(sys.modules.values())})
+                return {origin(module): module for module in list(sys.modules.values())}
 
         return self._om
 
@@ -274,11 +284,8 @@ class ModuleWatchdog(object):
     def _remove_from_meta_path(cls):
         # type: () -> None
         i = cls._find_in_meta_path()
-
-        if i is None:
-            raise RuntimeError("%s is not installed" % cls.__name__)
-
-        sys.meta_path.pop(i)
+        if i is not None:
+            sys.meta_path.pop(i)
 
     def after_import(self, module):
         # type: (ModuleType) -> None
@@ -320,6 +327,48 @@ class ModuleWatchdog(object):
                 return main_module
 
         return None
+
+    def __delitem__(self, name):
+        # type: (str) -> None
+        try:
+            path = origin(sys.modules[name])
+            # Drop the module reference to reclaim memory
+            del self._origin_map[path]
+        except KeyError:
+            pass
+
+        self._modules.__delitem__(name)
+
+    def __getattribute__(self, name):
+        # type: (str) -> Any
+        if LEGACY_DICT_COPY and name == "keys":
+            # This is a potential attempt to make a copy of sys.modules using
+            # dict(sys.modules) on a Python version that uses the C API to
+            # perform the operation. Since we are an instance of a dict, this
+            # means that we will end up looking like the empty dict, so we take
+            # this chance to actually look like sys.modules.
+            # NOTE: This is a potential source of memory leaks. However, we
+            # expect this to occur only on defunct Python versions, and only
+            # during special code executions, like test runs.
+            super(ModuleWatchdog, self).clear()
+            super(ModuleWatchdog, self).update(self._modules)
+
+        try:
+            return super(ModuleWatchdog, self).__getattribute__("_modules").__getattribute__(name)
+        except AttributeError:
+            return super(ModuleWatchdog, self).__getattribute__(name)
+
+    def __contains__(self, name):
+        # type: (object) -> bool
+        return self._modules.__contains__(name)
+
+    def __len__(self):
+        # type: () -> int
+        return self._modules.__len__()
+
+    def __iter__(self):
+        # type: () -> Iterator
+        return self._modules.__iter__()
 
     def find_module(self, fullname, path=None):
         # type: (str, Optional[str]) -> Union[Loader, None]
@@ -403,13 +452,6 @@ class ModuleWatchdog(object):
         instance._hook_map[path].append(hook)
         try:
             module = instance._origin_map[path]
-            # Sanity check: the module might have been removed from sys.modules
-            # but not yet garbage collected.
-            try:
-                sys.modules[module.__name__]
-            except KeyError:
-                del instance._origin_map[path]
-                raise
         except KeyError:
             # The module is not loaded yet. Nothing more we can do.
             return
@@ -457,7 +499,7 @@ class ModuleWatchdog(object):
         instance = cast(ModuleWatchdog, cls._instance)
         instance._hook_map[module].append(hook)
         try:
-            module_object = sys.modules[module]
+            module_object = instance[module]
         except KeyError:
             # The module is not loaded yet. Nothing more we can do.
             return
@@ -525,8 +567,8 @@ class ModuleWatchdog(object):
         if cls.is_installed():
             raise RuntimeError("%s is already installed" % cls.__name__)
 
-        cls._instance = cls()
-        cls._instance._add_to_meta_path()
+        cls._instance = sys.modules = cls()
+        sys.modules._add_to_meta_path()
         log.debug("%s installed", cls)
 
     @classmethod
@@ -543,8 +585,17 @@ class ModuleWatchdog(object):
         class.
         """
         cls._check_installed()
-        cls._remove_from_meta_path()
 
-        cls._instance = None
-
-        log.debug("%s uninstalled", cls)
+        parent, current = None, sys.modules
+        while isinstance(current, ModuleWatchdog):
+            if type(current) is cls:
+                cls._remove_from_meta_path()
+                if parent is not None:
+                    parent._modules = current._modules
+                else:
+                    sys.modules = current._modules
+                cls._instance = None
+                log.debug("%s uninstalled", cls)
+                return
+            parent = current
+            current = current._modules

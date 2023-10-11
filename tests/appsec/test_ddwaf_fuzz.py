@@ -4,8 +4,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
-from ddtrace.appsec._ddwaf.ddwaf_types import _observator
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
+from ddtrace.appsec.ddwaf.ddwaf_types import _observator
+from ddtrace.appsec.ddwaf.ddwaf_types import ddwaf_object
 
 
 SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())

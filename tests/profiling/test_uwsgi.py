@@ -13,9 +13,9 @@ from tests.contrib.uwsgi import run_uwsgi
 from . import utils
 
 
-# uwsgi does not support Python 3.12 yet
+# uwsgi does not support Python 3.10 yet
 # uwsgi is not available on Windows
-if sys.version_info[:2] >= (3, 12) or sys.platform == "win32":
+if sys.version_info[:2] >= (3, 10) or sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)

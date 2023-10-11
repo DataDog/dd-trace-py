@@ -1,13 +1,13 @@
 from pyramid.httpexceptions import HTTPException
 import pyramid.renderers
 from pyramid.settings import asbool
-import wrapt
 
 # project
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY

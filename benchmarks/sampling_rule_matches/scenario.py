@@ -5,7 +5,7 @@ import string
 import bm
 
 from ddtrace import Span
-from ddtrace.sampling_rule import SamplingRule
+from ddtrace.sampler import SamplingRule
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):

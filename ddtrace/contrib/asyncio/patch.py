@@ -1,8 +1,8 @@
 import asyncio
 import sys
 
-from wrapt import ObjectProxy
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import ObjectProxy
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ..trace_utils import unwrap as _u
 from .wrappers import wrapped_create_task

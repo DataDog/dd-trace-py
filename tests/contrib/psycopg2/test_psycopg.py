@@ -100,7 +100,7 @@ class PsycopgCore(TracerTestCase):
         rows = cursor.fetchall()
         end = time.time()
 
-        self.assertEqual(rows, [("foobarblah",)])
+        self.assertEquals(rows, [("foobarblah",)])
 
         self.assert_structure(
             dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
@@ -164,7 +164,7 @@ class PsycopgCore(TracerTestCase):
             cursor.execute(query)
             rows = cursor.fetchall()
 
-        self.assertEqual(rows, [("tracing",)])
+        self.assertEquals(rows, [("tracing",)])
 
         self.assert_structure(
             dict(name="db.access", service="psycopg-svc"),
@@ -182,7 +182,7 @@ class PsycopgCore(TracerTestCase):
                 cursor.execute(query)
                 rows = cursor.fetchall()
 
-            self.assertEqual(rows, [("tracing",)])
+            self.assertEquals(rows, [("tracing",)])
 
             self.assert_structure(
                 dict(name="db.access", service="psycopg-svc"),

@@ -1,4 +1,4 @@
-name: Build Python 3
+name: Build Python 3.6+
 
 on:
   workflow_call:
@@ -44,7 +44,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels
+      - name: Build wheels python 3.6 and above
         uses: pypa/cibuildwheel@v2.14.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some

@@ -1,8 +1,6 @@
 import functools
 import sys
 
-import wrapt
-
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -23,19 +21,15 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
 
 
 class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
-        self._self_wrapped_is_iterator = wrapped_is_iterator
-        if self._self_wrapped_is_iterator:
-            super(_TracedIterable, self).__init__(wrapped)
-            self._wrapped_iterator = iter(wrapped)
-        else:
-            super(_TracedIterable, self).__init__(iter(wrapped))
+    def __init__(self, wrapped, span, parent_span):
+        super(_TracedIterable, self).__init__(wrapped)
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
@@ -45,10 +39,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 
     def __next__(self):
         try:
-            if self._self_wrapped_is_iterator:
-                return next(self._wrapped_iterator)
-            else:
-                return next(self.__wrapped__)
+            return next(self.__wrapped__)
         except StopIteration:
             self._finish_spans()
             raise
@@ -100,23 +91,15 @@ def _make_block_content(ctx, construct_url):
     if req_span is None:
         raise ValueError("request span not found")
     block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
-    desired_type = block_config.get("type", "auto")
-    ctype = None
-    if desired_type == "none":
-        content = ""
-        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.get("location", ""))]
+    if block_config.get("type", "auto") == "auto":
+        ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
     else:
-        if desired_type == "auto":
-            ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
-        else:
-            ctype = "text/" + block_config["type"]
-        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
-        resp_headers = [("content-type", ctype)]
+        ctype = "text/" + block_config["type"]
+    content = http_utils._get_blocked_template(ctype).encode("UTF-8")
     status = block_config.get("status_code", 403)
     try:
         req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
         req_span.set_tag_str(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
@@ -132,7 +115,7 @@ def _make_block_content(ctx, construct_url):
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
 
-    return status, resp_headers, content
+    return status, ctype, content
 
 
 def _on_request_prepare(ctx, start_response):
@@ -167,7 +150,7 @@ def _on_request_prepare(ctx, start_response):
     ctx.set_item("intercept_start_response", intercept_start_response)
 
 
-def _on_app_success(ctx, closing_iterable):
+def _on_app_success(ctx, closing_iterator):
     app_span = ctx.get_item("app_span")
     middleware = ctx.get_item("middleware")
     modifier = (
@@ -175,7 +158,7 @@ def _on_app_success(ctx, closing_iterable):
         if hasattr(middleware, "_application_call_modifier")
         else middleware._application_span_modifier
     )
-    modifier(app_span, ctx.get_item("environ"), closing_iterable)
+    modifier(app_span, ctx.get_item("environ"), closing_iterator)
     app_span.finish()
 
 
@@ -188,7 +171,7 @@ def _on_app_exception(ctx):
     req_span.finish()
 
 
-def _on_request_complete(ctx, closing_iterable, app_is_iterator):
+def _on_request_complete(ctx, closing_iterator):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
@@ -208,9 +191,9 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
         if hasattr(middleware, "_response_call_modifier")
         else middleware._response_span_modifier
     )
-    modifier(resp_span, closing_iterable)
+    modifier(resp_span, closing_iterator)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
+    return _TracedIterable(iter(closing_iterator), resp_span, req_span)
 
 
 def _on_response_context_started(ctx):

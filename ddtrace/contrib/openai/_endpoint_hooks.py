@@ -61,8 +61,6 @@ class _EndpointHook:
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
                     span.set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
-            elif kw_attr == "engine":  # Azure OpenAI requires using "engine" instead of "model"
-                span.set_tag_str("openai.request.model", str(kwargs[kw_attr]))
             else:
                 span.set_tag_str("openai.request.%s" % kw_attr, str(kwargs[kw_attr]))
 
@@ -153,7 +151,6 @@ class _BaseCompletionHook(_EndpointHook):
 class _CompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
-        "engine",
         "suffix",
         "max_tokens",
         "temperature",
@@ -232,7 +229,6 @@ class _CompletionHook(_BaseCompletionHook):
 class _ChatCompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
-        "engine",
         "temperature",
         "top_p",
         "n",
@@ -283,8 +279,10 @@ class _ChatCompletionHook(_BaseCompletionHook):
             idx = choice["index"]
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
             if integration.is_pc_sampled_span(span) and choice.get("message"):
-                content = choice.get("message", {}).get("content", "") or ""
-                span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
+                span.set_tag_str(
+                    "openai.response.choices.%d.message.content" % idx,
+                    integration.trunc(choice.get("message", {}).get("content", "")),
+                )
                 span.set_tag_str(
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message", {}).get("role", "")),
@@ -309,7 +307,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
 class _EmbeddingHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = ("model", "engine", "user")
+    _request_kwarg_params = ("model", "user")
     ENDPOINT_NAME = "embeddings"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createEmbedding"

@@ -29,7 +29,7 @@ dependencies = [
     "flake8-rst-docstrings",
     "flake8-isort",
     "pygments",
-    "riot==0.19.0",
+    "riot==0.17.4",
 ]
 
 [envs.lint.scripts]
@@ -60,6 +60,7 @@ fmt = [
 ]
 
 [envs.docs]
+type = "container"
 template = "docs"
 dev-mode = false
 python = "3.10"
@@ -83,8 +84,12 @@ build = [
 ]
 
 [envs.docs.overrides]
-# Local MacOS development requires Docker containers
-platform.macos.type = { value = "container" }
+# CircleCI executor is an image already set up for docs
+# We skip the pre-install as well
+env.CIRCLECI.type = [
+    { value = "virtual", if = ["true"] },
+]
+
 
 [envs.slotscheck]
 template = "slotscheck"

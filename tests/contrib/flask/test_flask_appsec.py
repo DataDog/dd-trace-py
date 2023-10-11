@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
@@ -867,86 +867,3 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # remove cache to avoid using template from other tests
         uhttp._HTML_BLOCKED_TEMPLATE_CACHE = None
         uhttp._JSON_BLOCKED_TEMPLATE_CACHE = None
-
-    def test_request_suspicious_request_block_redirect_actions_301(self):
-        @self.app.route("/index.html")
-        def test_route():
-            return "Ok: %s" % request.args.get("toto", ""), 200
-
-        # value suspicious_301 must be redirected
-        with override_global_config(dict(_appsec_enabled=True)), override_env(
-            dict(
-                DD_APPSEC_RULES=RULES_SRBCA,
-                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
-                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
-            )
-        ):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/index.html?toto=suspicious_301")
-            assert resp.status_code == 301
-            assert resp.headers["location"] == "https://www.datadoghq.com"
-            assert not get_response_body(resp)
-            root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
-            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-004"]
-            assert root_span.get_tag(http.STATUS_CODE) == "301"
-            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_301"
-            assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
-            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
-                "text/plain"
-            )
-
-    def test_request_suspicious_request_block_redirect_actions_303(self):
-        @self.app.route("/index.html")
-        def test_route():
-            return "Ok: %s" % request.args.get("toto", ""), 200
-
-        # value suspicious_301 must be redirected
-        with override_global_config(dict(_appsec_enabled=True)), override_env(
-            dict(
-                DD_APPSEC_RULES=RULES_SRBCA,
-                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=RESPONSE_CUSTOM_JSON,
-                DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=RESPONSE_CUSTOM_HTML,
-            )
-        ):
-            self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/index.html?toto=suspicious_303")
-            assert resp.status_code == 303
-            assert resp.headers["location"] == "https://www.datadoghq.com"
-            assert not get_response_body(resp)
-            root_span = self.pop_spans()[0]
-            loaded = json.loads(root_span.get_tag(APPSEC.JSON))
-            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-040-005"]
-            assert root_span.get_tag(http.STATUS_CODE) == "303"
-            assert root_span.get_tag(http.URL) == "http://localhost/index.html?toto=suspicious_303"
-            assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
-            assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith(
-                "text/plain"
-            )
-
-    def test_multiple_service_name(self):
-        import time
-
-        import flask
-
-        import ddtrace
-
-        @self.app.route("/new_service/<service_name>")
-        def new_service(service_name):
-            ddtrace.Pin.override(flask.Flask, service=service_name, tracer=ddtrace.tracer)
-            return "Ok %s" % service_name, 200
-
-        with override_global_config(dict(_remote_config_enabled=True)):
-            self._aux_appsec_prepare_tracer()
-            assert ddtrace.config._remote_config_enabled
-            resp = self.client.get("/new_service/awesome_test")
-            assert resp.status_code == 200
-            assert get_response_body(resp) == "Ok awesome_test"
-            for _ in range(10):
-                time.sleep(1)
-                if "awesome_test" in ddtrace.config._get_extra_services():
-                    break
-            else:
-                raise AssertionError("extra service not found")

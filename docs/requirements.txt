@@ -1,0 +1,10 @@
+cmake
+cython
+sphinx
+opentracing
+reno
+sphinxcontrib-spelling
+PyEnchant
+sphinx-copybutton
+# Later release of furo breaks formatting for code blocks
+furo<=2023.05.20

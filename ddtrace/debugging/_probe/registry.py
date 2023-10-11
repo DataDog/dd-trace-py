@@ -8,6 +8,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeLocationMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
 
@@ -15,22 +16,26 @@ logger = get_logger(__name__)
 
 
 class ProbeRegistryEntry(object):
-    __slots__ = ("probe", "installed", "error_type", "message")
+
+    __slots__ = ("probe", "installed", "exc_info", "message")
 
     def __init__(self, probe):
         # type: (Probe) -> None
         self.probe = probe
         self.installed = False
-        self.error_type = None  # type: Optional[str]
+        self.exc_info = None  # type: Optional[ExcInfoType]
         self.message = None  # type: Optional[str]
 
     def set_installed(self):
         # type: () -> None
         self.installed = True
 
-    def set_error(self, error_type, message):
-        # type: (str, str) -> None
-        self.error_type = error_type
+    def set_exc_info(self, exc_info):
+        # type: (ExcInfoType) -> None
+        self.exc_info = exc_info
+
+    def set_message(self, message):
+        # type: (str) -> None
         self.message = message
 
     def update(self, probe):
@@ -78,11 +83,7 @@ class ProbeRegistry(dict):
 
                 location = _get_probe_location(probe)
                 if location is None:
-                    self.set_error(
-                        probe,
-                        "UnresolvedLocation",
-                        "Unable to resolve location information for probe {}".format(probe.probe_id),
-                    )
+                    self.set_error(probe, "Unable to resolve location information for probe {}".format(probe.probe_id))
                     continue
 
                 self._pending[location].append(probe)
@@ -110,20 +111,28 @@ class ProbeRegistry(dict):
 
             self.logger.installed(probe)
 
-    def set_error(self, probe, error_type, message):
-        # type: (Probe, str, str) -> None
+    def set_exc_info(self, probe, exc_info):
+        # type: (Probe, ExcInfoType) -> None
+        """Set the installed flag for a probe."""
+        with self._lock:
+            self[probe.probe_id].set_exc_info(exc_info)
+            self.logger.error(probe, exc_info=exc_info)
+
+    def set_error(self, probe, message):
+        # type: (Probe, str) -> None
         """Set the error message for a probe."""
         with self._lock:
-            self[probe.probe_id].set_error(error_type, message)
-            self.logger.error(probe, (error_type, message))
+            self[probe.probe_id].set_message(message)
+            self.logger.error(probe, message)
 
     def _log_probe_status_unlocked(self, entry):
         # type: (ProbeRegistryEntry) -> None
         if entry.installed:
             self.logger.installed(entry.probe)
-        elif entry.error_type:
-            assert entry.message is not None, entry  # nosec
-            self.logger.error(entry.probe, error=(entry.error_type, entry.message))
+        elif entry.exc_info:
+            self.logger.error(entry.probe, exc_info=entry.exc_info)
+        elif entry.message:
+            self.logger.error(entry.probe, message=entry.message)
         else:
             self.logger.received(entry.probe)
 

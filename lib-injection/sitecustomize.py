@@ -4,7 +4,6 @@ containing the ddtrace package compatible with the current Python version and pl
 """
 import os
 import sys
-import time
 
 
 debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -29,10 +28,9 @@ def _log(msg, *args, level="info"):
     This function is provided instead of built-in Python logging since we can't rely on any logger
     being configured.
     """
-    if debug_mode:
-        asctime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        msg = "[%s] [%s] datadog.autoinstrumentation(pid: %d): " % (asctime, level.upper(), os.getpid()) + msg % args
-        print(msg, file=sys.stderr)
+    if not debug_mode and level == "debug":
+        return
+    print("%s:datadog.autoinstrumentation(pid: %d): " % (level.upper(), os.getpid()) + msg % args, file=sys.stderr)
 
 
 try:

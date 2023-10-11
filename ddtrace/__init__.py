@@ -25,11 +25,6 @@ from ddtrace.internal import telemetry
 
 
 telemetry.install_excepthook()
-# In order to support 3.12, we start the writer upon initialization.
-# See https://github.com/python/cpython/pull/104826.
-# Telemetry events will only be sent after the `app-started` is queued.
-# This will occur when the agent writer starts.
-telemetry.telemetry_writer.enable()
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402

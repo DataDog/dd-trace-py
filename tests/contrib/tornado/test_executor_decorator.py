@@ -188,7 +188,7 @@ class TestTornadoExecutor(TornadoTestCase):
         patch(futures=True)
         from concurrent.futures import ThreadPoolExecutor
 
-        from wrapt import BoundFunctionWrapper
+        from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
         fn_wrapper = getattr(ThreadPoolExecutor.submit, "__wrapped__", None)
         assert not isinstance(fn_wrapper, BoundFunctionWrapper)

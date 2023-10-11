@@ -458,7 +458,7 @@ class Debugger(Service):
                     origin(module),
                 )
                 log.error(message)
-                self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
+                self._probe_registry.set_error(probe, message)
                 continue
             for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                 probes_for_function[function].append(cast(LineProbe, probe))
@@ -470,7 +470,7 @@ class Debugger(Service):
 
             for probe in probes:
                 if probe.probe_id in failed:
-                    self._probe_registry.set_error(probe, "InjectionFailure", "Failed to inject")
+                    self._probe_registry.set_error(probe, "Failed to inject")
                 else:
                     self._probe_registry.set_installed(probe)
 
@@ -489,9 +489,6 @@ class Debugger(Service):
         # type: (List[LineProbe]) -> None
         for probe in probes:
             if probe not in self._probe_registry:
-                if len(self._probe_registry) >= di_config.max_probes:
-                    log.warning("Too many active probes. Ignoring new ones.")
-                    return
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
@@ -500,7 +497,7 @@ class Debugger(Service):
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
                 )
-                self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
+                self._probe_registry.set_error(probe, "Source file location cannot be resolved")
                 continue
 
         for source in {probe.source_file for probe in probes if probe.source_file is not None}:
@@ -511,10 +508,7 @@ class Debugger(Service):
                 for probe in probes:
                     if probe.source_file != source:
                         continue
-                    exc_type, exc, _ = exc_info
-                    self._probe_registry.set_error(
-                        probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
-                    )
+                    self._probe_registry.set_exc_info(probe, exc_info)
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
     def _eject_probes(self, probes_to_eject):
@@ -584,7 +578,7 @@ class Debugger(Service):
                     probe.func_qname,
                     probe.module,
                 )
-                self._probe_registry.set_error(probe, "NoFunctionInModule", message)
+                self._probe_registry.set_error(probe, message)
                 log.error(message)
                 continue
 
@@ -615,19 +609,12 @@ class Debugger(Service):
     def _wrap_functions(self, probes):
         # type: (List[FunctionProbe]) -> None
         for probe in probes:
-            if len(self._probe_registry) >= di_config.max_probes:
-                log.warning("Too many active probes. Ignoring new ones.")
-                return
-
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None  # nosec
                 self.__watchdog__.register_module_hook(probe.module, self._probe_wrapping_hook)
             except Exception:
-                exc_type, exc, _ = sys.exc_info()
-                self._probe_registry.set_error(
-                    probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
-                )
+                self._probe_registry.set_exc_info(probe, sys.exc_info())
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
     def _unwrap_functions(self, probes):
@@ -675,6 +662,9 @@ class Debugger(Service):
     def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
+        if len(list(probes)) + len(self._probe_registry) > di_config.max_probes:
+            log.warning("Too many active probes. Ignoring new ones.")
+            return
 
         if event == ProbePollerEvent.STATUS_UPDATE:
             self._probe_registry.log_probes_status()

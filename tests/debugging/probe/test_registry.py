@@ -62,7 +62,7 @@ def test_registry_location_error():
     assert status_logger.queue == [
         {
             "service": "test",
-            "message": "Failed to instrument probe 42",
+            "message": "Unable to resolve location information for probe 42",
             "ddsource": "dd_debugger",
             "debugger": {
                 "diagnostics": {
@@ -70,10 +70,6 @@ def test_registry_location_error():
                     "probeVersion": 0,
                     "runtimeId": runtime.get_runtime_id(),
                     "status": "ERROR",
-                    "exception": {
-                        "type": "UnresolvedLocation",
-                        "message": "Unable to resolve location information for probe 42",
-                    },
                 }
             },
         }

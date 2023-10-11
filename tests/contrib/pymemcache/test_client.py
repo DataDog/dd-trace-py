@@ -7,7 +7,6 @@ from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
 import pytest
-import wrapt
 
 # project
 from ddtrace import Pin
@@ -15,9 +14,9 @@ from ddtrace.contrib.pymemcache.client import WrappedClient
 from ddtrace.contrib.pymemcache.patch import patch
 from ddtrace.contrib.pymemcache.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.vendor import wrapt
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
-from tests.utils import override_config
 
 from .test_client_mixin import PYMEMCACHE_VERSION
 from .test_client_mixin import PymemcacheClientTestCaseMixin
@@ -28,13 +27,6 @@ from .utils import _str
 
 
 _Client = pymemcache.client.base.Client
-
-
-# Manually configure pymemcached to collect command
-@pytest.fixture(scope="module", autouse=True)
-def command_enabled():
-    with override_config("pymemcache", dict(command_enabled=True)):
-        yield
 
 
 class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):

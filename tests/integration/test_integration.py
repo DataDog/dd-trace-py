@@ -55,12 +55,10 @@ def test_debug_mode_generates_debug_output():
     assert b"DEBUG:ddtrace" not in p.stderr.read(), "stderr should have no debug lines when DD_TRACE_DEBUG is unset"
 
     env = os.environ.copy()
-    env.update({"DD_TRACE_DEBUG": "true"})
+    env.update({"DD_TRACE_DEBUG": "true", "DD_CALL_BASIC_CONFIG": "true"})
     p = import_ddtrace_in_subprocess(env)
     assert p.stdout.read() == b""
-    assert (
-        b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
-    ), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
+    assert b"DEBUG:ddtrace" in p.stderr.read(), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
@@ -280,13 +278,13 @@ def test_metrics():
     from tests.integration.test_integration import _test_metrics
     from tests.utils import AnyInt
 
-    assert t._partial_flush_min_spans == 300
+    assert t._partial_flush_min_spans == 500
     _test_metrics(
         t,
         http_sent_bytes=AnyInt(),
-        http_sent_traces=50,
-        writer_accepted_traces=50,
-        buffer_accepted_traces=50,
+        http_sent_traces=30,
+        writer_accepted_traces=30,
+        buffer_accepted_traces=30,
         buffer_accepted_spans=15000,
         http_requests=1,
     )
@@ -346,9 +344,7 @@ def test_single_trace_too_large():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings(
-    env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false", "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(8 << 20)}
-)
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"})
 def test_single_trace_too_large_partial_flush_disabled():
     import mock
 
@@ -533,31 +529,6 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
-@skip_if_testagent
-@pytest.mark.subprocess(
-    env={
-        "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true",
-        "DD_TRACE_API_VERSION": "v0.5",
-        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
-    }
-)
-def test_trace_with_invalid_encoding_for_v05_payload():
-    import mock
-
-    from ddtrace import tracer
-    from tests.utils import AnyStr
-    from tests.utils import AnyStringWithText
-
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        span = tracer.trace("name")
-        span.finish()
-        span.name = "new_name"
-        tracer.flush()
-
-    log.error.assert_has_calls([mock.call("Encoding Error (or span was modified after finish): %s", AnyStr())])
-    log.debug.assert_has_calls([mock.call(AnyStringWithText("Malformed String table values"))])
-
-
 def test_trace_with_failing_encoder_generates_error_log():
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
@@ -648,6 +619,7 @@ s2.finish()
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                "DD_CALL_BASIC_CONFIG": "true",
             }
         )
 
@@ -655,7 +627,38 @@ s2.finish()
         assert status == 0, err
 
 
-@pytest.mark.subprocess(
+@pytest.mark.parametrize(
+    "call_basic_config,debug_mode",
+    itertools.permutations((True, False, None), 2),
+)
+def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
+    env = os.environ.copy()
+
+    if debug_mode is not None:
+        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
+    if call_basic_config is not None:
+        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
+        has_root_handlers = call_basic_config
+    else:
+        has_root_handlers = False
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+root = logging.getLogger()
+print(len(root.handlers))
+""",
+        env=env,
+    )
+
+    assert status == 0
+    if has_root_handlers:
+        assert out == six.b("1\n")
+    else:
+        assert out == six.b("0\n")
+
+
+@parametrize_with_all_encodings(
     env=dict(
         DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
         DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
@@ -674,8 +677,8 @@ def test_writer_configured_correctly_from_env():
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
 
-    assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
-    assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
+    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
     assert ddtrace.tracer._writer._interval == 1.0
 
 
@@ -703,8 +706,8 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
 assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
@@ -747,6 +750,7 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
+    env["DD_CALL_BASIC_CONFIG"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)

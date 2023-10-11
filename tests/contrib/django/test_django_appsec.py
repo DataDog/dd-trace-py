@@ -856,31 +856,6 @@ def test_request_suspicious_request_block_custom_actions(client, test_spans, tra
     http._JSON_BLOCKED_TEMPLATE_CACHE = None
 
 
-@pytest.mark.parametrize(
-    ["suspicious_value", "expected_code", "rule"],
-    [
-        ("suspicious_301", 301, "tst-040-004"),
-        ("suspicious_303", 303, "tst-040-005"),
-    ],
-)
-def test_request_suspicious_request_redirect_actions(client, test_spans, tracer, suspicious_value, expected_code, rule):
-    # value suspicious_306_auto must be blocked
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(
-            DD_APPSEC_RULES=RULES_SRBCA,
-        )
-    ):
-        root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="index.html?toto=%s" % suspicious_value
-        )
-        assert response.status_code == expected_code
-        # check if response content is custom as expected
-        assert not response.content
-        assert response["location"] == "https://www.datadoghq.com"
-        loaded = json.loads(root_span.get_tag(APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == [rule]
-
-
 @pytest.mark.django_db
 def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
     from django.contrib.auth import get_user

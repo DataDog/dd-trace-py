@@ -74,7 +74,7 @@ class DdtraceRunTest(BaseTestCase):
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" not in out
 
-        with self.override_env(dict(DD_TRACE_DEBUG="true")):
+        with self.override_env(dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
                 stderr=subprocess.STDOUT,
@@ -223,21 +223,22 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true")):
+        with self.override_env(dict(DD_LOGS_INJECTION="true", DD_CALL_BASIC_CONFIG="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success"), out.decode()
 
     def test_debug_mode(self):
-        p = subprocess.Popen(
-            ["ddtrace-run", "--debug", "python", "-c", "''"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        with self.override_env(dict(DD_CALL_BASIC_CONFIG="true")):
+            p = subprocess.Popen(
+                ["ddtrace-run", "--debug", "python", "-c", "''"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
-        p.wait()
-        assert p.returncode == 0
-        assert p.stdout.read() == six.b("")
-        assert six.b("debug mode has been enabled for the ddtrace logger") in p.stderr.read()
+            p.wait()
+            assert p.returncode == 0
+            assert p.stdout.read() == six.b("")
+            assert six.b("ddtrace.sampler") in p.stderr.read()
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
@@ -361,7 +362,7 @@ def test_info_no_configs():
     Health metrics enabled: False
     Priority sampling enabled: True
     Partial flushing enabled: True
-    Partial flush minimum number of spans: 300
+    Partial flush minimum number of spans: 500
     WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None

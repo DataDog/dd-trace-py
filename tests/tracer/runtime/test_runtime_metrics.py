@@ -172,14 +172,14 @@ class TestRuntimeWorker(TracerTestCase):
 
         # check to last set of metrics returned to confirm tags were set
         for gauge in received[-1:]:
-            self.assertRegex(gauge, "service:parent")
-            self.assertRegex(gauge, "service:child")
-            self.assertNotRegex(gauge, "service:db")
-            self.assertRegex(gauge, "env:tests.dog")
-            self.assertRegex(gauge, "lang_interpreter:CPython")
-            self.assertRegex(gauge, "lang_version:")
-            self.assertRegex(gauge, "lang:python")
-            self.assertRegex(gauge, "tracer_version:")
+            self.assertRegexpMatches(gauge, "service:parent")
+            self.assertRegexpMatches(gauge, "service:child")
+            self.assertNotRegexpMatches(gauge, "service:db")
+            self.assertRegexpMatches(gauge, "env:tests.dog")
+            self.assertRegexpMatches(gauge, "lang_interpreter:CPython")
+            self.assertRegexpMatches(gauge, "lang_version:")
+            self.assertRegexpMatches(gauge, "lang:python")
+            self.assertRegexpMatches(gauge, "tracer_version:")
 
     def test_root_and_child_span_runtime_internal_span_types(self):
         with runtime_metrics_service(tracer=self.tracer):

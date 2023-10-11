@@ -1,3 +1,4 @@
+import logging
 import os
 
 from ddtrace.internal import agent
@@ -48,7 +49,14 @@ class RemoteConfigPoller(periodic.PeriodicService):
             ):
                 self._state = self._online
                 return
-        log.debug(
+
+        if ddconfig._debug_mode or ddconfig._remote_config_enabled:
+            LOG_LEVEL = logging.WARNING
+        else:
+            LOG_LEVEL = logging.DEBUG
+
+        log.log(
+            LOG_LEVEL,
             "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
@@ -65,7 +73,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return
 
         elapsed = sw.elapsed()
-        log.debug("request config in %.5fs to %s", elapsed, self._client.agent_url)
+        if elapsed >= self.interval:
+            log_level = logging.WARNING
+        else:
+            log_level = logging.DEBUG
+        log.log(log_level, "request config in %.5fs to %s", elapsed, self._client.agent_url)
 
     def periodic(self):
         # type: () -> None

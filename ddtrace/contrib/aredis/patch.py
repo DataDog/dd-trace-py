@@ -1,9 +1,9 @@
 import os
 
 import aredis
-import wrapt
 
 from ddtrace import config
+from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN

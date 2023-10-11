@@ -50,7 +50,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
         with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
         ):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
@@ -96,7 +96,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
         with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
         ):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
@@ -142,7 +142,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         # appsec disabled must not block
         with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
+            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.INTERVAL_PER_ROUTE: "0.0"}
         ):
             self._aux_appsec_prepare_tracer(appsec_enabled=False)
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")

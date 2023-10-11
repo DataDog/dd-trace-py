@@ -1,17 +1,17 @@
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
 try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

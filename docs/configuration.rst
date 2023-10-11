@@ -87,7 +87,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-         Enables debug logging in the tracer.
+         Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist.
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
      version_added:
@@ -135,6 +135,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: Enables :ref:`Logs Injection`.
+
+   DD_CALL_BASIC_CONFIG:
+     type: Boolean
+     default: False
+     description: Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
    DD_AGENT_HOST:
      type: String
@@ -421,15 +426,6 @@ The following environment variables for the tracer are supported:
        v1.16.2: added with default of False
        v1.19.0: default changed to True
 
-   DD_TRACE_METHODS:
-     type: String
-     default: ""
-     description: |
-        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
-        Note that this setting is only compatible with ``ddtrace-run``.
-     version_added:
-       v2.1.0:
-
    DD_IAST_ENABLED:
      type: Boolean
      default: False
@@ -531,9 +527,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.
+         set to ``true`` to work.  
       version_added:
-         v1.17.0: Added support to the Django integration. No other integrations support this configuration.
+         v1.15.0:
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String

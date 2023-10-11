@@ -42,7 +42,6 @@ def _expected_payload(
                 "language": "python",
                 "tracer_version": _pep440_to_semver(),
                 "service": None,
-                "extra_services": [],
                 "env": None,
                 "app_version": None,
             },

@@ -2,7 +2,6 @@ import os
 
 # 3p
 import rediscluster
-import wrapt
 
 # project
 from ddtrace import config
@@ -22,6 +21,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 

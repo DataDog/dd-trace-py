@@ -10,21 +10,21 @@ import random
 import re
 import sys
 import threading
-from typing import Any
-from typing import Optional
 from typing import TYPE_CHECKING
-from typing import Text
 
 from six import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
     from typing import Callable
     from typing import Dict
     from typing import Generator
     from typing import Iterable
     from typing import List
+    from typing import Optional
     from typing import Sequence
+    from typing import Text
     from typing import Tuple
 
 
@@ -159,7 +159,8 @@ def do_translate(s, translate_dict):
     return s.translate(translate_dict)
 
 
-def do_decode_simple(s: bytes) -> str:
+def do_decode_simple(s):
+    # type: (bytes, str, str) -> str
     return s.decode()
 
 
@@ -942,21 +943,15 @@ def do_format_fill(a):  # type: (Any) -> str
     return "{:10}".format(a)
 
 
-def do_slice_2_and_two_strings(
-    s1: Text, s2: Text, first: Optional[int], second: Optional[int], third: Optional[int]
-) -> Text:
-    return (s1 + s2)[first:second:third]
-
-
-def do_slice_2(s: Text, first: Optional[int], second: Optional[int], third: Optional[int]) -> Text:
+def do_slice_2(s, first, second, third):  # type: (str, int, int, int) -> str
     return s[first:second:third]
 
 
-def do_slice_condition(s: str, first, second):
+def do_slice_condition(s, first, second):  # type: (str, int, int) -> str
     return s[first : second or 0]
 
 
-def do_namedtuple(s: Text) -> Any:
+def do_namedtuple(s):  # type: (str) -> Any
     PathInfo = namedtuple("PathInfo", "name surname")
     my_string = PathInfo(name=s, surname=None)
     return my_string
@@ -995,7 +990,7 @@ def do_rstrip_2(s):  # type: (str) -> str
     return s.rstrip()
 
 
-def do_index(c: str, i: int) -> str:
+def do_index(c, i):  # type: (str, int) -> str
     return c[i]
 
 

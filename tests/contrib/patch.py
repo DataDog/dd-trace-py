@@ -6,8 +6,7 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
-import wrapt
-
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
@@ -696,9 +695,7 @@ class PatchTestCase(object):
                         """
                         import sys
 
-                        from ddtrace.internal.module import ModuleWatchdog
-
-                        from wrapt import wrap_function_wrapper as wrap
+                        from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
 
                         patched = False
 
@@ -713,7 +710,7 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 

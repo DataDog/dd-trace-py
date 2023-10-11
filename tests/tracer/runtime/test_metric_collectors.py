@@ -36,7 +36,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         import threading
         import time
 
-        import psutil
+        from ddtrace.vendor import psutil
 
         # Something to bump CPU utilization
         def busy_wait(duration_ms):
@@ -141,7 +141,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         # create reference
         a = []
         collected = collector.collect([GC_COUNT_GEN0])
-        self.assertGreaterEqual(collected[0][1], start[0])
+        self.assertGreater(collected[0][1], start[0])
 
         # delete reference and collect
         del a

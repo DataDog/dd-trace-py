@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
-import json
 import os
-from typing import Any
-from typing import Dict
-from typing import Mapping
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -20,6 +15,20 @@ from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 
+
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
+    from typing import Mapping
+    from typing import Optional
+
+    from ddtrace import Tracer
 
 log = get_logger(__name__)
 
@@ -34,7 +43,8 @@ class AppSecRC(PubSub):
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "ASM")
 
 
-def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
+def enable_appsec_rc(test_tracer=None):
+    # type: (Optional[Tracer]) -> None
     """Remote config will be used by ASM libraries to receive four different updates from the backend.
     Each update has it’s own product:
     - ASM_FEATURES product - To allow users enable or disable ASM remotely
@@ -78,7 +88,8 @@ def disable_appsec_rc():
     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
 
-def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, ruleset: Dict[str, Any]) -> None:
+def _add_rules_to_list(features, feature, message, ruleset):
+    # type: (Mapping[str, Any], str, str, Dict[str, Any]) -> None
     rules = features.get(feature, None)
     if rules is not None:
         try:
@@ -86,17 +97,19 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
                 ruleset[feature] = []
             ruleset[feature] += rules
             log.debug("Reloading Appsec %s: %s", message, str(rules)[:20])
-        except json.JSONDecodeError:
+        except JSONDecodeError:
             log.error("ERROR Appsec %s: invalid JSON content from remote configuration", message)
 
 
-def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+def _appsec_callback(features, test_tracer=None):
+    # type: (Mapping[str, Any], Optional[Tracer]) -> None
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
 
 
-def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer]) -> bool:
+def _appsec_rules_data(features, test_tracer):
+    # type: (Mapping[str, Any], Optional[Tracer]) -> bool
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
     if test_tracer is None:
@@ -117,9 +130,8 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
     return False
 
 
-def _preprocess_results_appsec_1click_activation(
-    features: Dict[str, Any], pubsub_instance: Optional[PubSub] = None
-) -> Dict[str, Any]:
+def _preprocess_results_appsec_1click_activation(features, pubsub_instance=None):
+    # type: (Any, Optional[PubSub]) -> Mapping[str, Any]
     """The main process has the responsibility to enable or disable the ASM products. The child processes don't
     care about that, the children only need to know about payload content.
     """
@@ -150,7 +162,7 @@ def _preprocess_results_appsec_1click_activation(
             if rc_appsec_enabled is not None:
                 from ddtrace.appsec._constants import PRODUCTS
 
-                if pubsub_instance is None:
+                if not pubsub_instance:
                     pubsub_instance = (
                         remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
                         or remoteconfig_poller.get_registered(PRODUCTS.ASM)
@@ -170,7 +182,8 @@ def _preprocess_results_appsec_1click_activation(
     return features
 
 
-def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+def _appsec_1click_activation(features, test_tracer=None):
+    # type: (Mapping[str, Any], Optional[Tracer]) -> None
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |

@@ -4,12 +4,12 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+import ddtrace
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
-from ddtrace.version import get_version
 
 from ...settings import _config as config
 from ..hostname import get_hostname
@@ -63,7 +63,7 @@ def _get_application(key):
         "env": env or "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": get_version(),
+        "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
         "products": _get_products(),
@@ -88,7 +88,7 @@ def get_application(service, version, env):
 def _get_products():
     # type: () -> Dict
     return {
-        "appsec": {"version": get_version(), "enabled": config._appsec_enabled},
+        "appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled},
     }
 
 

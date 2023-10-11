@@ -14,7 +14,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
-from tests.utils import override_global_config
 from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
@@ -181,15 +180,15 @@ def test_wrong_span_name_type_not_sent():
 @snapshot()
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
-        with mock.patch("ddtrace.span.log") as log:
-            with tracer.trace("root") as root:
-                root._meta = meta
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._meta = meta
-            log.exception.assert_called_once_with("error closing trace")
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root._meta = meta
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child._meta = meta
+        log.exception.assert_called_once_with("error closing trace")
 
 
 @pytest.mark.parametrize(
@@ -204,15 +203,15 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 @snapshot()
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
-        with mock.patch("ddtrace.span.log") as log:
-            with tracer.trace("root") as root:
-                root._metrics = metrics
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._metrics = metrics
-            log.exception.assert_called_once_with("error closing trace")
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root._metrics = metrics
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child._metrics = metrics
+        log.exception.assert_called_once_with("error closing trace")
 
 
 @snapshot()

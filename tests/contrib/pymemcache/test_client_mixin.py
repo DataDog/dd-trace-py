@@ -1,6 +1,5 @@
 # 3p
 import pymemcache
-import pytest
 
 # project
 from ddtrace import Pin
@@ -11,7 +10,6 @@ from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
-from tests.utils import override_config
 
 from .utils import MockSocket
 
@@ -22,13 +20,6 @@ TEST_HOST = "localhost"
 TEST_PORT = 117711
 
 PYMEMCACHE_VERSION = tuple(int(_) for _ in pymemcache.__version__.split("."))
-
-
-# Manually configure pymemcached to collect command
-@pytest.fixture(scope="module", autouse=True)
-def command_enabled():
-    with override_config("pymemcache", dict(command_enabled=True)):
-        yield
 
 
 class PymemcacheClientTestCaseMixin(TracerTestCase):

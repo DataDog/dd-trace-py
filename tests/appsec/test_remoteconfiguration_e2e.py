@@ -11,13 +11,13 @@ import sys
 import time
 import uuid
 
-import psutil
 import pytest
 
 from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.utils.retry import RetryError
+from ddtrace.vendor import psutil
 from tests.webclient import Client
 
 

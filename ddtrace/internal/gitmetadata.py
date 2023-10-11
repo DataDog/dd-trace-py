@@ -124,15 +124,3 @@ def clean_tags(tags):
     tags.pop(COMMIT_SHA, None)
 
     return tags
-
-
-def add_tags(tags):
-    clean_tags(tags)
-
-    repository_url, commit_sha = get_git_tags()
-
-    if repository_url:
-        tags[REPOSITORY_URL] = repository_url
-
-    if commit_sha:
-        tags[COMMIT_SHA] = commit_sha

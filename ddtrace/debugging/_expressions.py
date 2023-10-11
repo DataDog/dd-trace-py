@@ -40,7 +40,7 @@ from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
 
-from ddtrace.debugging._safety import safe_getitem
+from ddtrace.debugging.safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 

@@ -2,8 +2,8 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec.iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -37,8 +37,8 @@ def _assert_vulnerability(span_report, value_parts, file_line_label):
     ],
 )
 def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -61,19 +61,19 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_1_prop")
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skip(reason="aspect add fails when var1 + var1")
 @pytest.mark.parametrize(
     "origin1",
     [
-        "taintsource",
-        "1",
-        b"taintsource1",
-        bytearray(b"taintsource1"),
+        ("taintsource"),
+        ("1"),
+        (b"taintsource1"),
+        (bytearray(b"taintsource1")),
     ],
 )
 def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -82,17 +82,17 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     mod.propagation_path_1_source_2_prop(tainted_string_1)
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    value_encoded = str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
+
     sources = span_report.sources
     assert len(sources) == 1
     assert sources[0].name == "path1"
     assert sources[0].origin == OriginType.PATH
-    assert sources[0].value == value_encoded
+    assert sources[0].value == str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
 
     value_parts = [
         {"value": ANY},
-        {"source": 0, "value": value_encoded},
-        {"source": 0, "value": value_encoded},
+        {"source": 0, "value": str(origin1)},
+        {"source": 0, "value": str(origin1)},
         {"value": ".txt"},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_1_source_2_prop")
@@ -117,8 +117,8 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     ],
 )
 def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -170,8 +170,8 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     ],
 )
 def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking import OriginType
+    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
 
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -208,45 +208,3 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
         {"value": ".txt"},
     ]
     _assert_vulnerability(span_report, value_parts, "propagation_path_3_prop")
-
-
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.parametrize(
-    "origin1, origin2",
-    [
-        ("taintsource1", "taintsource2"),
-        ("taintsource", "taintsource"),
-        (b"taintsource1", "taintsource2"),
-        (b"taintsource1", b"taintsource2"),
-        ("taintsource1", b"taintsource2"),
-        (bytearray(b"taintsource1"), "taintsource2"),
-        (bytearray(b"taintsource1"), bytearray(b"taintsource2")),
-        ("taintsource1", bytearray(b"taintsource2")),
-        (bytearray(b"taintsource1"), b"taintsource2"),
-        (bytearray(b"taintsource1"), bytearray(b"taintsource2")),
-        (b"taintsource1", bytearray(b"taintsource2")),
-    ],
-)
-def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
-
-    tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
-    tainted_string_2 = taint_pyobject(
-        origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
-    )
-    mod.propagation_path_5_prop(tainted_string_1, tainted_string_2)
-
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-
-    sources = span_report.sources
-    assert len(sources) == 1
-    source1_value_encoded = str(origin1, encoding="utf-8") if type(origin1) is not str else origin1
-    assert sources[0].name == "path1"
-    assert sources[0].origin == OriginType.PATH
-    assert sources[0].value == source1_value_encoded
-
-    value_parts = [{"value": ANY}, {"source": 0, "value": "aint"}, {"value": ".txt"}]
-    _assert_vulnerability(span_report, value_parts, "propagation_path_5_prop")
