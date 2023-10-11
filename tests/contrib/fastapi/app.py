@@ -1,7 +1,5 @@
 import asyncio
 from tempfile import NamedTemporaryFile
-import time
-from typing import Annotated
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -35,16 +33,22 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
+    read_homepage_lock = asyncio.Semaphore(1)
 
     @app.get("/")
-    async def read_homepage(sleep: Annotated[bool, Header()] = False):
+    async def read_homepage(sleep: bool = Header(...)):  # noqa: B008
         if sleep:
-            time.sleep(5)
-            return {"Homepage Read": "Sleep"}
-        return {"Homepage Read": "Success"}
+            async with read_homepage_lock:
+                await read_homepage_lock.acquire()
+                return {"Homepage Read": "Sleep"}
+        else:
+            try:
+                return {"Homepage Read": "Success"}
+            finally:
+                read_homepage_lock.release()
 
     @app.get("/items/{item_id}", response_model=Item)
-    async def read_item(item_id: str, x_token: Annotated[bool, Header()]):
+    async def read_item(item_id: str, x_token: str = Header(...)):  # noqa: B008
         if x_token != fake_secret_token:
             raise HTTPException(status_code=401, detail="Invalid X-Token header")
         if item_id not in fake_db:
@@ -52,7 +56,7 @@ def get_app():
         return fake_db[item_id]
 
     @app.post("/items/", response_model=Item)
-    async def create_item(item: Item, x_token: Annotated[bool, Header()]):
+    async def create_item(item: Item, x_token: str = Header(...)):  # noqa: B008
         if x_token != fake_secret_token:
             raise HTTPException(status_code=401, detail="Invalid X-Token header")
         if item.id in fake_db:
@@ -61,7 +65,7 @@ def get_app():
         return item
 
     @app.get("/users/{userid:str}")
-    async def get_user(userid: str, x_token: Annotated[bool, Header()]):
+    async def get_user(userid: str, x_token: str = Header(...)):  # noqa: B008
         if x_token != fake_secret_token:
             raise HTTPException(status_code=401, detail="Invalid X-Token header")
         if userid not in fake_db:
@@ -69,7 +73,7 @@ def get_app():
         return fake_db[userid]
 
     @app.get("/users/{userid:str}/info")
-    async def get_user_info(userid: str, x_token: Annotated[bool, Header()]):
+    async def get_user_info(userid: str, x_token: str = Header(...)):  # noqa: B008
         if x_token != fake_secret_token:
             raise HTTPException(status_code=401, detail="Invalid X-Token header")
         if userid not in fake_db:
@@ -77,7 +81,7 @@ def get_app():
         return {"User Info": "Here"}
 
     @app.get("/users/{userid:str}/{attribute:str}")
-    async def get_user_attribute(userid: str, attribute: str, x_token: Annotated[bool, Header()]):
+    async def get_user_attribute(userid: str, attribute: str, x_token: str = Header(...)):  # noqa: B008
         if x_token != fake_secret_token:
             raise HTTPException(status_code=401, detail="Invalid X-Token header")
         if userid not in fake_db:
