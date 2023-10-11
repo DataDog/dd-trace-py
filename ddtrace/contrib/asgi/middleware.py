@@ -263,6 +263,9 @@ class TraceMiddleware:
                 finally:
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
+                    trace_utils.set_http_meta(
+                        span, self.integration_config, status_code=403, response_headers={"content-type": accept_header}
+                    )
 
             try:
                 if _request_blocked(span):

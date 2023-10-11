@@ -1,6 +1,7 @@
 import asyncio
 from tempfile import NamedTemporaryFile
 import time
+from typing import Annotated
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -36,8 +37,8 @@ def get_app():
     app = FastAPI()
 
     @app.get("/")
-    async def read_homepage(sleep: str = Header(...)):  # noqa: B008
-        if sleep == "True":
+    async def read_homepage(sleep: Annotated[bool, Header()] = False):  # noqa: B008
+        if sleep:
             time.sleep(2)
             return {"Homepage Read": "Sleep"}
         return {"Homepage Read": "Success"}
