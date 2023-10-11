@@ -1374,8 +1374,9 @@ venv = Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
             venvs=[
-                Venv(pys=select_pys(max_version="3.6"),
-                     pkgs={
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
                         "boto": latest,
                         "python-jose[cryptography]": "~=3.2.0",
                         # Moto drops support for python2.7 after 1.x.x and no longer offers < 1.0.0
@@ -1384,7 +1385,7 @@ venv = Venv(
                         "Jinja2": "~=2.11.0",
                         "rsa": "<4.7.1",
                         "pyyaml": "~=5.3.0",
-                     },
+                    },
                 ),
             ],
         ),
