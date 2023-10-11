@@ -3,25 +3,23 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.logging.constants import RECORD_ATTR_ENV
-from ddtrace.contrib.logging.constants import RECORD_ATTR_SERVICE
-from ddtrace.contrib.logging.constants import RECORD_ATTR_SPAN_ID
-from ddtrace.contrib.logging.constants import RECORD_ATTR_TRACE_ID
-from ddtrace.contrib.logging.constants import RECORD_ATTR_VALUE_EMPTY
-from ddtrace.contrib.logging.constants import RECORD_ATTR_VALUE_ZERO
-from ddtrace.contrib.logging.constants import RECORD_ATTR_VERSION
 
 from ...internal.utils import get_argument_value
 from ...internal.utils import set_argument_value
+from ..logging.constants import RECORD_ATTR_ENV
+from ..logging.constants import RECORD_ATTR_SERVICE
+from ..logging.constants import RECORD_ATTR_SPAN_ID
+from ..logging.constants import RECORD_ATTR_TRACE_ID
+from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
+from ..logging.constants import RECORD_ATTR_VALUE_ZERO
+from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
 
 config._add(
     "structlog",
-    dict(
-        tracer=None,
-    ),
-)  # by default, override here for custom tracer
+    dict(),
+)
 
 
 def get_version():
@@ -29,22 +27,21 @@ def get_version():
     return getattr(structlog, "__version__", "")
 
 
-def tracer_injection(_, __, event_dict):
+def _tracer_injection(_, __, event_dict):
 
     span = ddtrace.tracer.current_span()
-    trace_id = None
 
+    trace_id = None
+    span_id = None
     if span:
+        span_id = span.span_id
         trace_id = span.trace_id
         if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
             trace_id = span._trace_id_64bits
 
-    dd_trace_id, dd_span_id = (trace_id, span.span_id) if span else (None, None)
-
     # add ids to structlog event dictionary
-    event_dict[RECORD_ATTR_TRACE_ID] = str(dd_trace_id or RECORD_ATTR_VALUE_ZERO)
-    event_dict[RECORD_ATTR_SPAN_ID] = str(dd_span_id or RECORD_ATTR_VALUE_ZERO)
-
+    event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
+    event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
     # add the env, service, and version configured for the tracer
     event_dict[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
     event_dict[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
@@ -55,7 +52,7 @@ def tracer_injection(_, __, event_dict):
 
 def _w_configure(func, instance, args, kwargs):
 
-    dd_processor = [tracer_injection]
+    dd_processor = [_tracer_injection]
 
     # Only inject values if there is some sort of pre-existing processing with a valid renderer.
     # Without this assumption, the logs will not format correctly since it can't accept the injected values

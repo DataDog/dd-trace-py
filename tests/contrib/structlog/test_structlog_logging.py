@@ -3,19 +3,12 @@ import json
 import structlog
 import wrapt
 
-import ddtrace
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
-
-
-def current_span(tracer=None):
-    if not tracer:
-        tracer = ddtrace.tracer
-    return tracer.current_span()
 
 
 class StructLogTestCase(TracerTestCase):
@@ -49,10 +42,7 @@ class StructLogTestCase(TracerTestCase):
             self.logger.info("Hello!")
             if span:
                 span.finish()
-            return span
 
-        with self.override_config("structlog", dict(tracer=self.tracer)):
-            span = func()
             output = self.cf.logger.calls
 
             dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
@@ -118,22 +108,22 @@ class StructLogTestCase(TracerTestCase):
                 self.logger.info("Hello!")
             return span
 
-        with self.override_config("structlog", dict(tracer=self.tracer)):
-            span = generate_log_in_span()
-            output = self.cf.logger.calls
 
-            assert span.trace_id > MAX_UINT_64BITS
+        span = generate_log_in_span()
+        output = self.cf.logger.calls
 
-            dd_trace_id, dd_span_id = (span._trace_id_64bits, span.span_id) if span else (0, 0)
+        assert span.trace_id > MAX_UINT_64BITS
 
-            assert json.loads(output[0].args[0])["event"] == "Hello!"
-            assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
-            assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
-            assert json.loads(output[0].args[0])["dd.env"] == ""
-            assert json.loads(output[0].args[0])["dd.service"] == ""
-            assert json.loads(output[0].args[0])["dd.version"] == ""
+        dd_trace_id, dd_span_id = (span._trace_id_64bits, span.span_id) if span else (0, 0)
 
-            self.cf.logger.calls.clear()
+        assert json.loads(output[0].args[0])["event"] == "Hello!"
+        assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+        assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+        assert json.loads(output[0].args[0])["dd.env"] == ""
+        assert json.loads(output[0].args[0])["dd.service"] == ""
+        assert json.loads(output[0].args[0])["dd.version"] == ""
+
+        self.cf.logger.calls.clear()
 
     def test_log_trace_service(self):
         def create_span():
@@ -195,22 +185,18 @@ class StructLogTestCase(TracerTestCase):
         structlog.configure(processors=[], logger_factory=self.cf)
         self.logger = structlog.getLogger()
 
-        def func():
-            span = self.tracer.trace("test.logging")
-            self.logger.info("Hello!")
-            if span:
-                span.finish()
-            return span
+        span = self.tracer.trace("test.logging")
+        self.logger.info("Hello!")
+        if span:
+            span.finish()
 
-        with self.override_config("structlog", dict(tracer=self.tracer)):
-            func()
-            output = self.cf.logger.calls
+        output = self.cf.logger.calls
 
-            assert output[0].kwargs["event"] == "Hello!"
-            assert "dd.trace_id" not in output[0].kwargs
-            assert "dd.span_id" not in output[0].kwargs
-            assert "dd.env" not in output[0].kwargs
-            assert "dd.service" not in output[0].kwargs
-            assert "dd.version" not in output[0].kwargs
+        assert output[0].kwargs["event"] == "Hello!"
+        assert "dd.trace_id" not in output[0].kwargs
+        assert "dd.span_id" not in output[0].kwargs
+        assert "dd.env" not in output[0].kwargs
+        assert "dd.service" not in output[0].kwargs
+        assert "dd.version" not in output[0].kwargs
 
-            self.cf.logger.calls.clear()
+        self.cf.logger.calls.clear()

@@ -1,14 +1,6 @@
 import logging
 
 import attr
-from constants import RECORD_ATTR_ENV
-from constants import RECORD_ATTR_SERVICE
-from constants import RECORD_ATTR_SPAN_ID
-from constants import RECORD_ATTR_TRACE_ID
-from constants import RECORD_ATTR_VALUE_EMPTY
-from constants import RECORD_ATTR_VALUE_ZERO
-from constants import RECORD_ATTR_VERSION
-from constants import _LOG_SPAN_KEY
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
@@ -16,6 +8,14 @@ from ddtrace import config
 
 from ...internal.utils import get_argument_value
 from ..trace_utils import unwrap as _u
+from .constants import RECORD_ATTR_ENV
+from .constants import RECORD_ATTR_SERVICE
+from .constants import RECORD_ATTR_SPAN_ID
+from .constants import RECORD_ATTR_TRACE_ID
+from .constants import RECORD_ATTR_VALUE_EMPTY
+from .constants import RECORD_ATTR_VALUE_ZERO
+from .constants import RECORD_ATTR_VERSION
+from .constants import _LOG_SPAN_KEY
 
 
 config._add(
