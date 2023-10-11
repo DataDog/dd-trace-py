@@ -542,12 +542,12 @@ class Span(object):
             trace_id=context.trace_id,
             span_id=context.span_id,
             tracestate=context._tracestate,
-            traceflags=context._traceflags,
+            traceflags=int(context._traceflags),
             attributes=attributes,
         )
 
     def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
-        # type: (int, int, Optional[str], Optional[str], Optional[Dict[str, Any]]) -> None
+        # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
         if attributes is None:
             attributes = dict()
 

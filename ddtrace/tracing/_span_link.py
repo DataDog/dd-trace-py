@@ -34,28 +34,20 @@ class SpanLink:
     """
     TraceId [required]: The span's 128-bit Trace ID
     SpanId [required]: The span's 64-bit Span ID
-    TraceFlags [optional]: The span's trace-flags field, as defined in the W3C standard
 
-    This field must be omitted if no sampling information was provided. If the original
-    OpenTelemetry flags are known, they should be directly provided here. If only sampling
+    Flags [optional]: The span's trace-flags field, as defined in the W3C standard. If only sampling
     information is provided, the flags value must be 1 if the decision is keep, otherwise 0.
 
-    TraceState [optional]: The span's tracestate field, as defined in the W3C standard
-    If datadog (or b3) headers are given, they must be transformed to an equivalent tracestate
-    representation (see [RFC] Implementing W3C Trace Context Propagation).
+    TraceState [optional]: The span's tracestate field, as defined in the W3C standard.
 
-    Attributes: Zero or more key-value pairs, which have the following properties
-    The key must be a non-empty string
-    The value is either:
-    A primitive type: string, bool, or number
-    An array of primitive type values
-    Optional: An array of arrays.
+    Attributes [optional]: Zero or more key-value pairs, where the key must be a non-empty string and the
+    value is either a string, bool, number or an array of primitive type values.
     """
 
     trace_id = attr.ib(type=int)
     span_id = attr.ib(type=int)
     tracestate = attr.ib(type=Optional[str], default=None)
-    flags = attr.ib(type=Optional[str], default=None)
+    flags = attr.ib(type=Optional[int], default=None)
     attributes = attr.ib(type=dict, default=dict())
     _dropped_attributes = attr.ib(type=int, default=0)
 
@@ -92,7 +84,7 @@ class SpanLink:
             d["dropped_attributes_count"] = self._dropped_attributes
         if self.tracestate:
             d["tracestate"] = self.tracestate
-        if self.flags:
+        if self.flags is not None:
             d["flags"] = self.flags
 
         return d

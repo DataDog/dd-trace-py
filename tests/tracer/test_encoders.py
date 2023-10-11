@@ -411,7 +411,7 @@ def test_span_link_v05_encoding():
                 trace_id=1,
                 span_id=2,
                 tracestate="congo=t61rcWkgMzE",
-                flags="01",
+                flags=0,
                 attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
             )
         ],
@@ -434,7 +434,7 @@ def test_span_link_v05_encoding():
     assert (
         encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
         b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": "01"}]'
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
 

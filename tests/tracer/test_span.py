@@ -351,7 +351,7 @@ class SpanTestCase(TracerTestCase):
                 trace_id=2,
                 span_id=1,
                 tracestate="dd=s:1,congo=t61rcWkgMzE",
-                flags="01",
+                flags=1,
                 attributes=link_attributes,
             )
         ]
