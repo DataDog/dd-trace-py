@@ -296,8 +296,8 @@ ddup_upload()
     }
 
     if (upload_thread.joinable()) {
-      // The upload thread is still going.  We'll block on it.
-      upload_thread.join();
+        // The upload thread is still going.  We'll block on it.
+        upload_thread.join();
     }
     upload_thread = std::thread(ddup_upload_impl, g_profile);
 
