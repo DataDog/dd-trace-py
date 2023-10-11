@@ -98,6 +98,7 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env={
+        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
