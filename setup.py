@@ -584,6 +584,8 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
+    version='0.1.0',
+    # setup_requires=["cython", "cmake>=3.24.2"],
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
     ext_modules=ext_modules
     + cythonize(

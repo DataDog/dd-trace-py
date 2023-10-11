@@ -88,7 +88,7 @@ Bucket = NamedTuple(
 )
 
 
-class DataStreamsProcessor(PeriodicSeyyrvice):
+class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
     def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
