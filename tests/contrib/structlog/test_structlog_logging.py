@@ -6,8 +6,8 @@ import wrapt
 import ddtrace
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.logging import patch
-from ddtrace.contrib.logging import unpatch
+from ddtrace.contrib.structlog import patch
+from ddtrace.contrib.structlog import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
 
