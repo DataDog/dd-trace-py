@@ -15,7 +15,7 @@ Enabling
 --------
 
 Patch ``structlog``
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 If using :ref:`ddtrace-run<ddtracerun>` then set the environment variable ``DD_LOGS_INJECTION=true``.
 
@@ -34,13 +34,8 @@ a log, the integration will not add attributes if no pre-existing processor chai
 An example of a proper configuration that can be injected into is as below:
 
     structlog.configure(
-        processors=[
-            structlog.processors.JSONRenderer(),
-        ],
-        logger_factory=structlog.WriteLoggerFactory(
-            file=Path("app").with_suffix(".log").open("wt")
-        )
-    )
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=structlog.WriteLoggerFactory(file=Path("app").with_suffix(".log").open("wt")))
 
 For more information, please see the attached guide on common timestamp issues:
 https://docs.datadoghq.com/logs/guide/logs-not-showing-expected-timestamp/

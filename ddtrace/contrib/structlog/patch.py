@@ -3,19 +3,18 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace.contrib.logging.constants import RECORD_ATTR_ENV
+from ddtrace.contrib.logging.constants import RECORD_ATTR_SERVICE
+from ddtrace.contrib.logging.constants import RECORD_ATTR_SPAN_ID
+from ddtrace.contrib.logging.constants import RECORD_ATTR_TRACE_ID
+from ddtrace.contrib.logging.constants import RECORD_ATTR_VALUE_EMPTY
+from ddtrace.contrib.logging.constants import RECORD_ATTR_VALUE_ZERO
+from ddtrace.contrib.logging.constants import RECORD_ATTR_VERSION
 
 from ...internal.utils import get_argument_value
 from ...internal.utils import set_argument_value
 from ..trace_utils import unwrap as _u
 
-
-RECORD_ATTR_TRACE_ID = "dd.trace_id"
-RECORD_ATTR_SPAN_ID = "dd.span_id"
-RECORD_ATTR_ENV = "dd.env"
-RECORD_ATTR_VERSION = "dd.version"
-RECORD_ATTR_SERVICE = "dd.service"
-RECORD_ATTR_VALUE_ZERO = "0"
-RECORD_ATTR_VALUE_EMPTY = ""
 
 config._add(
     "structlog",
