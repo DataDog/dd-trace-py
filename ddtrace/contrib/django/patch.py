@@ -409,7 +409,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
+    core.root.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
 

@@ -382,6 +382,26 @@ def _after_request_tags(pin, span: Span, request, response):
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
+            trace_utils.set_http_meta(
+                span,
+                config.django,
+                method=request.method,
+                url=url,
+                raw_uri=raw_uri,
+                status_code=status,
+                query=request.META.get("QUERY_STRING", None),
+                parsed_query=request.GET,
+                request_headers=request_headers,
+                response_headers=response_headers,
+                request_cookies=request.COOKIES,
+                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+                request_body=_extract_body(request),
+                peer_ip=core.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+                response_cookies=response_cookies,
+            )
+            core.dispatch("django.after_request_headers.post", response.content, None)
+            """
             core.dispatch(
                 "django.after_request_headers.post",
                 response.content,
@@ -397,6 +417,7 @@ def _after_request_tags(pin, span: Span, request, response):
                 status,
                 response_cookies,
             )
+            """
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

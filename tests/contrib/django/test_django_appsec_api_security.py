@@ -45,6 +45,43 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
+headers_schema = {
+    "1": [
+        {
+            "content-type": [8],
+            "content-length": [8],
+            "x-frame-options": [8],
+        }
+    ],
+    "2": [
+        {
+            "content-type": [8],
+            "content-length": [8],
+            "x-frame-options": [8],
+        }
+    ],
+    "3": [
+        {
+            "content-type": [8],
+            "x-content-type-options": [8],
+            "referrer-policy": [8],
+            "x-frame-options": [8],
+            "content-length": [8],
+        }
+    ],
+    "4": [
+        {
+            "content-type": [8],
+            "cross-origin-opener-policy": [8],
+            "x-content-type-options": [8],
+            "referrer-policy": [8],
+            "x-frame-options": [8],
+            "content-length": [8],
+        }
+    ],
+}
+
+
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security(client, test_spans, tracer):
     import django
@@ -65,42 +102,6 @@ def test_api_security(client, test_spans, tracer):
         assert response.status_code == 200
 
         assert config._api_security_enabled
-
-        headers_schema = {
-            "1": [
-                {
-                    "content-type": [8],
-                    "content-length": [8],
-                    "x-frame-options": [8],
-                }
-            ],
-            "2": [
-                {
-                    "content-type": [8],
-                    "content-length": [8],
-                    "x-frame-options": [8],
-                }
-            ],
-            "3": [
-                {
-                    "content-type": [8],
-                    "x-content-type-options": [8],
-                    "referrer-policy": [8],
-                    "x-frame-options": [8],
-                    "content-length": [8],
-                }
-            ],
-            "4": [
-                {
-                    "content-type": [8],
-                    "cross-origin-opener-policy": [8],
-                    "x-content-type-options": [8],
-                    "referrer-policy": [8],
-                    "x-frame-options": [8],
-                    "content-length": [8],
-                }
-            ],
-        }
 
         for name, expected_value in [
             ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -123,6 +124,7 @@ def test_api_security(client, test_spans, tracer):
 @pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
+    import django
 
     with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
         {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
@@ -152,7 +154,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
             ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
             ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
-            ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
+            ("_dd.appsec.s.res.headers", headers_schema[django.__version__[0]]),
             ("_dd.appsec.s.res.body", [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
         ]:
             value = root_span.get_tag(name)
