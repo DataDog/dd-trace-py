@@ -27,7 +27,7 @@ text_embedding_models = (
     "EmbaasEmbeddings",
 )
 
-vectorstores = (
+vectorstore_classes = (
     "AzureSearch",
     "Redis",
     "ElasticVectorSearch",
