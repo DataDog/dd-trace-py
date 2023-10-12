@@ -1,201 +1,295 @@
 import json
 
+import pytest
 import structlog
-import wrapt
 
+from ddtrace import config
 from ddtrace.constants import ENV_KEY
+from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
-from ddtrace.internal.constants import MAX_UINT_64BITS
-from tests.utils import TracerTestCase
+from tests.utils import DummyTracer
 
 
-class StructLogTestCase(TracerTestCase):
-    def setUp(self):
-        patch()
-        self.cf = structlog.testing.CapturingLoggerFactory()
-        structlog.configure(
-            processors=[structlog.processors.JSONRenderer()],
-            logger_factory=self.cf,
-        )
-        self.logger = structlog.getLogger()
-        super(StructLogTestCase, self).setUp()
+cf = structlog.testing.CapturingLoggerFactory()
 
-    def tearDown(self):
-        unpatch()
-        super(StructLogTestCase, self).tearDown()
 
-    def test_patch(self):
-        """
-        Confirm patching was successful
-        """
+def _test_logging(output, span, env="", service="", version=""):
+    dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
-        self.assertTrue(isinstance(structlog.configure, wrapt.FunctionWrapper))
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == env or ""
+    assert json.loads(output[0].args[0])["dd.service"] == service or ""
+    assert json.loads(output[0].args[0])["dd.version"] == version or ""
 
-        unpatch()
-        self.assertFalse(isinstance(structlog.configure, wrapt.FunctionWrapper))
+    cf.logger.calls.clear()
 
-    def _test_logging(self, create_span, service="", version="", env=""):
-        def func():
-            span = create_span()
-            self.logger.info("Hello!")
-            if span:
-                span.finish()
 
-            output = self.cf.logger.calls
-
-            dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
-
-            assert json.loads(output[0].args[0])["event"] == "Hello!"
-            assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
-            assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
-            assert json.loads(output[0].args[0])["dd.env"] == env or ""
-            assert json.loads(output[0].args[0])["dd.service"] == service or ""
-            assert json.loads(output[0].args[0])["dd.version"] == version or ""
-
-            self.cf.logger.calls.clear()
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False",
-        )
+@pytest.fixture(autouse=True)
+def patch_structlog():
+    patch()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
     )
-    def test_log_trace(self):
-        """
-        Check logging patched and formatter including trace info when 64bit trace ids are generated.
-        """
+    yield
+    unpatch()
 
-        def create_span():
-            return self.tracer.trace("test.logging")
 
-        self._test_logging(create_span=create_span)
+@pytest.fixture(autouse=True)
+def global_config():
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+    yield
+    config.service = config.env = config.version = None
 
-        with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="True"
-        )
+def test_log_trace_global_values():
+    """
+    Check trace info includes global values over local span values
+    """
+
+    tracer = DummyTracer()
+    span = tracer.trace("test.logging")
+    span.set_tag(ENV_KEY, "local-env")
+    span.set_tag(SERVICE_KEY, "local-service")
+    span.set_tag(VERSION_KEY, "local-version")
+
+    structlog.get_logger().info("Hello!")
+    if span:
+        span.finish()
+
+    output = cf.logger.calls
+
+    _test_logging(output, span, config.env, config.service, config.version)
+
+
+def test_log_no_trace():
+    structlog.get_logger().info("Hello!")
+    output = cf.logger.calls
+
+    _test_logging(output, None, config.env, config.service, config.version)
+
+
+def test_no_processors():
+    structlog.configure(processors=[], logger_factory=cf)
+    logger = structlog.get_logger()
+
+    tracer = DummyTracer()
+    tracer.trace("test.logging")
+    logger.info("Hello!")
+
+    output = cf.logger.calls
+
+    assert output[0].kwargs["event"] == "Hello!"
+    assert "dd.trace_id" not in output[0].kwargs
+    assert "dd.span_id" not in output[0].kwargs
+    assert "dd.env" not in output[0].kwargs
+    assert "dd.service" not in output[0].kwargs
+    assert "dd.version" not in output[0].kwargs
+
+    cf.logger.calls.clear()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
+def test_log_trace():
+    """
+    Check logging patched and formatter including trace info when 64bit trace ids are generated.
+    """
+
+    import json
+
+    import structlog
+
+    from ddtrace import config
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+    from tests.utils import DummyTracer
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    patch()
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
     )
-    def test_log_trace_128bit_trace_ids(self):
-        """
-        Check if 128bit trace ids are logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=True`
-        """
+    logger = structlog.getLogger()
 
-        def create_span():
-            span = self.tracer.trace("test.logging")
-            # Ensure a 128bit trace id was generated
-            assert span.trace_id > MAX_UINT_64BITS
-            return span
+    tracer = DummyTracer()
+    span = tracer.trace("test.logging")
+    logger.info("Hello!")
+    if span:
+        span.finish()
 
-        with self.override_global_config(dict(version="v1.666", env="test")):
-            self._test_logging(create_span=create_span, version="v1.666", env="test")
+    output = cf.logger.calls
+    dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="False"
-        )
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == "global.env"
+    assert json.loads(output[0].args[0])["dd.service"] == "logging"
+    assert json.loads(output[0].args[0])["dd.version"] == "global.version"
+
+    cf.logger.calls.clear()
+    unpatch()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="True")
+)
+def test_log_trace_128bit_trace_ids():
+    """
+    Check if 128bit trace ids are logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=True`
+    """
+
+    import json
+
+    import structlog
+
+    from ddtrace import config
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.internal.constants import MAX_UINT_64BITS
+    from tests.utils import DummyTracer
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    patch()
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
     )
-    def test_log_trace_128bit_trace_ids_log_64bits(self):
-        """
-        Check if a 64 bit trace trace id is logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=False`
-        """
+    logger = structlog.getLogger()
 
-        def generate_log_in_span():
-            with self.tracer.trace("test.logging") as span:
-                self.logger.info("Hello!")
-            return span
+    tracer = DummyTracer()
+    span = tracer.trace("test.logging")
+    logger.info("Hello!")
+    if span:
+        span.finish()
 
-        span = generate_log_in_span()
-        output = self.cf.logger.calls
+    assert span.trace_id > MAX_UINT_64BITS
 
-        assert span.trace_id > MAX_UINT_64BITS
+    output = cf.logger.calls
+    dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
-        dd_trace_id, dd_span_id = (span._trace_id_64bits, span.span_id) if span else (0, 0)
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == "global.env"
+    assert json.loads(output[0].args[0])["dd.service"] == "logging"
+    assert json.loads(output[0].args[0])["dd.version"] == "global.version"
 
-        assert json.loads(output[0].args[0])["event"] == "Hello!"
-        assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
-        assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
-        assert json.loads(output[0].args[0])["dd.env"] == ""
-        assert json.loads(output[0].args[0])["dd.service"] == ""
-        assert json.loads(output[0].args[0])["dd.version"] == ""
+    cf.logger.calls.clear()
+    unpatch()
 
-        self.cf.logger.calls.clear()
 
-    def test_log_trace_service(self):
-        def create_span():
-            return self.tracer.trace("test.logging", service="logging")
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True", DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED="False")
+)
+def test_log_trace_128bit_trace_ids_log_64bits():
+    """
+    Check if a 64 bit trace, trace id is logged when `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED=False`
+    """
 
-        self._test_logging(create_span=create_span)
+    import json
 
-        with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+    import structlog
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
-    def test_log_DD_TAGS(self):
-        def create_span():
-            return self.tracer.trace("test.logging")
+    from ddtrace import config
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.internal.constants import MAX_UINT_64BITS
+    from tests.utils import DummyTracer
 
-        self._test_logging(create_span=create_span, service="ddtagservice", version="ddversion", env="ddenv")
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
 
-    def test_log_trace_version(self):
-        def create_span():
-            span = self.tracer.trace("test.logging")
-            span.set_tag(VERSION_KEY, "manual.version")
-            return span
+    patch()
 
-        self._test_logging(create_span=create_span, version="")
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
+    )
+    logger = structlog.getLogger()
 
-        with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+    tracer = DummyTracer()
+    span = tracer.trace("test.logging")
+    logger.info("Hello!")
+    if span:
+        span.finish()
 
-    def test_log_trace_env(self):
-        """
-        Check logging patched and formatter including trace info
-        """
+    assert span.trace_id > MAX_UINT_64BITS
 
-        def create_span():
-            span = self.tracer.trace("test.logging")
-            span.set_tag(ENV_KEY, "manual.env")
-            return span
+    output = cf.logger.calls
+    dd_trace_id, dd_span_id = (span._trace_id_64bits, span.span_id) if span else (0, 0)
 
-        self._test_logging(create_span=create_span, env="")
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == "global.env"
+    assert json.loads(output[0].args[0])["dd.service"] == "logging"
+    assert json.loads(output[0].args[0])["dd.version"] == "global.version"
 
-        with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+    cf.logger.calls.clear()
+    unpatch()
 
-    def test_log_no_trace(self):
-        """
-        Check traced funclogging patched and formatter not including trace info
-        """
 
-        def create_span():
-            return None
+@pytest.mark.subprocess(env=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
+def test_log_DD_TAGS():
+    import json
 
-        self._test_logging(create_span=create_span)
+    import structlog
 
-        with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="global.env")
+    from ddtrace.constants import ENV_KEY
+    from ddtrace.constants import SERVICE_KEY
+    from ddtrace.constants import VERSION_KEY
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+    from tests.utils import DummyTracer
 
-    def test_no_processors(self):
-        # Ensure nothing is injected if there is no valid rendering in processors
-        structlog.configure(processors=[], logger_factory=self.cf)
-        self.logger = structlog.getLogger()
+    patch()
 
-        span = self.tracer.trace("test.logging")
-        self.logger.info("Hello!")
-        if span:
-            span.finish()
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
+    )
+    logger = structlog.getLogger()
 
-        output = self.cf.logger.calls
+    tracer = DummyTracer()
+    span = tracer.trace("test.logging")
+    span.set_tag(ENV_KEY, "local-env")
+    span.set_tag(SERVICE_KEY, "local-service")
+    span.set_tag(VERSION_KEY, "local-version")
 
-        assert output[0].kwargs["event"] == "Hello!"
-        assert "dd.trace_id" not in output[0].kwargs
-        assert "dd.span_id" not in output[0].kwargs
-        assert "dd.env" not in output[0].kwargs
-        assert "dd.service" not in output[0].kwargs
-        assert "dd.version" not in output[0].kwargs
+    logger.info("Hello!")
+    if span:
+        span.finish()
 
-        self.cf.logger.calls.clear()
+    output = cf.logger.calls
+    dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
+
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == "ddenv"
+    assert json.loads(output[0].args[0])["dd.service"] == "ddtagservice"
+    assert json.loads(output[0].args[0])["dd.version"] == "ddversion"
+
+    cf.logger.calls.clear()
+    unpatch()
