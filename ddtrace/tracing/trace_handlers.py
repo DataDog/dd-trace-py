@@ -464,8 +464,6 @@ def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str
 
 
 def _on_django_after_request_headers_post(
-    _unused1,
-    _unused2,
     request_headers,
     response_headers,
     span: Span,
@@ -520,7 +518,7 @@ def listen():
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
-    # core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
+    core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
 
     for context_name in (
         "flask.call",

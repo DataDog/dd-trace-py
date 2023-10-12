@@ -465,5 +465,5 @@ def listen_context_handlers():
     core.on("django.finalize_response", _call_waf)
     core.on("django.after_request_headers", _get_headers_if_appsec)
     core.on("django.extract_body", _get_headers_if_appsec)
-    core.on("django.after_request_headers.post", _set_headers_and_response)
+    core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
