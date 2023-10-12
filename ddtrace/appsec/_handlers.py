@@ -147,7 +147,7 @@ def _on_flask_patch(flask_version):
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-def _on_flask_blocked_request():
+def _on_flask_blocked_request(_):
     core.set_item(HTTP_REQUEST_BLOCKED, True)
 
 

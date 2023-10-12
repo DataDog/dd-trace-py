@@ -409,10 +409,8 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     )
 
 
-def _on_start_response_blocked(flask_config, response_headers, status):
-    trace_utils.set_http_meta(
-        core.get_item("req_span"), flask_config, status_code=status, response_headers=response_headers
-    )
+def _on_start_response_blocked(ctx, flask_config, response_headers, status):
+    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):

@@ -126,7 +126,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         ctype = "text/" + block_config["type"]
                     response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
+                core.dispatch("flask.start_response.blocked", ctx, config.flask, response_headers, status)
             else:
                 result = start_response(status_code, headers)
         else:
@@ -526,6 +526,7 @@ def request_patcher(name):
             call_key="flask_request_call",
             tags={COMPONENT: config.flask.integration_name},
         ) as ctx, ctx.get_item("flask_request_call"):
+            core.dispatch("flask._patched_request", ctx)
             return wrapped(*args, **kwargs)
 
     return _patched_request
