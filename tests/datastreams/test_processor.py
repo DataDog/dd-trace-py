@@ -76,7 +76,6 @@ def set_exit():
 @mock.patch("ddtrace.internal.datastreams.processor.DataStreamsProcessor._flush_stats", new_callable=fake_flush)
 def run_test(mock_flush):
     processor = DataStreamsProcessor("http://localhost:9126")
-    processor._flush_stats_with_backoff = fake_flush
     processor.stop(5)  # Stop period processing/flushing
 
     now = time.time()
@@ -98,4 +97,30 @@ run_test()
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
-    assert "Fake flush called" in out.decode().strip(), err.decode().strip()
+    assert out.decode().strip() == "Fake flush called"
+
+
+def test_threaded_import(ddtrace_run_python_code_in_subprocess):
+    code = """
+import pytest
+import sys
+import time
+import threading
+
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called")
+
+def run_test():
+    processor = DataStreamsProcessor("http://localhost:8126")
+
+t = threading.Thread(target=run_test)
+t.start()
+t.join()
+"""
+
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert err.decode().strip() == ""
