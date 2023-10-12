@@ -34,6 +34,9 @@ class TestPsycopgPatch(PatchTestCase.Base):
         pass
 
     def assert_module_implements_get_version(self):
+        pass
+
+    def test_and_emit_get_version(self):
         patch()
         assert get_version() == ""
         versions = get_versions()
@@ -41,6 +44,3 @@ class TestPsycopgPatch(PatchTestCase.Base):
         assert versions["psycopg2"] != ""
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg2"], "psycopg2")
         unpatch()
-
-    def test_and_emit_get_version(self):
-        pass
