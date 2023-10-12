@@ -238,12 +238,14 @@ class _DatadogMultiHeader:
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
-
+        # after this tag is injected, we no longer need it
+        del span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS]
         if tags_to_encode:
             try:
                 headers[_HTTP_HEADER_TAGS] = encode_tagset_values(
                     tags_to_encode, max_size=config._x_datadog_tags_max_length
                 )
+
             except TagsetMaxSizeEncodeError:
                 # We hit the max size allowed, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "inject_max_size"
