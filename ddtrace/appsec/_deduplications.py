@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict
+from typing import Callable, Dict
 
 from ddtrace.internal.utils.formats import asbool
 
@@ -8,7 +8,7 @@ from ddtrace.internal.utils.formats import asbool
 class deduplication:
     _time_lapse = 3600
 
-    def __init__(self, func):
+    def __init__(self, func: Callable) -> None:
         self.func = func
         self._last_timestamp: float = time.time()
         self.reported_logs: Dict[int, float] = dict()

@@ -3,6 +3,7 @@ import re
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Union
 
 from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
@@ -14,8 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class TraceFilter(TraceProcessor):
     @abc.abstractmethod
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """Processes a trace.
 
         None can be returned to prevent the trace from being exported.
@@ -49,13 +49,12 @@ class FilterRequestsOnUrl(TraceFilter):
         FilterRequestOnUrl([r'http://test\\.example\\.com', r'http://example\\.com/healthcheck'])
     """
 
-    def __init__(self, regexps):
+    def __init__(self, regexps: Union[str, List[str]]):
         if isinstance(regexps, str):
             regexps = [regexps]
         self._regexps = [re.compile(regexp) for regexp in regexps]
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """
         When the filter is registered in the tracer, process_trace is called by
         on each trace before it is sent to the agent, the returned value will
