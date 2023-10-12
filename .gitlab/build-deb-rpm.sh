@@ -10,26 +10,14 @@ source common_build_functions.sh
 
 mkdir -p dd-trace.dir/lib
 
-# Install known compatible pip as default version shipped in Ubuntu (20.0.2)
-# does not work.
-python3 -m pip install -U "pip>=22.0"
-python3 -m pip install packaging
-
 echo `pwd`
 
-../lib-injection/dl_wheels.py \
-    --python-version=3.11 \
-    --python-version=3.10 \
-    --python-version=3.9 \
-    --python-version=3.8 \
-    --python-version=3.7 \
-    --ddtrace-version=$PYTHON_PACKAGE_VERSION  \
-    --arch x86_64 \
-    --arch aarch64 \
-    --platform musllinux_1_1 \
-    --platform manylinux2014 \
-    --output-dir dd-trace.dir/lib/ddtrace_pkgs \
-    --verbose
+docker build lib-injection \
+    --build-arg DDTRACE_PYTHON_VERSION=$PYTHON_PACKAGE_VERSION  \
+    --platform linux/amd64 \
+    --output type=local,dest=out
+
+mv out/datadog-init/ddtrace_pkgs dd-trace.dir/lib/
 
 cp ../lib-injection/sitecustomize.py dd-trace.dir/lib/
 
