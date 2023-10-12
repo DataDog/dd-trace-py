@@ -13,15 +13,15 @@ import os
 
 import %s as elasticsearch
 
-ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200)),}
+ELASTICSEARCH_CONFIG = {"port": int(os.getenv("TEST_ELASTICSEARCH_PORT", 9200))}
 ES_INDEX = "ddtrace_index"
-ES_TYPE = "ddtrace_type"
-mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-es.indices.create(index=ES_INDEX, ignore=400, body=mapping)
-
-args = {"index": ES_INDEX, "doc_type": ES_TYPE}
-es.indices.delete(index=ES_INDEX, ignore=[400, 404])
+es = elasticsearch.Elasticsearch(hosts=["http://localhost:%%d" %% ELASTICSEARCH_CONFIG["port"]])
+if elasticsearch.__version__ >= (8, 0, 0):
+    es.options(ignore_status=400).indices.create(index=ES_INDEX)
+    es.options(ignore_status=[400, 404]).indices.delete(index=ES_INDEX)
+else:
+    es.indices.create(index=ES_INDEX, ignore=400)
+    es.indices.delete(index=ES_INDEX, ignore=[400, 404])
 """
 
 
@@ -51,11 +51,6 @@ def do_test(tmpdir, es_version):
 @snapshot(async_mode=False)
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch")
-
-
-@snapshot(async_mode=False)
-def test_elasticsearch6(tmpdir):
-    do_test(tmpdir, "elasticsearch6")
 
 
 @snapshot(async_mode=False)

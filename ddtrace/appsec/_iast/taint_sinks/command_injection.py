@@ -155,14 +155,16 @@ class CommandInjection(VulnerabilityBase):
                                     part["pattern"] = source.pattern
                                     del part["value"]
                                 new_value_parts.append(part)
+                                break
                             else:
                                 part["value"] = "".join(pattern_list)
                                 new_value_parts.append(part)
                                 new_value_parts.append({"redacted": True})
+                                break
                         else:
                             new_value_parts.append(part)
                             pattern_list.append(value[part_start:part_end])
-                            continue
+                            break
 
                     idx += part_len
                 vuln.evidence.valueParts = new_value_parts
@@ -172,6 +174,7 @@ class CommandInjection(VulnerabilityBase):
 def _iast_report_cmdi(shell_args):
     # type: (Union[str, List[str]]) -> None
     report_cmdi = ""
+    from .._metrics import _set_metric_iast_executed_sink
     from .._taint_tracking import get_tainted_ranges
     from .._taint_tracking.aspects import join_aspect
 
@@ -184,4 +187,5 @@ def _iast_report_cmdi(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:
+        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)
