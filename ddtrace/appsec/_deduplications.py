@@ -1,6 +1,7 @@
 import os
 import time
-from typing import Callable, Dict
+from typing import Callable
+from typing import Dict
 
 from ddtrace.internal.utils.formats import asbool
 

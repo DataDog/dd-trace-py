@@ -2,15 +2,11 @@ import abc
 import re
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Union
 
+from ddtrace import Span
 from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
 
 
 class TraceFilter(TraceProcessor):
@@ -62,8 +58,8 @@ class FilterRequestsOnUrl(TraceFilter):
         the whole trace is discarded.
         """
         for span in trace:
-            if span.parent_id is None and span.get_tag(http.URL) is not None:
-                url = span.get_tag(http.URL)
+            url = span.get_tag(http.URL)
+            if span.parent_id is None and url is not None:
                 for regexp in self._regexps:
                     if regexp.match(url):
                         return None
