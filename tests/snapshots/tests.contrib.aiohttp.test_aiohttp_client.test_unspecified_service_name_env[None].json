@@ -17,8 +17,7 @@
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "80475ea11c124fb39f39268c1a8dd6e6",
-      "span.kind": "client",
-      "_dd.p.tid": "6525d0f400000000"
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1,
@@ -37,8 +36,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "aiohttp",
-         "_dd.p.tid": "6525d0f400000000"
+         "component": "aiohttp"
        },
        "duration": 3878468,
        "start": 1691160521379965577
