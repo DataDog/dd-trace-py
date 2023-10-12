@@ -4,6 +4,8 @@ from builtins import str as builtin_str
 import codecs
 import traceback
 from types import BuiltinFunctionType
+from typing import Any
+from typing import Callable
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import iteritems
@@ -25,8 +27,6 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import Callable
     from typing import Dict
     from typing import List
     from typing import Optional
@@ -39,7 +39,9 @@ TEXT_TYPES = (str, bytes, bytearray)
 
 _add_aspect = aspects.add_aspect
 _extend_aspect = aspects.extend_aspect
+_index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
+_slice_aspect = aspects.slice_aspect
 
 __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
 
@@ -111,6 +113,35 @@ def join_aspect(orig_function, joiner, *args, **kwargs):
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. join_aspect. {}".format(e), traceback.format_exc())
         return joiner.join(*args, **kwargs)
+
+
+def index_aspect(candidate_text, index) -> Any:
+    if not isinstance(candidate_text, TEXT_TYPES) or not isinstance(index, int):
+        return candidate_text[index]
+    try:
+        return _index_aspect(candidate_text, index)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. index_aspect. {}".format(e), traceback.format_exc())
+        return candidate_text[index]
+
+
+def slice_aspect(candidate_text, start, stop, step) -> Any:
+    if (
+        not isinstance(candidate_text, TEXT_TYPES)
+        or (start is not None and not isinstance(start, int))
+        or (stop is not None and not isinstance(stop, int))
+        or (step is not None and not isinstance(step, int))
+    ):
+        return candidate_text[start:stop:step]
+    try:
+        result = _slice_aspect(candidate_text, start, stop, step)
+        expected_result = candidate_text[start:stop:step]
+        if result != expected_result:
+            return expected_result
+        return result
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e), traceback.format_exc())
+        return candidate_text[start:stop:step]
 
 
 def bytearray_extend_aspect(orig_function, op1, op2):

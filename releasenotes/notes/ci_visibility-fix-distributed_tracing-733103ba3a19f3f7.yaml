@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes distributed tracing when using the CI Visibility
+    integration
+    

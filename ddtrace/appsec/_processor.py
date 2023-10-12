@@ -1,15 +1,18 @@
+import dataclasses
 import errno
 import json
+from json.decoder import JSONDecodeError
 import os
 import os.path
 import traceback
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
+from typing import Tuple
+from typing import Union
 
-import attr
-from six import ensure_binary
-
-from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -18,8 +21,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
@@ -27,38 +29,19 @@ from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Tuple
-    from typing import Union
-
-    from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
-    from ddtrace.span import Span
+from ddtrace.span import Span
 
 
 log = get_logger(__name__)
 
 
-def _transform_headers(data):
-    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]
-    normalized = {}  # type: Dict[str, Union[str, List[str]]]
+def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]:
+    normalized: Dict[str, Union[str, List[str]]] = {}
     headers = data if isinstance(data, list) else data.items()
     for header, value in headers:
         header = header.lower()
@@ -75,22 +58,17 @@ def _transform_headers(data):
     return normalized
 
 
-def get_rules():
-    # type: () -> str
+def get_rules() -> str:
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
 
 
-def get_appsec_obfuscation_parameter_key_regexp():
-    # type: () -> bytes
-    return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-    )
+def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
+    return os.getenvb(b"DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
 
 
-def get_appsec_obfuscation_parameter_value_regexp():
-    # type: () -> bytes
-    return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
+    return os.getenvb(
+        b"DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
 
@@ -119,8 +97,9 @@ _COLLECTED_REQUEST_HEADERS = {
 }
 
 
-def _set_headers(span, headers, kind):
-    # type: (Span, Any, str) -> None
+def _set_headers(span: Span, headers: Any, kind: str) -> None:
+    from ddtrace.contrib.trace_utils import _normalize_tag_name
+
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
@@ -131,70 +110,69 @@ def _set_headers(span, headers, kind):
             span.set_tag(_normalize_tag_name(kind, key), value)
 
 
-def _get_rate_limiter():
-    # type: () -> RateLimiter
+def _get_rate_limiter() -> RateLimiter:
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
-@attr.s(eq=False)
+@dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-    rules = attr.ib(type=str, factory=get_rules)
-    obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
-    obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
-    _ddwaf = attr.ib(type=DDWaf, default=None)
-    _addresses_to_keep = attr.ib(type=Set[str], factory=set)
-    _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
+    rules: str = dataclasses.field(default_factory=get_rules)
+    obfuscation_parameter_key_regexp: bytes = dataclasses.field(
+        default_factory=get_appsec_obfuscation_parameter_key_regexp
+    )
+    obfuscation_parameter_value_regexp: bytes = dataclasses.field(
+        default_factory=get_appsec_obfuscation_parameter_value_regexp
+    )
+    _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
+    _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
 
     @property
     def enabled(self):
         return self._ddwaf is not None
 
-    def __attrs_post_init__(self):
-        # type: () -> None
-        if self._ddwaf is None:
-            try:
-                with open(self.rules, "r") as f:
-                    rules = json.load(f)
-                    if config._api_security_enabled:
-                        with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
-                            processors = json.load(f_apisec)
-                            rules["processors"] = processors["processors"]
-                            rules["scanners"] = processors["scanners"]
-                    self._update_actions(rules)
+    def __post_init__(self) -> None:
+        from ddtrace import config
+        from ddtrace.appsec._ddwaf import DDWaf
 
-            except EnvironmentError as err:
-                if err.errno == errno.ENOENT:
-                    log.error(
-                        "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules
-                    )
-                else:
-                    # TODO: try to log reasons
-                    log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
-                raise
-            except JSONDecodeError:
-                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
-                raise
-            except Exception:
+        try:
+            with open(self.rules, "r") as f:
+                rules = json.load(f)
+                if config._api_security_enabled:
+                    with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
+                        processors = json.load(f_apisec)
+                        rules["processors"] = processors["processors"]
+                        rules["scanners"] = processors["scanners"]
+                self._update_actions(rules)
+
+        except EnvironmentError as err:
+            if err.errno == errno.ENOENT:
+                log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist", self.rules)
+            else:
                 # TODO: try to log reasons
                 log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
-                raise
-            try:
-                self._ddwaf = DDWaf(
-                    rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+            raise
+        except JSONDecodeError:
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            raise
+        except Exception:
+            # TODO: try to log reasons
+            log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rules)
+            raise
+        try:
+            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
+            if not self._ddwaf._handle or self._ddwaf.info.failed:
+                stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
+                    rules,
+                    self._ddwaf.info.loaded,
+                    self._ddwaf.info.errors,
                 )
-                if not self._ddwaf._handle or self._ddwaf.info.failed:
-                    stack_trace = "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n" % (
-                        rules,
-                        self._ddwaf.info.loaded,
-                        self._ddwaf.info.errors,
-                    )
-                    _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
+                _set_waf_error_metric("WAF init error. Invalid rules", stack_trace, self._ddwaf.info)
 
-                _set_waf_init_metric(self._ddwaf.info)
-            except ValueError:
-                # Partial of DDAS-0005-00
-                log.warning("[DDAS-0005-00] WAF initialization failed")
-                raise
+            _set_waf_init_metric(self._ddwaf.info)
+        except ValueError:
+            # Partial of DDAS-0005-00
+            log.warning("[DDAS-0005-00] WAF initialization failed")
+            raise
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
         # we always need the request headers
@@ -202,16 +180,15 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_actions(self, rules):
+    def _update_actions(self, rules: Dict[str, Any]) -> None:
         new_actions = rules.get("actions", [])
-        self._actions = WAF_ACTIONS.DEFAULT_ACTONS
+        self._actions: Dict[str, Dict[str, Any]] = WAF_ACTIONS.DEFAULT_ACTIONS
         for a in new_actions:
             self._actions[a.get(WAF_ACTIONS.ID, None)] = a
         if "actions" in rules:
             del rules["actions"]
 
-    def _update_rules(self, new_rules):
-        # type: (Dict[str, Any]) -> bool
+    def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
         if not _appsec_rc_file_is_not_static():
             return result
@@ -229,8 +206,9 @@ class AppSecSpanProcessor(SpanProcessor):
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
         return result
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
+        from ddtrace.contrib import trace_utils
+
         if span.span_type != SpanTypes.WEB:
             return
 
@@ -271,8 +249,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 # _asm_request_context.call_callback()
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
-    def _waf_action(self, span, ctx, custom_data=None):
-        # type: (Span, ddwaf_context_capsule, dict[str, Any] | None) -> None | dict[str, Any]
+    def _waf_action(
+        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -284,6 +263,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
+        from ddtrace import config
 
         if span.span_type != SpanTypes.WEB:
             return None
@@ -352,6 +332,8 @@ class AppSecSpanProcessor(SpanProcessor):
             if waf_results.timeout:
                 _set_waf_error_metric("WAF run. Timeout errors", "", info)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+            from ddtrace.appsec._ddwaf import version
+
             span.set_tag_str(APPSEC.WAF_VERSION, version())
 
             def update_metric(name, value):
@@ -412,16 +394,13 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results.derivatives
 
-    def _mark_needed(self, address):
-        # type: (str) -> None
+    def _mark_needed(self, address: str) -> None:
         self._addresses_to_keep.add(address)
 
-    def _is_needed(self, address):
-        # type: (str) -> bool
+    def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end

@@ -309,7 +309,7 @@ def to_bytes_py2(n, length, byteorder):
 
 NoneType = type(None)
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long, complex])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 

@@ -99,7 +99,7 @@ TaintRange::get_hash() const
 };
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset)
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
 {
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
                                                   source_taint_range->length,         // length
@@ -108,7 +108,7 @@ api_shift_taint_range(const TaintRangePtr& source_taint_range, int offset)
 }
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, long offset)
+api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
 {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
@@ -161,7 +161,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
 
     auto hash = get_unique_id(str);
     auto it = tx_map->find(hash);
-    auto new_tainted_object = initializer->allocate_tainted_object(ranges);
+    auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
     set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
@@ -319,7 +319,7 @@ pyexport_taintrange(py::module& m)
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
       "taint_range",
-      [](int start, int length, Source source) {
+      [](RANGE_START start, RANGE_LENGTH length, Source source) {
           return initializer->allocate_taint_range(start, length, std::move(source));
       },
       "start"_a,

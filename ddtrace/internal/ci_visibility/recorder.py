@@ -26,10 +26,7 @@ from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
-from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
-from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
-from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -100,13 +97,12 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            # Create a new CI tracer
-            self.tracer = Tracer(context_provider=CIContextProvider())
+            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+                # Create a new CI tracer
+                self.tracer = Tracer(context_provider=CIContextProvider())
+            else:
+                self.tracer = Tracer()
 
-        self._app_key = os.getenv(
-            "_CI_DD_APP_KEY",
-            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
-        )
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
@@ -145,16 +141,12 @@ class CIVisibility(Service):
         self._git_client = None
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if self._app_key is None:
-                log.warning("Environment variable DD_APP_KEY not set, so no git metadata will be uploaded.")
-            elif self._requests_mode == REQUESTS_MODE.TRACES:
+            if self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
                 if not self._test_skipping_enabled_by_api:
                     log.warning("Intelligent Test Runner test skipping disabled by API")
-                self._git_client = CIVisibilityGitClient(
-                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
-                )
+                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -189,17 +181,15 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
-                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
             log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-            if not self._app_key or not self._api_key:
-                log.debug("Cannot make request to setting endpoint if application key is not set")
+            if not self._api_key:
+                log.debug("Cannot make request to setting endpoint if API key is not set")
                 return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
             _headers = {
                 AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
-                AGENTLESS_APP_KEY_HEADER_NAME: self._app_key,
                 "Content-Type": "application/json",
             }
         else:
@@ -306,14 +296,12 @@ class CIVisibility(Service):
 
         _headers = {
             "dd-api-key": self._api_key,
-            "dd-application-key": self._app_key,
             "Content-Type": "application/json",
         }
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
-                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT

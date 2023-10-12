@@ -1,7 +1,7 @@
 import functools
+import io
 import json
 
-from six import BytesIO
 from wrapt import wrap_function_wrapper as _w
 from wrapt.importer import when_imported
 import xmltodict
@@ -15,12 +15,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 
-
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -43,7 +37,7 @@ def _on_request_span_modifier(
             if not seekable:
                 content_length = int(environ.get("CONTENT_LENGTH", 0))
                 body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
-                environ["wsgi.input"] = BytesIO(body)
+                environ["wsgi.input"] = io.BytesIO(body)
 
         try:
             if content_type == "application/json" or content_type == "text/json":
@@ -64,7 +58,7 @@ def _on_request_span_modifier(
             RuntimeError,
             TypeError,
             ValueError,
-            JSONDecodeError,
+            json.JSONDecodeError,
             xmltodict.expat.ExpatError,
             xmltodict.ParsingInterrupted,
         ):
@@ -75,7 +69,7 @@ def _on_request_span_modifier(
                 if seekable:
                     wsgi_input.seek(0)
                 else:
-                    environ["wsgi.input"] = BytesIO(body)
+                    environ["wsgi.input"] = io.BytesIO(body)
     return req_body
 
 
