@@ -36,7 +36,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "aiohttp"
+         "component": "aiohttp",
+         "_dd.p.tid": "6525d0f400000000"
        },
        "duration": 1305436,
        "start": 1691160518167512215

@@ -17,7 +17,8 @@
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "46c94f5e0ef041cfb59591463f097660",
-      "span.kind": "client"
+      "span.kind": "client",
+      "_dd.p.tid": "6525d0f400000000"
     },
     "metrics": {
       "_dd.top_level": 1,

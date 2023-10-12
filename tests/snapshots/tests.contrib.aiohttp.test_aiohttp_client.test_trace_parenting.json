@@ -9,7 +9,8 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47"
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
+      "_dd.p.tid": "6525d0f400000000"
     },
     "metrics": {
       "_dd.top_level": 1,
@@ -48,7 +49,8 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
-            "component": "aiohttp"
+            "component": "aiohttp",
+            "_dd.p.tid": "6525d0f400000000"
           },
           "duration": 1236231,
           "start": 1691160523136754087

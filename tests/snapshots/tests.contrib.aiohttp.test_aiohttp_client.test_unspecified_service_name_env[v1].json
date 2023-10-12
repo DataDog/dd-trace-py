@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.peer.service.source": "out.host",
+      "_dd.p.tid": "6525d0f400000000",
       "component": "aiohttp_client",
       "http.method": "GET",
       "http.status_code": "200",

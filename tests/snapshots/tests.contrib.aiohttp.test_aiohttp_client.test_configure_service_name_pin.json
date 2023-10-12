@@ -38,7 +38,8 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
-         "component": "aiohttp"
+         "component": "aiohttp",
+         "_dd.p.tid": "6525d0f400000000"
        },
        "duration": 6205875,
        "start": 1692706183296511342
