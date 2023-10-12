@@ -2,6 +2,7 @@ import functools
 import sys
 from typing import Callable
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 import wrapt
@@ -426,7 +427,9 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
 
 
-def _on_django_start_response(_, ctx, request, extract_body: Callable, query: str, uri: str, path: str):
+def _on_django_start_response(
+    _, ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+):
     parsed_query = request.GET
     body = extract_body(request)
     trace_utils.set_http_meta(
@@ -490,7 +493,7 @@ def _on_django_after_request_headers_post(
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
         request_body=body,
         peer_ip=core.get_item("http.request.remote_ip", span=span),
-        headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
+        headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
     )
 
