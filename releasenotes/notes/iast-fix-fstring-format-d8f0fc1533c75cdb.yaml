@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where an f-string expression would not be formatted properly causing a segfault if IAST is enabled.
