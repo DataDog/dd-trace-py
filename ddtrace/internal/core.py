@@ -103,15 +103,17 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
+from typing import Any
+from typing import Optional
 from typing import TYPE_CHECKING
+
+from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
     from typing import Callable
     from typing import Dict
     from typing import List
-    from typing import Optional
     from typing import Tuple
 
     from ddtrace.span import Span  # noqa
@@ -142,7 +144,7 @@ class EventHub:
     def on(self, event_id, callback):
         # type: (str, Callable) -> None
         if callback not in self._listeners[event_id]:
-            self._listeners[event_id].append(callback)
+            self._listeners[event_id].insert(0, callback)
 
     def reset(self):
         if hasattr(self, "_listeners"):
@@ -169,6 +171,8 @@ class EventHub:
                 result = listener(*args)
             except Exception as exc:
                 exception = exc
+                if config._raise:
+                    raise
             results.append(result)
             exceptions.append(exception)
         return results, exceptions
@@ -254,15 +258,22 @@ class ExecutionContext:
         finally:
             new_context.end()
 
-    def get_item(self, data_key):
-        # type: (str) -> Optional[Any]
+    def get_item(self, data_key: str, default: Optional[Any] = None, traverse: Optional[bool] = True) -> Any:
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current = self
         while current is not None:
             if data_key in current._data:
                 return current._data.get(data_key)
+            if not traverse:
+                break
             current = current.parent
-        return None
+        return default
+
+    def __getitem__(self, key: str):
+        value = self.get_item(key)
+        if value is None and key not in self._data:
+            raise KeyError
+        return value
 
     def get_items(self, data_keys):
         # type: (List[str]) -> Optional[Any]
