@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
 from tests.utils import TracerTestCase
+from tests.utils import get_128_bit_trace_id_from_headers
 
 from .test_httplib import HTTPLibBaseMixin
 from .test_httplib import SOCKET
@@ -25,7 +26,8 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
     def headers_here(self, tracer, root_span):
         assert b"x-datadog-trace-id" in self.httplib_request
         assert b"x-datadog-parent-id" in self.httplib_request
-        assert str(root_span.trace_id).encode("utf-8") in self.httplib_request
+        header_t_id = get_128_bit_trace_id_from_headers(self.httplib_request)
+        assert str(root_span.trace_id).encode("utf-8") == header_t_id
         return True
 
     def headers_not_here(self, tracer):
