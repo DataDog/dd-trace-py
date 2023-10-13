@@ -2,6 +2,7 @@
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
 FROM debian:buster-20221219-slim
+#FROM ubuntu:22.04
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -70,5 +71,13 @@ RUN git clone --depth 1 --branch v2.3.21 https://github.com/pyenv/pyenv "${PYENV
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
+
+RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN rustup default 1.69
+RUN apt-get update && apt-get install -y protobuf-compiler
+RUN cargo install cbindgen
+ENV CARGO_INCREMENTAL=0
 
 CMD ["/bin/bash"]
