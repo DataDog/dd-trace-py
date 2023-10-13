@@ -845,7 +845,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
+            {"asm": {"enabled": True, "api_security": {}}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
         )
         mock_appsec_rules_data.reset_mock()
 
