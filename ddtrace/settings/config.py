@@ -1,8 +1,6 @@
 from copy import deepcopy
 import multiprocessing
 import os
-from queue import Empty
-from queue import Full
 import re
 import sys
 from typing import List
@@ -439,14 +437,11 @@ class Config(object):
         return self._config[name]
 
     def _add_extra_service(self, service_name: str) -> None:
-
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
-            except Full:  # nosec
+            except BaseException:  # nosec
                 pass
-            except BaseException:
-                log.debug("unexpected failure with _add_extra_service", exc_info=True)
 
     def _get_extra_services(self):
         # type: () -> set[str]
@@ -456,10 +451,8 @@ class Config(object):
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
                 if len(self._extra_services) > 64:
                     self._extra_services.pop()
-        except Empty:  # nosec
+        except BaseException:  # nosec
             pass
-        except BaseException:
-            log.debug("unexpected failure with _get_extra_service", exc_info=True)
         return self._extra_services
 
     def get_from(self, obj):
