@@ -96,12 +96,15 @@ class APIManager(Service):
     def _should_collect_schema(self, env):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
+        sample_rate = getattr(config, "api_security_sample_rate", None)
+        if sample_rate is None:
+            sample_rate = self.SAMPLE_RATE
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
         # Rate limit per route
-        self.current_sampling_value += self.SAMPLE_RATE
+        self.current_sampling_value += sample_rate
         if self.current_sampling_value >= 1.0:
             self.current_sampling_value -= 1.0
             return True

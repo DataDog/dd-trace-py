@@ -132,6 +132,7 @@ def _preprocess_results_appsec_1click_activation(
         )
 
         rc_appsec_enabled = None
+        rc_api_security = {}
         if features is not None:
             if APPSEC_ENV in os.environ:
                 rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
@@ -141,6 +142,7 @@ def _preprocess_results_appsec_1click_activation(
                 asm_features = features.get("asm", {})
                 if asm_features is not None:
                     rc_appsec_enabled = asm_features.get("enabled")
+                    rc_api_security = asm_features.get("api_security", {})
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
@@ -166,7 +168,7 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
-            features["asm"] = {"enabled": rc_appsec_enabled}
+            features["asm"] = {"enabled": rc_appsec_enabled, "api_security": rc_api_security}
     return features
 
 
@@ -200,6 +202,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
             rc_appsec_enabled = False
         else:
             rc_appsec_enabled = features.get("asm", {}).get("enabled", False)
+            rc_api_security_sample_rate = features.get("asm", {}).get("api_security", {}).get("request_sample_rate")
 
         log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
         if rc_appsec_enabled is not None:
@@ -220,3 +223,11 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     tracer.configure(appsec_enabled=False)
                 else:
                     config._appsec_enabled = False
+
+            if rc_api_security_sample_rate is not None:
+                try:
+                    sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
+                    setattr(config, "api_security_sample_rate", sample_rate)  # noqa: B010
+                    config._api_security_enabled = sample_rate > 0.0
+                except BaseException:  # nosec
+                    pass

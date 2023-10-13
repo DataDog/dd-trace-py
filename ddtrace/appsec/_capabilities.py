@@ -42,5 +42,6 @@ def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> str
             value |= 1 << 8  # Enable ASM_CUSTOM_RULES
             value |= 1 << 9  # Enable ASM_CUSTOM_BLOCKING_RESPONSE
             value |= 1 << 10  # Enable ASM_TRUSTED_IPS
+            value |= 1 << 11  # Enable ASM_API_SECURITY_SAMPLE_RATE
         result = base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode()
     return result
