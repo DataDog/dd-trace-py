@@ -426,7 +426,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_start_response(
-    _, ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+    ctx, request, extract_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
 ):
     parsed_query = request.GET
     body = extract_body(request)
