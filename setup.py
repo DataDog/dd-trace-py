@@ -54,7 +54,7 @@ LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
 )
 
-LIBDATADOG_PROF_VERSION = "v3.0.0"
+LIBDATADOG_PROF_VERSION = "v5.0.0"
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -231,8 +231,8 @@ class LibDatadogDownload(LibraryDownload):
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
     expected_checksums = {
         "Linux": {
-            "x86_64": "39418275058a5ba96d6284bb6add0e9fbf6a59d7de0755d10184a0223f21c3ed",
-            "aarch64": "71b89626f585ebf385482fb9d000c71f91721b395df8d352ce04a825c1f1776a",
+            "x86_64": "11c09440271dd4374b8fca8f0faa66c43a5e057aae05902543beb1e6cb382e52",
+            "aarch64": "2b3d1c5c3965ab4a9436aff4e101814eddaa59b59cb984ce6ebda45613aadbc3",
         },
     }
     available_releases = {
@@ -493,7 +493,7 @@ def get_ddup_ext():
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17", "-flto"],
+                        extra_compile_args=["-std=c++17", "-flto", "-Os", "-Wextra", "-Werror"],
                         language="c++",
                     )
                 ],

@@ -211,7 +211,15 @@ Uploader::upload(const Profile* profile)
 
     // Build the request object
     auto build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter.get(), start, end, { .ptr = file, .len = 1 }, &tags, nullptr, nullptr, 5000);
+      ddog_exporter.get(),
+      start,
+      end,
+      { .ptr = file, .len = 1 },
+      {},
+      &tags,
+      nullptr,
+      nullptr,
+      5000);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
@@ -316,8 +324,20 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     values.resize(samplers.size());
     std::fill(values.begin(), values.end(), 0);
 
-    ddog_prof_Period default_sampler = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    ddog_profile = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_sampler, nullptr);
+    ddog_prof_Period default_period = { samplers[0], 1 }; // Mandated by pprof, but probably unused
+    auto prof_res = ddog_prof_Profile_new(
+        { &samplers[0], samplers.size() }, 
+        &default_period,
+        nullptr);
+
+    // Check that the profile was created properly
+    if (prof_res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
+      // This is bad, but we ignore this for now
+      // TODO fix this
+    }
+
+    // This is a shallow copy operation--does it matter?
+    ddog_profile = prof_res.ok;
 
     // Prepare for use
     reset();
@@ -328,7 +348,7 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
 
 Profile::~Profile()
 {
-    ddog_prof_Profile_drop(ddog_profile);
+    ddog_prof_Profile_drop(&ddog_profile);
 }
 
 std::string_view
@@ -347,12 +367,15 @@ Profile::insert_or_get(std::string_view sv)
 bool
 Profile::reset()
 {
-    if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
+    auto reset_res = ddog_prof_Profile_reset(&ddog_profile, nullptr);
+    if (reset_res.tag != DDOG_PROF_PROFILE_RESULT_OK) {
+        auto dd_err = ddog_Error_message(&reset_res.err);
         errmsg = "Unable to reset profile";
-        std::cout << errmsg << std::endl;
+        std::cout << "Unable to reset profile (" << dd_err.ptr << ")" << std::endl;
+        ddog_Error_drop(&reset_res.err);
         return false;
     }
-    return true;
+  return true;
 }
 
 bool
@@ -370,28 +393,22 @@ Profile::start_sample(unsigned int nframes)
 void
 Profile::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    if (cur_frame >= lines.size() || cur_frame >= locations.size())
+    if (cur_frame >= locations.size())
         return;
 
     name = insert_or_get(name);
     filename = insert_or_get(filename);
 
-    lines[cur_frame] = {
-      .function =
-          {
-              .name = to_slice(name),
-              .system_name = {},
-              .filename = to_slice(filename),
-              .start_line = 0,
-          },
-      .line = line,
-  };
-
-    locations[cur_frame] = {
+    locations[cur_frame] = ddog_prof_Location{
         {},
+        ddog_prof_Function{
+          to_slice(name),
+          {},
+          to_slice(filename),
+          line,
+        },
         address,
-        { &lines[cur_frame], 1 },
-        false,
+        line,
     };
 
     ++cur_frame;
@@ -472,8 +489,9 @@ Profile::flush_sample()
         .labels = { &labels[0], cur_label },
     };
 
-    ddog_prof_Profile_AddResult address = ddog_prof_Profile_add(ddog_profile, sample);
-    if (address.tag == DDOG_PROF_PROFILE_ADD_RESULT_ERR) {
+    // TODO propagate a timestamp in order to get timeline data!
+    ddog_prof_Profile_Result address = ddog_prof_Profile_add(&ddog_profile, sample, 0);
+    if (address.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
         std::string ddog_errmsg(ddog_Error_message(&address.err).ptr);
         errmsg = "Could not flush sample: " + errmsg;
         ddog_Error_drop(&address.err);
