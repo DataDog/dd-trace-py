@@ -193,14 +193,13 @@ class TraceMiddleware:
                 url = "{}://{}{}".format(scheme, server_host, full_path)
             else:
                 url = None
-
-            if self.integration_config.trace_query_string:
-                query_string = scope.get("query_string")
-                if len(query_string) > 0:
-                    query_string = bytes_to_str(query_string)
-            else:
+            query_string = scope.get("query_string")
+            if query_string:
+                query_string = bytes_to_str(query_string)
+                if url:
+                    url = f"{url}?{query_string}"
+            if not self.integration_config.trace_query_string:
                 query_string = None
-
             trace_utils.set_http_meta(
                 span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
             )
