@@ -239,7 +239,9 @@ class _DatadogMultiHeader:
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
         # after this tag is injected, we no longer need it
-        del span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS]
+        if span_context._meta.get(_HIGHER_ORDER_TRACE_ID_BITS):
+            del span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS]
+
         if tags_to_encode:
             try:
                 headers[_HTTP_HEADER_TAGS] = encode_tagset_values(
