@@ -79,7 +79,7 @@ public:
   Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);
   ~Uploader();
   bool set_runtime_id(std::string_view id);
-  bool upload(const Profile *profile);
+  bool upload(Profile *profile);
 };
 
 class UploaderBuilder {
@@ -146,7 +146,6 @@ private:
   // 512 is the max depth allowed by the backend, plus it is limited
   // by user configuration
   std::array<ddog_prof_Location, 1024> locations;
-  std::array<ddog_prof_Line, 1024> lines;
   size_t cur_frame;
 
   // Storage for labels
@@ -180,7 +179,7 @@ private:
 
 public:
   uint64_t samples = 0;
-  ddog_prof_Profile *ddog_profile;
+  ddog_prof_Profile ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
   bool start_sample(unsigned int nframes);
@@ -210,7 +209,7 @@ public:
   void push_frame(std::string_view name,     // for ddog_prof_Function
                   std::string_view filename, // for ddog_prof_Function
                   uint64_t address,          // for ddog_prof_Location
-                  int64_t line               // for ddog_prof_Line
+                  int64_t line               // for ddog_prof_Location
   );
 
   // Flushes the current buffer, clearing it

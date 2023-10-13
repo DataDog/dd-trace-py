@@ -177,7 +177,7 @@ Uploader::set_runtime_id(std::string_view id)
 }
 
 bool
-Uploader::upload(const Profile* profile)
+Uploader::upload(Profile* profile)
 {
     ddog_prof_Profile_SerializeResult result =
       ddog_prof_Profile_serialize(&profile->ddog_profile, nullptr, nullptr, nullptr);
@@ -361,7 +361,7 @@ Profile::reset()
         ddog_Error_drop(&reset_res.err);
         return false;
     }
-    return true;
+  return true;
 }
 
 bool
