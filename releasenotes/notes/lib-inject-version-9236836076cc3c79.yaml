@@ -1,0 +1,5 @@
+---
+issues:
+  - |
+    lib-injection: The v1.20.5 release version has no library code changes and
+      will install the v1.20.4 version of `ddtrace``.

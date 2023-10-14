@@ -23,7 +23,7 @@ echo `pwd`
     --python-version=3.9 \
     --python-version=3.8 \
     --python-version=3.7 \
-    --ddtrace-version=$PYTHON_PACKAGE_VERSION  \
+    --ddtrace-version=1.20.4 \
     --arch x86_64 \
     --arch aarch64 \
     --platform musllinux_1_1 \
