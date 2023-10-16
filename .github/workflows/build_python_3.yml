@@ -55,6 +55,23 @@ jobs:
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
 
+      - name: Strip compiled sources from wheels (Unix)
+        shell: bash
+        if : ${{ matrix.os != 'windows-latest' }}
+        run: for wheel in ./wheelhouse/*.whl; do zip -d ${wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx; done
+
+      - name: Strip compiled sources from wheels (Windows)
+        if : ${{ matrix.os == 'windows-latest' }}
+        run: |
+          $whl_files = Get-ChildItem -Path .\wheelhouse -Filter *.whl
+
+          foreach ($whl_file in $whl_files) {
+              Expand-Archive -Path $whl_file.FullName -DestinationPath .\temp -Force
+              Get-ChildItem -Path .\temp -Include *.c,*.cpp,*.cc,*.h,*.hpp,*.pyx -Recurse | Remove-Item -Force
+              Compress-Archive -Path .\temp\* -DestinationPath $whl_file.FullName -Force
+              Remove-Item -Path .\temp -Recurse -Force
+          }     
+
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
