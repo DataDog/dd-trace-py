@@ -51,7 +51,7 @@ def _es_modules():
     for module_name in module_names:
         try:
             module = import_module(module_name)
-            versions[module.__name__] = getattr(module, "__versionstr__", "")
+            versions[module] = getattr(module, "__versionstr__", "")
             yield module
         except ImportError:
             pass
