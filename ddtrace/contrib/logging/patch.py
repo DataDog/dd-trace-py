@@ -15,8 +15,8 @@ from .constants import RECORD_ATTR_TRACE_ID
 from .constants import RECORD_ATTR_VALUE_EMPTY
 from .constants import RECORD_ATTR_VALUE_ZERO
 from .constants import RECORD_ATTR_VERSION
-from .constants import _LOG_SPAN_KEY
 
+_LOG_SPAN_KEY = "__datadog_log_span"
 
 config._add(
     "logging",

@@ -37,8 +37,8 @@ An example of a proper configuration that can be injected into is as below:
         processors=[structlog.processors.JSONRenderer()],
         logger_factory=structlog.WriteLoggerFactory(file=Path("app").with_suffix(".log").open("wt")))
 
-For more information, please see the attached guide on common timestamp issues:
-https://docs.datadoghq.com/logs/guide/logs-not-showing-expected-timestamp/
+For more information, please see the attached guide for the Datadog Logging Product:
+https://docs.datadoghq.com/logs/log_collection/python/
 """
 
 from ...internal.utils.importlib import require_modules
