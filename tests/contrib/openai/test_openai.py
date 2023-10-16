@@ -15,7 +15,6 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai.patch import get_version
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter

@@ -16,7 +16,7 @@ from tests.contrib.patch import PatchTestCase
 
 class TestFuturesPatch(PatchTestCase.Base):
     __integration_name__ = "futures"
-    __module_name__ = "concurrent.futures"
+    __module_name__ = "concurrent.futures.thread"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
     __get_version__ = get_version
