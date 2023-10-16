@@ -18,6 +18,7 @@ import pytest
 import six
 
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -34,6 +35,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -399,6 +401,44 @@ def test_span_types(encoding, span, tags):
     trace = [span]
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+
+
+def test_span_link_v05_encoding():
+    encoder = MSGPACK_ENCODERS["v0.5"](1 << 20, 1 << 20)
+
+    span = Span(
+        "s1",
+        context=Context(sampling_priority=1),
+        links=[
+            SpanLink(
+                trace_id=1,
+                span_id=2,
+                tracestate="congo=t61rcWkgMzE",
+                flags=0,
+                attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
+            )
+        ],
+    )
+
+    assert span._links
+    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
+    span._links[0]._drop_attribute("drop_me")
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    encoder.put([span])
+    decoded_trace = decode(encoder.encode())
+    assert len(decoded_trace) == 1
+    assert len(decoded_trace[0]) == 1
+
+    encoded_span_meta = decoded_trace[0][0][9]
+    assert b"_dd.span_links" in encoded_span_meta
+    assert (
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
+        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
+    )
 
 
 @pytest.mark.parametrize(
