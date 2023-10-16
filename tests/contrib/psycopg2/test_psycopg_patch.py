@@ -37,7 +37,6 @@ class TestPsycopgPatch(PatchTestCase.Base):
         patch()
         assert get_version() == ""
         versions = get_versions()
-        assert "psycopg2" in versions
-        assert versions["psycopg2"] != ""
+        assert versions.get("psycopg2")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg2"], "psycopg2")
         unpatch()
