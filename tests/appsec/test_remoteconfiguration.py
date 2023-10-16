@@ -118,7 +118,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "B/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "D/w="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", ""),
         (False, "false", ""),
@@ -143,7 +143,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "B/4="),  # All capabilities
+        ({}, "D/4="),  # All capabilities
         ({"DD_APPSEC_RULES": DEFAULT.RULES}, "Ag=="),  # Only ASM_FEATURES
     ],
 )
@@ -281,7 +281,7 @@ def test_load_new_configurations_empty_config(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
 
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "api_security": {}, "data": []}, None)
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True, "api_security": {}}, "data": []}, None)
 
         mock_appsec_1click_activation.assert_called_with(
             {"asm": {"enabled": True, "api_security": {}}, "data": []}, None
@@ -334,8 +334,8 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
     remoteconfig_poller._poll_data()
 
     mock_preprocess_results_appsec_1click_activation.assert_called_with({}, ANY)
-    mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": False, "api_security": {}}}, None)
-    mock_appsec_rules_data.assert_called_with({"asm": {"enabled": False, "api_security": {}}}, None)
+    mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": False}}, None)
+    mock_appsec_rules_data.assert_called_with({"asm": {"enabled": False}}, None)
 
     mock_appsec_1click_activation.reset_mock()
     mock_appsec_rules_data.reset_mock()
