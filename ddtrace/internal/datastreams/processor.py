@@ -143,8 +143,7 @@ class DataStreamsProcessor(PeriodicService):
         self.start()
 
     def on_checkpoint_creation(
-        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec,
-        payload_size=0
+        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
         # type: (int, int, List[str], float, float, float, Optional[int]) -> None
         """
@@ -408,7 +407,9 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0):
+    def set_checkpoint(
+        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+    ):
         """
         type: (List[str], float, float, float) -> None
 

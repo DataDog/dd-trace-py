@@ -82,7 +82,7 @@ def dsm_kafka_message_consume(instance, message):
     group = instance._group_id
 
     payload_size = 0
-    if hasattr(message, 'len'):
+    if hasattr(message, "len"):
         # message.len() is only support for some versions of confluent_kafka
         payload_size += message.len()
     else:

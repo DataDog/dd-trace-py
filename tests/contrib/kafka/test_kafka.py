@@ -14,9 +14,9 @@ from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
-from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -290,18 +290,15 @@ def retry_until_not_none(factory):
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
 @pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
-def test_data_streams_payload_size(dsm_processor,
-                                   deserializing_consumer,
-                                   serializing_producer,
-                                   kafka_topic,
-                                   payload_and_length,
-                                   key_and_length):
+def test_data_streams_payload_size(
+    dsm_processor, deserializing_consumer, serializing_producer, kafka_topic, payload_and_length, key_and_length
+):
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     expected_payload_size = float(payload_length + key_length)
-    expected_payload_size += 8   # to account for headers we add here
+    expected_payload_size += 8  # to account for headers we add here
     expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
-    expected_payload_size += 20   # to account for path header we add
+    expected_payload_size += 20  # to account for path header we add
 
     try:
         del dsm_processor._current_context.value
