@@ -184,11 +184,20 @@ commands:
           name: "Store Test Agent Supported Integrations Data"
           command: |
             if [[ -z "$(curl -s << parameters.trace_agent_url >>/test/integrations/tested_versions)" ]]; then
+              # No integrations were tested. Not saving any artifacts
               echo "Response body is empty. Skipping saving integration artifacts."
             else
+              # make temporary files to save response data to
+              response=$(mktemp) && headers=$(mktemp)
+              # create artifacts directory if it doesn't exist
               [ -d "./artifacts" ] || mkdir -p "./artifacts"
-              curl -o "artifacts/$(curl -sI << parameters.trace_agent_url >>/test/integrations/tested_versions |
-              awk -F': ' '/file-name/{print $2}' | tr -d '\r\n')_supported_versions.csv" << parameters.trace_agent_url >>/test/integrations/tested_versions
+              # get tested integrations
+              curl -o "$response" -D "$headers" << parameters.trace_agent_url >>/test/integrations/tested_versions
+              # get filename representing the name of the tested integration from headers
+              filename=$(awk -F': ' '/file-name/{print $2}' "$headers" | tr -d '\r\n')
+              # copy data to final file and remove temp files
+              mv "$response" "artifacts/${filename}_supported_versions.csv"
+              rm "$headers"
             fi
       - store_artifacts:
           path: artifacts
