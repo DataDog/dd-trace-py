@@ -52,11 +52,7 @@ def tracer_injection(event_dict):
 
 def _w_add(func, instance, args, kwargs):
     # patch logger to include datadog info before logging
-    #import pdb; pdb.set_trace()
-    extra = {"context": "foo"}
-    instance.configure(patcher=lambda record: record["extra"].update(tracer_injection(record)))
-    #instance.configure(extra=extra)
-
+    instance.configure(patcher=lambda record: record.update(tracer_injection(record['extra'])))
     return func(*args, **kwargs)
 
 
