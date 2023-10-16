@@ -10,12 +10,12 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
 from tests.utils import DummyTracer
-
+from tests.utils import override_global_config
 
 cf = structlog.testing.CapturingLoggerFactory()
 
 
-def _test_logging(output, span, env="", service="", version=""):
+def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
@@ -30,22 +30,21 @@ def _test_logging(output, span, env="", service="", version=""):
 
 @pytest.fixture(autouse=True)
 def patch_structlog():
-    patch()
-    structlog.configure(
-        processors=[structlog.processors.JSONRenderer()],
-        logger_factory=cf,
-    )
-    yield
-    unpatch()
+    try:
+        patch()
+        structlog.configure(
+            processors=[structlog.processors.JSONRenderer()],
+            logger_factory=cf,
+        )
+        yield
+    finally:
+        unpatch()
 
 
 @pytest.fixture(autouse=True)
 def global_config():
-    config.service = "logging"
-    config.env = "global.env"
-    config.version = "global.version"
-    yield
-    config.service = config.env = config.version = None
+    with override_global_config({"service": "logging", "env": "global.env", "version": "global.version"}):
+        yield
 
 
 def test_log_trace_global_values():
@@ -75,6 +74,10 @@ def test_log_no_trace():
 
 
 def test_no_processors():
+    """
+    Ensure no trace values are being injected when there is no pre-existing processor chain to avoid errors.
+    """
+
     structlog.configure(processors=[], logger_factory=cf)
     logger = structlog.get_logger()
 
