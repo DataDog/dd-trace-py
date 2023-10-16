@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Update package files to not be world-writable.

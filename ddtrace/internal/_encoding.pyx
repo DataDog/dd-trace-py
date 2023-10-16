@@ -3,6 +3,7 @@ from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
 
+from json import dumps as json_dumps
 import threading
 
 from ._utils cimport PyBytesLike_Check
@@ -18,6 +19,7 @@ from ._utils cimport PyBytesLike_Check
 #   in both `ddtrace` and `ddtrace.internal`
 
 from ..constants import ORIGIN_KEY
+from .constants import SPAN_LINKS_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -704,6 +706,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
+
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0:
                     return ret
@@ -815,7 +818,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
+        span_links = ""
+        if span._links:
+            span_links = json_dumps([link.to_dict() for link in span._links])
+
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:
             return ret
         if span._meta:
@@ -831,6 +838,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
+            if ret != 0:
+                return ret
+        if span_links:
+            ret = self._pack_string(SPAN_LINKS_KEY)
+            if ret != 0:
+                return ret
+            ret = self._pack_string(span_links)
             if ret != 0:
                 return ret
 
