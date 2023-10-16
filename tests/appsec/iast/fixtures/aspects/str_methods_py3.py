@@ -33,6 +33,28 @@ def do_repr_fstring_with_format_twice(a):  # type: (Any) -> str
     return f"{a!r:10} {a!r:11}"
 
 
+def do_repr_fstring_with_expression1():  # type: (Any) -> str
+    return f"Hello world, {False or True}!"
+
+
+def do_repr_fstring_with_expression2():  # type: (Any) -> str
+    return f"Hello world, {'True' * 1}!"
+
+
+def do_repr_fstring_with_expression3():  # type: (Any) -> str
+    return f"Hello world, {'true'.capitalize()}!"
+
+
+def do_repr_fstring_with_expression4():  # type: (Any) -> str
+    import math
+
+    return f"Hello world, {math.sin(5.5) <= 0}!"
+
+
+def do_repr_fstring_with_expression5():  # type: (Any) -> str
+    return f"Hello world, {str([False, False, True, False][400 % 199]).lower().capitalize()}!"
+
+
 class Resolver404(Exception):
     pass
 
