@@ -63,8 +63,3 @@ class TestLangchainPatch(PatchTestCase.Base):
             vectorstore_interface = getattr(langchain.vectorstores, vectorstore, None)
             if vectorstore_interface:
                 self.assert_not_double_wrapped(vectorstore_interface.similarity_search)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

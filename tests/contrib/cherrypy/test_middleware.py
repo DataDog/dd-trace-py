@@ -54,7 +54,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
             distributed_tracing=True,
         )
 
-    def test_get_version(self):
+    def test_and_emit_get_version(self):
         from ddtrace.contrib.cherrypy import get_version
 
         version = get_version()

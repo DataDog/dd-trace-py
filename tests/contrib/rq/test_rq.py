@@ -59,7 +59,7 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
-def test_module_implements_get_version():
+def test_and_implement_get_version():
     version = get_version()
     assert type(version) == str
     assert version != ""

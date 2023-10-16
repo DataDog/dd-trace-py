@@ -108,7 +108,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
                     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == metric_value
                 self.reset()
 
-    def test_module_implements_get_version(self):
+    def test_and_emit_get_version(self):
         version = get_version()
         assert type(version) == str
         assert version != ""

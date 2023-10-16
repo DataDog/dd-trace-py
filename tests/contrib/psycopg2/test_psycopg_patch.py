@@ -33,9 +33,6 @@ class TestPsycopgPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, psycopg):
         pass
 
-    def assert_module_implements_get_version(self):
-        pass
-
     def test_and_emit_get_version(self):
         patch()
         assert get_version() == ""

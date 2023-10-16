@@ -24,7 +24,7 @@ class CeleryPatchTest(unittest.TestCase):
         app = celery.Celery()
         assert Pin.get_from(app) is not None
 
-    def test_get_version(self):
+    def test_and_emit_get_version(self):
         from ddtrace.contrib.celery import get_version
 
         version = get_version()

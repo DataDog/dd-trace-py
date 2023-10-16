@@ -53,7 +53,7 @@ class PytestTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz")):
             return self.testdir.runpytest_subprocess(*args)
 
-    def test_module_implements_get_version(self):
+    def test_and_emit_get_version(self):
         version = get_version()
         assert type(version) == str
         assert version != ""

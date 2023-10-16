@@ -18,8 +18,3 @@ class TestSnowflakePatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, snowflake):
         self.assert_not_double_wrapped(snowflake.connect)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

@@ -33,14 +33,10 @@ class TestPsycopgPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, psycopg):
         pass
 
-    def assert_module_implements_get_version(self):
-        pass
-
     def test_and_emit_get_version(self):
         patch()
         assert get_version() == ""
         versions = get_versions()
         assert versions.get("psycopg")
-        print("emitting")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg"])
         unpatch()
