@@ -6,10 +6,11 @@ processor in the beginning of the chain that adds trace attributes
 to the event_dict
 
 2. Ensure the configuration has at the minimum a processor chain that outputs
-to a log location without errors.
+to a log location without errors. Automatic Log injection will not occur if a
+processor chain is not configured.
 
 3. For log correlation between APM and logs, the easiest format is via JSON
-so that no further configuration needs to be done
+so that no further configuration needs to be done in the Datadog UI.
 
 Enabling
 --------
