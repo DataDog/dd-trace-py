@@ -4,12 +4,12 @@ import pytest
 import structlog
 
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -53,7 +53,6 @@ def test_log_trace_global_values():
     Check trace info includes global values over local span values
     """
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
@@ -82,7 +81,6 @@ def test_no_processors():
     structlog.configure(processors=[], logger_factory=cf)
     logger = structlog.get_logger()
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     tracer.trace("test.logging")
     logger.info("Hello!")
 
@@ -109,9 +107,9 @@ def test_log_trace():
     import structlog
 
     from ddtrace import config
+    from ddtrace import tracer
     from ddtrace.contrib.structlog import patch
     from ddtrace.contrib.structlog import unpatch
-    from tests.utils import DummyTracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -126,7 +124,6 @@ def test_log_trace():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -157,10 +154,10 @@ def test_log_trace_128bit_trace_ids():
     import structlog
 
     from ddtrace import config
+    from ddtrace import tracer
     from ddtrace.contrib.structlog import patch
     from ddtrace.contrib.structlog import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
-    from tests.utils import DummyTracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -175,7 +172,6 @@ def test_log_trace_128bit_trace_ids():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -208,10 +204,10 @@ def test_log_trace_128bit_trace_ids_log_64bits():
     import structlog
 
     from ddtrace import config
+    from ddtrace import tracer
     from ddtrace.contrib.structlog import patch
     from ddtrace.contrib.structlog import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
-    from tests.utils import DummyTracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -226,7 +222,6 @@ def test_log_trace_128bit_trace_ids_log_64bits():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -252,12 +247,12 @@ def test_log_DD_TAGS():
 
     import structlog
 
+    from ddtrace import tracer
     from ddtrace.constants import ENV_KEY
     from ddtrace.constants import SERVICE_KEY
     from ddtrace.constants import VERSION_KEY
     from ddtrace.contrib.structlog import patch
     from ddtrace.contrib.structlog import unpatch
-    from tests.utils import DummyTracer
 
     patch()
 
@@ -268,7 +263,6 @@ def test_log_DD_TAGS():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
