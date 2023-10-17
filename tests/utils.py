@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import datetime as dt
 import inspect
 import json
 import os
@@ -1243,15 +1244,15 @@ def _get_skipped_item(item, skip_reason):
     return item
 
 
-def _should_skip(condition=None):
+def _should_skip(condition=None, until: dt.datetime = None):
+    if until and dt.datetime.utcnow() >= until:
+        return True
     if condition is not None and not condition:
         return False
     return True
 
 
 def flaky(condition=None, reason=None):
-    """Decorator, allow to mark a test function/class as a known bug, and skip it"""
-
     skip = _should_skip(condition=condition)
 
     def decorator(function_or_class):
@@ -1260,6 +1261,23 @@ def flaky(condition=None, reason=None):
             return function_or_class
 
         full_reason = "known bug (flaky)" if reason is None else f"known bug (flaky): {reason}"
+        return _get_skipped_item(function_or_class, full_reason)
+
+    return decorator
+
+
+def skip_if_until(until: dt.datetime, condition=None, reason=None):
+    """Conditionally skip the test until the given UTC datetime"""
+    if until.tzinfo != dt.timezone.UTC:
+        raise ValueError("'until' timestamp must be in UTC timezone")
+    skip = _should_skip(condition=condition, until=until)
+
+    def decorator(function_or_class):
+
+        if not skip:
+            return function_or_class
+
+        full_reason = f"known bug, failing until {until.isoformat()} - {reason or {}}"
         return _get_skipped_item(function_or_class, full_reason)
 
     return decorator
