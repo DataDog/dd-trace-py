@@ -31,8 +31,8 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         print("come here")
         print(r"{}".format(httplib_request_str))
         # we need to pull the trace_id values out of the response.message str
-        x_datadog_trace_id = re.search(r"x-datadog-trace-id: (.*?)\\", httplib_request_str).group(1)
-        _dd_p_tid = re.search(r"_dd.p.tid=(.*?)(;|\\|$)", httplib_request_str).group(1)
+        x_datadog_trace_id = re.search(r"x-datadog-trace-id: (.*?)\n", httplib_request_str).group(1)
+        _dd_p_tid = re.search(r"_dd.p.tid=(.*?)(;|\n|$)", httplib_request_str).group(1)
         # _dd.p.tid=652eb5cd00000000
         header_t_id = get_128_bit_trace_id_from_headers(
             {"x-datadog-trace-id": x_datadog_trace_id, "x-datadog-tags": f"_dd.p.tid={_dd_p_tid}"}
