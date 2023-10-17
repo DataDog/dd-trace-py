@@ -905,7 +905,7 @@ jobs:
           snapshot: true
 
   structlog:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'structlog'
