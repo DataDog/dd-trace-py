@@ -21,7 +21,7 @@ def _calculate_byte_size(data):
         # We encode here to handle non-ascii characters
         # If there are non-unicode characters, we replace
         # with a single character/byte
-        return len(data.encode("utf-8", errors='replace'))
+        return len(data.encode("utf-8", errors="replace"))
 
     if isinstance(data, bytes):
         return len(data)
