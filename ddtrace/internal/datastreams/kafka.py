@@ -83,7 +83,7 @@ def dsm_kafka_message_consume(instance, message):
 
     payload_size = 0
     if hasattr(message, "len"):
-        # message.len() is only support for some versions of confluent_kafka
+        # message.len() is only supported for some versions of confluent_kafka
         payload_size += message.len()
     else:
         payload_size += _calculate_byte_size(message.value())
