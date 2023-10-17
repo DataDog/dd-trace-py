@@ -18,6 +18,12 @@ to_slice(std::string_view str)
     return { .ptr = str.data(), .len = str.size() };
 }
 
+inline std::string err_to_msg(ddog_Error *err, std::string_view msg) {
+  auto ddog_err = ddog_Error_message(err);
+  std::string err_msg;
+  return std::string{msg} + "(" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
+}
+
 UploaderBuilder&
 UploaderBuilder::set_env(std::string_view env)
 {
@@ -94,8 +100,7 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     // Add
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        std::string ddog_err(ddog_Error_message(&res.err).ptr);
-        errmsg = "tags[" + std::string(key_sv) + "]='" + std::string(val) + " err: '" + ddog_err + "'";
+        errmsg = err_to_msg(&res.err, "Error pushing tag");
         ddog_Error_drop(&res.err);
         return false;
     }
@@ -110,10 +115,8 @@ add_tag_unsafe(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, s
 
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        std::string ddog_err(ddog_Error_message(&res.err).ptr);
-        errmsg = "tags[" + std::string(key) + "]='" + std::string(val) + " err: '" + ddog_err + "'";
+        errmsg = err_to_msg(&res.err, "Error pushing tag (unsafe)");
         ddog_Error_drop(&res.err);
-        std::cout << errmsg << std::endl;
         return false;
     }
     return true;
@@ -126,15 +129,12 @@ UploaderBuilder::build_ptr()
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
     // These three tags are guaranteed by the backend; they can be omitted if needed
-    if (!env.empty())
-        add_tag(tags, ExportTagKey::env, env, errmsg);
-    if (!service.empty())
-        add_tag(tags, ExportTagKey::service, service, errmsg);
-    if (!version.empty())
-        add_tag(tags, ExportTagKey::version, version, errmsg);
 
-    // Assume that these tags are all populated + correct
-    if (!add_tag(tags, ExportTagKey::language, language, errmsg) ||
+    // Add the tags, emitting the first failure
+    if (!add_tag(tags, ExportTagKey::env, env, errmsg) ||
+        !add_tag(tags, ExportTagKey::service, service, errmsg) ||
+        !add_tag(tags, ExportTagKey::version, version, errmsg) ||
+        !add_tag(tags, ExportTagKey::language, language, errmsg) ||
         !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
         !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
         !add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg)) {
@@ -154,8 +154,7 @@ UploaderBuilder::build_ptr()
     if (new_exporter.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
         ddog_exporter = new_exporter.ok;
     } else {
-        std::string ddog_err(ddog_Error_message(&new_exporter.err).ptr);
-        errmsg = "Could not initialize exporter, err: " + ddog_err;
+        errmsg = err_to_msg(&new_exporter.err, "Error initializing exporter");
         ddog_Error_drop(&new_exporter.err);
         return nullptr;
     }
@@ -180,10 +179,8 @@ Uploader::upload(const Profile* profile)
 {
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-        std::string ddog_err(ddog_Error_message(&result.err).ptr);
-        errmsg = "Error serializing pprof, err:" + ddog_err;
+        errmsg = err_to_msg(&result.err, "Error serializing pprof");
         ddog_Error_drop(&result.err);
-        std::cout << errmsg << std::endl;
         return false;
     }
 
@@ -196,11 +193,7 @@ Uploader::upload(const Profile* profile)
     ddog_prof_Exporter_File file[] = {
       {
           .name = to_slice("auto.pprof"),
-          .file =
-              {
-                  .ptr = encoded->buffer.ptr,
-                  .len = encoded->buffer.len,
-              },
+          .file = ddog_Vec_U8_as_slice(&encoded->buffer),
       },
   };
 
@@ -214,20 +207,18 @@ Uploader::upload(const Profile* profile)
       ddog_exporter.get(),
       start,
       end,
+      ddog_prof_Exporter_Slice_File_empty(),
       { .ptr = file, .len = 1 },
-      {},
       &tags,
       nullptr,
       nullptr,
       5000);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
-        std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
-        errmsg = "Error building request, err:" + ddog_err;
+        errmsg = err_to_msg(&build_res.err, "Error building request");
         ddog_Error_drop(&build_res.err);
         ddog_prof_EncodedProfile_drop(encoded);
         ddog_Vec_Tag_drop(tags);
-        std::cout << errmsg << std::endl;
         return false;
     }
 
@@ -235,12 +226,10 @@ Uploader::upload(const Profile* profile)
     ddog_prof_Exporter_Request* req = build_res.ok;
     ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, nullptr);
     if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
-        std::string ddog_err(ddog_Error_message(&res.err).ptr);
-        errmsg = "Failed to upload (url:'" + url + "'), err: " + ddog_err;
+        errmsg = err_to_msg(&res.err, "Error uploading");
         ddog_Error_drop(&res.err);
         ddog_prof_EncodedProfile_drop(encoded);
         ddog_Vec_Tag_drop(tags);
-        std::cout << errmsg << std::endl;
         return false;
     }
 
@@ -332,8 +321,8 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
 
     // Check that the profile was created properly
     if (prof_res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
-      // This is bad, but we ignore this for now
-      // TODO fix this
+        errmsg = err_to_msg(&prof_res.err, "Error creating profile");
+        ddog_Error_drop(&prof_res.err);
     }
 
     // This is a shallow copy operation--does it matter?
@@ -369,9 +358,7 @@ Profile::reset()
 {
     auto reset_res = ddog_prof_Profile_reset(&ddog_profile, nullptr);
     if (reset_res.tag != DDOG_PROF_PROFILE_RESULT_OK) {
-        auto dd_err = ddog_Error_message(&reset_res.err);
-        errmsg = "Unable to reset profile";
-        std::cout << "Unable to reset profile (" << dd_err.ptr << ")" << std::endl;
+        errmsg = err_to_msg(&reset_res.err, "Error resetting profile");
         ddog_Error_drop(&reset_res.err);
         return false;
     }
@@ -430,7 +417,7 @@ Profile::push_label(const ExportLabelKey key, std::string_view val)
     constexpr std::array<std::string_view, static_cast<size_t>(ExportLabelKey::_Length)> keys = { EXPORTER_LABELS(
       X_STR) };
     if (cur_label >= labels.size()) {
-        std::cout << "Bad push_label" << std::endl;
+        errmsg = "Error pushing label: invalid";
         return false;
     }
 
@@ -450,7 +437,7 @@ Profile::push_label(const ExportLabelKey key, int64_t val)
     constexpr std::array<std::string_view, static_cast<size_t>(ExportLabelKey::_Length)> keys = { EXPORTER_LABELS(
       X_STR) };
     if (cur_label >= labels.size()) {
-        std::cout << "Bad push_label" << std::endl;
+        errmsg = "Error pushing label: invalid";
         return false;
     }
 
@@ -492,10 +479,8 @@ Profile::flush_sample()
     // TODO propagate a timestamp in order to get timeline data!
     ddog_prof_Profile_Result address = ddog_prof_Profile_add(&ddog_profile, sample, 0);
     if (address.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
-        std::string ddog_errmsg(ddog_Error_message(&address.err).ptr);
-        errmsg = "Could not flush sample: " + errmsg;
+        errmsg = err_to_msg(&address.err, "Error flushing sample");
         ddog_Error_drop(&address.err);
-
         clear_buffers();
         return false;
     }
@@ -514,7 +499,7 @@ Profile::push_cputime(int64_t cputime, int64_t count)
         values[val_idx.cpu_count] += count;
         return true;
     }
-    std::cout << "bad push cpu" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -526,7 +511,7 @@ Profile::push_walltime(int64_t walltime, int64_t count)
         values[val_idx.wall_count] += count;
         return true;
     }
-    std::cout << "bad push wall" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -538,7 +523,7 @@ Profile::push_exceptioninfo(std::string_view exception_type, int64_t count)
         values[val_idx.exception_count] += count;
         return true;
     }
-    std::cout << "bad push except" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -550,7 +535,7 @@ Profile::push_acquire(int64_t acquire_time, int64_t count)
         values[val_idx.lock_acquire_count] += count;
         return true;
     }
-    std::cout << "bad push acquire" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -562,7 +547,7 @@ Profile::push_release(int64_t release_time, int64_t count)
         values[val_idx.lock_release_count] += count;
         return true;
     }
-    std::cout << "bad push release" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -574,7 +559,7 @@ Profile::push_alloc(uint64_t size, uint64_t count)
         values[val_idx.alloc_count] += count;
         return true;
     }
-    std::cout << "bad push alloc" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
@@ -585,15 +570,14 @@ Profile::push_heap(uint64_t size)
         values[val_idx.heap_space] += size;
         return true;
     }
-    std::cout << "bad push heap" << std::endl;
+    errmsg = "Error pushing: " + std::string(__func__);
     return false;
 }
 
 bool
 Profile::push_lock_name(std::string_view lock_name)
 {
-    push_label(ExportLabelKey::lock_name, lock_name);
-    return true;
+    return push_label(ExportLabelKey::lock_name, lock_name);
 }
 
 bool
@@ -605,7 +589,6 @@ Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::strin
     if (!push_label(ExportLabelKey::thread_id, thread_id) ||
         !push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
         !push_label(ExportLabelKey::thread_name, thread_name)) {
-        std::cout << "bad push" << std::endl;
         return false;
     }
     return true;
@@ -615,7 +598,7 @@ bool
 Profile::push_task_id(int64_t task_id)
 {
     if (!push_label(ExportLabelKey::task_id, task_id)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -624,7 +607,7 @@ bool
 Profile::push_task_name(std::string_view task_name)
 {
     if (!push_label(ExportLabelKey::task_name, task_name)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -635,7 +618,7 @@ Profile::push_span_id(uint64_t span_id)
 {
     int64_t recoded_id = reinterpret_cast<int64_t&>(span_id);
     if (!push_label(ExportLabelKey::span_id, recoded_id)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -646,7 +629,7 @@ Profile::push_local_root_span_id(uint64_t local_root_span_id)
 {
     int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id);
     if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -656,7 +639,7 @@ bool
 Profile::push_trace_type(std::string_view trace_type)
 {
     if (!push_label(ExportLabelKey::trace_type, trace_type)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -666,7 +649,7 @@ bool
 Profile::push_trace_resource_container(std::string_view trace_resource_container)
 {
     if (!push_label(ExportLabelKey::trace_resource_container, trace_resource_container)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
@@ -676,7 +659,7 @@ bool
 Profile::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
-        std::cout << "bad push" << std::endl;
+        errmsg = "Error pushing: " + std::string(__func__);
         return false;
     }
     return true;
