@@ -50,7 +50,9 @@ def _es_modules():
     )
     for module_name in module_names:
         try:
-            yield import_module(module_name)
+            module = import_module(module_name)
+            versions[module_name] = getattr(module, "__versionstr__", "")
+            yield module
         except ImportError:
             pass
 
@@ -59,8 +61,6 @@ versions = {}
 
 
 def get_version_tuple(elasticsearch):
-    if getattr(elasticsearch, "__name__", None):
-        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "")
     return getattr(elasticsearch, "__version__", "")
 
 

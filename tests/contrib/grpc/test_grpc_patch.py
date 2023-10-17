@@ -8,6 +8,7 @@ class TestGRPCPatch(PatchTestCase.Base):
     __module_name__ = "grpc"
     __patch_func__ = patch
     __unpatch_func__ = None
+    __get_version__ = get_version
 
     def assert_module_patched(self, grpc):
         # Client Wrapping
@@ -32,8 +33,3 @@ class TestGRPCPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(grpc.intercept_channel)
         # Server Wrapping
         self.assert_not_double_wrapped(grpc.server)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

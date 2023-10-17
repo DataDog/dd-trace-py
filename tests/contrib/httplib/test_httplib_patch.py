@@ -1,3 +1,4 @@
+from ddtrace.contrib.httplib.patch import get_version
 from ddtrace.contrib.httplib.patch import patch
 from ddtrace.internal.compat import PY2
 
@@ -14,6 +15,7 @@ class TestHttplibPatch(PatchTestCase.Base):
     __module_name__ = "httplib" if PY2 else "http.client"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, http_client):
         pass
@@ -24,5 +26,7 @@ class TestHttplibPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, http_client):
         pass
 
-    def assert_module_implements_get_version(self):
-        pass
+    def test_and_emit_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version == ""
