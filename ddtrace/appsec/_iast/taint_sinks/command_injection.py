@@ -155,14 +155,16 @@ class CommandInjection(VulnerabilityBase):
                                     part["pattern"] = source.pattern
                                     del part["value"]
                                 new_value_parts.append(part)
+                                break
                             else:
                                 part["value"] = "".join(pattern_list)
                                 new_value_parts.append(part)
                                 new_value_parts.append({"redacted": True})
+                                break
                         else:
                             new_value_parts.append(part)
                             pattern_list.append(value[part_start:part_end])
-                            continue
+                            break
 
                     idx += part_len
                 vuln.evidence.valueParts = new_value_parts

@@ -18,6 +18,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -334,6 +335,26 @@ class SpanTestCase(TracerTestCase):
         s = Span(name="test.span")
         s.set_tag(ENV_KEY, "prod")
         assert s.get_tag(ENV_KEY) == "prod"
+
+    def test_span_links(self):
+        s1 = Span(name="test.span1")
+
+        s2 = Span(name="test.span2", span_id=1, trace_id=2)
+        s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
+        s2.context.sampling_priority = 1
+
+        link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "value2"}
+        s1.link_span(s2.context, link_attributes)
+
+        assert s1._links == [
+            SpanLink(
+                trace_id=2,
+                span_id=1,
+                tracestate="dd=s:1,congo=t61rcWkgMzE",
+                flags=1,
+                attributes=link_attributes,
+            )
+        ]
 
 
 @pytest.mark.parametrize(
