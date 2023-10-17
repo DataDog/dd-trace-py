@@ -10,7 +10,8 @@ to a log location without errors. Automatic Log injection will not occur if a
 processor chain is not configured.
 
 3. For log correlation between APM and logs, the easiest format is via JSON
-so that no further configuration needs to be done in the Datadog UI.
+so that no further configuration needs to be done in the Datadog UI assuming
+that the Datadog trace values are at the top level of the JSON
 
 Enabling
 --------
