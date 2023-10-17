@@ -19,6 +19,7 @@ class TestStructlogPatch(PatchTestCase.Base):
     __module_name__ = "structlog"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, structlog):
         self.assert_wrapped(structlog.configure)
@@ -28,8 +29,3 @@ class TestStructlogPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, structlog):
         self.assert_not_double_wrapped(structlog.configure)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""
