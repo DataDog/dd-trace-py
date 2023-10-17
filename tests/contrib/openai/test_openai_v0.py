@@ -27,6 +27,9 @@ from tests.utils import snapshot_context
 
 
 TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
+pytestmark = pytest.mark.skipif(
+    parse_version(sys.modules["openai"].version.VERSION) >= (1, 0, 0), reason="This module only tests openai < 1.0"
+)
 
 
 # VCR is used to capture and store network requests made to OpenAI.
@@ -76,6 +79,7 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
+    return "<not-a-real-key>"
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
@@ -574,7 +578,10 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
             )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
+    ignores=["meta.http.useragent"],
+)
 def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
@@ -1016,7 +1023,10 @@ def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_lo
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_image_edit_binary_input",
+    ignores=["meta.http.useragent"],
+)
 def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
@@ -1034,7 +1044,10 @@ def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_image_b64_json_response",
+    ignores=["meta.http.useragent"],
+)
 def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
@@ -1059,7 +1072,10 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
             )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_embedding_string_array",
+    ignores=["meta.http.useragent"],
+)
 def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
@@ -1069,7 +1085,10 @@ def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_embedding_token_array",
+    ignores=["meta.http.useragent"],
+)
 def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
@@ -1077,7 +1096,10 @@ def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
         openai.Embedding.create(input=[1111, 2222, 3333], model="text-embedding-ada-002", user="ddtrace-test")
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_embedding_array_of_token_arrays",
+    ignores=["meta.http.useragent"],
+)
 def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
@@ -1681,13 +1703,19 @@ async def test_acreate_moderation(api_key_in_env, request_api_key, openai, opena
             )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_misuse",
+    ignores=["meta.http.useragent", "meta.error.stack"],
+)
 def test_misuse(openai, snapshot_tracer):
-    with pytest.raises(openai.error.InvalidRequestError):
+    with pytest.raises(openai.InvalidRequestError):
         openai.Completion.create(input="wrong arg")
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_span_finish_on_stream_error",
+    ignores=["meta.http.useragent", "meta.error.stack"],
+)
 def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
         with pytest.raises(openai.error.AuthenticationError):
@@ -2191,7 +2219,9 @@ def test_est_tokens():
     )  # oracle: 92
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_completion", ignores=["meta.http.useragent"]
+)
 def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
         azure_openai.Completion.create(
@@ -2206,7 +2236,9 @@ def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snaps
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_acompletion", ignores=["meta.http.useragent"]
+)
 async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_acompletion.yaml"):
         await azure_openai.Completion.acreate(
@@ -2220,7 +2252,9 @@ async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion", ignores=["meta.http.useragent"]
+)
 def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     if not hasattr(azure_openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
@@ -2237,7 +2271,9 @@ def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_chat_acompletion", ignores=["meta.http.useragent"]
+)
 async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     if not hasattr(azure_openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
@@ -2253,7 +2289,9 @@ async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, opena
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_embedding", ignores=["meta.http.useragent"]
+)
 def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
         azure_openai.Embedding.create(
@@ -2266,7 +2304,9 @@ def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapsh
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_azure_openai_aembedding", ignores=["meta.http.useragent"]
+)
 async def test_azure_openai_aembedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_aembedding.yaml"):
         await azure_openai.Embedding.acreate(
@@ -2278,7 +2318,6 @@ async def test_azure_openai_aembedding(openai_api_key, azure_openai, openai_vcr,
         )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_subprocess, schema_version, service_name):
@@ -2298,18 +2337,23 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
         env["DD_SERVICE"] = service_name
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]" % (service_name, schema_version),
+        ignores=["meta.http.useragent"],
+        async_mode=False,
+    ):
+        out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+            """
 import openai
 import ddtrace
-from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
+from tests.contrib.openai.test_openai_v0 import FilterOrg, get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 with get_openai_vcr().use_cassette("completion_2.yaml"):
     resp = openai.Completion.create(model="ada", prompt="hello world")
-""",
-        env=env,
-    )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
+    """,
+            env=env,
+        )
+        assert status == 0, err
+        assert out == b""
+        assert err == b""

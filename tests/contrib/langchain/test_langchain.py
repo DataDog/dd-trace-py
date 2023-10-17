@@ -240,7 +240,12 @@ def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain.llms.OpenAI()
-    with pytest.raises(openai.error.InvalidRequestError):
+
+    if openai.__version__ >= (1, 0, 0):
+        invalid_error = openai.BadRequestError
+    else:
+        invalid_error = openai.InvalidRequestError
+    with pytest.raises(invalid_error):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 

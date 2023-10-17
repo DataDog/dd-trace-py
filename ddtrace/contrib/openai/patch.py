@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
 
 from ...pin import Pin
@@ -39,50 +40,102 @@ config._add(
     },
 )
 
-_RESOURCES = {
-    "model.Model": {
-        "list": _endpoint_hooks._ListHook,
-        "retrieve": _endpoint_hooks._RetrieveHook,
-    },
-    "completion.Completion": {
-        "create": _endpoint_hooks._CompletionHook,
-    },
-    "chat_completion.ChatCompletion": {
-        "create": _endpoint_hooks._ChatCompletionHook,
-    },
-    "edit.Edit": {
-        "create": _endpoint_hooks._EditHook,
-    },
-    "image.Image": {
-        "create": _endpoint_hooks._ImageCreateHook,
-        "create_edit": _endpoint_hooks._ImageEditHook,
-        "create_variation": _endpoint_hooks._ImageVariationHook,
-    },
-    "audio.Audio": {
-        "transcribe": _endpoint_hooks._AudioTranscriptionHook,
-        "translate": _endpoint_hooks._AudioTranslationHook,
-    },
-    "embedding.Embedding": {
-        "create": _endpoint_hooks._EmbeddingHook,
-    },
-    "moderation.Moderation": {
-        "create": _endpoint_hooks._ModerationHook,
-    },
-    "file.File": {
-        "create": _endpoint_hooks._FileCreateHook,
-        "delete": _endpoint_hooks._DeleteHook,
-        "download": _endpoint_hooks._FileDownloadHook,
-    },
-    "fine_tune.FineTune": {
-        "create": _endpoint_hooks._FineTuneCreateHook,
-        "cancel": _endpoint_hooks._FineTuneCancelHook,
-    },
-}
-
 
 def get_version():
     # type: () -> str
     return version.VERSION
+
+
+OPENAI_VERSION = parse_version(get_version())
+
+
+if OPENAI_VERSION >= (1, 0, 0):
+    _RESOURCES = {
+        "models.Models": {
+            "list": _endpoint_hooks._ListHook,
+            "retrieve": _endpoint_hooks._RetrieveHook,
+        },
+        "completions.Completions": {
+            "create": _endpoint_hooks._CompletionHook,
+        },
+        "chat.Completions": {
+            "create": _endpoint_hooks._ChatCompletionHook,
+        },
+        "edits.Edits": {
+            "create": _endpoint_hooks._EditHook,
+        },
+        "images.Images": {
+            "generate": _endpoint_hooks._ImageCreateHook,
+            "edit": _endpoint_hooks._ImageEditHook,
+            "create_variation": _endpoint_hooks._ImageVariationHook,
+        },
+        "audio.Audio.Transcriptions": {
+            "create": _endpoint_hooks._AudioTranscriptionHook,
+        },
+        "audio.Audio.Translations": {
+            "create": _endpoint_hooks._AudioTranslationHook,
+        },
+        "embeddings.Embeddings": {
+            "create": _endpoint_hooks._EmbeddingHook,
+        },
+        "moderations.Moderations": {
+            "create": _endpoint_hooks._ModerationHook,
+        },
+        "files.Files": {
+            "create": _endpoint_hooks._FileCreateHook,
+            "retrieve": _endpoint_hooks._RetrieveHook,
+            "list": _endpoint_hooks._ListHook,
+            "delete": _endpoint_hooks._DeleteHook,
+            "retrieve_content": _endpoint_hooks._FileDownloadHook,
+        },
+        "fine_tunes.FineTunes": {
+            "create": _endpoint_hooks._FineTuneCreateHook,
+            "retrieve": _endpoint_hooks._RetrieveHook,
+            "list": _endpoint_hooks._ListHook,
+            "cancel": _endpoint_hooks._FineTuneCancelHook,
+            "list_events": _endpoint_hooks._FineTuneListEventsHook,
+        },
+    }
+else:
+    _RESOURCES = {
+        "model.Model": {
+            "list": _endpoint_hooks._ListHook,
+            "retrieve": _endpoint_hooks._RetrieveHook,
+        },
+        "completion.Completion": {
+            "create": _endpoint_hooks._CompletionHook,
+        },
+        "chat_completion.ChatCompletion": {
+            "create": _endpoint_hooks._ChatCompletionHook,
+        },
+        "edit.Edit": {
+            "create": _endpoint_hooks._EditHook,
+        },
+        "image.Image": {
+            "create": _endpoint_hooks._ImageCreateHook,
+            "create_edit": _endpoint_hooks._ImageEditHook,
+            "create_variation": _endpoint_hooks._ImageVariationHook,
+        },
+        "audio.Audio": {
+            "transcribe": _endpoint_hooks._AudioTranscriptionHook,
+            "translate": _endpoint_hooks._AudioTranslationHook,
+        },
+        "embedding.Embedding": {
+            "create": _endpoint_hooks._EmbeddingHook,
+        },
+        "moderation.Moderation": {
+            "create": _endpoint_hooks._ModerationHook,
+        },
+        "file.File": {
+            "create": _endpoint_hooks._FileCreateHook,
+            "delete": _endpoint_hooks._DeleteHook,
+            "download": _endpoint_hooks._FileDownloadHook,
+        },
+        "fine_tune.FineTune": {
+            "create": _endpoint_hooks._FineTuneCreateHook,
+            "cancel": _endpoint_hooks._FineTuneCancelHook,
+        },
+    }
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
@@ -199,24 +252,39 @@ def patch():
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
         integration.start_log_writer()
 
-    import openai.api_requestor
+    if OPENAI_VERSION >= (1, 0, 0):
+        wrap(openai._base_client.BaseClient._prepare_request, _patched_make_session)
 
-    wrap(openai.api_requestor._make_session, _patched_make_session)
-    wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
+        for resource, method_hook_dict in _RESOURCES.items():
+            if deep_getattr(openai.resources, resource) is None:
+                continue
+            for method_name, endpoint_hook in method_hook_dict.items():
+                sync_method = deep_getattr(openai.resources, "%s.%s" % (resource, method_name))
+                async_method = deep_getattr(
+                    openai.resources, "%s.%s" % (".Async".join(resource.split(".")), method_name)
+                )
+                wrap(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
+                wrap(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
+    else:
+        import openai.api_requestor
 
-    for resource, method_hook_dict in _RESOURCES.items():
-        if deep_getattr(openai.api_resources, resource) is not None:
+        wrap(openai.api_requestor._make_session, _patched_make_session)
+        wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
+
+        for resource, method_hook_dict in _RESOURCES.items():
+            if deep_getattr(openai.api_resources, resource) is None:
+                continue
             for method_name, endpoint_hook in method_hook_dict.items():
                 sync_method = deep_getattr(openai.api_resources, "%s.%s" % (resource, method_name))
                 async_method = deep_getattr(openai.api_resources, "%s.a%s" % (resource, method_name))
                 _wrap_classmethod(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
                 _wrap_classmethod(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
 
-    # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
-    _wrap_classmethod(
-        openai.api_resources.fine_tune.FineTune.list_events,
-        _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
-    )
+        # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
+        _wrap_classmethod(
+            openai.api_resources.fine_tune.FineTune.list_events,
+            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
+        )
 
     openai.__datadog_patch = True
 
