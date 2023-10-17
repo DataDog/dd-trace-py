@@ -528,6 +528,23 @@ def extract_buddy(env):
     }
 
 
+def extract_awscodepipeline(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from AWS CodePipeline environ."""
+    return {
+        PROVIDER_NAME: "awscodepipeline",
+        PIPELINE_ID: env.get("DD_PIPELINE_EXECUTION_ID"),
+        _CI_ENV_VARS: json.dumps(
+            {
+                "CODEBUILD_BUILD_ARN": env.get("CODEBUILD_BUILD_ARN"),
+                "DD_PIPELINE_EXECUTION_ID": env.get("DD_PIPELINE_EXECUTION_ID"),
+                "DD_ACTION_EXECUTION_ID": env.get("DD_ACTION_EXECUTION_ID"),
+            },
+            separators=(",", ":"),
+        ),
+    }
+
+
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
@@ -542,4 +559,5 @@ PROVIDERS = (
     ("TRAVIS", extract_travis),
     ("BITRISE_BUILD_SLUG", extract_bitrise),
     ("BUDDY", extract_buddy),
+    ("CODEBUILD_INITIATOR", extract_awscodepipeline),
 )
