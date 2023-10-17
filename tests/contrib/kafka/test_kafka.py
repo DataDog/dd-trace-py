@@ -32,6 +32,7 @@ if six.PY3:
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 else:
     PAYLOAD = bytes("hueh hueh hueh")
+DSM_TEST_PATH_HEADER_SIZE = 20
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -295,17 +296,21 @@ def test_data_streams_payload_size(
 ):
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
+    test_headers = {"1234": "5678"}
+    test_header_size = 0
+    for k, v in test_headers.items():
+        test_header_size += len(k) + len(v)
     expected_payload_size = float(payload_length + key_length)
-    expected_payload_size += 8  # to account for headers we add here
+    expected_payload_size += test_header_size  # to account for headers we add here
     expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
-    expected_payload_size += 20  # to account for path header we add
+    expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
     try:
         del dsm_processor._current_context.value
     except AttributeError:
         pass
 
-    serializing_producer.produce(kafka_topic, payload, key=key, headers={"1234": "5678"})
+    serializing_producer.produce(kafka_topic, payload, key=key, headers=test_headers)
     serializing_producer.flush()
     message = None
     while message is None:

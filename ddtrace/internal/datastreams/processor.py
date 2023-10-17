@@ -345,6 +345,13 @@ class DataStreamsProcessor(PeriodicService):
         return ctx
 
     def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+        """
+        type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
+        :param tags: a list of strings identifying the pathway and direction
+        :param now_sec: Optional start time of this path. Use for services like Kinesis which
+                           we aren't getting path information for.
+        :param payload_size: The size of the payload being sent in bytes
+        """
         if not now_sec:
             now_sec = time.time()
         if hasattr(self._current_context, "value"):
