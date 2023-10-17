@@ -1237,7 +1237,7 @@ def _get_skipped_item(item, skip_reason):
         raise ValueError(f"Unexpected skipped object: {item}")
 
     if not hasattr(item, "pytestmark"):
-        setattr(item, "pytestmark", [])
+        item.pytestmark = []
 
     item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
 
