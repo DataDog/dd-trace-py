@@ -132,9 +132,6 @@
         "starlette": [
             "ddtrace/contrib/starlette/*"
         ],
-        "structlog": [
-            "ddtrace/contrib/structlog/*"
-        ],
         "asgi": [
             "ddtrace/contrib/asgi/*"
         ],
@@ -913,10 +910,6 @@
             "@starlette",
             "@asgi",
             "tests/contrib/starlette/*"
-        ],
-        "structlog": [
-            "@structlog",
-            "tests/contrib/structlog/*"
         ],
         "sqlalchemy": [
             "@bootstrap",

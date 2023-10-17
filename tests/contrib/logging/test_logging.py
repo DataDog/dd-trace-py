@@ -9,8 +9,8 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.logging import patch
 from ddtrace.contrib.logging import unpatch
-from ddtrace.contrib.logging.constants import RECORD_ATTR_SPAN_ID
-from ddtrace.contrib.logging.constants import RECORD_ATTR_TRACE_ID
+from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
+from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
