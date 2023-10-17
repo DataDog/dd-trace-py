@@ -39,75 +39,44 @@ config._add(
     },
 )
 
-
 _RESOURCES = {
-    "model": (
-        "Model",
-        {
-            "list": _endpoint_hooks._ListHook,
-            "retrieve": _endpoint_hooks._RetrieveHook,
-        },
-    ),
-    "completion": (
-        "Completion",
-        {
-            "create": _endpoint_hooks._CompletionHook,
-        },
-    ),
-    "chat_completion": (
-        "ChatCompletion",
-        {
-            "create": _endpoint_hooks._ChatCompletionHook,
-        },
-    ),
-    "edit": (
-        "Edit",
-        {
-            "create": _endpoint_hooks._EditHook,
-        },
-    ),
-    "image": (
-        "Image",
-        {
-            "create": _endpoint_hooks._ImageCreateHook,
-            "create_edit": _endpoint_hooks._ImageEditHook,
-            "create_variation": _endpoint_hooks._ImageVariationHook,
-        },
-    ),
-    "audio": (
-        "Audio",
-        {
-            "transcribe": _endpoint_hooks._AudioTranscriptionHook,
-            "translate": _endpoint_hooks._AudioTranslationHook,
-        },
-    ),
-    "embedding": (
-        "Embedding",
-        {
-            "create": _endpoint_hooks._EmbeddingHook,
-        },
-    ),
-    "moderation": (
-        "Moderation",
-        {
-            "create": _endpoint_hooks._ModerationHook,
-        },
-    ),
-    "file": (
-        "File",
-        {
-            "create": _endpoint_hooks._FileCreateHook,
-            "delete": _endpoint_hooks._DeleteHook,
-            "download": _endpoint_hooks._FileDownloadHook,
-        },
-    ),
-    "fine_tune": (
-        "FineTune",
-        {
-            "create": _endpoint_hooks._FineTuneCreateHook,
-            "cancel": _endpoint_hooks._FineTuneCancelHook,
-        },
-    ),
+    "model.Model": {
+        "list": _endpoint_hooks._ListHook,
+        "retrieve": _endpoint_hooks._RetrieveHook,
+    },
+    "completion.Completion": {
+        "create": _endpoint_hooks._CompletionHook,
+    },
+    "chat_completion.ChatCompletion": {
+        "create": _endpoint_hooks._ChatCompletionHook,
+    },
+    "edit.Edit": {
+        "create": _endpoint_hooks._EditHook,
+    },
+    "image.Image": {
+        "create": _endpoint_hooks._ImageCreateHook,
+        "create_edit": _endpoint_hooks._ImageEditHook,
+        "create_variation": _endpoint_hooks._ImageVariationHook,
+    },
+    "audio.Audio": {
+        "transcribe": _endpoint_hooks._AudioTranscriptionHook,
+        "translate": _endpoint_hooks._AudioTranslationHook,
+    },
+    "embedding.Embedding": {
+        "create": _endpoint_hooks._EmbeddingHook,
+    },
+    "moderation.Moderation": {
+        "create": _endpoint_hooks._ModerationHook,
+    },
+    "file.File": {
+        "create": _endpoint_hooks._FileCreateHook,
+        "delete": _endpoint_hooks._DeleteHook,
+        "download": _endpoint_hooks._FileDownloadHook,
+    },
+    "fine_tune.FineTune": {
+        "create": _endpoint_hooks._FineTuneCreateHook,
+        "cancel": _endpoint_hooks._FineTuneCancelHook,
+    },
 }
 
 
@@ -231,13 +200,11 @@ def patch():
     wrap(openai.api_requestor._make_session, _patched_make_session)
     wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
 
-    for resource, resource_tuple in _RESOURCES.items():
-        if hasattr(openai.api_resources, resource):
-            resource_cls = resource_tuple[0]
-            method_hook_dict = resource_tuple[1]
+    for resource, method_hook_dict in _RESOURCES.items():
+        if deep_getattr(openai.api_resources, resource) is not None:
             for method_name, endpoint_hook in method_hook_dict.items():
-                sync_method = deep_getattr(openai, "%s.%s" % (resource_cls, method_name))
-                async_method = deep_getattr(openai, "%s.a%s" % (resource_cls, method_name))
+                sync_method = deep_getattr(openai.api_resources, "%s.%s" % (resource, method_name))
+                async_method = deep_getattr(openai.api_resources, "%s.a%s" % (resource, method_name))
                 _wrap_classmethod(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
                 _wrap_classmethod(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
 
