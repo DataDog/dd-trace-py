@@ -30,7 +30,6 @@ from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
-from .._encoding import EncodingValidationError
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
@@ -396,11 +395,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             encoded = client.encoder.encode()
             if encoded is None:
                 return
-        except EncodingValidationError as e:
-            log.error("Encoding Error (or span was modified after finish): %s", str(e))
-            if hasattr(e, "_debug_message"):
-                log.debug(e._debug_message)
-            return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
