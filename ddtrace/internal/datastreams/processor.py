@@ -348,8 +348,7 @@ class DataStreamsProcessor(PeriodicService):
         """
         type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
-        :param now_sec: Optional start time of this path. Use for services like Kinesis which
-                        we aren't getting path information for.
+        :param now_sec: The time in seconds to count as "now" when computing latencies
         :param payload_size: The size of the payload being sent in bytes
         """
 
