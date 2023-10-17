@@ -8,15 +8,15 @@ from ddtrace import config
 
 from ...internal.utils import get_argument_value
 from ..trace_utils import unwrap as _u
-from .constants import RECORD_ATTR_ENV
-from .constants import RECORD_ATTR_SERVICE
-from .constants import RECORD_ATTR_SPAN_ID
-from .constants import RECORD_ATTR_TRACE_ID
-from .constants import RECORD_ATTR_VALUE_EMPTY
-from .constants import RECORD_ATTR_VALUE_ZERO
-from .constants import RECORD_ATTR_VERSION
 
 
+RECORD_ATTR_TRACE_ID = "dd.trace_id"
+RECORD_ATTR_SPAN_ID = "dd.span_id"
+RECORD_ATTR_ENV = "dd.env"
+RECORD_ATTR_VERSION = "dd.version"
+RECORD_ATTR_SERVICE = "dd.service"
+RECORD_ATTR_VALUE_ZERO = "0"
+RECORD_ATTR_VALUE_EMPTY = ""
 _LOG_SPAN_KEY = "__datadog_log_span"
 
 config._add(
@@ -66,9 +66,9 @@ def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
 
-    setattr(record, RECORD_ATTR_VERSION, config.version or RECORD_ATTR_VALUE_EMPTY)
-    setattr(record, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
-    setattr(record, RECORD_ATTR_SERVICE, config.service or RECORD_ATTR_VALUE_EMPTY)
+    setattr(record, RECORD_ATTR_VERSION, config.version or "")
+    setattr(record, RECORD_ATTR_ENV, config.env or "")
+    setattr(record, RECORD_ATTR_SERVICE, config.service or "")
 
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
@@ -102,9 +102,9 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     record.dd = DDLogRecord(
         trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
         span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-        service=getattr(record, RECORD_ATTR_SERVICE, RECORD_ATTR_VALUE_EMPTY),
-        version=getattr(record, RECORD_ATTR_VERSION, RECORD_ATTR_VALUE_EMPTY),
-        env=getattr(record, RECORD_ATTR_ENV, RECORD_ATTR_VALUE_EMPTY),
+        service=getattr(record, RECORD_ATTR_SERVICE, ""),
+        version=getattr(record, RECORD_ATTR_VERSION, ""),
+        env=getattr(record, RECORD_ATTR_ENV, ""),
     )
 
     try:

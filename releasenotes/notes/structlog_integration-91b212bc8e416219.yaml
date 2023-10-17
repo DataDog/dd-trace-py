@@ -1,4 +1,0 @@
-features:
-  - |
-    structlog: This introduces log correlation for the structlog library.
-    Refer to :mod:`structlog-docs <ddtrace.contrib.structlog>` for more details.
