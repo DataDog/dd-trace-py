@@ -1051,7 +1051,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/structlog",
             pkgs={
                 "structlog": latest,
-                "msgpack": latest,
             },
         ),
         Venv(
