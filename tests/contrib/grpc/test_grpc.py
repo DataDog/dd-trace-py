@@ -422,7 +422,7 @@ class GrpcTestCase(TracerTestCase):
         x_datadog_trace_id = re.search(r"x-datadog-trace-id=(.*?);", response.message).group(1)
         _dd_p_tid = re.search(r"_dd.p.tid=(.*?)(;|$)", response.message).group(1)
         assert client_span.trace_id == get_128_bit_trace_id_from_headers(
-            {"x-datadog-trace-id": x_datadog_trace_id, "_dd.p.tid": _dd_p_tid}
+            {"x-datadog-trace-id": x_datadog_trace_id, "x-datadog-tags": f"_dd.p.tid={_dd_p_tid}"}
         )
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
         assert "x-datadog-sampling-priority=1" in response.message

@@ -152,6 +152,7 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _get_tags_value(headers):
+        # type: (Dict[str, str]) -> Optional[str]
         return _extract_header_value(
             _POSSIBLE_HTTP_HEADER_TAGS,
             headers,
