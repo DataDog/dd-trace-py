@@ -7,7 +7,6 @@ from os.path import join
 import sys
 import typing
 from typing import cast
-from weakref import WeakValueDictionary as wvdict
 
 
 if typing.TYPE_CHECKING:
@@ -30,6 +29,12 @@ if typing.TYPE_CHECKING:
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+
+
+if PY2:
+    wvdict = dict
+else:
+    from weakref import WeakValueDictionary as wvdict
 
 
 log = get_logger(__name__)
