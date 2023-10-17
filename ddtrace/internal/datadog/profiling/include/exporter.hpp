@@ -89,7 +89,6 @@ class UploaderBuilder {
   std::string errmsg;
 
   // Building parameters
-  // TODO remove these defaults before making this available to customers
   std::string env = "";
   std::string service = "";
   std::string version = "";

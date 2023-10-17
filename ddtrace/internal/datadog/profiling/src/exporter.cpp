@@ -131,10 +131,9 @@ UploaderBuilder::build_ptr()
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
-    // These three tags are guaranteed by the backend; they can be omitted if needed
-
     // Add the tags, emitting the first failure
-    if (!add_tag(tags, ExportTagKey::env, env, errmsg) || !add_tag(tags, ExportTagKey::service, service, errmsg) ||
+    if (!add_tag(tags, ExportTagKey::env, env, errmsg) ||
+        !add_tag(tags, ExportTagKey::service, service, errmsg) ||
         !add_tag(tags, ExportTagKey::version, version, errmsg) ||
         !add_tag(tags, ExportTagKey::language, language, errmsg) ||
         !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
