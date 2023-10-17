@@ -1228,3 +1228,38 @@ def add_dd_env_variables_to_headers(headers):
         headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
 
     return headers
+
+
+def _get_skipped_item(item, skip_reason):
+
+    if not inspect.isfunction(item) and not inspect.isclass(item):
+        raise ValueError(f"Unexpected skipped object: {item}")
+
+    if not hasattr(item, "pytestmark"):
+        setattr(item, "pytestmark", [])
+
+    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+
+    return item
+
+
+def _should_skip(condition=None):
+    if condition is not None and not condition:
+        return False
+    return True
+
+
+def flaky(condition=None, reason=None):
+    """Decorator, allow to mark a test function/class as a known bug, and skip it"""
+
+    skip = _should_skip(condition=condition)
+
+    def decorator(function_or_class):
+
+        if not skip:
+            return function_or_class
+
+        full_reason = "known bug (flaky)" if reason is None else f"known bug (flaky): {reason}"
+        return _get_skipped_item(function_or_class, full_reason)
+
+    return decorator
