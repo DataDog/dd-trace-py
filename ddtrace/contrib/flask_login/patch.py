@@ -20,7 +20,7 @@ log = get_logger(__name__)
 
 def get_version():
     # type: () -> str
-    return ""
+    return flask_login.__version__
 
 
 class _FlaskLoginUserInfoRetriever(_UserInfoRetriever):

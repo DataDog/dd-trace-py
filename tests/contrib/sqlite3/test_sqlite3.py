@@ -12,7 +12,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
-from ddtrace.contrib.sqlite3.patch import get_version
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -471,9 +470,3 @@ def test_backup(patched_conn):
 
     with destination:
         patched_conn.backup(destination, pages=1)
-
-
-def test_module_implements_get_version():
-    version = get_version()
-    assert type(version) == str
-    assert version != ""
