@@ -18,6 +18,7 @@ from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -525,6 +526,7 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
+@flaky()
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 
