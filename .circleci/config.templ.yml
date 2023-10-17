@@ -906,12 +906,10 @@ jobs:
 
   structlog:
     <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
     steps:
       - run_test:
           pattern: 'structlog'
+          snapshot: true
 
   sqlalchemy:
     <<: *contrib_job_small
