@@ -1,4 +1,5 @@
 import os
+import uuid
 from typing import Any
 from typing import Dict
 from typing import List
@@ -123,6 +124,20 @@ def _appsec_rc_features_is_enabled() -> bool:
     return False
 
 
+def _safe_userid(user_id):
+    try:
+        _ = int(user_id)
+        return user_id
+    except ValueError:
+        try:
+            _ = uuid.UUID(user_id)
+            return user_id
+        except ValueError:
+            pass
+
+    return None
+
+
 class _UserInfoRetriever:
     def __init__(self, user):
         self.user = user
@@ -142,10 +157,13 @@ class _UserInfoRetriever:
 
     def get_userid(self):
         user_login = getattr(self.user, config._user_model_login_field, None)
-        if user_login:
+        if not user_login:
+            user_login = self.find_in_user_model(self.possible_user_id_fields)
+
+        if config._automatic_login_events_mode == "extended":
             return user_login
 
-        return self.find_in_user_model(self.possible_user_id_fields)
+        return _safe_userid(user_login)
 
     def get_username(self):
         username = getattr(self.user, config._user_model_name_field, None)

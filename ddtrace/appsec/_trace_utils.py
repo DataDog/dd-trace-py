@@ -8,6 +8,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._utils import _safe_userid
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
@@ -41,14 +42,18 @@ def _track_user_login_common(
     if span:
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
-        span.set_tag_str("%s.track" % tag_prefix, "true")
+
+        if success:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_SUCCESS_TRACK, "true")
+        else:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
-        else:
-            mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
-            span.set_tag_str(mode_tag, str(login_events_mode))
+
+        mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
+        span.set_tag_str(mode_tag, config._automatic_login_events_mode)
 
         if metadata is not None:
             for k, v in metadata.items():
@@ -104,7 +109,9 @@ def track_user_login_success_event(
     if not span:
         return
 
-    # usr.id will be set by set_user
+    if login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED):
+        user_id = _safe_userid(user_id)
+
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
@@ -128,9 +135,9 @@ def track_user_login_failure_event(
         return
 
     if user_id:
-        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     exists_str = "true" if exists else "false"
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
+    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
 
 
 def track_user_signup_event(
