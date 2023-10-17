@@ -1213,7 +1213,7 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
+            command="pytest {cmdargs} tests/contrib/pyramid",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],

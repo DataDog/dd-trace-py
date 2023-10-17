@@ -16,7 +16,7 @@ mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.13.1
 
 parameters:
   coverage:
@@ -180,6 +180,28 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - run:
+          name: "Store Test Agent Supported Integrations Data"
+          command: |
+            if [[ -z "$(curl -s << parameters.trace_agent_url >>/test/integrations/tested_versions)" ]]; then
+              # No integrations were tested. Not saving any artifacts
+              echo "Response body is empty. Skipping saving integration artifacts."
+            else
+              # make temporary files to save response data to
+              response=$(mktemp) && headers=$(mktemp)
+              # create artifacts directory if it doesn't exist
+              [ -d "./artifacts" ] || mkdir -p "./artifacts"
+              # get tested integrations
+              curl -o "$response" -D "$headers" << parameters.trace_agent_url >>/test/integrations/tested_versions
+              # get filename representing the name of the tested integration from headers
+              filename=$(awk -F': ' '/file-name/{print $2}' "$headers" | tr -d '\r\n')
+              # copy data to final file and remove temp files
+              mv "$response" "artifacts/${filename}_supported_versions.csv"
+              rm "$headers"
+            fi
+      - store_artifacts:
+          path: artifacts
+          destination: supported-integrations
       - save_cache:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
@@ -472,6 +494,9 @@ jobs:
 
   test_logging:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'test_logging'
@@ -584,6 +609,9 @@ jobs:
 
   dogpile_cache:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'dogpile_cache'
@@ -770,6 +798,9 @@ jobs:
 
   pytest:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: 'pytest'
