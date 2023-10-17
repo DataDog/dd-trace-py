@@ -161,7 +161,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == TEST_USER
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "extended"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == TEST_USER
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == TEST_EMAIL
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == TEST_USER_NAME
@@ -185,7 +185,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == "1"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
                 assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
                 assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
                 assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
@@ -287,6 +287,6 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == TEST_USER
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
         finally:
             unpatch_login()

@@ -933,7 +933,7 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
         assert login_span
         assert login_span.get_tag(user.ID) == "fred"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_MODE == "extended"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
@@ -955,7 +955,7 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
         assert login_span
         assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_MODE) == "safe"
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
@@ -1003,7 +1003,7 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.auto.mode") == "extended"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_MODE) == "extended"
 
 
 @pytest.mark.django_db
@@ -1024,4 +1024,4 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         assert login_span
         assert login_span.get_tag(user.ID) == "fred2"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_MODE) == "safe"

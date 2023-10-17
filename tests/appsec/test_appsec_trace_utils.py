@@ -49,7 +49,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
-            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
+            assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
             assert not root_span.get_tag("%s.track" % failure_prefix)
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -81,7 +81,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert user_span.get_tag("%s.track" % success_prefix) == "true"
             assert user_span.get_tag("%s.sdk" % success_prefix) == "true"
-            assert not user_span.get_tag("%s.auto.mode" % success_prefix)
+            assert not user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
             assert not user_span.get_tag("%s.track" % failure_prefix)
             assert user_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -112,7 +112,7 @@ class EventsSDKTestCase(TracerTestCase):
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert not root_span.get_tag("%s.sdk" % success_prefix)
-            assert root_span.get_tag("%s.auto.mode" % success_prefix) == str(LOGIN_EVENTS_MODE.SAFE)
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.SAFE)
 
     def test_track_user_login_event_success_auto_mode_extended(self):
         with self.trace("test_success1"):
@@ -132,7 +132,7 @@ class EventsSDKTestCase(TracerTestCase):
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert not root_span.get_tag("%s.sdk" % success_prefix)
-            assert root_span.get_tag("%s.auto.mode" % success_prefix) == str(LOGIN_EVENTS_MODE.EXTENDED)
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.EXTENDED)
 
     def test_track_user_login_event_success_with_metadata(self):
         with self.trace("test_success2"):
@@ -141,7 +141,7 @@ class EventsSDKTestCase(TracerTestCase):
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("%s.track" % success_prefix) == "true"
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
-            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
+            assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
             assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -167,10 +167,10 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("%s.track" % failure_prefix) == "true"
             assert root_span.get_tag("%s.sdk" % failure_prefix) == "true"
-            assert not root_span.get_tag("%s.auto.mode" % failure_prefix)
+            assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE)
             assert not root_span.get_tag("%s.track" % success_prefix)
             assert not root_span.get_tag("%s.sdk" % success_prefix)
-            assert not root_span.get_tag("%s.auto.mode" % success_prefix)
+            assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"

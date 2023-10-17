@@ -764,26 +764,34 @@ def traced_login(django, pin, func, instance, args, kwargs):
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     try:
+        log.warning("JJJ 1")
         mode = config._automatic_login_events_mode
         if not config._appsec_enabled or mode == "disabled":
             return result_user
 
+        log.warning("JJJ 2")
         info_retriever = _DjangoUserInfoRetriever(result_user)
         userid_list = info_retriever.possible_user_id_fields if mode == "safe" else info_retriever.possible_login_fields
 
+        log.warning("JJJ 3")
         for possible_key in userid_list:
             if possible_key in kwargs:
                 user_id = kwargs[possible_key]
                 break
         else:
-            user_id = "missing"
+            user_id = None
 
+        log.warning("JJJ 4")
         if not result_user:
+            log.warning("JJJ 5")
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+        log.warning("JJJ 6")
     except Exception:
+        log.warning("JJJ 7")
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
+    log.warning("JJJ 8")
     return result_user
 
 

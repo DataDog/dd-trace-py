@@ -47,7 +47,8 @@ def _track_user_login_common(
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
         else:
-            span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
+            mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
+            span.set_tag_str(mode_tag, str(login_events_mode))
 
         if metadata is not None:
             for k, v in metadata.items():
@@ -109,7 +110,7 @@ def track_user_login_success_event(
 
 def track_user_login_failure_event(
     tracer: Tracer,
-    user_id: str,
+    user_id: Optional[str],
     exists: bool,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
@@ -126,7 +127,8 @@ def track_user_login_failure_event(
     if not span:
         return
 
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
+    if user_id:
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
     exists_str = "true" if exists else "false"
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
