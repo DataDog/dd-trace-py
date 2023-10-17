@@ -12,7 +12,6 @@ from ddtrace.contrib.structlog import unpatch
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
-
 cf = structlog.testing.CapturingLoggerFactory()
 
 
@@ -53,7 +52,7 @@ def test_log_trace_global_values():
     Check trace info includes global values over local span values
     """
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
@@ -82,7 +81,7 @@ def test_no_processors():
     structlog.configure(processors=[], logger_factory=cf)
     logger = structlog.get_logger()
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     tracer.trace("test.logging")
     logger.info("Hello!")
 
@@ -126,7 +125,7 @@ def test_log_trace():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -175,7 +174,7 @@ def test_log_trace_128bit_trace_ids():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -226,7 +225,7 @@ def test_log_trace_128bit_trace_ids_log_64bits():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     logger.info("Hello!")
     span.finish()
@@ -268,7 +267,7 @@ def test_log_DD_TAGS():
     )
     logger = structlog.getLogger()
 
-    tracer = DummyTracer()
+    tracer = DummyTracer(api_version="v0.4")  # v0.5 requires msgpack which breaks the test dependencies
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
