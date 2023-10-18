@@ -380,6 +380,11 @@ class Config(object):
         self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
         self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
+        self._api_security_sample_rate = 0.1
+        try:
+            self._api_security_sample_rate = min(1.0, max(0.0, os.getenv(API_SECURITY.SAMPLE_RATE)))
+        except BaseException:  # nosec
+            pass
         self._waf_timeout = DEFAULT.WAF_TIMEOUT
         try:
             self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))

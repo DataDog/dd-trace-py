@@ -228,6 +228,6 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
             if rc_api_security_sample_rate is not None:
                 try:
                     sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                    setattr(config, "api_security_sample_rate", sample_rate)  # noqa: B010
+                    config._api_security_sample_rate = sample_rate
                 except BaseException:  # nosec
                     pass

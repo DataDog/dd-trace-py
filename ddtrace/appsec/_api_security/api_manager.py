@@ -76,10 +76,6 @@ class APIManager(Service):
     def __init__(self):
         # type: () -> None
         super(APIManager, self).__init__()
-        try:
-            self.SAMPLE_RATE = max(0.0, min(1.0, float(os.environ.get(API_SECURITY.SAMPLE_RATE, "0.1"))))
-        except BaseException:
-            self.SAMPLE_RATE = 0.1
 
         self.current_sampling_value = self.SAMPLE_START_VALUE
         self._schema_meter = metrics.get_meter("schema")
@@ -96,9 +92,7 @@ class APIManager(Service):
     def _should_collect_schema(self, env):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        sample_rate = getattr(config, "api_security_sample_rate", None)
-        if sample_rate is None:
-            sample_rate = self.SAMPLE_RATE
+        sample_rate = config._api_security_sample_rate
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
