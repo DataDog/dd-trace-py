@@ -203,16 +203,17 @@ def test_module_deleted():
 
     assert path in ModuleWatchdog._instance._origin_map
 
-    del sys.modules[name]
-    gc.collect()
+    if sys.version_info >= (3,):
+        del sys.modules[name]
+        gc.collect()
 
-    assert path not in ModuleWatchdog._instance._origin_map
+        assert path not in ModuleWatchdog._instance._origin_map
 
-    # We are not deleting the registered hooks, so if we re-import the module
-    # new hook calls are triggered
-    __import__(name)
+        # We are not deleting the registered hooks, so if we re-import the module
+        # new hook calls are triggered
+        __import__(name)
 
-    assert hook.count == 4
+        assert hook.count == 4
 
     ModuleWatchdog.uninstall()
 
