@@ -2995,3 +2995,109 @@ class PytestTestCase(TracerTestCase):
         assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+
+    def test_pytest_ddtrace_test_names(self):
+        package_outer_dir = self.testdir.mkpydir("test_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_names.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def test_ok():
+                        assert True
+
+                    class TestClassOne():
+                        def test_ok(self):
+                            assert True
+
+                    class TestClassTwo():
+                        def test_ok(self):
+                            assert True
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace")
+
+        spans = self.pop_spans()
+        assert len(spans) == 6
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.status") == "pass"
+
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.module") == "test_package"
+
+        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
+        assert suite_span.get_tag("test.module") == "test_package"
+        assert suite_span.get_tag("test.suite") == "test_names.py"
+
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 3
+        assert test_spans[0].get_tag("test.module") == "test_package"
+        assert test_spans[0].get_tag("test.suite") == "test_names.py"
+        assert test_spans[0].get_tag("test.name") == "test_ok"
+
+        assert test_spans[1].get_tag("test.module") == "test_package"
+        assert test_spans[1].get_tag("test.suite") == "test_names.py"
+        assert test_spans[1].get_tag("test.name") == "test_ok"
+
+        assert test_spans[2].get_tag("test.module") == "test_package"
+        assert test_spans[2].get_tag("test.suite") == "test_names.py"
+        assert test_spans[2].get_tag("test.name") == "test_ok"
+
+    def test_pytest_ddtrace_test_names_include_class_opt(self):
+        package_outer_dir = self.testdir.mkpydir("test_package")
+        os.chdir(str(package_outer_dir))
+        with open("test_names.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def test_ok():
+                        assert True
+
+                    class TestClassOne():
+                        def test_ok(self):
+                            assert True
+
+                    class TestClassTwo():
+                        def test_ok(self):
+                            assert True
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace", "--ddtrace-include-class-name")
+
+        spans = self.pop_spans()
+        assert len(spans) == 6
+
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.status") == "pass"
+
+        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
+        assert module_span.get_tag("test.module") == "test_package"
+
+        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
+        assert suite_span.get_tag("test.module") == "test_package"
+        assert suite_span.get_tag("test.suite") == "test_names.py"
+
+        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        assert len(test_spans) == 3
+        assert test_spans[0].get_tag("test.module") == "test_package"
+        assert test_spans[0].get_tag("test.suite") == "test_names.py"
+        assert test_spans[0].get_tag("test.name") == "test_ok"
+
+        assert test_spans[1].get_tag("test.module") == "test_package"
+        assert test_spans[1].get_tag("test.suite") == "test_names.py"
+        assert test_spans[1].get_tag("test.name") == "TestClassOne.test_ok"
+
+        assert test_spans[2].get_tag("test.module") == "test_package"
+        assert test_spans[2].get_tag("test.suite") == "test_names.py"
+        assert test_spans[2].get_tag("test.name") == "TestClassTwo.test_ok"

@@ -22,9 +22,11 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
+from ddtrace.contrib.pytest.constants import DDTRACE_INCLUDE_CLASS_HELP_MSG
 from ddtrace.contrib.pytest.constants import FRAMEWORK
-from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
+from ddtrace.contrib.pytest.constants import NO_DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
@@ -229,6 +231,14 @@ def _get_suite_name(item, test_module_path=None):
     return item.nodeid
 
 
+def _get_item_name(item):
+    """Extract name from item, prepending class if desired"""
+    if hasattr(item, "cls") and item.cls:
+        if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
+            return "%s.%s" % (item.cls.__name__, item.name)
+    return item.name
+
+
 def _is_test_unskippable(item):
     return any(
         [
@@ -348,7 +358,7 @@ def pytest_addoption(parser):
         action="store_true",
         dest="ddtrace",
         default=False,
-        help=HELP_MSG,
+        help=DDTRACE_HELP_MSG,
     )
 
     group._addoption(
@@ -356,7 +366,7 @@ def pytest_addoption(parser):
         action="store_true",
         dest="no-ddtrace",
         default=False,
-        help=HELP_MSG,
+        help=NO_DDTRACE_HELP_MSG,
     )
 
     group._addoption(
@@ -367,9 +377,18 @@ def pytest_addoption(parser):
         help=PATCH_ALL_HELP_MSG,
     )
 
-    parser.addini("ddtrace", HELP_MSG, type="bool")
-    parser.addini("no-ddtrace", HELP_MSG, type="bool")
+    group._addoption(
+        "--ddtrace-include-class-name",
+        action="store_true",
+        dest="ddtrace-include-class-name",
+        default=False,
+        help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
+    )
+
+    parser.addini("ddtrace", DDTRACE_HELP_MSG, type="bool")
+    parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
+    parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
 
 
 def pytest_configure(config):
@@ -494,8 +513,10 @@ def pytest_collection_modifyitems(session, config, items):
         for item in items:
             test_is_unskippable = _is_test_unskippable(item)
 
+            item_name = _get_item_name(item)
+
             if test_is_unskippable:
-                log.debug("Test %s in module %s is marked as unskippable", (item.name, item.module))
+                log.debug("Test %s in module %s is marked as unskippable", (item_name, item.module))
                 item._dd_itr_test_unskippable = True
 
             # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has been
@@ -512,7 +533,7 @@ def pytest_collection_modifyitems(session, config, items):
                         item_to_skip._dd_itr_forced = True
                     items_to_skip_by_module[item.module] = []
 
-            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item.name):
+            if _CIVisibility._instance._should_skip_path(str(get_fslocation_from_item(item)[0]), item_name):
                 if test_is_unskippable or (
                     _CIVisibility._instance._suite_skipping_mode and current_suite_has_unskippable_test
                 ):
@@ -546,6 +567,8 @@ def pytest_runtest_protocol(item, nextitem):
             ]
         )
     )
+
+    item_name = _get_item_name(item)
 
     test_session_span = _extract_span(item.session)
 
@@ -605,7 +628,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item.name)
+        span.set_tag_str(test.NAME, item_name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
