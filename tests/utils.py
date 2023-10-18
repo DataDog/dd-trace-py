@@ -1247,18 +1247,10 @@ def _should_skip(condition=None, until: dt.datetime = None):
     return True
 
 
-def flaky(condition=None, reason=None):
-    skip = _should_skip(condition=condition)
-
-    def decorator(function_or_class):
-
-        if not skip:
-            return function_or_class
-
-        full_reason = "known bug (flaky)" if reason is None else f"known bug (flaky): {reason}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
+def flaky(until: dt.datetime = None, condition: bool = None, reason: str = None):
+    if until is None:
+        until = dt.datetime(3000, 1, 1, tzinfo=dt.timezone.UTC)
+    return skip_if_until(until, condition=condition, reason=reason)
 
 
 def skip_if_until(until: dt.datetime, condition=None, reason=None):
