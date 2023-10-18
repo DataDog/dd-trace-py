@@ -9,6 +9,7 @@ class TestFastapiPatch(PatchTestCase.Base):
     __module_name__ = "fastapi"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, fastapi):
         self.assert_wrapped(fastapi.applications.FastAPI.build_middleware_stack)
@@ -27,8 +28,3 @@ class TestFastapiPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(fastapi.routing.serialize_response)
         self.assert_not_double_wrapped(fastapi.routing.APIRoute.handle)
         self.assert_not_double_wrapped(fastapi.routing.Mount.handle)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""
