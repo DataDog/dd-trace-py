@@ -57,7 +57,7 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
-Changelog = "https://ddtrace.readthedocs.io/en/stable/release_notes.html"
+Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
