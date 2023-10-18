@@ -1,7 +1,6 @@
 import base64
 import gzip
 import json
-import os
 import sys
 from typing import TYPE_CHECKING
 
