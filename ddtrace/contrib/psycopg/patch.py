@@ -96,7 +96,9 @@ def _psycopg_modules():
     )
     for module_name in module_names:
         try:
-            yield import_module(module_name)
+            module = import_module(module_name)
+            PATCHED_VERSIONS[module_name] = getattr(module, "__version__", "")
+            yield module
         except ImportError:
             pass
 
@@ -113,8 +115,6 @@ def _patch(psycopg_module):
     if getattr(psycopg_module, "_datadog_patch", False):
         return
     psycopg_module._datadog_patch = True
-
-    PATCHED_VERSIONS[psycopg_module.__name__] = getattr(psycopg_module, "__version__", "")
 
     Pin(_config=config.psycopg).onto(psycopg_module)
 
