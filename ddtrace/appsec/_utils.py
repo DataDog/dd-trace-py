@@ -67,6 +67,14 @@ def _appsec_rc_features_is_enabled() -> bool:
     return False
 
 
+def _appsec_apisec_features_is_active() -> bool:
+    return (
+        config._appsec_enabled
+        and config._api_security_enabled
+        and getattr(config, "api_security_sample_rate", 0.1) > 0.0
+    )
+
+
 class _UserInfoRetriever:
     def __init__(self, user):
         self.user = user

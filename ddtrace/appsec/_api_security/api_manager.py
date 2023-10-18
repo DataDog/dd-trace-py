@@ -115,7 +115,9 @@ class APIManager(Service):
         return False
 
     def _schema_callback(self, env):
-        if env.span is None or not (config._api_security_enabled and config._appsec_enabled):
+        from ddtrace.appsec._utils import _appsec_apisec_features_is_active
+
+        if env.span is None or not _appsec_apisec_features_is_active():
             return
         root = env.span._local_root or env.span
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):

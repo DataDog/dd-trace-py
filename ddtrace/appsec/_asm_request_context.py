@@ -432,7 +432,9 @@ def _on_pre_tracedrequest(ctx):
 
 
 def _set_headers_and_response(response, headers):
-    if config._api_security_enabled and config._appsec_enabled:
+    from ddtrace.appsec._utils import _appsec_apisec_features_is_active
+
+    if _appsec_apisec_features_is_active():
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier
             set_headers_response(list(headers))
