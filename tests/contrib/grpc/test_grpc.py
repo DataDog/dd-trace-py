@@ -19,8 +19,8 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.utils import TracerTestCase
-from tests.utils import get_128_bit_trace_id_from_headers
 from tests.utils import snapshot
 
 from .hello_pb2 import HelloReply
@@ -418,12 +418,8 @@ class GrpcTestCase(TracerTestCase):
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
-        # we need to pull the trace_id values out of the response.message str
-        x_datadog_trace_id = re.search(r"x-datadog-trace-id=(.*?);", response.message).group(1)
-        _dd_p_tid = re.search(r"_dd.p.tid=(.*?)(;|$)", response.message).group(1)
-        assert client_span.trace_id == get_128_bit_trace_id_from_headers(
-            {"x-datadog-trace-id": x_datadog_trace_id, "x-datadog-tags": f"_dd.p.tid={_dd_p_tid}"}
-        )
+        assert "x-datadog-trace-id={}".format(str(client_span._trace_id_64bits)) in response.message
+        assert "_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(client_span.trace_id)) in response.message
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
