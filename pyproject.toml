@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2; python_version>='3.7'"]
+requires = ["cython", "cmake>=3.24.2; python_version>='3.7'"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -61,10 +61,6 @@ Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
-
-[tool.setuptools_scm]
-version_scheme = "release-branch-semver"
-write_to = "ddtrace/_version.py"
 
 [tool.isort]
 force_single_line = true
