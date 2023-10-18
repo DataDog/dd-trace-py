@@ -437,6 +437,13 @@ Starlette
 .. automodule:: ddtrace.contrib.starlette
 
 
+.. _structlog:
+
+Structlog
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.structlog
+
+
 .. _sqlalchemy:
 
 SQLAlchemy
