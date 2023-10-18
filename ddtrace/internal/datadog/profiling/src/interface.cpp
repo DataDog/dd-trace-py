@@ -126,7 +126,10 @@ sigsegv_handler(int sig, siginfo_t* si, void* uc)
 }
 
 #endif
-void
+char *ddup_errmsg = nullptr;
+char *get_err() { return ddup_errmsg; }
+
+bool
 ddup_init()
 {
     if (!is_initialized) {
@@ -142,122 +145,121 @@ ddup_init()
         g_profile_real[1] = profile_builder.build_ptr();
         g_profile = g_profile_real[g_prof_flag];
         g_uploader = uploader_builder.build_ptr();
+        if (!g_uploader) {
+          ddup_errmsg = const_cast<char *>(uploader_builder.errmsg.c_str());
+          return false;
+        }
         is_initialized = true;
     }
+
+    return true;
 }
 
-void
+bool set_err(bool value, std::string &str) {
+  ddup_errmsg = value ? const_cast<char *>(str.c_str()) : nullptr;
+  return value;
+}
+
+bool
 ddup_start_sample(unsigned int nframes)
 {
-    g_profile->start_sample(nframes);
+    return set_err(g_profile->start_sample(nframes), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_walltime(int64_t walltime, int64_t count)
 {
-    g_profile->push_walltime(walltime, count);
+    return set_err(g_profile->push_walltime(walltime, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_cputime(int64_t cputime, int64_t count)
 {
-    g_profile->push_cputime(cputime, count);
+    return set_err(g_profile->push_cputime(cputime, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_acquire(int64_t acquire_time, int64_t count)
 {
-    g_profile->push_acquire(acquire_time, count);
+    return set_err(g_profile->push_acquire(acquire_time, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_release(int64_t release_time, int64_t count)
 {
-    g_profile->push_release(release_time, count);
+    return set_err(g_profile->push_release(release_time, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_alloc(uint64_t size, uint64_t count)
 {
-    g_profile->push_alloc(size, count);
+    return set_err(g_profile->push_alloc(size, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_heap(uint64_t size)
 {
-    g_profile->push_heap(size);
+    return set_err(g_profile->push_heap(size), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_lock_name(const char* lock_name)
 {
-    if (!lock_name)
-        return;
-    g_profile->push_lock_name(lock_name);
+    return set_err(g_profile->push_lock_name(lock_name), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char* thread_name)
 {
-    g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
+    return set_err(g_profile->push_threadinfo(thread_id, thread_native_id, thread_name), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_task_id(int64_t task_id)
 {
-    if (task_id > 0)
-        g_profile->push_task_id(task_id);
+    return set_err(g_profile->push_task_id(task_id), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_task_name(const char* task_name)
 {
-    if (task_name && *task_name)
-        g_profile->push_task_name(task_name);
+    return set_err(g_profile->push_task_name(task_name), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_span_id(int64_t span_id)
 {
-    g_profile->push_span_id(span_id);
+    return set_err(g_profile->push_span_id(span_id), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_local_root_span_id(int64_t local_root_span_id)
 {
-    g_profile->push_local_root_span_id(local_root_span_id);
+    return set_err(g_profile->push_local_root_span_id(local_root_span_id), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_trace_type(const char* trace_type)
 {
-    if (!trace_type || !*trace_type)
-        return;
-    g_profile->push_trace_type(trace_type);
+    return set_err(g_profile->push_trace_type(trace_type), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_trace_resource_container(const char* trace_resource_container)
 {
-    if (!trace_resource_container || !*trace_resource_container)
-        return;
-    g_profile->push_trace_resource_container(trace_resource_container);
+    return set_err(g_profile->push_trace_resource_container(trace_resource_container), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_exceptioninfo(const char* exception_type, int64_t count)
 {
-    if (!exception_type || !count)
-        return;
-    g_profile->push_exceptioninfo(exception_type, count);
+    return set_err(g_profile->push_exceptioninfo(exception_type, count), g_profile->errmsg);
 }
 
-void
+bool
 ddup_push_class_name(const char* class_name)
 {
-    if (!class_name)
-        return;
-    g_profile->push_class_name(class_name);
+    return set_err(g_profile->push_class_name(class_name), g_profile->errmsg);
 }
 
 void
@@ -266,25 +268,26 @@ ddup_push_frame(const char* name, const char* fname, uint64_t address, int64_t l
     g_profile->push_frame(name, fname, address, line);
 }
 
-void
+bool
 ddup_flush_sample()
 {
-    g_profile->flush_sample();
+    return set_err(g_profile->flush_sample(), g_profile->errmsg);
 }
 
-void
+bool
 ddup_set_runtime_id(const char* id, size_t sz)
 {
-    if (id && *id)
-        g_uploader->set_runtime_id(std::string_view(id, sz));
+    return set_err(g_uploader->set_runtime_id(std::string_view(id, sz)), g_profile->errmsg);
 }
 
 bool
 ddup_upload()
 {
+
     if (!is_initialized) {
         // Rationalize return for interface
-        std::cout << "WHOA NOT INITIALIZED" << std::endl;
+        static char err_uninitialized[] = "Error: not initialized";
+        ddup_errmsg = err_uninitialized;
         return false;
     }
 

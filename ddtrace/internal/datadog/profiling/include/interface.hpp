@@ -49,7 +49,6 @@ void ddup_flush_sample();
 void ddup_set_runtime_id(const char *id, size_t sz);
 bool ddup_upload();
 
-
 #ifdef __cplusplus
 } // extern "C"
 #endif
