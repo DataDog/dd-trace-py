@@ -36,18 +36,18 @@ bool ddup_push_heap(uint64_t size);
 bool ddup_push_lock_name(const char *lock_name);
 bool ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                           const char *thread_name);
-void ddup_push_task_id(int64_t task_id);
-void ddup_push_task_name(const char *task_name);
-void ddup_push_span_id(int64_t span_id);
-void ddup_push_local_root_span_id(int64_t local_root_span_id);
-void ddup_push_trace_type(const char *trace_type);
-void ddup_push_trace_resource_container(const char *trace_resource_container);
-void ddup_push_exceptioninfo(const char *exception_type, int64_t count);
-void ddup_push_class_name(const char *class_name);
+bool ddup_push_task_id(int64_t task_id);
+bool ddup_push_task_name(const char *task_name);
+bool ddup_push_span_id(int64_t span_id);
+bool ddup_push_local_root_span_id(int64_t local_root_span_id);
+bool ddup_push_trace_type(const char *trace_type);
+bool ddup_push_trace_resource_container(const char *trace_resource_container);
+bool ddup_push_exceptioninfo(const char *exception_type, int64_t count);
+bool ddup_push_class_name(const char *class_name);
 void ddup_push_frame(const char *_name, const char *_filename, uint64_t address,
                      int64_t line);
-void ddup_flush_sample();
-void ddup_set_runtime_id(const char *id, size_t sz);
+bool ddup_flush_sample();
+bool ddup_set_runtime_id(const char *id, size_t sz);
 bool ddup_upload();
 
 #ifdef __cplusplus

@@ -73,9 +73,9 @@ class Uploader {
   std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
   std::string url;
 
+public:
   std::string errmsg;
 
-public:
   Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);
   ~Uploader();
   bool set_runtime_id(std::string_view id);
@@ -84,9 +84,6 @@ public:
 
 class UploaderBuilder {
   using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
-
-  // Internal/queryable state
-  std::string errmsg;
 
   // Building parameters
   std::string env = "";
@@ -102,6 +99,8 @@ class UploaderBuilder {
   static constexpr std::string_view family = "python";
 
 public:
+  std::string errmsg;
+
   UploaderBuilder &set_env(std::string_view env);
   UploaderBuilder &set_service(std::string_view service);
   UploaderBuilder &set_version(std::string_view version);
@@ -139,8 +138,6 @@ private:
   unsigned int max_nframes;
   unsigned int nframes;
 
-  std::string errmsg;
-
   // Keeps temporary buffer of frames in the stack
   // 512 is the max depth allowed by the backend, plus it is limited
   // by user configuration
@@ -177,6 +174,7 @@ private:
                        uint64_t address, int64_t line);
 
 public:
+  std::string errmsg;
   uint64_t samples = 0;
   ddog_prof_Profile ddog_profile;
 

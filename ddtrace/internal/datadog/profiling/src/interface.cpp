@@ -283,7 +283,6 @@ ddup_set_runtime_id(const char* id, size_t sz)
 bool
 ddup_upload()
 {
-
     if (!is_initialized) {
         // Rationalize return for interface
         static char err_uninitialized[] = "Error: not initialized";
