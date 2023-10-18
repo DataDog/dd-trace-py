@@ -1,4 +1,3 @@
-import re
 import sys
 import threading
 import time
@@ -418,8 +417,8 @@ class GrpcTestCase(TracerTestCase):
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
-        assert "x-datadog-trace-id={}".format(str(client_span._trace_id_64bits)) in response.message
-        assert "_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(client_span.trace_id)) in response.message
+        assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
+        assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
