@@ -29,7 +29,7 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 Proper Formatting
 ~~~~~~~~~~~~~~~~~
 
-The trace attributes are injected via a processor in the processor block of the configuration
+The trace attributes are injected via a processor in the processor block of the configuration.
 However, because the last processor in the chain must be a renderer that can be outputted to
 a log, the integration will not add attributes if no pre-existing processor chain exists.
 
