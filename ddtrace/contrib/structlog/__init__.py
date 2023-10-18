@@ -6,7 +6,7 @@ processor in the beginning of the chain that adds trace attributes
 to the event_dict
 
 2. Ensurig the configuration has at the minimum a processor chain that outputs
-to a log location without errors. Automatic Log injection will not occur if a
+to a log location without errors. Automatic log injection will not occur if a
 processor chain is not configured.
 
 3. For log correlation between APM and logs, the easiest format is via JSON
