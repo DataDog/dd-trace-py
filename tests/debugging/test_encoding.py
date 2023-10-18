@@ -8,6 +8,7 @@ import threading
 import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
+from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
@@ -455,3 +456,49 @@ def test_encoding_stopping_cond_collection_size(count, result):
 )
 def test_encoding_stopping_cond_map_size(count, result):
     assert utils.capture_value({i: i for i in range(100)}, stopping_cond=CountBudget(count)) == result
+
+
+def test_json_tree():
+    tree = JSONTree(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}')
+
+    assert tree.root == JSONTree.Node(
+        start=0,
+        end=66,
+        level=0,
+        children=[
+            JSONTree.Node(
+                start=14,
+                end=65,
+                level=1,
+                children=[
+                    JSONTree.Node(
+                        start=21,
+                        end=37,
+                        level=2,
+                        children=[],
+                    ),
+                    JSONTree.Node(
+                        start=38,
+                        end=55,
+                        level=2,
+                        children=[],
+                    ),
+                ],
+            )
+        ],
+    )
+
+    assert sorted(tree.leaves, key=lambda n: (n.level, len(n)), reverse=True) == [
+        JSONTree.Node(
+            start=38,
+            end=55,
+            level=2,
+            children=[],
+        ),
+        JSONTree.Node(
+            start=21,
+            end=37,
+            level=2,
+            children=[],
+        ),
+    ]

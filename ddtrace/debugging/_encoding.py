@@ -1,4 +1,5 @@
 import abc
+from dataclasses import dataclass
 import json
 import os
 import sys
@@ -7,6 +8,7 @@ from types import FrameType
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Type
 from typing import Union
@@ -115,13 +117,107 @@ def _build_log_track_payload(
     return payload
 
 
+class JSONTree:
+    @dataclass
+    class Node:
+        # name: str
+        start: int
+        end: int
+        level: int
+        children: List["JSONTree.Node"]
+
+        def __len__(self):
+            return self.end - self.start
+
+        @property
+        def leaves(self):
+            if not self.children:
+                yield self
+            else:
+                for child in self.children:
+                    yield from child.leaves
+
+    def __init__(self, data):
+        self._iter = enumerate(data)
+        self._stack = []  # TODO: deque
+        self.root = None
+        self.level = 0
+
+        self._state = self._object
+
+        self._parse()
+
+    def _escape(self, i, c):
+        self._state = self._string
+
+    def _string(self, i, c):
+        if c == '"':
+            self._state = self._object
+
+        elif c == "\\":
+            self._state = self._escape
+
+    def _object(self, i, c):
+        if c == "}":
+            o = self._stack.pop()
+            o.end = i + 1
+            self.level -= 1
+            if not self._stack:
+                self.root = o
+
+        elif c == '"':
+            self._state = self._string
+
+        elif c == "{":
+            o = self.Node(i, 0, self.level, [])
+            self.level += 1
+            if self._stack:
+                self._stack[-1].children.append(o)
+            self._stack.append(o)
+
+    def _parse(self):
+        for i, c in self._iter:
+            self._state(i, c)
+            if self.root is not None:
+                return
+
+    @property
+    def leaves(self):
+        return list(self.root.leaves)
+
+
 class LogSignalJsonEncoder(Encoder):
+    MAX_SIGNAL_SIZE = (1 << 20) - 2
+
     def __init__(self, service: str, host: Optional[str] = None) -> None:
         self._service = service
         self._host = host
 
     def encode(self, log_signal: LogSignal) -> bytes:
-        return json.dumps(_build_log_track_payload(self._service, log_signal, self._host)).encode("utf-8")
+        return self.pruned(json.dumps(_build_log_track_payload(self._service, log_signal, self._host))).encode("utf-8")
+
+    def pruned(self, log_signal_json: str) -> str:
+        if len(log_signal_json) <= self.MAX_SIGNAL_SIZE:
+            return log_signal_json
+
+        tree = JSONTree(log_signal_json)
+
+        delta = len(tree.root) - self.MAX_SIGNAL_SIZE
+        nodes, s = [], 0
+        for m in sorted(tree.leaves, key=lambda n: (n.level, len(n)), reverse=True):
+            if s > delta:
+                break
+            nodes.append(m)
+            s += len(m) - 2  # We are keeping "{" and "}"
+
+        nodes = sorted(nodes, key=lambda n: n.start)  # Leaf nodes don't overlap
+
+        segments = [log_signal_json[: nodes[0].start + 1]]
+        for n, m in zip(nodes, nodes[1:]):
+            segments.append(log_signal_json[n.end - 1 : m.start + 1])
+        segments.append(log_signal_json[nodes[-1].end - 1 :])
+
+        return "".join(segments)
 
 
 class BatchJsonEncoder(BufferedEncoder):
