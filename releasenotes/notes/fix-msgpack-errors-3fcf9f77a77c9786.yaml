@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes a msgpack import error when ``DD_TRACE_API`` is set to ``v0.5``
