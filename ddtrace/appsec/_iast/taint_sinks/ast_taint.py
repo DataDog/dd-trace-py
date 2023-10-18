@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from .._metrics import _set_metric_iast_executed_sink
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from .weak_randomness import WeakRandomness
 
@@ -26,6 +27,7 @@ def ast_funcion(
 
     if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
+        _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
 
     return func(*args, **kwargs)

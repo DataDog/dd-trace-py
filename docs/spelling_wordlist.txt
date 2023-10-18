@@ -171,6 +171,7 @@ prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -210,6 +211,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
 subclass
@@ -266,3 +268,4 @@ Gitlab
 Enablement
 hotspot
 CMake
+libdatadog
