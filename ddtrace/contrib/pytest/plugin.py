@@ -557,6 +557,8 @@ def pytest_runtest_protocol(item, nextitem):
         )
     )
 
+    item_name = _get_item_name(item)
+
     test_session_span = _extract_span(item.session)
 
     pytest_module_item = _find_pytest_item(item, pytest.Module)
