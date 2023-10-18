@@ -5,7 +5,7 @@ Datadog APM traces can be integrated with the logs produced by structlog by:
 processor in the beginning of the chain that adds trace attributes
 to the event_dict
 
-2. Ensure the configuration has at the minimum a processor chain that outputs
+2. Ensurig the configuration has at the minimum a processor chain that outputs
 to a log location without errors. Automatic Log injection will not occur if a
 processor chain is not configured.
 
