@@ -78,6 +78,7 @@ PATCH_MODULES = {
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "structlog": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,

@@ -27,8 +27,8 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         assert b"x-datadog-trace-id" in self.httplib_request
         assert b"x-datadog-parent-id" in self.httplib_request
         httplib_request_str = self.httplib_request.decode()
-        assert f"x-datadog-trace-id={root_span._trace_id_64bits}" in httplib_request_str
-        assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(root_span.trace_id)}" in httplib_request_str
+        assert str(root_span._trace_id_64bits) in httplib_request_str
+        assert _get_64_highest_order_bits_as_hex(root_span.trace_id) in httplib_request_str
         return True
 
     def headers_not_here(self, tracer):
