@@ -6,6 +6,7 @@ import sys
 
 import psutil
 
+from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
 
@@ -58,24 +59,30 @@ def appsec_application_server(cmd, appsec_enabled="true", remote_configuration_e
     try:
         client = Client("http://0.0.0.0:8000")
 
-        print("Waiting for server to start")
-        client.wait(max_tries=100, delay=0.1)
-        print("Server started")
-
+        try:
+            print("Waiting for server to start")
+            client.wait(max_tries=100, delay=0.1)
+            print("Server started")
+        except RetryError:
+            raise AssertionError(
+                "Server failed to start, see stdout and stderr logs"
+                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                % (server_process.stdout, server_process.stderr)
+            )
         # If we run a Gunicorn application, we want to get the child's pid, see test_remoteconfiguration_e2e.py
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
-
-        client.get_ignored("/shutdown")
-    except Exception:
-        raise AssertionError(
-            "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-            % (server_process.stdout, server_process.stderr)
-        )
+        try:
+            client.get_ignored("/shutdown")
+        except Exception:
+            raise AssertionError(
+                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                % (server_process.stdout, server_process.stderr)
+            )
     finally:
-        print(f"KILL server_process {server_process.pid}")
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         server_process.wait()
