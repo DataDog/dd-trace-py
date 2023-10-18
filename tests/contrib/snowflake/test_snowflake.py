@@ -177,7 +177,7 @@ def test_snowflake_service_env():
                 assert cur.fetchone() == ("4.30.2",)
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.UTC))
+@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
 @snapshot()
 @req_mock.activate
 def test_snowflake_pin_override(client):

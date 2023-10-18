@@ -1249,13 +1249,13 @@ def _should_skip(condition=None, until: dt.datetime = None):
 
 def flaky(until: dt.datetime = None, condition: bool = None, reason: str = None):
     if until is None:
-        until = dt.datetime(3000, 1, 1, tzinfo=dt.timezone.UTC)
+        until = dt.datetime(3000, 1, 1, tzinfo=dt.timezone.utc)
     return skip_if_until(until, condition=condition, reason=reason)
 
 
 def skip_if_until(until: dt.datetime, condition=None, reason=None):
     """Conditionally skip the test until the given UTC datetime"""
-    if until.tzinfo != dt.timezone.UTC:
+    if until.tzinfo != dt.timezone.utc:
         raise ValueError("'until' timestamp must be in UTC timezone")
     skip = _should_skip(condition=condition, until=until)
 

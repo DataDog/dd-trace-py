@@ -527,7 +527,7 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.UTC))
+@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 
