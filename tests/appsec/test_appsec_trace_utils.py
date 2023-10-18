@@ -49,7 +49,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "sdk"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
             assert not root_span.get_tag("%s.track" % failure_prefix)
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -81,7 +81,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert user_span.get_tag("%s.track" % success_prefix) == "true"
             assert user_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "sdk"
+            assert user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
             assert not user_span.get_tag("%s.track" % failure_prefix)
             assert user_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -141,7 +141,7 @@ class EventsSDKTestCase(TracerTestCase):
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "sdk"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
             assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
@@ -167,7 +167,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert root_span.get_tag("%s.track" % failure_prefix) == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "sdk"
+            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "safe"
             assert not root_span.get_tag("%s.track" % success_prefix)
             assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
             assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)

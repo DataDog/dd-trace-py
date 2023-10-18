@@ -696,12 +696,12 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
         return super(_DjangoUserInfoRetriever, self).get_name()
 
-    def get_email(self):
+    def get_user_email(self):
         if hasattr(self.user, "EMAIL_FIELD") and not config._user_model_name_field:
             user_type = type(self.user)
             return getattr(self.user, user_type.EMAIL_FIELD, None)
 
-        return super(_DjangoUserInfoRetriever, self).get_email()
+        return super(_DjangoUserInfoRetriever, self).get_user_email()
 
 
 @trace_utils.with_traced_module
@@ -734,18 +734,14 @@ def traced_login(django, pin, func, instance, args, kwargs):
                             session_id=session_key,
                             propagate=True,
                             login_events_mode=mode,
-                            **user_extra
+                            **user_extra,
                         )
                     else:
                         # Login failed but the user exists
                         track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
             else:
                 # Login failed and the user is unknown
-                if mode == "extended":
-                    user_id = info_retriever.get_username()
-                else:  # safe mode, only accept numeric of UUIDs user ids
-                    user_id = info_retriever.get_userid()
-
+                user_id = info_retriever.get_userid()
                 track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
@@ -760,7 +756,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
             return result_user
 
         info_retriever = _DjangoUserInfoRetriever(result_user)
-        userid_list = info_retriever.possible_user_id_fields if mode == "safe" else info_retriever.possible_login_fields
+        extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
+        userid_list = info_retriever.possible_user_id_fields if mode == "safe" else extended_userid_fields
 
         for possible_key in userid_list:
             if possible_key in kwargs:

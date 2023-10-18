@@ -53,7 +53,10 @@ def _track_user_login_common(
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
-        span.set_tag_str(mode_tag, login_events_mode)
+        auto_tag_mode = (
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else config._automatic_login_events_mode
+        )
+        span.set_tag_str(mode_tag, auto_tag_mode)
 
         if metadata is not None:
             for k, v in metadata.items():
