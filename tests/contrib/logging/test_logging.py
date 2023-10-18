@@ -199,6 +199,7 @@ class LoggingTestCase(TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
+        # RUN
         def create_span():
             return self.tracer.trace("test.logging")
 
