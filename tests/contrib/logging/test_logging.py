@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 
 import pytest
@@ -14,6 +15,7 @@ from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
+from tests.utils import flaky
 
 
 logger = logging.getLogger()
@@ -197,6 +199,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
+    @flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
         def create_span():

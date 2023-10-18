@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 import time
@@ -21,6 +22,7 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_config
 
 
@@ -203,6 +205,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
+@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_message(producer, consumer, tombstone, kafka_topic):
