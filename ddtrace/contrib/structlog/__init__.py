@@ -33,7 +33,7 @@ The trace attributes are injected via a processor in the processor block of the 
 However, because the last processor in the chain must be a renderer that can be outputted to
 a log, the integration will not add attributes if no pre-existing processor chain exists.
 
-An example of a proper configuration that can be injected into is as below:
+An example of a proper configuration that can be injected into is as below::
 
     structlog.configure(
         processors=[structlog.processors.JSONRenderer()],
