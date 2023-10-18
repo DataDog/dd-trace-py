@@ -28,17 +28,15 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         assert b"x-datadog-trace-id" in self.httplib_request
         assert b"x-datadog-parent-id" in self.httplib_request
         httplib_request_str = self.httplib_request.decode()
-        print("come here")
-        print(r"{}".format(httplib_request_str))
         # we need to pull the trace_id values out of the response.message str
         x_datadog_trace_id = re.search(r"x-datadog-trace-id: (.*?)\n", httplib_request_str).group(1)
         _dd_p_tid = re.search(r"_dd.p.tid=(.*?)(;|\n|$)", httplib_request_str).group(1)
-        # _dd.p.tid=652eb5cd00000000
+        print("come here")
+        print({"x-datadog-trace-id": x_datadog_trace_id, "x-datadog-tags": f"_dd.p.tid={_dd_p_tid}"})
         header_t_id = get_128_bit_trace_id_from_headers(
             {"x-datadog-trace-id": x_datadog_trace_id, "x-datadog-tags": f"_dd.p.tid={_dd_p_tid}"}
         )
-        header_t_id = get_128_bit_trace_id_from_headers(self.httplib_request.decode())
-        assert str(root_span.trace_id).encode("utf-8") == header_t_id
+        assert root_span.trace_id == header_t_id
         return True
 
     def headers_not_here(self, tracer):
