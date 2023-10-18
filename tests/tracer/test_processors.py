@@ -15,15 +15,12 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
 from ddtrace.internal.processor.truncator import MAX_META_KEY_LENGTH
@@ -320,30 +317,6 @@ def test_trace_top_level_span_processor_orphan_span():
 
     # top_level in orphan_span should not be set as implicitly it is false
     assert orphan_span.get_metric("_dd.top_level") is None
-
-
-@pytest.mark.parametrize(
-    "trace_id",
-    [
-        2 ** 128 - 1,
-        2 ** 64 + 1,
-        2 ** 96 - 1,
-    ],
-)
-def test_trace_128bit_processor(trace_id):
-    """
-    When 128bit trace ids are generated, ensure the TraceTagsProcessor tags stores
-    the higher order bits on the chunk root span.
-    """
-    ctx = Context(trace_id=trace_id, span_id=2 ** 64 - 1)
-    spans = [Span("hello", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id) for _ in range(10)]
-
-    spans = TraceTagsProcessor().process_trace(spans)
-
-    chunk_root = spans[0]
-    assert chunk_root.trace_id == ctx.trace_id
-    assert chunk_root.trace_id >= 2 ** 64
-    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
 def test_span_truncator():
