@@ -140,7 +140,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
-            assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
+            assert root_span.get_tag("%s.success.foo" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC) == "bar"
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
@@ -171,7 +171,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
-            assert root_span.get_tag("_dd." + "%s.foo" % failure_prefix) == "bar"
+            assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
