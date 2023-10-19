@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    CI Visibility: Fixes `unittest` integration being patched without actually running any tests
+    CI Visibility: fixes an issue where just importing `unittest` enabled CIVisibility and potentially caused unexpected logs and API requests 
