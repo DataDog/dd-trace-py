@@ -1022,6 +1022,6 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert not login_span.get_tag(user.ID)
+        assert login_span.get_tag(user.ID) == "fred2"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"

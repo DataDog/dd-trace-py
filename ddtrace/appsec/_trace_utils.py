@@ -114,7 +114,8 @@ def track_user_login_success_event(
     if not span:
         return
 
-    if login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED):
+    if login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED) and \
+            not config._user_model_login_field:
         user_id = _safe_userid(user_id)
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
