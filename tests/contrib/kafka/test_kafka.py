@@ -294,9 +294,7 @@ def retry_until_not_none(factory):
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
 @pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
-def test_data_streams_payload_size(
-    dsm_processor, deserializing_consumer, serializing_producer, kafka_topic, payload_and_length, key_and_length
-):
+def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topic, payload_and_length, key_and_length):
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     test_headers = {"1234": "5678"}
@@ -313,11 +311,11 @@ def test_data_streams_payload_size(
     except AttributeError:
         pass
 
-    serializing_producer.produce(kafka_topic, value=payload, key=key, headers=test_headers)
-    serializing_producer.flush()
+    producer.produce(kafka_topic, payload, key=key, headers=test_headers)
+    producer.flush()
     message = None
     while message is None:
-        message = deserializing_consumer.poll(1.0)
+        message = consumer.poll(1.0)
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
