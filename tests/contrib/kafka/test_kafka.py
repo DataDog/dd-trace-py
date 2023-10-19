@@ -313,7 +313,7 @@ def test_data_streams_payload_size(
     except AttributeError:
         pass
 
-    serializing_producer.produce(kafka_topic, payload, key=key, headers=test_headers)
+    serializing_producer.produce(kafka_topic, value=payload, key=key, headers=test_headers)
     serializing_producer.flush()
     message = None
     while message is None:
