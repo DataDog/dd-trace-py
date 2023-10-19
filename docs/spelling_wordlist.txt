@@ -167,6 +167,7 @@ plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
