@@ -42,7 +42,7 @@ def _track_user_login_common(tracer, user_id, success, metadata=None, login_even
             for k, v in six.iteritems(metadata):
                 span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
 
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        span.set_tag(constants.MANUAL_KEEP_KEY)
         return span
     else:
         log.warning(
@@ -105,6 +105,33 @@ def track_user_login_failure_event(tracer, user_id, exists, metadata=None, login
     span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
 
 
+<<<<<<< HEAD
+=======
+def track_user_signup_event(tracer, user_id, success, login_events_mode=LOGIN_EVENTS_MODE.SDK):
+    # type: (Tracer, str, bool, str) -> None
+    span = tracer.current_root_span()
+    if span:
+        success_str = "true" if success else "false"
+        span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
+        span.set_tag_str(user.ID, user_id)
+        span.set_tag(constants.MANUAL_KEEP_KEY)
+
+        # This is used to mark if the call was done from the SDK of the automatic login events
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str("%s.sdk" % APPSEC.USER_SIGNUP_EVENT, "true")
+        else:
+            span.set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT, str(login_events_mode))
+
+        return
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping track_user_signup tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )
+
+
+>>>>>>> 3b495c505 (fix(asm): fix manual keep for user event (#7296))
 def track_custom_event(tracer, event_name, metadata):
     # type: (Tracer, str, dict) -> None
     """
@@ -137,7 +164,7 @@ def track_custom_event(tracer, event_name, metadata):
 
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        span.set_tag(constants.MANUAL_KEEP_KEY)
 
 
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool

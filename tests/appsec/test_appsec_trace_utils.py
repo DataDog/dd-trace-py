@@ -50,7 +50,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
             assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert not root_span.get_tag("%s.track" % failure_prefix)
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert root_span.get_tag(user.NAME) == "John"
@@ -75,7 +75,7 @@ class EventsSDKTestCase(TracerTestCase):
 
             root_span = self.tracer.current_root_span()
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
-            assert root_span.get_tag("%s.track" % success_prefix) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             assert not root_span.get_tag("%s.sdk" % success_prefix)
             assert root_span.get_tag("%s.auto.mode" % success_prefix) == str(LOGIN_EVENTS_MODE.SAFE)
 
@@ -108,7 +108,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.sdk" % success_prefix) == "true"
             assert not root_span.get_tag("%s.auto.mode" % success_prefix)
             assert root_span.get_tag("%s.foo" % success_prefix) == "bar"
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert not root_span.get_tag(user.NAME)
@@ -139,7 +139,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
             assert not root_span.get_tag(user.NAME)
