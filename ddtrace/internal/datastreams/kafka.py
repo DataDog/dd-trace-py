@@ -11,15 +11,44 @@ from ddtrace.internal.utils import set_argument_value
 
 
 INT_TYPES = (int,)
+MESSAGE_ARG_POSITION = 1
+KEY_ARG_POSITION = 2
+KEY_KWARG_NAME = "key"
+
+
+def _calculate_byte_size(data):
+    if isinstance(data, str):
+        # We encode here to handle non-ascii characters
+        # If there are non-unicode characters, we replace
+        # with a single character/byte
+        return len(data.encode("utf-8", errors="replace"))
+
+    if isinstance(data, bytes):
+        return len(data)
+
+    if isinstance(data, dict):
+        total = 0
+        for k, v in data.items():
+            total += _calculate_byte_size(k)
+            total += _calculate_byte_size(v)
+        return total
 
 
 def dsm_kafka_message_produce(instance, args, kwargs, is_serializing):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
-    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
-    encoded_pathway = pathway.encode()
+    message = args[MESSAGE_ARG_POSITION]
+    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME)
     headers = kwargs.get("headers", {})
+
+    payload_size = 0
+    payload_size += _calculate_byte_size(message)
+    payload_size += _calculate_byte_size(key)
+    payload_size += _calculate_byte_size(headers)
+
+    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size)
+    encoded_pathway = pathway.encode()
     headers[PROPAGATION_KEY] = encoded_pathway
     kwargs["headers"] = headers
 
@@ -55,8 +84,18 @@ def dsm_kafka_message_consume(instance, message):
     topic = core.get_item("kafka_topic")
     group = instance._group_id
 
+    payload_size = 0
+    if hasattr(message, "len"):
+        # message.len() is only supported for some versions of confluent_kafka
+        payload_size += message.len()
+    else:
+        payload_size += _calculate_byte_size(message.value())
+
+    payload_size += _calculate_byte_size(message.key())
+    payload_size += _calculate_byte_size(headers)
+
     ctx = processor().decode_pathway(headers.get(PROPAGATION_KEY, None))
-    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"])
+    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size)
 
     if instance._auto_commit:
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
