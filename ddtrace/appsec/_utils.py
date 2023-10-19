@@ -1,13 +1,5 @@
 import os
-<<<<<<< HEAD
 import uuid
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Union
-from urllib import parse
-=======
->>>>>>> origin/2.x
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
