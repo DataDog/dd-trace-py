@@ -1264,7 +1264,7 @@ def skip_if_until(until: int, condition=None, reason=None):
         if not skip:
             return function_or_class
 
-        full_reason = f"known bug, failing until {until.isoformat()} - {reason or {}}"
+        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
         return _get_skipped_item(function_or_class, full_reason)
 
     return decorator
