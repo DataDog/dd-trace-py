@@ -242,7 +242,8 @@
             "ddtrace/contrib/asynctest/*"
         ],
         "logging": [
-            "ddtrace/contrib/logging/*"
+            "ddtrace/contrib/logging/*",
+            "tests/contrib/logging/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
