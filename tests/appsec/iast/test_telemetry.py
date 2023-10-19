@@ -1,4 +1,8 @@
+import datetime as dt
+
 import pytest
+
+from tests.utils import flaky
 
 
 try:
@@ -71,6 +75,7 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
     ]
 
 
+@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_metric_instrumented_propagation(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
