@@ -604,7 +604,7 @@ def test_expression_compilation_error(remote_config_worker, mock_config_exc):
         remoteconfig_poller._poll_data()
 
         status_logger.error.assert_called_once()
-        assert status_logger.error.call_args[1]["message"] == "test exception"
+        assert status_logger.error.call_args[1]["error"] == ("Exception", "test exception")
         assert status_logger.error.call_args[1]["probe"].probe_id == "error"
     finally:
         di_config.diagnostics_interval = old_interval

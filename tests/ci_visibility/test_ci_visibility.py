@@ -954,10 +954,88 @@ def test_is_shallow_repository_false():
         mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
 
 
-def test_unshallow_repository():
-    with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
-        CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
-        mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
+def test_unshallow_repository_local_head():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+    ):
+        with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_commit_sha", return_value="myfakesha"):
+            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                mock_git_subprocess_command.assert_called_once_with(
+                    [
+                        "fetch",
+                        '--shallow-since="1 month ago"',
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        "origin",
+                        "myfakesha",
+                    ],
+                    cwd="/path/to/repo",
+                )
+
+
+def test_unshallow_repository_upstream():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+    ):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
+            side_effect=ValueError,
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client._extract_upstream_sha", return_value="myupstreamsha"
+            ):
+                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                    CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                    mock_git_subprocess_command.assert_called_once_with(
+                        [
+                            "fetch",
+                            '--shallow-since="1 month ago"',
+                            "--update-shallow",
+                            "--filter=blob:none",
+                            "--recurse-submodules=no",
+                            "origin",
+                            "myupstreamsha",
+                        ],
+                        cwd="/path/to/repo",
+                    )
+
+
+def test_unshallow_repository_full():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+    ):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
+            side_effect=ValueError,
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_upstream",
+                side_effect=ValueError,
+            ):
+                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                    CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                    mock_git_subprocess_command.assert_called_once_with(
+                        [
+                            "fetch",
+                            '--shallow-since="1 month ago"',
+                            "--update-shallow",
+                            "--filter=blob:none",
+                            "--recurse-submodules=no",
+                            "origin",
+                        ],
+                        cwd="/path/to/repo",
+                    )
+
+
+def test_unshallow_respository_cant_get_remote():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", side_effect=ValueError
+    ):
+        with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+            CIVisibilityGitClient._unshallow_repository()
+            mock_git_subprocess_command.assert_not_called()
 
 
 def test_encoder_pack_payload():

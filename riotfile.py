@@ -96,6 +96,7 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env={
+        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
@@ -1203,8 +1204,12 @@ venv = Venv(
                     # pynamodb dropped support for Python 2.7/3.5 in 4.4
                     pys=select_pys(max_version="3.5"),
                     pkgs={
+                        "cfn-lint": "~=0.37.0",
                         "pynamodb": ["~=4.3.0"],
-                        "moto": ">=0.0,<1.0",
+                        # Moto drops support for python2.7 after 1.x.x
+                        "moto": "~=1.3.0",
+                        "python-jose[cryptography]": "~=3.2.0",
+                        "pyyaml": "~=5.3.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -1369,7 +1374,23 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "boto": latest,
+                        "botocore": "~=1.19.0",
+                        "boto3": "~=1.16.0",
+                        "python-jose[cryptography]": "~=3.2.0",
+                        # Moto drops support for python2.7 after 1.x.x and no longer offers < 1.0.0
+                        "moto": "~=1.3.0",
+                        "cfn-lint": "~=0.37.0",
+                        "Jinja2": "~=2.11.0",
+                        "rsa": "<4.7.1",
+                        "pyyaml": "~=5.3.0",
+                    },
+                )
+            ],
         ),
         Venv(
             name="botocore",
