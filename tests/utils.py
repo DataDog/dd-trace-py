@@ -1240,7 +1240,9 @@ def _get_skipped_item(item, skip_reason):
 
 
 def _should_skip(condition=None, until: dt.datetime = None):
-    if until and dt.datetime.utcnow() >= until:
+    now = dt.datetime.utcnow()
+    now.replace(tzinfo=dt.timezone.utc)
+    if until and now >= until:
         return True
     if condition is not None and not condition:
         return False
