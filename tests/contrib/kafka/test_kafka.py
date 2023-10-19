@@ -1,4 +1,3 @@
-import datetime as dt
 import logging
 import os
 import time
@@ -207,7 +206,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_message(producer, consumer, tombstone, kafka_topic):

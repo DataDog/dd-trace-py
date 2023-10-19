@@ -1,4 +1,3 @@
-import datetime as dt
 import random
 from uuid import uuid4
 
@@ -527,7 +526,7 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 

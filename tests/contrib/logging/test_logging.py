@@ -1,4 +1,3 @@
-import datetime as dt
 import logging
 
 import pytest
@@ -199,7 +198,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+    @flaky(until=1704067200)
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
         def create_span():

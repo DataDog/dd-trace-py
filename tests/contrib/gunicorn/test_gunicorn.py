@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-import datetime as dt
 import json
 import os
 import subprocess
@@ -180,7 +179,7 @@ SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
 )
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [
@@ -199,7 +198,7 @@ def test_no_known_errors_occur(tmp_path):
         assert payload["profiler"]["is_active"] is True
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_span_schematization(tmp_path):
     for schema_version in [None, "v0", "v1"]:

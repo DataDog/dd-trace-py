@@ -1,5 +1,4 @@
 import contextlib
-import datetime as dt
 import json
 import os
 
@@ -177,7 +176,7 @@ def test_snowflake_service_env():
                 assert cur.fetchone() == ("4.30.2",)
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 @snapshot()
 @req_mock.activate
 def test_snowflake_pin_override(client):

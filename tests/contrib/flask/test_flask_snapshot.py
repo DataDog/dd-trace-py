@@ -1,4 +1,3 @@
-import datetime as dt
 import os
 import signal
 import subprocess
@@ -118,7 +117,7 @@ def test_flask_stream(flask_client):
     assert resp.status_code == 200
 
 
-@flaky(until=dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
+@flaky(until=1704067200)
 @pytest.mark.snapshot(
     ignores=["meta.flask.version", "meta.http.useragent"],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
