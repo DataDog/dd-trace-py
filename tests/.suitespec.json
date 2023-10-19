@@ -242,8 +242,7 @@
             "ddtrace/contrib/asynctest/*"
         ],
         "logging": [
-            "ddtrace/contrib/logging/*",
-            "tests/contrib/logging/*"
+            "ddtrace/contrib/logging/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
@@ -476,7 +475,8 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@logging"
+            "@logging",
+            "tests/contrib/logging/*"
         ],
         "asyncio": [
             "@bootstrap",
