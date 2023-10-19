@@ -136,7 +136,6 @@ class EventsSDKTestCase(TracerTestCase):
         with self.trace("test_success2"):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
             root_span = self.tracer.current_root_span()
-            success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
