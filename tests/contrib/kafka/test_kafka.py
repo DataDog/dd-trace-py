@@ -17,6 +17,7 @@ from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -33,6 +34,7 @@ if six.PY3:
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 else:
     PAYLOAD = bytes("hueh hueh hueh")
+DSM_TEST_PATH_HEADER_SIZE = 20
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -290,12 +292,47 @@ def retry_until_not_none(factory):
     return None
 
 
+@pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
+@pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
+def test_data_streams_payload_size(
+    dsm_processor, deserializing_consumer, serializing_producer, kafka_topic, payload_and_length, key_and_length
+):
+    payload, payload_length = payload_and_length
+    key, key_length = key_and_length
+    test_headers = {"1234": "5678"}
+    test_header_size = 0
+    for k, v in test_headers.items():
+        test_header_size += len(k) + len(v)
+    expected_payload_size = float(payload_length + key_length)
+    expected_payload_size += test_header_size  # to account for headers we add here
+    expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+    expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
+
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+
+    serializing_producer.produce(kafka_topic, payload, key=key, headers=test_headers)
+    serializing_producer.flush()
+    message = None
+    while message is None:
+        message = deserializing_consumer.poll(1.0)
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    first = list(buckets.values())[0].pathway_stats
+    for _bucket_name, bucket in first.items():
+        assert bucket.payload_size._count >= 1
+        assert bucket.payload_size._sum == expected_payload_size
+
+
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
         pass
+
     serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     serializing_producer.flush()
     message = None
