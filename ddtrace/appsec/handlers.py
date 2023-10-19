@@ -55,7 +55,7 @@ def _on_request_span_modifier(request, environ, _HAS_JSON_MIXIN, exception_type)
                 seekable = False
             if not seekable:
                 content_length = int(environ.get("CONTENT_LENGTH", 0))
-                body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
+                body = wsgi_input.read(content_length) if content_length else b""
                 environ["wsgi.input"] = BytesIO(body)
 
         try:
