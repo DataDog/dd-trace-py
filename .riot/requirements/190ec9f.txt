@@ -36,4 +36,4 @@ snowflake-connector-python==3.0.1
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.0
-urllib3==1.26.15
+urllib3==1.26.18

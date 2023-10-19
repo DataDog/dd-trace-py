@@ -57,7 +57,7 @@ tomli==2.0.1
 tqdm==4.65.0
 types-pytz==2023.3.0.0
 tzdata==2023.3
-urllib3==1.26.16
+urllib3==1.26.18
 vcrpy==4.2.1
 wrapt==1.15.0
 yarl==1.9.2

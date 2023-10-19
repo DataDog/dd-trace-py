@@ -23,5 +23,5 @@ pytest-mock==3.11.1
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.1
-urllib3==1.26.17
+urllib3==1.26.18
 zipp==3.15.0

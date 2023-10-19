@@ -36,6 +36,6 @@ sniffio==1.3.0
 sortedcontainers==2.4.0
 tracerite==1.1.0
 ujson==5.7.0
-urllib3==2.0.2
+urllib3==1.26.18
 uvloop==0.17.0
 websockets==11.0.3

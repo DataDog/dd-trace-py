@@ -42,7 +42,7 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.7.0
 ujson==5.7.0
-urllib3==1.26.15
+urllib3==1.26.18
 uvloop==0.17.0
 websockets==9.1
 yarl==1.8.2

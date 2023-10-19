@@ -38,6 +38,6 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 tracerite==1.1.0
 ujson==5.7.0
-urllib3==2.0.2
+urllib3==1.26.18
 uvloop==0.17.0
 websockets==11.0.3
