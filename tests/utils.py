@@ -1240,9 +1240,10 @@ def _get_skipped_item(item, skip_reason):
 
 
 def _should_skip(condition=None, until: dt.datetime = None):
-    now = dt.datetime.utcnow()
-    now.replace(tzinfo=dt.timezone.utc)
-    if until and now >= until:
+    if until and until.tzinfo != dt.timezone.utc:
+        raise ValueError("'until' timestamp must be in UTC timezone")
+    until = until.replace(tzinfo=None)
+    if until and dt.datetime.utcnow() < until:
         return True
     if condition is not None and not condition:
         return False
@@ -1257,8 +1258,6 @@ def flaky(until: dt.datetime = None, condition: bool = None, reason: str = None)
 
 def skip_if_until(until: dt.datetime, condition=None, reason=None):
     """Conditionally skip the test until the given UTC datetime"""
-    if until.tzinfo != dt.timezone.utc:
-        raise ValueError("'until' timestamp must be in UTC timezone")
     skip = _should_skip(condition=condition, until=until)
 
     def decorator(function_or_class):
