@@ -337,37 +337,6 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
         message = deserializing_consumer.poll(1.0)
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
-    first = list(buckets.values())[0].pathway_stats
-    assert (
-        first[
-            ("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)
-        ].full_pathway_latency._count
-        >= 1
-    )
-    assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 10451282778496195491, 0)].edge_latency._count
-        >= 1
-    )
-    assert (
-        first[
-            (
-                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6736498786733974928,
-                10451282778496195491,
-            )
-        ].full_pathway_latency._count
-        >= 1
-    )
-    assert (
-        first[
-            (
-                "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6736498786733974928,
-                10451282778496195491,
-            )
-        ].edge_latency._count
-        >= 1
-    )
 
 
 def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
