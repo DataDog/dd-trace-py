@@ -59,9 +59,10 @@ def _track_user_login_common(
         )
         span.set_tag_str(mode_tag, auto_tag_mode)
 
+        tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
             for k, v in metadata.items():
-                span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
+                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str(v))
 
         if login:
             span.set_tag_str("%s.login" % tag_prefix, login)

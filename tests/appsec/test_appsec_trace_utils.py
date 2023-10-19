@@ -43,8 +43,6 @@ class EventsSDKTestCase(TracerTestCase):
             )
 
             root_span = self.tracer.current_root_span()
-
-            success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
 
             assert root_span.get_tag("appsec.events.users.login.success.track") == "true"

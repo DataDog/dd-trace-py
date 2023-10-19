@@ -612,7 +612,7 @@ class TracerTestCases(TracerTestCase):
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == None
+        assert span.get_tag(user.ID) is None
         assert span.context.dd_user_id is None
         assert not user_id
 
