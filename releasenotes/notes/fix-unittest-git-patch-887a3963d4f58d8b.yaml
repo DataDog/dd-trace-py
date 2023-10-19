@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes `unittest` integration being patched without actually running any tests
