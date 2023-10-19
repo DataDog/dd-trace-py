@@ -17,11 +17,6 @@ from wrapt.importer import when_imported
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import _constants as _asm_constants
-from ddtrace.appsec import _utils as appsec_utils
-from ddtrace.appsec.trace_utils import track_user_login_failure_event
-from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -35,15 +30,17 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 
 from .. import trace_utils
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...appsec._utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
 from ..trace_utils import _get_request_header_user_agent
@@ -420,7 +417,7 @@ def _block_request_callable(request, request_headers, span):
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(WAF_CONTEXT_NAMES.BLOCKED, _asm_constants.WAF_ACTIONS.DEFAULT_PARAMETERS, span=span)
+    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
     _set_block_tags(request, request_headers, span)
     raise PermissionDenied()
 
@@ -445,9 +442,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
 
-    with _asm_request_context.asm_request_context_manager(
-        request.META.get("REMOTE_ADDR"),
-        request_headers,
+    with core.context_with_data(
+        "django.traced_get_response",
+        remote_addr=request.META.get("REMOTE_ADDR"),
+        headers=request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
     ):
         with pin.tracer.trace(
@@ -456,8 +454,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
-            _asm_request_context.set_block_request_callable(
-                functools.partial(_block_request_callable, request, request_headers, span)
+            core.dispatch(
+                "django.traced_get_response.pre",
+                functools.partial(_block_request_callable, request, request_headers, span),
             )
             span.set_tag_str(COMPONENT, config.django.integration_name)
 
@@ -472,7 +471,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             def blocked_response():
                 from django.http import HttpResponse
 
-                block_config = core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
                 desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
                 if desired_type == "none":
@@ -485,68 +484,64 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
                     else:
                         ctype = "text/" + desired_type
-                    content = appsec_utils._get_blocked_template(ctype)
+                    content = http_utils._get_blocked_template(ctype)
                     response = HttpResponse(content, content_type=ctype, status=status)
                     response.content = content
                 utils._after_request_tags(pin, span, request, response)
                 return response
 
             try:
-                if config._appsec_enabled:
-                    # [IP Blocking]
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
-                        response = blocked_response()
-                        return response
+                # [IP Blocking]
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    response = blocked_response()
+                    return response
 
-                    # set context information for [Suspicious Request Blocking]
-                    query = request.META.get("QUERY_STRING", "")
-                    uri = utils.get_request_uri(request)
-                    if uri is not None and query:
-                        uri += "?" + query
-                    resolver = get_resolver(getattr(request, "urlconf", None))
-                    if resolver:
-                        try:
-                            path = resolver.resolve(request.path_info).kwargs
-                            log.debug("resolver.pattern %s", path)
-                        except Exception:
-                            path = None
-                    parsed_query = request.GET
-                    body = utils._extract_body(request)
-                    trace_utils.set_http_meta(
-                        span,
-                        config.django,
-                        method=request.method,
-                        query=query,
-                        raw_uri=uri,
-                        request_path_params=path,
-                        parsed_query=parsed_query,
-                        request_body=body,
-                        request_cookies=request.COOKIES,
-                    )
-                    log.debug("Django WAF call for Suspicious Request Blocking on request")
-                    _asm_request_context.call_waf_callback()
-                    # [Suspicious Request Blocking on request]
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
-                        response = blocked_response()
-                        return response
+                # set context information for [Suspicious Request Blocking]
+                query = request.META.get("QUERY_STRING", "")
+                uri = utils.get_request_uri(request)
+                if uri is not None and query:
+                    uri += "?" + query
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                if resolver:
+                    try:
+                        path = resolver.resolve(request.path_info).kwargs
+                        log.debug("resolver.pattern %s", path)
+                    except Exception:
+                        path = None
+                parsed_query = request.GET
+                body = utils._extract_body(request)
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    query=query,
+                    raw_uri=uri,
+                    request_path_params=path,
+                    parsed_query=parsed_query,
+                    request_body=body,
+                    request_cookies=request.COOKIES,
+                )
+                core.dispatch("django.start_response", "Django")
+
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    response = blocked_response()
+                    return response
+
                 response = func(*args, **kwargs)
-                if config._appsec_enabled:
-                    # [Blocking by client code]
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
-                        response = blocked_response()
-                        return response
+
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    response = blocked_response()
+                    return response
+
                 return response
             finally:
                 # DEV: Always set these tags, this is where `span.resource` is set
                 utils._after_request_tags(pin, span, request, response)
-                if config._appsec_enbled and config._api_security_enabled:
-                    trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
+                trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
                 # if not blocked yet, try blocking rules on response
-                if config._appsec_enabled and not core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
-                    log.debug("Django WAF call for Suspicious Request Blocking on response")
-                    _asm_request_context.call_waf_callback()
-                    # [Suspicious Request Blocking on response]
-                    if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span):
+                if not core.get_item(HTTP_REQUEST_BLOCKED):
+                    core.dispatch("django.finalize_response", "Django")
+                    if core.get_item(HTTP_REQUEST_BLOCKED):
                         response = blocked_response()
                         return response  # noqa: B012
 
@@ -713,36 +708,17 @@ def traced_login(django, pin, func, instance, args, kwargs):
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
 
-        if not config._appsec_enabled or mode == "disabled":
+        if mode == "disabled":
             return
 
-        if user:
-            info_retriever = _DjangoUserInfoRetriever(user)
-
-            if str(user) != "AnonymousUser":
-                info_retriever = _DjangoUserInfoRetriever(user)
-                user_id, user_extra = info_retriever.get_user_info()
-
-                with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                    from ddtrace.contrib.django.compat import user_is_authenticated
-
-                    if user_is_authenticated(user):
-                        session_key = getattr(request, "session_key", None)
-                        track_user_login_success_event(
-                            pin.tracer,
-                            user_id=user_id,
-                            session_id=session_key,
-                            propagate=True,
-                            login_events_mode=mode,
-                            **user_extra,
-                        )
-                    else:
-                        # Login failed but the user exists
-                        track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
-            else:
-                # Login failed and the user is unknown
-                user_id = info_retriever.get_userid()
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+        core.dispatch(
+            "django.login",
+            pin,
+            request,
+            user,
+            mode,
+            _DjangoUserInfoRetriever(user),
+        )
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -752,23 +728,20 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     try:
         mode = config._automatic_login_events_mode
-        if not config._appsec_enabled or mode == "disabled":
+        if mode == "disabled":
             return result_user
 
-        info_retriever = _DjangoUserInfoRetriever(result_user)
-        extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
-        userid_list = info_retriever.possible_user_id_fields if mode == "safe" else extended_userid_fields
+        result = core.dispatch(
+            "django.auth",
+            result_user,
+            mode,
+            kwargs,
+            pin,
+            _DjangoUserInfoRetriever(result_user),
+        )[0]
+        if result and result[0][0]:
+            return result[0][1]
 
-        for possible_key in userid_list:
-            if possible_key in kwargs:
-                user_id = kwargs[possible_key]
-                break
-        else:
-            user_id = None
-
-        if not result_user:
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 

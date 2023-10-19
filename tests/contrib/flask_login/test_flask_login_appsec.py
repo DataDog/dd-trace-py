@@ -14,6 +14,7 @@ from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import user
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_global_config
 
 
@@ -290,3 +291,12 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
         finally:
             unpatch_login()
+
+    def test_and_emit_get_version(self):
+        from ddtrace.contrib.flask_login import get_version
+
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
+        emit_integration_and_version_to_test_agent("flask_login", version)
