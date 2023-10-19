@@ -4,9 +4,8 @@ import signal
 import subprocess
 import sys
 
-import psutil
-
 from ddtrace.internal.utils.retry import RetryError
+from ddtrace.vendor import psutil
 from tests.webclient import Client
 
 
