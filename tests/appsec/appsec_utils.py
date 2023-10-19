@@ -25,17 +25,19 @@ def _build_env():
 @contextmanager
 def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", token=None):
     cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
-    yield from appsec_application_server(
+    for res in appsec_application_server(
         cmd, appsec_enabled=appsec_enabled, remote_configuration_enabled=remote_configuration_enabled, token=token
-    )
+    ):
+        yield res
 
 
 @contextmanager
 def flask_server(appsec_enabled="true", remote_configuration_enabled="true", token=None):
     cmd = ["python", "tests/appsec/app.py", "--no-reload"]
-    yield from appsec_application_server(
+    for res in appsec_application_server(
         cmd, appsec_enabled=appsec_enabled, remote_configuration_enabled=remote_configuration_enabled, token=token
-    )
+    ):
+        yield res
 
 
 def appsec_application_server(cmd, appsec_enabled="true", remote_configuration_enabled="true", token=None):
