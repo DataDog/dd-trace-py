@@ -53,11 +53,10 @@ This will emit the entire log record with the trace values into a file "app.log"
     def log_format(record):
         record["extra"]["serialized"] = serialize(record)
         return "{extra[serialized]}\n"
-
     logger.add("app.log", format=log_format)
 
-This will emit the log in a format where the output contains the trace values of the log at the top level of a JSON along
-with the message. The log will not include all the possible information in the record, but rather only the values
+This will emit the log in a format where the output contains the trace values of the log at the top level of a JSON
+along with the message. The log will not include all the possible information in the record, but rather only the values
 included in the subset object within the ``serialize`` method
 
 For more information, please see the attached guide for the Datadog Logging Product:
