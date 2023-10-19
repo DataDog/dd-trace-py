@@ -173,7 +173,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
-            assert root_span.get_tag(constants.MANUAL_KEEP_KEY) == "true"
+            assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
             assert not root_span.get_tag(user.NAME)
