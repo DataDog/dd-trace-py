@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where user events spans could be sampled erroneously.
