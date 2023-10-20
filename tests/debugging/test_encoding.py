@@ -84,7 +84,6 @@ def test_serialize(value, serialized):
 
 
 def test_serialize_custom_object():
-
     assert utils.serialize(Custom(), level=-1) == (
         "Custom(some_arg=({'Hello': [None, 42, True, None, {b'World'}, 0.07]}))"
         if PY3
@@ -502,3 +501,21 @@ def test_json_tree():
             children=[],
         ),
     ]
+
+
+@pytest.mark.parametrize(
+    "size, expected",
+    [
+        (100, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}'),
+        (60, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{}], "b": 2}}'),
+        (40, r'{"a": 1, "b": {"a": [{},{}], "b": 2}}'),
+        (30, r'{"a": 1, "b": {}}'),
+        (10, r"{}"),
+    ],
+)
+def test_json_pruning(size, expected):
+    class TestEncoder(LogSignalJsonEncoder):
+        MAX_SIGNAL_SIZE = size
+        MIN_LEVEL = 0
+
+    assert TestEncoder(None).pruned(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}') == expected
