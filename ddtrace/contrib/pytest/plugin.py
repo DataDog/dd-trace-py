@@ -206,6 +206,7 @@ def _get_pytest_command(config):
 
 def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
+    # type (pytest.Item) -> str
     if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
     return item.nodeid.rpartition("/")[0]
@@ -213,30 +214,10 @@ def _get_module_path(item):
 
 def _get_module_name(item, is_package=True):
     """Extract module name (fully qualified) from a `pytest.Item` instance."""
+    # type (pytest.Item) -> str
     if is_package:
         return item.module.__name__
     return item.nodeid.rpartition("/")[0].replace("/", ".")
-
-
-def _get_suite_name(item, test_module_path=None):
-    """
-    Extract suite name from a `pytest.Item` instance.
-    If the module path doesn't exist, the suite path will be reported in full.
-    """
-    if test_module_path:
-        if not item.nodeid.startswith(test_module_path):
-            log.warning("Suite path is not under module path: '%s' '%s'", item.nodeid, test_module_path)
-        suite_path = os.path.relpath(item.nodeid, start=test_module_path)
-        return suite_path
-    return item.nodeid
-
-
-def _get_item_name(item):
-    """Extract name from item, prepending class if desired"""
-    if hasattr(item, "cls") and item.cls:
-        if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
-            return "%s.%s" % (item.cls.__name__, item.name)
-    return item.name
 
 
 def _is_test_unskippable(item):
@@ -251,17 +232,26 @@ def _is_test_unskippable(item):
     )
 
 
-def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
+def _module_is_package(pytest_package_item=None, pytest_module_item=None):
+    if pytest_package_item is None and pytest_module_item is not None:
+        return False
+    return True
+
+
+def _start_test_module_span(item):
     """
     Starts a test module span at the start of a new pytest test package.
-    Note that ``item`` is a ``pytest.Package`` object referencing the test module being run.
+    Note that ``item`` is a ``pytest.Item`` object referencing the test being run.
     """
-    is_package = True
-    item = pytest_package_item
+    pytest_module_item = _find_pytest_item(item, pytest.Module)
+    pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-    if pytest_package_item is None and pytest_module_item is not None:
-        item = pytest_module_item
-        is_package = False
+    is_package = _module_is_package(pytest_package_item, pytest_module_item)
+
+    if is_package:
+        span_target_item = pytest_package_item
+    else:
+        span_target_item = pytest_module_item
 
     test_session_span = _extract_span(item.session)
     test_module_span = _CIVisibility._instance.tracer._start_span(
@@ -280,12 +270,12 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
     if test_session_span:
         test_module_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_module_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
-    test_module_span.set_tag_str(test.MODULE, _get_module_name(item, is_package))
-    test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(item))
+    test_module_span.set_tag_str(test.MODULE, item.config.hook.pytest_ddtrace_get_item_module_name(item=item))
+    test_module_span.set_tag_str(test.MODULE_PATH, _get_module_path(span_target_item))
     if is_package:
-        _store_span(item, test_module_span)
+        _store_span(span_target_item, test_module_span)
     else:
-        _store_module_span(item, test_module_span)
+        _store_module_span(span_target_item, test_module_span)
 
     test_module_span.set_tag_str(
         test.ITR_TEST_CODE_COVERAGE_ENABLED,
@@ -310,11 +300,11 @@ def _start_test_module_span(pytest_package_item=None, pytest_module_item=None):
 def _start_test_suite_span(item, test_module_span, should_enable_coverage=False):
     """
     Starts a test suite span at the start of a new pytest test module.
-    Note that ``item`` is a ``pytest.Module`` object referencing the test file being run.
     """
-    test_session_span = _extract_span(item.session)
-    if test_module_span is None and isinstance(item.parent, pytest.Package):
-        test_module_span = _extract_span(item.parent)
+    pytest_module_item = _find_pytest_item(item, pytest.Module)
+    test_session_span = _extract_span(pytest_module_item.session)
+    if test_module_span is None and isinstance(pytest_module_item.parent, pytest.Package):
+        test_module_span = _extract_span(pytest_module_item.parent)
     parent_span = test_module_span
     if parent_span is None:
         parent_span = test_session_span
@@ -330,22 +320,21 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     test_suite_span.set_tag_str(SPAN_KIND, KIND)
     test_suite_span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
     test_suite_span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
-    test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
+    test_suite_span.set_tag_str(test.COMMAND, _get_pytest_command(pytest_module_item.config))
     test_suite_span.set_tag_str(_EVENT_TYPE, _SUITE_TYPE)
     if test_session_span:
         test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
-    test_module_path = None
     if test_module_span is not None:
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_module_path = test_module_span.get_tag(test.MODULE_PATH)
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-    test_suite_span.set_tag_str(test.SUITE, _get_suite_name(item, test_module_path))
-    _store_span(item, test_suite_span)
+    test_suite_span.set_tag_str(test.SUITE, item.config.hook.pytest_ddtrace_get_item_suite_name(item=item))
+    _store_span(pytest_module_item, test_suite_span)
 
     if should_enable_coverage:
-        _attach_coverage(item)
+        _attach_coverage(pytest_module_item)
     return test_suite_span
 
 
@@ -513,7 +502,7 @@ def pytest_collection_modifyitems(session, config, items):
         for item in items:
             test_is_unskippable = _is_test_unskippable(item)
 
-            item_name = _get_item_name(item)
+            item_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
             if test_is_unskippable:
                 log.debug("Test %s in module %s is marked as unskippable", (item_name, item.module))
@@ -568,8 +557,6 @@ def pytest_runtest_protocol(item, nextitem):
         )
     )
 
-    item_name = _get_item_name(item)
-
     test_session_span = _extract_span(item.session)
 
     pytest_module_item = _find_pytest_item(item, pytest.Module)
@@ -584,7 +571,7 @@ def pytest_runtest_protocol(item, nextitem):
             module_is_package = False
 
     if test_module_span is None:
-        test_module_span, module_is_package = _start_test_module_span(pytest_package_item, pytest_module_item)
+        test_module_span, module_is_package = _start_test_module_span(item)
 
     if _CIVisibility.test_skipping_enabled() and test_module_span.get_metric(test.ITR_TEST_SKIPPING_COUNT) is None:
         test_module_span.set_tag(
@@ -598,7 +585,7 @@ def pytest_runtest_protocol(item, nextitem):
         # In ITR suite skipping mode, all tests in a skipped suite should be marked
         # as skipped
         test_suite_span = _start_test_suite_span(
-            pytest_module_item,
+            item,
             test_module_span,
             should_enable_coverage=(
                 _CIVisibility._instance._suite_skipping_mode
@@ -628,7 +615,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item_name)
+        span.set_tag_str(test.NAME, item.config.hook.pytest_ddtrace_get_item_test_name(item=item))
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -779,3 +766,46 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
         if call.excinfo:
             span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
+
+
+@pytest.hookimpl
+def pytest_addhooks(pluginmanager):
+    from ddtrace.contrib.pytest import newhooks
+
+    pluginmanager.add_hookspecs(newhooks)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_ddtrace_get_item_module_name(item):
+    pytest_module_item = _find_pytest_item(item, pytest.Module)
+    pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
+
+    if _module_is_package(pytest_package_item, pytest_module_item):
+        return pytest_package_item.module.__name__
+    return pytest_module_item.nodeid.rpartition("/")[0].replace("/", ".")
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_ddtrace_get_item_suite_name(item):
+    """
+    Extract suite name from a `pytest.Item` instance.
+    If the module path doesn't exist, the suite path will be reported in full.
+    """
+    # breakpoint()
+    pytest_module_item = _find_pytest_item(item, pytest.Module)
+    test_module_path = _get_module_path(pytest_module_item)
+    if test_module_path:
+        if not pytest_module_item.nodeid.startswith(test_module_path):
+            log.warning("Suite path is not under module path: '%s' '%s'", pytest_module_item.nodeid, test_module_path)
+        suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
+        return suite_path
+    return pytest_module_item.nodeid
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_ddtrace_get_item_test_name(item):
+    """Extract name from item, prepending class if desired"""
+    if hasattr(item, "cls") and item.cls:
+        if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
+            return "%s.%s" % (item.cls.__name__, item.name)
+    return item.name
