@@ -42,7 +42,7 @@ def _track_user_login_common(tracer, user_id, success, metadata=None, login_even
             for k, v in six.iteritems(metadata):
                 span.set_tag_str("%s.%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str, k), str(v))
 
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        span.set_tag(constants.MANUAL_KEEP_KEY)
         return span
     else:
         log.warning(
@@ -137,7 +137,7 @@ def track_custom_event(tracer, event_name, metadata):
 
     for k, v in six.iteritems(metadata):
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
-        span.set_tag_str(constants.MANUAL_KEEP_KEY, "true")
+        span.set_tag(constants.MANUAL_KEEP_KEY)
 
 
 def should_block_user(tracer, userid):  # type: (Tracer, str) -> bool
