@@ -2,6 +2,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Text
 from typing import Union
 
@@ -285,10 +286,11 @@ def _extract_body(request):
 
 
 def _get_request_headers(request):
+    # type: (Any) -> Mapping[str, str]
     if DJANGO22:
-        request_headers = request.headers
+        request_headers = request.headers  # type: Mapping[str, str]
     else:
-        request_headers = {}
+        request_headers = {}  # type: Mapping[str, str]
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:

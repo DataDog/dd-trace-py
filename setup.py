@@ -449,7 +449,6 @@ setup(
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
-        "jsonschema",
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
@@ -492,7 +491,7 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4", "cython"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython<3"],
     ext_modules=ext_modules
     + cythonize(
         [

@@ -12,6 +12,7 @@ from typing import Dict
 
 import attr
 import six
+from six.moves import http_client
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
@@ -233,6 +234,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
             client.request("POST", path, body=body, headers=headers)
             response = client.getresponse()
             response.read()  # reading is mandatory
+        except (http_client.HTTPException, EnvironmentError) as e:
+            raise exporter.ExportError("HTTP upload request failed: %s" % e)
         finally:
             client.close()
 

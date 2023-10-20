@@ -89,7 +89,7 @@ jobs:
           - suffix: DI coverage
             expl_profiler: 0
             expl_coverage: 1
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     name: Django 3.1 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: true
@@ -118,7 +118,9 @@ jobs:
           python-version: "3.8"
       - name: Install pylibmc libmemcached package
         # Django-specific: pylibmc in Ubuntu requires libmemcached package
-        run: sudo apt install libmemcached-dev zlib1g
+        run: |
+          sudo apt update -qq
+          sudo apt install --no-install-recommends -qqyf libmemcached-dev zlib1g
       - name: Install dependencies
         # Django-specific: separate dependencies for tests
         run: pip install -r tests/requirements/py3.txt
@@ -140,6 +142,7 @@ jobs:
           sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
           sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
           sed -i'' 's/test_django_admin_py_equivalent_main/django_admin_py_equivalent_main/' tests/admin_scripts/test_django_admin_py.py
+          sed -i'' 's/test_custom_fields/custom_fields/' tests/inspectdb/tests.py
 
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch

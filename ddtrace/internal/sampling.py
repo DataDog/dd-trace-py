@@ -72,18 +72,6 @@ SpanSamplingRules = TypedDict(
     total=False,
 )
 
-SPAN_SAMPLING_JSON_SCHEMA = {
-    "type": "array",
-    "items": {
-        "type": "object",
-        "anyOf": [
-            {"properties": {"service": {"type": "string"}}, "required": ["service"]},
-            {"properties": {"name": {"type": "string"}}, "required": ["name"]},
-        ],
-        "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
-    },
-}
-
 
 def _set_trace_tag(
     context,  # type: Context
@@ -223,16 +211,16 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
-    if json_rules:
-        from jsonschema import validate
-
-        validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
         sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
+
+        if not service and not name:
+            raise ValueError("Sampling rules must supply at least 'service' or 'name', got {}".format(json.dumps(rule)))
+
         # If max_per_second not specified default to no limit
         max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:

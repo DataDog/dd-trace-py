@@ -107,6 +107,7 @@ def cleanup_loaded_modules():
             "concurrent",
             "typing",
             "re",  # referenced by the typing module
+            "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
