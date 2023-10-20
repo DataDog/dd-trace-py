@@ -26,7 +26,6 @@ from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
-from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
@@ -84,29 +83,17 @@ def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
     del coverage_data
 
 
-def _is_suite_coverage_enabled():
-    # TODO: implement suite skipping logic
-    is_skipped_by_itr = False
-    return (
-        _CIVisibility._instance._suite_skipping_mode
-        and _CIVisibility._instance._collect_coverage_enabled
-        and not is_skipped_by_itr
-    )
-
-
-def _is_test_coverage_enabled():
-    # TODO: implement test skipping logic
-    is_skipped = False
-    return (
-        not _CIVisibility._instance._suite_skipping_mode
-        and _CIVisibility._instance._collect_coverage_enabled
-        and not is_skipped
-    )
+def _is_test_coverage_enabled(test_object) -> bool:
+    return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
 
 
 def _add_skipped_by_itr_marker(test_object):
     test_object.__class__.__unittest_skip__ = True
     test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
+
+
+def _is_skipped_test(test_object) -> bool:
+    return hasattr(test_object.__class__, "__unittest_skip__") and test_object.__class__.__unittest_skip__
 
 
 def _store_test_span(item, span: ddtrace.Span):
@@ -318,14 +305,6 @@ def _populate_suites_and_modules(test_objects: list, seen_suites: dict, seen_mod
 
             seen_modules[test_module_path]["remaining_suites"] += 1
 
-        if _CIVisibility.test_skipping_enabled():
-            test_name = _extract_test_method_name(test_object)
-            test_module_suite_path_without_extension = "{}/{}".format(
-                os.path.splitext(test_module_path)[0], test_suite_name
-            )
-            if _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name):
-                _add_skipped_by_itr_marker(test_object)
-
         seen_suites[test_module_suite_path]["remaining_tests"] += 1
 
 
@@ -336,14 +315,12 @@ def _finish_remaining_suites_and_modules(seen_suites: dict, seen_modules: dict):
     for suite in seen_suites.values():
         test_suite_span = suite["suite_span"]
         if test_suite_span and not test_suite_span.finished:
-            coverage = suite.get("coverage", None)
-            _finish_span(test_suite_span, coverage)
+            _finish_span(test_suite_span)
 
     for module in seen_modules.values():
         test_module_span = module["module_span"]
         if test_module_span and not test_module_span.finished:
-            coverage = module.get("coverage", None)
-            _finish_span(test_module_span, coverage)
+            _finish_span(test_module_span)
     del _CIVisibility._unittest_data
 
 
@@ -359,8 +336,7 @@ def _update_remaining_suites_and_modules(
     suite_dict["remaining_tests"] -= 1
     if suite_dict["remaining_tests"] == 0:
         modules_dict["remaining_suites"] -= 1
-        coverage = suite_dict.get("coverage", None)
-        _finish_span(test_suite_span, coverage)
+        _finish_span(test_suite_span)
     if modules_dict["remaining_suites"] == 0:
         _finish_span(test_module_span)
 
@@ -497,20 +473,39 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             test_suite_span = _start_test_suite_span(instance)
             suite_dict = _CIVisibility._unittest_data["suites"][test_module_suite_path]
             suite_dict["suite_span"] = test_suite_span
-            if _is_suite_coverage_enabled():
-                root_directory = os.getcwd()
-                suite_dict["coverage"] = _start_coverage(root_directory)
         if not test_module_span or not test_suite_span:
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
         with _start_test_span(instance, test_suite_span) as span:
             root_directory = os.getcwd()
-            if _is_test_coverage_enabled():
+            coverage = None
+
+            if _CIVisibility.test_skipping_enabled():
+                test_name = _extract_test_method_name(instance)
+                test_module_suite_path_without_extension = "{}/{}".format(
+                    os.path.splitext(test_module_path)[0], test_suite_name
+                )
+                if _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name):
+                    global _global_skipped_elements
+                    _global_skipped_elements += 1
+
+                    test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+                    test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+                    test_session_span = _CIVisibility._datadog_session_span
+                    test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+                    _add_skipped_by_itr_marker(instance)
+
+            if _is_test_coverage_enabled(instance):
                 coverage = _start_coverage(root_directory)
                 instance._coverage = coverage
+
             result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-            if _is_test_coverage_enabled() and coverage:
+            if coverage:
                 _detach_coverage(coverage, span, root_directory)
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
@@ -563,21 +558,19 @@ def _start_test_session_span(instance) -> ddtrace.Span:
     test_session_span.set_tag_str(test.FRAMEWORK_VERSION, _get_runtime_and_os_metadata()[RUNTIME_VERSION])
 
     test_session_span.set_tag_str(test.TEST_TYPE, SpanTypes.TEST)
+    test_session_span.set_tag_str(
+        test.ITR_TEST_CODE_COVERAGE_ENABLED,
+        "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
+    )
     if _CIVisibility.test_skipping_enabled():
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_session_span.set_tag(
-            test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
-        )
+        test_session_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, TEST)
         test_session_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
         test_session_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "false")
         test_session_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
     else:
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
-    test_session_span.set_tag_str(
-        test.ITR_TEST_CODE_COVERAGE_ENABLED,
-        "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
-    )
     _store_module_identifier(instance)
     return test_session_span
 
@@ -618,13 +611,12 @@ def _start_test_module_span(instance) -> ddtrace.Span:
     )
     if _CIVisibility.test_skipping_enabled():
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_module_span.set_tag(
-            test.ITR_TEST_SKIPPING_TYPE, SUITE if _CIVisibility._instance._suite_skipping_mode else TEST
-        )
+        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, TEST)
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
         test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "false")
         test_module_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
+        test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
         test_module_span.set_tag(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_suite_identifier(instance)
@@ -709,7 +701,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     return span
 
 
-def _finish_span(current_span: ddtrace.Span, coverage_data=None):
+def _finish_span(current_span: ddtrace.Span):
     """
     Finishes active span and populates span status upwards
     """
@@ -719,9 +711,6 @@ def _finish_span(current_span: ddtrace.Span, coverage_data=None):
         _update_status_item(parent_span, current_status)
     elif not current_status:
         current_span.set_tag_str(test.SUITE, test.Status.FAIL.value)
-    if coverage_data and _is_suite_span(current_span):
-        root_directory = os.getcwd()
-        _detach_coverage(coverage_data, current_span, root_directory)
     current_span.finish()
 
 
@@ -751,6 +740,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
+            _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(test_session_span)
         raise e
     return result
@@ -787,6 +777,7 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
         _finish_remaining_suites_and_modules(
             _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
         )
+        _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
         _finish_span(_CIVisibility._datadog_session_span)
         del _CIVisibility._datadog_session_span
     return result
