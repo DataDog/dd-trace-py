@@ -131,7 +131,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         if module_name in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
-            module = sys.modules[module_name]
+            module = sys.modules.get(module_name)
             if module is not None:
                 hook(module)
 
