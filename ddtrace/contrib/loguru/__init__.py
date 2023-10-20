@@ -1,5 +1,5 @@
 r"""
-Datadog APM traces can be integrated with the logs produced by loguru by:
+Datadog APM traces can be integrated with the logs produced by ```loguru`` by:
 
 1. Having ``ddtrace`` patch the ``loguru`` module. This will configure a
 patcher which appends trace related values to the log.

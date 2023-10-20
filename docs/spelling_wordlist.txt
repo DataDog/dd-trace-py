@@ -162,6 +162,7 @@ ObjectProxy
 packfiles
 parameterized
 parsers
+patcher
 perf
 pid
 plugin
