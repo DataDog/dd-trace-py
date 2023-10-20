@@ -1840,6 +1840,16 @@ class PytestTestCase(TracerTestCase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 3
 
+        skipped_suite_spans = [x for x in skipped_spans if x.get_tag("type") == "test_suite_end"]
+        assert len(skipped_suite_spans) == 1
+        for skipped_suite_span in skipped_suite_spans:
+            assert skipped_suite_span.get_tag("test.skipped_by_itr") == "true"
+
+        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        assert len(skipped_test_spans) == 1
+        for skipped_test_span in skipped_test_spans:
+            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+
     def test_pytest_skip_tests_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -1908,6 +1918,10 @@ class PytestTestCase(TracerTestCase):
         assert len(passed_spans) == 4
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 3
+
+        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        for skipped_test_span in skipped_test_spans:
+            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
 
     def test_pytest_skip_none_tests(self):
         """
@@ -2016,6 +2030,11 @@ class PytestTestCase(TracerTestCase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 7
 
+        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        assert len(skipped_test_spans) == 2
+        for skipped_test_span in skipped_test_spans:
+            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+
     def test_pytest_skip_all_test_suites(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2068,6 +2087,18 @@ class PytestTestCase(TracerTestCase):
         assert len(passed_spans) == 0
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 7
+
+        skipped_suite_spans = [
+            x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test_suite_end"
+        ]
+        assert len(skipped_suite_spans) == 2
+        for skipped_suite_span in skipped_suite_spans:
+            assert skipped_suite_span.get_tag("test.skipped_by_itr") == "true"
+
+        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
+        assert len(skipped_test_spans) == 2
+        for skipped_test_span in skipped_test_spans:
+            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
 
     def test_pytest_skip_none_test_suites(self):
         """
