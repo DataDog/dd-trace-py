@@ -57,6 +57,12 @@ def get_version():
     return ""
 
 
+def _enable_unittest_if_not_started():
+    if _CIVisibility.enabled:
+        return
+    _CIVisibility.enable(config=ddtrace.config.unittest)
+
+
 def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
@@ -370,8 +376,6 @@ def patch():
     """
     if getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
         return
-
-    _CIVisibility.enable(config=ddtrace.config.unittest)
 
     unittest._datadog_patch = True
 
@@ -725,6 +729,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     """
     test_session_span = None
     if _is_invoked_by_cli(instance):
+        _enable_unittest_if_not_started()
         if not hasattr(_CIVisibility, "_unittest_data"):
             _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
         for parent_module in instance.test._tests:
@@ -755,6 +760,7 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
     """
     if _is_invoked_by_cli(instance):
         return func(*args, **kwargs)
+    _enable_unittest_if_not_started()
     _CIVisibility._datadog_entry = "TextTestRunner"
     if not hasattr(_CIVisibility, "_datadog_session_span"):
         _CIVisibility._datadog_session_span = _start_test_session_span(instance)

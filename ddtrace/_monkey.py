@@ -78,6 +78,7 @@ PATCH_MODULES = {
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "structlog": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -110,10 +111,14 @@ _PATCHED_MODULES = set()
 _MODULES_FOR_CONTRIB = {
     "elasticsearch": (
         "elasticsearch",
+        "elasticsearch1",
         "elasticsearch2",
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        # Starting with version 8, the default transport which is what we
+        # actually patch is found in the separate elastic_transport package
+        "elastic_transport",
         "opensearchpy",
     ),
     "psycopg": (

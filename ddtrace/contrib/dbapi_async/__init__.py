@@ -73,9 +73,11 @@ class TracedAsyncCursor(TracedCursor):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             if _is_iast_enabled():
+                from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
                 from ddtrace.appsec._iast._taint_utils import check_tainted_args
                 from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 
+                _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                 if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                     SqlInjection.report(evidence_value=args[0])
 

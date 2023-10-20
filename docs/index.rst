@@ -85,7 +85,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`dogpile.cache`                             | >= 0.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`elasticsearch`                             | >= 1.6, < 8.0 | Yes            | 
+| :ref:`elasticsearch`                             | >= 1.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`falcon`                                    | >= 1.0        | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -171,6 +171,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`starlette`                                 | >= 0.13.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`structlog`                                 | >= 20.2.0     | No             |
++--------------------------------------------------+---------------+----------------+
 | :ref:`tornado`                                   | >= 4.0        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`urllib3`                                   | >= 1.22       | No             |
@@ -214,6 +216,12 @@ To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variab
 
 See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 
+Release Notes
+-------------
+
+You can view historical release notes for all past versions of this repository on
+`GitHub <https://github.com/DataDog/dd-trace-py/releases>`_.
+
 Indices and tables
 ==================
 
@@ -235,4 +243,3 @@ Indices and tables
     versioning
     upgrading
     api
-    release_notes

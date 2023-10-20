@@ -46,6 +46,7 @@ from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import set_sampling_decision_maker
+from .tracing import _span_link
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -94,6 +95,7 @@ class Span(object):
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
+        "_links",
         "__weakref__",
     ]
 
@@ -110,6 +112,7 @@ class Span(object):
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         span_api=SPAN_API_DATADOG,  # type: str
+        links=None,  # type: Optional[List[_span_link.SpanLink]]
     ):
         # type: (...) -> None
         """
@@ -172,6 +175,7 @@ class Span(object):
         self.sampled = True  # type: bool
 
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
+        self._links = links or []
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -287,8 +291,7 @@ class Span(object):
             if key in self._local_root._metrics:
                 del self._local_root._metrics[key]
 
-    def set_tag(self, key, value=None):
-        # type: (_TagNameType, Any) -> None
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -373,8 +376,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_tag_str(self, key, value):
-        # type: (_TagNameType, Text) -> None
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -386,23 +388,19 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key):
-        # type: (_TagNameType) -> None
+    def _remove_tag(self, key: _TagNameType) -> None:
         if key in self._meta:
             del self._meta[key]
 
-    def get_tag(self, key):
-        # type: (_TagNameType) -> Optional[Text]
+    def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self):
-        # type: () -> _MetaDictType
+    def get_tags(self) -> _MetaDictType:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags):
-        # type: (_MetaDictType) -> None
+    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -410,8 +408,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    def set_metric(self, key, value):
-        # type: (_TagNameType, NumericType) -> None
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         # This method sets a numeric tag value for the given key.
 
         # Enforce a specific connstant for `_dd.measured`
@@ -442,19 +439,16 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
-    def set_metrics(self, metrics):
-        # type: (_MetricDictType) -> None
+    def set_metrics(self, metrics: _MetricDictType) -> None:
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
 
-    def get_metric(self, key):
-        # type: (_TagNameType) -> Optional[NumericType]
+    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def get_metrics(self):
-        # type: () -> _MetricDictType
+    def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
         return self._metrics.copy()
 
@@ -527,6 +521,35 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
+
+    def link_span(self, context, attributes=None):
+        # type: (Context, Optional[Dict[str, Any]]) -> None
+        """Defines a causal relationship between two spans"""
+        if not context.trace_id or not context.span_id:
+            raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+
+        self._set_span_link(
+            trace_id=context.trace_id,
+            span_id=context.span_id,
+            tracestate=context._tracestate,
+            traceflags=int(context._traceflags),
+            attributes=attributes,
+        )
+
+    def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
+        # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
+        if attributes is None:
+            attributes = dict()
+
+        self._links.append(
+            _span_link.SpanLink(
+                trace_id=trace_id,
+                span_id=span_id,
+                tracestate=tracestate,
+                flags=traceflags,
+                attributes=attributes,
+            )
+        )
 
     def finish_with_ancestors(self):
         # type: () -> None
