@@ -32,44 +32,36 @@ class _FlaskLoginUserInfoRetriever(_UserInfoRetriever):
 
 
 def traced_login_user(func, instance, args, kwargs):
-    print("JJJ traced_login_user 1")
     pin = Pin._find(func, instance, get_current_app())
     ret = func(*args, **kwargs)
-    track_user_login_failure_event(pin.tracer, user_id="missing6", exists=False, login_events_mode=mode)  # JJJ added4
 
     try:
         mode = config._automatic_login_events_mode
         if not config._appsec_enabled or mode == "disabled":
-            print("JJJ traced_login_user 2")
             return ret
 
         user = get_argument_value(args, kwargs, 0, "user")
         if not user:
-            track_user_login_failure_event(pin.tracer, user_id="missing5", exists=False, login_events_mode=mode)  # JJJ added4
+            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)
+            return ret
+
         if hasattr(user, "is_anonymous") and user.is_anonymous:
-            print("JJJ traced_login_user 3")
-            track_user_login_failure_event(pin.tracer, user_id="missing3", exists=False, login_events_mode=mode)  # JJJ added4
             return ret
 
         if not isinstance(user, flask_login.UserMixin):
             log.debug(
                 "Automatic Login Events Tracking: flask_login User models not inheriting from UserMixin not supported",
             )
-            print("JJJ traced_login_user 4")
-            track_user_login_failure_event(pin.tracer, user_id="missing4", exists=False, login_events_mode=mode)  # JJJ added4
             return ret
 
-        print("JJJ traced_login_user 5")
         info_retriever = _FlaskLoginUserInfoRetriever(user)
         user_id, user_extra = info_retriever.get_user_info()
         if user_id == -1:
-            print("JJJ traced_login_user 6")
             with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
                 track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
             return ret
         if not user_id:
-            print("JJJ traced_login_user 7")
-            track_user_login_failure_event(pin.tracer, user_id="missing2", exists=False, login_events_mode=mode)  # JJJ added
+            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)  # JJJ added
             log.debug(
                 "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
                 "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or implement the "
@@ -78,7 +70,6 @@ def traced_login_user(func, instance, args, kwargs):
             )
             return ret
 
-        print("JJJ traced_login_user 8")
         with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
             session_key = flask.session.get("_id", None)
             track_user_login_success_event(
@@ -92,7 +83,6 @@ def traced_login_user(func, instance, args, kwargs):
     except Exception:
         log.debug("Error while trying to trace flask_login.login_user", exc_info=True)
 
-    print("JJJ traced_login_user 9")
     return ret
 
 
