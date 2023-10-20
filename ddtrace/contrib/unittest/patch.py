@@ -497,7 +497,9 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             test_suite_span = _start_test_suite_span(instance)
             suite_dict = _CIVisibility._unittest_data["suites"][test_module_suite_path]
             suite_dict["suite_span"] = test_suite_span
-
+            if _is_suite_coverage_enabled():
+                root_directory = os.getcwd()
+                suite_dict["coverage"] = _start_coverage(root_directory)
         if not test_module_span or not test_suite_span:
             log.debug("Suite and/or module span not found for test: %s", test_name)
             return func(*args, **kwargs)
@@ -717,7 +719,7 @@ def _finish_span(current_span: ddtrace.Span, coverage_data=None):
         _update_status_item(parent_span, current_status)
     elif not current_status:
         current_span.set_tag_str(test.SUITE, test.Status.FAIL.value)
-    if coverage_data and (_is_suite_span(current_span) or _is_test_span(current_span)):
+    if coverage_data and _is_suite_span(current_span):
         root_directory = os.getcwd()
         _detach_coverage(coverage_data, current_span, root_directory)
     current_span.finish()
