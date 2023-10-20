@@ -238,3 +238,10 @@ IAST
 programmatically
 DES
 Blowfish
+Gitlab
+Enablement
+hotspot
+CMake
+prepend
+libdatadog
+stderr
