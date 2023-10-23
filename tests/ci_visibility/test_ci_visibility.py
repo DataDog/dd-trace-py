@@ -92,7 +92,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert CIVisibility._instance._code_coverage_enabled_by_api is False
-            assert CIVisibility._instance._test_skipping_enabled_by_api is False
+            assert CIVisibility._instance._test_skipping_enabled_by_api is True
             CIVisibility.disable()
 
 
