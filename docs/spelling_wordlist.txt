@@ -168,6 +168,7 @@ plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
@@ -190,6 +191,7 @@ quickstart
 ratelimit
 redis
 rediscluster
+renderer
 renderers
 resolvers
 repo
@@ -215,6 +217,7 @@ statsd
 stderr
 stdout
 stringable
+structlog
 subclass
 subdirectory
 subdomains
