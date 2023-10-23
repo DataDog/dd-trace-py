@@ -746,7 +746,11 @@ def pytest_runtest_makereport(item, call):
         reason = _extract_reason(call)
         if reason is not None:
             span.set_tag_str(test.SKIP_REASON, str(reason))
-            if reason == SKIPPED_BY_ITR_REASON:
+            if str(reason) == SKIPPED_BY_ITR_REASON:
+                if _CIVisibility._instance._suite_skipping_mode:
+                    suite_span = _extract_span(item.parent)
+                    if suite_span is not None:
+                        suite_span.set_tag_str(test.ITR_SKIPPED, "true")
                 span.set_tag_str(test.ITR_SKIPPED, "true")
     elif result.passed:
         _mark_not_skipped(item.parent)
