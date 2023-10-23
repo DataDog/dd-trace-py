@@ -1,7 +1,14 @@
+import sys
+
+import pytest
+
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Flask server is only supported up to 3.6"
+)
 def test_flask_when_appsec_reads_empty_body_hang():
     """A bug was detected when running a Flask application locally
 
@@ -29,6 +36,9 @@ def test_flask_when_appsec_reads_empty_body_hang():
         assert response.content == b"OK_test-body-hang"
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
+)
 def test_gunicorn_when_appsec_reads_empty_body_no_hang():
     """In relation to the previous test, Gunicorn works correctly, but we added a regression test to ensure that
     no similar bug arises in a production application.
