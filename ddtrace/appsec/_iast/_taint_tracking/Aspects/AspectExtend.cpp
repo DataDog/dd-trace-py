@@ -31,9 +31,6 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     auto method_name = PyUnicode_FromString("extend");
     PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
     Py_DECREF(method_name);
-    if (not ctx_map or ctx_map->empty()) {
-        Py_RETURN_NONE;
-    }
 
     if (to_toadd) {
         to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
