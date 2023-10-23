@@ -42,9 +42,9 @@ class TestByteArrayExtendAspect(object):
         assert result == bytearray(b"123456")
         assert ba1 == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
+        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert not get_tainted_ranges(ba2)
-        assert set(ranges) <= set([TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))])
 
     def test_extend_first_tainted_second_bytes(self):
         ba1 = taint_pyobject(
@@ -55,9 +55,9 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
+        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert not get_tainted_ranges(ba2)
-        assert set(ranges) <= set([TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))])
 
     def test_extend_second_tainted(self):
         ba1 = bytearray(b"123")
@@ -91,12 +91,10 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
+        assert len(ranges) == 2
+        assert ranges == [
+            TaintRange(0, 3, Source("test1", "foo", OriginType.PARAMETER)),
+            TaintRange(3, 3, Source("test2", "bar", OriginType.BODY)),
+        ]
         assert get_tainted_ranges(ba1) == ranges
         assert get_tainted_ranges(ba2) == [TaintRange(0, 3, Source("test2", "bar", OriginType.BODY))]
-        assert len(ranges) <= 2
-        assert set(ranges) <= set(
-            [
-                TaintRange(0, 3, Source("test1", "foo", OriginType.PARAMETER)),
-                TaintRange(3, 3, Source("test2", "bar", OriginType.BODY)),
-            ]
-        )
