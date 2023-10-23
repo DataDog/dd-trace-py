@@ -32,14 +32,23 @@ using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;
 
 #endif // NDEBUG
 
+inline uintptr_t
+hash_combine(uintptr_t first, const uintptr_t second)
+{
+    uintptr_t res = second;
+    std::hash<uintptr_t> hasher;
+    res ^= hasher(first) + 0x9e3779b9 + (second << 6) + (second >> 2);
+    return res;
+}
+
 inline static uintptr_t
 get_unique_id(PyObject* str)
 {
     if ((((PyASCIIObject*)str)->hash) == -1) {
         Py_hash_t result = PyObject_Hash(str);
     }
-    auto res = uintptr_t(str) + ((PyASCIIObject*)str)->hash;
-    return hash<uintptr_t>{}(res);
+    // auto res = uintptr_t(str) + ((PyASCIIObject*)str)->hash;
+    return hash_combine(uintptr_t(str), ((PyASCIIObject*)str)->hash);
 }
 
 struct TaintRange
