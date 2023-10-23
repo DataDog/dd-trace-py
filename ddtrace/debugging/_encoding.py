@@ -129,13 +129,20 @@ class JSONTree:
         parent: Optional["JSONTree.Node"]
         children: List["JSONTree.Node"]
 
+        pruned: int = 0
+        not_captured: bool = False
+
+        @property
+        def key(self):
+            return self.level, self.not_captured, len(self)
+
         def __len__(self):
             return self.end - self.start
 
         def __lt__(self, other):
             # The Python heapq pops the smallest item, so we reverse the
             # comparison.
-            return (self.level, len(self)) > (other.level, len(other))
+            return self.key > other.key
 
         @property
         def leaves(self):
@@ -151,6 +158,8 @@ class JSONTree:
         self.root = None
         self.level = 0
 
+        self._not_captured_iter = None
+
         self._state = self._object
 
         self._parse()
@@ -160,10 +169,21 @@ class JSONTree:
 
     def _string(self, i, c):
         if c == '"':
+            if self._not_captured_iter is not None and next(self._not_captured_iter, None) is None:
+                # We have successfully consumed all the characters of the
+                # "notCapturedReason" string
+                self._stack[-1].not_captured = True
+
             self._state = self._object
 
         elif c == "\\":
+            # If we are escaping a character, we are not parsing the
+            # "notCapturedReason" string.
+            self._not_captured_iter = None
             self._state = self._escape
+
+        if self._not_captured_iter is not None and c != next(self._not_captured_iter, None):
+            self._not_captured_iter = None
 
     def _object(self, i, c):
         if c == "}":
@@ -174,6 +194,7 @@ class JSONTree:
                 self.root = o
 
         elif c == '"':
+            self._not_captured_iter = iter("notCapturedReason")
             self._state = self._string
 
         elif c == "{":
@@ -225,7 +246,7 @@ class LogSignalJsonEncoder(Encoder):
                 break
 
             parent = leaf.parent
-            parent.pruned = parent.__dict__.setdefault("pruned", 0) + 1
+            parent.pruned += 1
             if parent.pruned >= len(parent.children):
                 # We have pruned all the children of this parent node so we can
                 # treat it as a leaf now.

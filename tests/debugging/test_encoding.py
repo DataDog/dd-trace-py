@@ -458,55 +458,49 @@ def test_encoding_stopping_cond_map_size(count, result):
 
 
 def test_json_tree():
-    tree = JSONTree(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}')
+    tree = JSONTree(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2}, {"a": 1, "notCapturedReason": "depth"}], "b": 2}}')
 
-    assert tree.root == JSONTree.Node(
-        start=0,
-        end=66,
-        level=0,
-        children=[
-            JSONTree.Node(
-                start=14,
-                end=65,
-                level=1,
-                children=[
-                    JSONTree.Node(
-                        start=21,
-                        end=37,
-                        level=2,
-                        children=[],
-                    ),
-                    JSONTree.Node(
-                        start=38,
-                        end=55,
-                        level=2,
-                        children=[],
-                    ),
+    def node_to_tuple(node: JSONTree.Node):
+        return (
+            node.start,
+            node.end,
+            node.level,
+            node.not_captured,
+            node.pruned,
+            [node_to_tuple(_) for _ in node.children],
+        )
+
+    assert node_to_tuple(tree.root) == (
+        0,
+        88,
+        0,
+        False,
+        0,
+        [
+            (
+                14,
+                87,
+                1,
+                False,
+                0,
+                [
+                    (21, 37, 2, False, 0, []),
+                    (39, 77, 2, True, 0, []),
                 ],
             )
         ],
     )
 
-    assert sorted(tree.leaves, key=lambda n: (n.level, len(n)), reverse=True) == [
-        JSONTree.Node(
-            start=38,
-            end=55,
-            level=2,
-            children=[],
-        ),
-        JSONTree.Node(
-            start=21,
-            end=37,
-            level=2,
-            children=[],
-        ),
+    assert [node_to_tuple(_) for _ in sorted(tree.leaves)] == [
+        (39, 77, 2, True, 0, []),
+        (21, 37, 2, False, 0, []),
     ]
 
 
 @pytest.mark.parametrize(
     "size, expected",
     [
-        (100, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}'),
+        (99, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}'),
         (60, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{}], "b": 2}}'),
         (40, r'{"a": 1, "b": {"a": [{},{}], "b": 2}}'),
         (30, r'{"a": 1, "b": {}}'),
