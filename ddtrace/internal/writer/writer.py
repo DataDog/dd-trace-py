@@ -398,8 +398,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 return
         except EncodingValidationError as e:
             log.error("Encoding Error (or span was modified after finish): %s", str(e))
-            if hasattr(e, "_debug_message"):
-                log.debug(e._debug_message)
+            log.debug(e.debug_message)
             return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)

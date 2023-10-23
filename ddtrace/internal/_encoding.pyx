@@ -67,8 +67,11 @@ class BufferItemTooLarge(Exception):
     pass
 
 
-class EncodingValidationError(Exception):
-    pass
+class EncodingValidationError(Exception):    
+    def __init__(self, msg="", debug_message=""):
+        Exception.__init__(self, msg)
+        self.msg = msg
+        self.debug_message = debug_message
 
 
 cdef inline const char * string_to_buff(str s):
@@ -853,12 +856,15 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         return 0
 
     cpdef _verify_encoding(self, encoded_bytes):
-        import msgpack
-
         from ddtrace import config
 
         if not config._trace_writer_log_err_payload:
             return
+
+        # msgpack is not installed by ddtrace. To decode ddtrace payloads ensure
+        # msgpack is installed
+        # TODO: vendor msgpack.unpackb()
+        import msgpack
 
         unpacked = msgpack.unpackb(encoded_bytes, raw=True, strict_map_key=False)
         if not unpacked or not unpacked[0]:
@@ -916,11 +922,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                     )
                 except Exception as e:
                     eve = EncodingValidationError(
-                        str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint())
-                    )
-                    setattr(
-                        eve,
-                        "_debug_message",
+                        str(e) + "\nDecoded Span does not match encoded span: {}".format(og_span._pprint()),
                         "Malformed String table values\ntable:{}\ntraces:{}\nencoded_bytes:{}\nspans:{}".format(
                             table, packed_traces, encoded_bytes, self._encoded_spans
                         ),
