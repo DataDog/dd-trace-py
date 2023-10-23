@@ -21,6 +21,9 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
+        Py_RETURN_NONE;
+    }
     const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
     auto to_result = initializer->allocate_tainted_object_copy(to_candidate);
     const auto& to_toadd = get_tainted_object(to_add, ctx_map);
