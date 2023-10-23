@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fix an issue that caused function probes on the
+    same module to fail to instrument and be reported in the ``ERROR`` status
+    in the UI if the module was not yet imported.
