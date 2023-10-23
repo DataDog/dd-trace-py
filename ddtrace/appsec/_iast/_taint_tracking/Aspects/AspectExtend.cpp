@@ -22,7 +22,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
     auto ctx_map = initializer->get_tainting_map();
     const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
-    auto to_result = initializer->allocate_tainted_object(to_candidate);
+    auto to_result = initializer->allocate_tainted_object_copy(to_candidate);
     const auto& to_toadd = get_tainted_object(to_add, ctx_map);
 
     auto method_name = PyUnicode_FromString("extend");
