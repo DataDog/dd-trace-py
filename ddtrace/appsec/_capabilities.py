@@ -11,6 +11,11 @@ def _appsec_rc_file_is_not_static():
     return "DD_APPSEC_RULES" not in os.environ
 
 
+def _asm_feature_is_required():
+    flags = _appsec_rc_flags()
+    return Flags.ASM_ACTIVATION in flags or Flags.ASM_API_SECURITY_SAMPLE_RATE in flags
+
+
 class Flags(enum.IntFlag):
     ASM_ACTIVATION = 1 << 1
     ASM_IP_BLOCKING = 1 << 2

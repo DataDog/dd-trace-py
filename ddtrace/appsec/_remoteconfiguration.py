@@ -9,6 +9,7 @@ from typing import Optional
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
+from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
@@ -60,7 +61,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
     )
 
-    if _appsec_rc_features_is_enabled():
+    if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
     if tracer._appsec_enabled and _appsec_rc_file_is_not_static():
@@ -93,6 +94,7 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
+    _appsec_api_security_settings(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
 
 
@@ -203,7 +205,6 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
             rc_appsec_enabled = False
         else:
             rc_appsec_enabled = features.get("asm", {}).get("enabled", False)
-            rc_api_security_sample_rate = features.get("asm", {}).get("api_security", {}).get("request_sample_rate")
 
         log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
         if rc_appsec_enabled is not None:
@@ -225,9 +226,17 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                 else:
                     config._appsec_enabled = False
 
-            if rc_api_security_sample_rate is not None:
-                try:
-                    sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                    config._api_security_sample_rate = sample_rate
-                except BaseException:  # nosec
-                    pass
+
+def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+    """
+    Update API Security settings from remote config
+    Actually: Update sample rate
+    """
+    if config._remote_config_enabled and config._api_security_enabled:
+        rc_api_security_sample_rate = features.get("asm", {}).get("api_security", {}).get("request_sample_rate")
+        if rc_api_security_sample_rate is not None:
+            try:
+                sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
+                config._api_security_sample_rate = sample_rate
+            except BaseException:  # nosec
+                pass
