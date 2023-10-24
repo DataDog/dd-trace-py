@@ -55,6 +55,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|public[-_]?"
     r"|access[-_]?"
     r"|secret[-_]?"
+    r"|app(?:lication)?[-_]?"
     r")key(?:[-_]?id)?"
     r"|token"
     r"|consumer[-_]?(?:id|key|secret)"
