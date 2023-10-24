@@ -24,17 +24,14 @@ except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
+
 _PARAMS = ["/bin/ls", "-l"]
 
 
 @pytest.fixture(autouse=True)
 def auto_unpatch():
     yield
-    try:
-        unpatch()
-    except AttributeError:
-        # Tests with appsec disabled or that didn't patch
-        pass
+    unpatch()
 
 
 def setup():

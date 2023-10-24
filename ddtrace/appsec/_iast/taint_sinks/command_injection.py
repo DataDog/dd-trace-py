@@ -63,7 +63,9 @@ def unpatch():
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
+
+    os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
+    subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
 
 
 def _iast_cmdi_ossystem(wrapped, instance, args, kwargs):
