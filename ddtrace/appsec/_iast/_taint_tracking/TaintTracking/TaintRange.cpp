@@ -11,60 +11,6 @@ using namespace std;
 
 PyObject* HASH_FUNC = PyDict_GetItemString(PyEval_GetBuiltins(), "hash");
 
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
-
-// Used to quickly exit on cases where the object is a non interned unicode
-// string and does not have the fast-taint mark on its internal data structure.
-// In any other case it will return false so the evaluation continue for (more
-// slowly) checking if bytes and bytearrays are tainted.
-__attribute__((flatten)) bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr)
-{
-    if (!objptr) {
-        return true; // cannot taint a nullptr
-    }
-
-    if (!PyUnicode_Check(objptr)) {
-        return false; // not a unicode, continue evaluation
-    }
-
-    if (PyUnicode_CHECK_INTERNED(objptr)) {
-        return true; // interned but it could still be tainted
-    }
-
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (!e) {
-        return true; // broken string object? better to skip it
-    }
-    // it cannot be fast tainted if hash is set to -1 (not computed)
-    return (((PyASCIIObject*)objptr)->hash) == -1 || e->hidden != _GET_HASH_KEY(objptr);
-}
-
-// For non interned unicode strings, set a hidden mark on it's internsal data
-// structure that will allow us to quickly check if the string is not tainted
-// and thus skip further processing without having to search on the tainting map
-__attribute__((flatten)) void
-set_fast_tainted_if_notinterned_unicode(const PyObject* objptr)
-{
-    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
-        return;
-    }
-    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (e) {
-        if ((((PyASCIIObject*)objptr)->hash) == -1) {
-            PyObject* result = PyObject_CallFunctionObjArgs(HASH_FUNC, objptr, NULL);
-            if (result != NULL) {
-                Py_DECREF(result);
-            }
-        }
-        e->hidden = _GET_HASH_KEY(objptr);
-    }
-}
-
 void
 TaintRange::reset()
 {
@@ -138,7 +84,11 @@ get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map)
         return {};
     }
 
-    return it->second->get_ranges();
+    if (((PyASCIIObject*)string_input)->hash != it->second.first) {
+        return {};
+    }
+
+    return it->second.second->get_ranges();
 }
 
 void
@@ -159,18 +109,19 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
         return;
     }
 
-    auto hash = get_unique_id(str);
-    auto it = tx_map->find(hash);
+    auto obj_id = get_unique_id(str);
+    auto it = tx_map->find(obj_id);
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
-    set_fast_tainted_if_notinterned_unicode(str);
+
+    auto hash = ((PyASCIIObject*)str)->hash;
     new_tainted_object->incref();
     if (it != tx_map->end()) {
-        it->second->decref();
-        it->second = new_tainted_object;
+        it->second.second->decref();
+        it->second = std::pair{ hash, new_tainted_object };
         return;
     }
 
-    tx_map->insert({ hash, new_tainted_object });
+    tx_map->insert({ obj_id, std::pair{ hash, new_tainted_object } });
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
@@ -230,12 +181,18 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
             throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
         }
     }
-    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+    if (tx_map->empty()) {
         return nullptr;
     }
 
     auto it = tx_map->find(get_unique_id(str));
-    return it == tx_map->end() ? nullptr : it->second;
+
+    auto hash = ((PyASCIIObject*)str)->hash;
+    if (hash != it->second.first) {
+        it->second.second->decref();
+        return nullptr;
+    }
+    return it == tx_map->end() ? nullptr : it->second.second;
 }
 
 void
@@ -251,24 +208,24 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
         }
     }
 
-    auto hash = get_unique_id(str);
-    auto it = tx_taint_map->find(hash);
-    set_fast_tainted_if_notinterned_unicode(str);
+    auto obj_id = get_unique_id(str);
+    auto it = tx_taint_map->find(obj_id);
+    auto hash = ((PyASCIIObject*)str)->hash;
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
-        if (it->second != tainted_object) {
+        if (it->second.second != tainted_object) {
             // If the tainted object is different, we need to decref the previous one
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
-            it->second->decref();
+            it->second.second->decref();
             tainted_object->incref();
-            it->second = tainted_object;
+            it->second.second = tainted_object;
         }
         return;
     }
     tainted_object->incref();
-    tx_taint_map->insert({ hash, tainted_object });
+    tx_taint_map->insert({ hash, std::pair{ hash, tainted_object } });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
@@ -276,16 +233,6 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
 void
 pyexport_taintrange(py::module& m)
 {
-    m.def("is_notinterned_notfasttainted_unicode",
-          py::overload_cast<const PyObject*>(&is_notinterned_notfasttainted_unicode),
-          "candidate_text"_a);
-    m.def("is_notinterned_notfasttainted_unicode", &api_is_unicode_and_not_fast_tainted, "candidate_text"_a);
-
-    m.def("set_fast_tainted_if_notinterned_unicode",
-          py::overload_cast<const PyObject*>(&set_fast_tainted_if_notinterned_unicode),
-          "candidate_text"_a);
-    m.def("set_fast_tainted_if_notinterned_unicode", &api_set_fast_tainted_if_unicode, "text"_a);
-
     // TODO: check all the py::return_value_policy
     m.def("are_all_text_all_ranges",
           &are_all_text_all_ranges,

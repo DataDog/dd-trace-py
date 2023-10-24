@@ -23,23 +23,19 @@ using TaintedObjectPtr = TaintedObject*;
 #ifdef NDEBUG // Decide wether to use abseil
 
 #include "absl/container/node_hash_map.h"
-using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
+using TaintRangeMapType = absl::node_hash_map<uintptr_t, std::pair<uint, TaintedObjectPtr>>;
 
 #else
 
 #include <unordered_map>
-using TaintRangeMapType = std::map<uintptr_t, TaintedObjectPtr>;
+using TaintRangeMapType = std::map<uintptr_t, std::pair<uint, TaintedObjectPtr>>;
 
 #endif // NDEBUG
 
 inline static uintptr_t
-get_unique_id(PyObject* str)
+get_unique_id(const PyObject* str)
 {
-    if ((((PyASCIIObject*)str)->hash) == -1) {
-        Py_hash_t result = PyObject_Hash(str);
-    }
-    auto res = uintptr_t(str) + ((PyASCIIObject*)str)->hash;
-    return hash<uintptr_t>{}(res);
+    return uintptr_t(str);
 }
 
 struct TaintRange
@@ -119,22 +115,6 @@ api_are_all_text_all_ranges(const py::object& candidate_text, const py::tuple& p
 
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
-
-void
-set_fast_tainted_if_notinterned_unicode(const PyObject* objptr);
-inline void
-api_set_fast_tainted_if_unicode(const py::object& obj)
-{
-    set_fast_tainted_if_notinterned_unicode(obj.ptr());
-}
-
-bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr);
-inline bool
-api_is_unicode_and_not_fast_tainted(const py::object str)
-{
-    return is_notinterned_notfasttainted_unicode(str.ptr());
-}
 
 TaintedObject*
 get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);

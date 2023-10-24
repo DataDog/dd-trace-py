@@ -44,7 +44,7 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     }
 
     for (auto& kv_taint_map : *tx_map) {
-        kv_taint_map.second->decref();
+        kv_taint_map.second.second->decref();
     }
 
     tx_map->clear();
