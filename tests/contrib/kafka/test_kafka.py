@@ -601,7 +601,6 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
         del dsm_processor._current_context.value
     except AttributeError:
         pass
-
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
