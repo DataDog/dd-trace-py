@@ -2,7 +2,6 @@
 Generic dbapi tracing code.
 """
 import six
-import wrapt
 
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -20,6 +19,7 @@ from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...pin import Pin
+from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
 

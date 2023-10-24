@@ -1,9 +1,9 @@
 import os
 
 import bottle
-import wrapt
 
 from ddtrace import config
+from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
 from .trace import TracePlugin

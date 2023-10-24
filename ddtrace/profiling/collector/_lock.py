@@ -7,7 +7,6 @@ import typing
 
 import attr
 from six.moves import _thread
-import wrapt
 
 from ddtrace.internal import compat
 from ddtrace.profiling import _threading
@@ -16,6 +15,7 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
+from ddtrace.vendor import wrapt
 
 
 @event.event_class
@@ -52,7 +52,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import wrapt._wrappers as _w  # noqa: F401
+        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:

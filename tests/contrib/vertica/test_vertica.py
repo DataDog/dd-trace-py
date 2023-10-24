@@ -1,5 +1,4 @@
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import Pin
@@ -12,6 +11,7 @@ from ddtrace.contrib.vertica.patch import patch
 from ddtrace.contrib.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.config import _deepmerge
+from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer

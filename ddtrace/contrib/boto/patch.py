@@ -3,7 +3,6 @@ import os
 
 from boto import __version__
 import boto.connection
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -16,6 +15,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_service_name
@@ -140,7 +140,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     # Go up the stack until we get the first non-ddtrace module
     # DEV: For `lambda.list_functions()` this should be:
     #        - ddtrace.contrib.boto.patch
-    #        - wrapt.wrappers
+    #        - ddtrace.vendor.wrapt.wrappers
     #        - boto.awslambda.layer1 (make_request)
     #        - boto.awslambda.layer1 (list_functions)
     # But can vary depending on Python versions; that's why we use an heuristic

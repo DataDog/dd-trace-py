@@ -36,7 +36,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         import threading
         import time
 
-        import psutil
+        from ddtrace.vendor import psutil
 
         # Something to bump CPU utilization
         def busy_wait(duration_ms):
