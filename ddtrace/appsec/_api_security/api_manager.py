@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from ddtrace import config
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
-from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
@@ -92,7 +91,7 @@ class APIManager(Service):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         sample_rate = config._api_security_sample_rate
-        log.debug("_should_collect_shema > sample rate: %s %s", str(sample_rate), type(sample_rate))
+        log.debug("_should_collect_shema > sample rate: %s %s", str(sample_rate), str(self.current_sampling_value))
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
@@ -103,9 +102,9 @@ class APIManager(Service):
             self.current_sampling_value -= 1.0
             return True
         # WAF has triggered, always collect schemas
-        results = env.telemetry.get(_WAF_RESULTS)
-        if results and any((result.data for result in results[0])):
-            return True
+        # results = env.telemetry.get(_WAF_RESULTS)
+        # if results and any((result.data for result in results[0])):
+        #    return True
         return False
 
     def _schema_callback(self, env):
