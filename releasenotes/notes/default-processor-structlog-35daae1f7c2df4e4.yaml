@@ -1,0 +1,3 @@
+features:
+  - |
+    structlog: Adds log injection even when no processor chain is specified by appending to default processor chain
