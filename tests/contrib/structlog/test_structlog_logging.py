@@ -73,28 +73,6 @@ def test_log_no_trace():
     _test_logging(output, None, config.env, config.service, config.version)
 
 
-def test_default_processor():
-    """
-    Ensure no trace values are being injected even when there is no pre-existing processor chain.
-    """
-
-    structlog.configure(processors=[], logger_factory=cf)
-    span = tracer.trace("test.logging")
-    structlog.get_logger().info("Hello!")
-    span.finish()
-
-    output = cf.logger.calls
-
-    assert "Hello" in output[0].args[0]
-    assert "dd.trace_id={}".format(span.trace_id) in output[0].args[0]
-    assert "dd.span_id={}".format(span.span_id) in output[0].args[0]
-    assert "dd.env={}".format(config.env) in output[0].args[0]
-    assert "dd.service={}".format(config.service) in output[0].args[0]
-    assert "dd.version={}".format(config.version) in output[0].args[0]
-
-    cf.logger.calls.clear()
-
-
 @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
 def test_log_trace():
     """

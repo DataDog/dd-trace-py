@@ -4,8 +4,6 @@ from wrapt import wrap_function_wrapper as _w
 import ddtrace
 from ddtrace import config
 
-from ...internal.utils import get_argument_value
-from ...internal.utils import set_argument_value
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
 from ..logging.constants import RECORD_ATTR_SPAN_ID
@@ -14,6 +12,7 @@ from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
 from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
+
 
 config._add(
     "structlog",
@@ -48,35 +47,34 @@ def _tracer_injection(_, __, event_dict):
     return event_dict
 
 
-def _w_configure(func, instance, args, kwargs):
+def _w_get_logger(func, instance, args, kwargs):
     dd_processor = [_tracer_injection]
-    arg_processors = get_argument_value(args, kwargs, 0, "processors", True)
-
-    # If there is a pre-existing processor chain, append the datadog processor to inject trace values
-    if arg_processors and len(arg_processors) != 0:
-        set_argument_value(args, kwargs, 0, "processors", dd_processor + arg_processors)
-
-    # Otherwise, overwrite default processor chain to include datadog processor to inject trace values
-    else:
-        kwargs["processors"] = dd_processor + structlog._config._BUILTIN_DEFAULT_PROCESSORS[:]
-
+    structlog._config._CONFIG.default_processors = dd_processor + structlog._config._CONFIG.default_processors[:]
     return func(*args, **kwargs)
 
 
 def patch():
     """
     Patch ``structlog`` module for injection of tracer information
-    by appending a processor via the configure block ``structlog.configure``
+    by appending a processor before creating a logger via ``structlog.get_logger``
     """
     if getattr(structlog, "_datadog_patch", False):
         return
     structlog._datadog_patch = True
 
-    _w(structlog, "configure", _w_configure)
+    if hasattr(structlog, "get_logger"):
+        _w(structlog, "get_logger", _w_get_logger)
+
+    # getLogger is an alias for get_logger
+    if hasattr(structlog, "getLogger"):
+        _w(structlog, "getLogger", _w_get_logger)
 
 
 def unpatch():
     if getattr(structlog, "_datadog_patch", False):
         structlog._datadog_patch = False
 
-        _u(structlog, "configure")
+        if hasattr(structlog, "get_logger"):
+            _u(structlog, "get_logger")
+        if hasattr(structlog, "getLogger"):
+            _u(structlog, "getLogger")
