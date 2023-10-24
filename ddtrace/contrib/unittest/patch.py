@@ -411,6 +411,7 @@ def unpatch():
     _u(unittest.TextTestResult, "addSkip")
     _u(unittest.TextTestResult, "addExpectedFailure")
     _u(unittest.TextTestResult, "addUnexpectedSuccess")
+    _u(unittest, "skipIf")
     _u(unittest.TestSuite, "run")
     _u(unittest.TestCase, "run")
     _u(unittest.TextTestRunner, "run")
