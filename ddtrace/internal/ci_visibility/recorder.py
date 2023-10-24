@@ -70,6 +70,16 @@ def _get_git_repo():
     return None
 
 
+def _get_custom_configurations():
+    # type () -> dict
+    custom_configurations = {}
+    for tag, value in ddconfig.tags.items():
+        if tag.startswith("test.configuration."):
+            custom_configurations[tag.replace("test.configuration.", "", 1)] = value
+
+    return custom_configurations
+
+
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
@@ -280,6 +290,11 @@ class CIVisibility(Service):
             self._git_client.shutdown()
             self._git_client = None
 
+        configurations = ci._get_runtime_and_os_metadata()
+        custom_configurations = _get_custom_configurations()
+        if custom_configurations:
+            configurations["custom"] = custom_configurations
+
         payload = {
             "data": {
                 "type": "test_params",
@@ -288,7 +303,7 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": ci._get_runtime_and_os_metadata(),
+                    "configurations": configurations,
                     "test_level": skipping_mode,
                 },
             }
