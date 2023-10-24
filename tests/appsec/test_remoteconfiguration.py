@@ -198,6 +198,23 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     disable_appsec_rc()
 
 
+@pytest.mark.parametrize("apisec_enabled", [True, False])
+def test_rc_activation_with_api_security_appsec_fixed(tracer, remote_config_worker, apisec_enabled):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(
+        dict(
+            _remote_config_enabled=True, _appsec_enabled=True, _api_security_enabled=apisec_enabled, api_version="v0.4"
+        )
+    ):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        enable_appsec_rc(tracer)
+
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == apisec_enabled
+
+    disable_appsec_rc()
+
+
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_configurations_dispatch_applied_configs(

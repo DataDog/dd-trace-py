@@ -175,6 +175,7 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
             features["asm"] = {"enabled": rc_appsec_enabled, "api_security": rc_api_security}
+    log.debug("rc preprocess %s", features)
     return features
 
 

@@ -5,6 +5,10 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 def _appsec_rc_file_is_not_static():
@@ -13,6 +17,7 @@ def _appsec_rc_file_is_not_static():
 
 def _asm_feature_is_required():
     flags = _appsec_rc_flags()
+    log.debug("RC FLAGS %s", flags)
     return Flags.ASM_ACTIVATION in flags or Flags.ASM_API_SECURITY_SAMPLE_RATE in flags
 
 
