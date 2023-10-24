@@ -88,6 +88,7 @@ def test_unicode_fast_tainting():
         assert not is_notinterned_notfasttainted_unicode(c)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Collisions works only in Python 3")
 def test_collisions():
     not_tainted = []
     tainted = []
@@ -144,7 +145,7 @@ def test_collisions():
         mixed_nottainted.append(n6)
 
     for n in mixed_nottainted:
-        assert len(get_ranges(n)) == 0, f"id {id(n)} in {(id(n) in mixed_tainted_ids)}"
+        assert len(get_ranges(n)) == 0
 
 
 def test_set_get_ranges_str():
