@@ -232,11 +232,18 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
     Update API Security settings from remote config
     Actually: Update sample rate
     """
+    log.debug(
+        "_appsec_api_security_settings > callback: %s %s",
+        str(config._remote_config_enabled),
+        str(config._api_security_enabled),
+    )
     if config._remote_config_enabled and config._api_security_enabled:
         rc_api_security_sample_rate = features.get("asm", {}).get("api_security", {}).get("request_sample_rate")
+        log.debug("_appsec_api_security_settings > sample rate found: %s", str(rc_api_security_sample_rate))
         if rc_api_security_sample_rate is not None:
             try:
                 sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
+                log.debug("_appsec_api_security_settings > set sample rate: %f", sample_rate)
                 config._api_security_sample_rate = sample_rate
             except BaseException:  # nosec
                 pass
