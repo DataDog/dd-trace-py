@@ -105,8 +105,18 @@ def _add_skipped_by_itr_marker(test_object):
     test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
 
 
+def _remove_skipped_by_itr_marker(test_object):
+    if _is_skipped_by_itr(test_object):
+        test_object.__class__.__unittest_skip__ = False
+        del test_object.__class__.__unittest_skip_why__
+
+
 def _is_skipped_test(test_object) -> bool:
     return hasattr(test_object.__class__, "__unittest_skip__") and test_object.__class__.__unittest_skip__
+
+
+def _is_skipped_by_itr(test_object) -> bool:
+    return _is_skipped_test(test_object) and test_object.__class__.__unittest_skip_why__ == SKIPPED_BY_ITR_REASON
 
 
 def _is_marked_as_unskippable(test_object) -> bool:
@@ -554,6 +564,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         _add_skipped_by_itr_marker(instance)
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
+                elif _is_skipped_by_itr(instance):
+                    _remove_skipped_by_itr_marker(instance)
 
             if _is_test_coverage_enabled(instance):
                 coverage = _start_coverage(root_directory)
@@ -563,6 +575,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if hasattr(instance, "_coverage"):
                 _detach_coverage(instance._coverage, span, root_directory)
+
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
         )
