@@ -15,7 +15,6 @@ from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
-
 config._add(
     "structlog",
     dict(),
@@ -28,7 +27,6 @@ def get_version():
 
 
 def _tracer_injection(_, __, event_dict):
-
     span = ddtrace.tracer.current_span()
 
     trace_id = None
@@ -52,15 +50,17 @@ def _tracer_injection(_, __, event_dict):
 
 def _w_configure(func, instance, args, kwargs):
     dd_processor = [_tracer_injection]
-    # Only inject values if there is some sort of pre-existing processing with a valid renderer.
-    # Without this assumption, the logs will not format correctly since it can't accept the injected values
-    # This way we do not change their format and mess up any existing logs
     arg_processors = get_argument_value(args, kwargs, 0, "processors", True)
+
+    # If there is a pre-existing processor chain, append the datadog processor to inject trace values
     if arg_processors and len(arg_processors) != 0:
         set_argument_value(args, kwargs, 0, "processors", dd_processor + arg_processors)
 
-    return func(*args, **kwargs)
+    # Otherwise, overwrite default processor chain to include datadog processor to inject trace values
+    else:
+        kwargs["processors"] = dd_processor + structlog._config._BUILTIN_DEFAULT_PROCESSORS[:]
 
+    return func(*args, **kwargs)
 
 def patch():
     """

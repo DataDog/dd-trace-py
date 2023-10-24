@@ -12,7 +12,6 @@ from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
 from tests.utils import override_global_config
 
-
 cf = structlog.testing.CapturingLoggerFactory()
 
 
@@ -73,25 +72,24 @@ def test_log_no_trace():
     _test_logging(output, None, config.env, config.service, config.version)
 
 
-def test_no_processors():
+def test_default_processor():
     """
-    Ensure no trace values are being injected when there is no pre-existing processor chain to avoid errors.
+    Ensure no trace values are being injected even when there is no pre-existing processor chain.
     """
 
     structlog.configure(processors=[], logger_factory=cf)
-    logger = structlog.get_logger()
-
-    tracer.trace("test.logging")
-    logger.info("Hello!")
+    span = tracer.trace("test.logging")
+    structlog.get_logger().info("Hello!")
+    span.finish()
 
     output = cf.logger.calls
 
-    assert output[0].kwargs["event"] == "Hello!"
-    assert "dd.trace_id" not in output[0].kwargs
-    assert "dd.span_id" not in output[0].kwargs
-    assert "dd.env" not in output[0].kwargs
-    assert "dd.service" not in output[0].kwargs
-    assert "dd.version" not in output[0].kwargs
+    assert "Hello" in output[0].args[0]
+    assert "dd.trace_id={}".format(span.trace_id) in output[0].args[0]
+    assert "dd.span_id={}".format(span.span_id) in output[0].args[0]
+    assert "dd.env={}".format(config.env) in output[0].args[0]
+    assert "dd.service={}".format(config.service) in output[0].args[0]
+    assert "dd.version={}".format(config.version) in output[0].args[0]
 
     cf.logger.calls.clear()
 
