@@ -15,6 +15,7 @@ from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
+
 config._add(
     "structlog",
     dict(),

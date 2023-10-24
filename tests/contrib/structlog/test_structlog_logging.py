@@ -12,6 +12,7 @@ from ddtrace.contrib.structlog import patch
 from ddtrace.contrib.structlog import unpatch
 from tests.utils import override_global_config
 
+
 cf = structlog.testing.CapturingLoggerFactory()
 
 
