@@ -90,6 +90,7 @@ def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
     coverage_data.stop()
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
         log.warning("No coverage collector or data found for item")
+        return
     span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
     coverage_data.erase()
     del coverage_data
@@ -523,7 +524,6 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         with _start_test_span(instance, test_suite_span) as span:
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
-            coverage = None
 
             if _CIVisibility.test_skipping_enabled():
                 if _is_marked_as_unskippable(instance):
@@ -560,8 +560,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
 
             result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-            if coverage:
-                _detach_coverage(coverage, span, root_directory)
+            if hasattr(instance, "_coverage"):
+                _detach_coverage(instance._coverage, span, root_directory)
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
         )
