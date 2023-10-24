@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    sampling: This fix reverts a refactor which affected how the tracer handled the trace-agent's
+    recommended trace sampling rates, leading to an unintended increase in traces sampled.
