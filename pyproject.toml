@@ -30,12 +30,12 @@ dependencies = [
     "envier",
     "importlib_metadata; python_version<'3.8'",
     "opentelemetry-api>=1",
-    "psutil==5.6.7",
+    "psutil~=5.8",
     "protobuf>=3",
     "setuptools; python_version>='3.12'",
     "six>=1.12.0",
     "typing_extensions",
-    "wrapt==1.15.0",
+    "wrapt~=1.15",
     "xmltodict>=0.12",
 ]
 
@@ -57,7 +57,7 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
-Changelog = "https://ddtrace.readthedocs.io/en/stable/release_notes.html"
+Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"

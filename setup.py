@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 
@@ -53,7 +54,7 @@ LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
 )
 
-LIBDATADOG_PROF_VERSION = "v2.1.0"
+LIBDATADOG_PROF_VERSION = "v3.0.0"
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -230,8 +231,8 @@ class LibDatadogDownload(LibraryDownload):
     url_root = "https://github.com/DataDog/libdatadog/releases/download"
     expected_checksums = {
         "Linux": {
-            "x86_64": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
-            "aarch64": "a326e9552e65b945c64e7119c23d670ffdfb99aa96d9d90928a8a2ff6427199d",
+            "x86_64": "39418275058a5ba96d6284bb6add0e9fbf6a59d7de0755d10184a0223f21c3ed",
+            "aarch64": "71b89626f585ebf385482fb9d000c71f91721b395df8d352ce04a825c1f1776a",
         },
     }
     available_releases = {
@@ -296,6 +297,10 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    @staticmethod
+    def strip_symbols(so_file):
+        subprocess.check_output(["strip", "-g", so_file])
+
     def build_extension(self, ext):
         tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
         tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
@@ -367,6 +372,12 @@ class CMakeBuild(build_ext):
                     shutil.copy(iast_artifact, tmp_iast_file_path)
         else:
             build_ext.build_extension(self, ext)
+            if CURRENT_OS == "Linux" and not DEBUG_COMPILE:
+                for ext in self.extensions:
+                    try:
+                        self.strip_symbols(self.get_ext_fullpath(ext.name))
+                    except Exception:
+                        pass
 
 
 long_description = """
@@ -482,7 +493,7 @@ def get_ddup_ext():
                         ],
                         include_dirs=LibDatadogDownload.get_include_dirs(),
                         extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17"],
+                        extra_compile_args=["-std=c++17", "-flto"],
                         language="c++",
                     )
                 ],
@@ -544,9 +555,9 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
-        "psutil==5.6.7",
+        "psutil>=5.8.0",
         "setuptools; python_version>='3.12'",
-        "wrapt==1.15.0",
+        "wrapt>=1.15.0",
     ]
     + bytecode,
     extras_require={

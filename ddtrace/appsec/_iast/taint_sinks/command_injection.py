@@ -1,4 +1,7 @@
+import os
 import re
+import shlex
+import subprocess  # nosec
 from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
@@ -6,7 +9,9 @@ from typing import Union
 
 import six
 
-from ddtrace.settings import _config
+from ddtrace import config
+from ddtrace.contrib import trace_utils
+from ddtrace.internal.logger import get_logger
 
 from .. import oce
 from .._utils import _has_to_scrub
@@ -25,7 +30,62 @@ if TYPE_CHECKING:
     from ..reporter import IastSpanReporter
     from ..reporter import Vulnerability
 
+
+log = get_logger(__name__)
+
 _INSIDE_QUOTES_REGEXP = re.compile(r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s*(.*)")
+
+
+def get_version():
+    # type: () -> str
+    return ""
+
+
+def patch():
+    if not config._iast_enabled:
+        return
+
+    if not getattr(os, "_datadog_cmdi_patch", False):
+        trace_utils.wrap(os, "system", _iast_cmdi_ossystem)
+
+        # all os.spawn* variants eventually use this one:
+        trace_utils.wrap(os, "_spawnvef", _iast_cmdi_osspawn)
+
+    if not getattr(subprocess, "_datadog_cmdi_patch", False):
+        trace_utils.wrap(subprocess, "Popen.__init__", _iast_cmdi_subprocess_init)
+
+        os._datadog_cmdi_patch = True
+        subprocess._datadog_cmdi_patch = True
+
+
+def unpatch():
+    # type: () -> None
+    trace_utils.unwrap(os, "system")
+    trace_utils.unwrap(os, "_spawnvef")
+    trace_utils.unwrap(subprocess.Popen, "__init__")
+
+    os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
+    subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
+
+
+def _iast_cmdi_ossystem(wrapped, instance, args, kwargs):
+    _iast_report_cmdi(args[0])
+    return wrapped(*args, **kwargs)
+
+
+def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):
+    mode, file, func_args, _, _ = args
+    _iast_report_cmdi(func_args)
+
+    return wrapped(*args, **kwargs)
+
+
+def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
+    cmd_args = args[0] if len(args) else kwargs["args"]
+    cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
+    _iast_report_cmdi(cmd_args_list)
+
+    return wrapped(*args, **kwargs)
 
 
 @oce.register
@@ -73,7 +133,7 @@ class CommandInjection(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not _config._iast_redaction_enabled:
+        if not config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report
@@ -124,48 +184,55 @@ class CommandInjection(VulnerabilityBase):
                 source.value = None
 
         # Same for all the evidence values
-        for vuln in report.vulnerabilities:
-            # Use the initial hash directly as iteration key since the vuln itself will change
-            vuln_hash = hash(vuln)
-            if vuln.evidence.value is not None:
-                pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
-                if replaced:
-                    vuln.evidence.pattern = pattern
-                    vuln.evidence.redacted = True
-                    vuln.evidence.value = None
-            elif vuln.evidence.valueParts is not None:
-                idx = 0
-                new_value_parts = []
-                for part in vuln.evidence.valueParts:
-                    value = part["value"]
-                    part_len = len(value)
-                    part_start = idx
-                    part_end = idx + part_len
-                    pattern_list = []
+        try:
+            for vuln in report.vulnerabilities:
+                # Use the initial hash directly as iteration key since the vuln itself will change
+                vuln_hash = hash(vuln)
+                if vuln.evidence.value is not None:
+                    pattern, replaced = cls.replace_tokens(
+                        vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source")
+                    )
+                    if replaced:
+                        vuln.evidence.pattern = pattern
+                        vuln.evidence.redacted = True
+                        vuln.evidence.value = None
+                elif vuln.evidence.valueParts is not None:
+                    idx = 0
+                    new_value_parts = []
+                    for part in vuln.evidence.valueParts:
+                        value = part["value"]
+                        part_len = len(value)
+                        part_start = idx
+                        part_end = idx + part_len
+                        pattern_list = []
 
-                    for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if _check_positions_contained(positions, (part_start, part_end)):
-                            part_scrub_start = max(positions[0] - idx, 0)
-                            part_scrub_end = positions[1] - idx
-                            pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
-                            if part.get("source", False) is not False:
-                                source = report.sources[part["source"]]
-                                if source.redacted:
-                                    part["redacted"] = source.redacted
-                                    part["pattern"] = source.pattern
-                                    del part["value"]
-                                new_value_parts.append(part)
+                        for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
+                            if _check_positions_contained(positions, (part_start, part_end)):
+                                part_scrub_start = max(positions[0] - idx, 0)
+                                part_scrub_end = positions[1] - idx
+                                pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
+                                if part.get("source", False) is not False:
+                                    source = report.sources[part["source"]]
+                                    if source.redacted:
+                                        part["redacted"] = source.redacted
+                                        part["pattern"] = source.pattern
+                                        del part["value"]
+                                    new_value_parts.append(part)
+                                    break
+                                else:
+                                    part["value"] = "".join(pattern_list)
+                                    new_value_parts.append(part)
+                                    new_value_parts.append({"redacted": True})
+                                    break
                             else:
-                                part["value"] = "".join(pattern_list)
                                 new_value_parts.append(part)
-                                new_value_parts.append({"redacted": True})
-                        else:
-                            new_value_parts.append(part)
-                            pattern_list.append(value[part_start:part_end])
-                            continue
+                                pattern_list.append(value[part_start:part_end])
+                                break
 
-                    idx += part_len
-                vuln.evidence.valueParts = new_value_parts
+                        idx += part_len
+                    vuln.evidence.valueParts = new_value_parts
+        except (ValueError, KeyError):
+            log.debug("an error occurred while redacting cmdi", exc_info=True)
         return report
 
 

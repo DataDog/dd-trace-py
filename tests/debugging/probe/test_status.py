@@ -69,19 +69,18 @@ def test_probe_status_error():
         line=36,
         condition=None,
     )
-    message = "Probe %s installed" % probe.probe_id
 
     try:
         raise RuntimeError("Test error")
     except Exception:
-        status_logger.error(probe, message, exc_info=sys.exc_info())
+        exc_type, exc, _ = sys.exc_info()
+        status_logger.error(probe, (exc_type.__name__, str(exc)))
 
     (entry,) = status_logger.queue
-    assert entry["message"] == message
+    assert entry["message"] == "Failed to instrument probe probe-instance-method"
     assert entry["debugger"]["diagnostics"]["probeId"] == probe.probe_id
     assert entry["debugger"]["diagnostics"]["status"] == "ERROR"
 
     exc = entry["debugger"]["diagnostics"]["exception"]
     assert exc["type"] == "RuntimeError"
     assert exc["message"] == "Test error"
-    assert exc["stacktrace"][0]["function"] == "test_probe_status_error"

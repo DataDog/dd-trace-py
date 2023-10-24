@@ -168,10 +168,12 @@ plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -189,6 +191,7 @@ quickstart
 ratelimit
 redis
 rediscluster
+renderer
 renderers
 resolvers
 repo
@@ -214,6 +217,7 @@ statsd
 stderr
 stdout
 stringable
+structlog
 subclass
 subdirectory
 subdomains

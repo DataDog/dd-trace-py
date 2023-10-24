@@ -12,14 +12,16 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
         auto taint_range{ index_range_map.at(index) };
         if (taint_range != current_range) {
             if (current_range) {
-                new_ranges.emplace_back(initializer->allocate_taint_range(current_start, index, current_range->source));
+                new_ranges.emplace_back(
+                  initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
             }
             current_range = taint_range;
             current_start = index;
         }
     }
     if (current_range != nullptr) {
-        new_ranges.emplace_back(initializer->allocate_taint_range(current_start, index, current_range->source));
+        new_ranges.emplace_back(
+          initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
     }
     return new_ranges;
 }
@@ -99,6 +101,7 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
     PyObject* result = PyObject_GetItem(candidate_text, slice);
+
     auto res = slice_aspect(result, candidate_text, start, stop, step);
 
     if (start != nullptr) {

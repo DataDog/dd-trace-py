@@ -1,6 +1,6 @@
 from copy import copy
 import os
-import subprocess
+import subprocess  # nosec
 import sys
 
 import pytest
@@ -8,9 +8,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast.constants import VULN_CMDI
-from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
-from ddtrace.contrib.subprocess.patch import patch
-from ddtrace.contrib.subprocess.patch import unpatch
+from ddtrace.appsec._iast.taint_sinks.command_injection import patch
+from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
 from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
@@ -25,19 +24,14 @@ except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
+
 _PARAMS = ["/bin/ls", "-l"]
 
 
 @pytest.fixture(autouse=True)
 def auto_unpatch():
-    SubprocessCmdLine._clear_cache()
     yield
-    SubprocessCmdLine._clear_cache()
-    try:
-        unpatch()
-    except AttributeError:
-        # Tests with appsec disabled or that didn't patch
-        pass
+    unpatch()
 
 
 def setup():
@@ -300,6 +294,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
         assert vulnerability.hash == hash_value
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_multiple_cmdi(tracer, iast_span_defaults):
     with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
         patch()
@@ -309,9 +304,15 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
             source_value="forbidden_dir/",
             source_origin=OriginType.PARAMETER,
         )
+        dir_2 = taint_pyobject(
+            pyobject="qwerty/",
+            source_name="test_run",
+            source_value="qwerty/",
+            source_origin=OriginType.PARAMETER,
+        )
         with tracer.trace("test_multiple_cmdi"):
             subprocess.run(["dir", "-l", _BAD_DIR])
-            subprocess.run(["dir", "-l", _BAD_DIR])
+            subprocess.run(["dir", "-l", dir_2])
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
