@@ -100,23 +100,17 @@ def _is_test_coverage_enabled(test_object) -> bool:
     return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
 
 
-def _add_skipped_by_itr_marker(test_object):
-    test_object.__class__.__unittest_skip__ = True
-    test_object.__class__.__unittest_skip_why__ = SKIPPED_BY_ITR_REASON
-
-
-def _remove_skipped_by_itr_marker(test_object):
-    if _is_skipped_by_itr(test_object):
-        test_object.__class__.__unittest_skip__ = False
-        del test_object.__class__.__unittest_skip_why__
-
-
 def _is_skipped_test(test_object) -> bool:
-    return hasattr(test_object.__class__, "__unittest_skip__") and test_object.__class__.__unittest_skip__
+    testMethod = getattr(test_object, test_object._testMethodName, "")
+    return (
+        (hasattr(test_object.__class__, "__unittest_skip__") and test_object.__class__.__unittest_skip__)
+        or (hasattr(testMethod, "__unittest_skip__") and testMethod.__unittest_skip__)
+        or (hasattr(test_object, "_dd_itr_skip") and test_object._dd_itr_skip)
+    )
 
 
-def _is_skipped_by_itr(test_object) -> bool:
-    return _is_skipped_test(test_object) and test_object.__class__.__unittest_skip_why__ == SKIPPED_BY_ITR_REASON
+def is_skipped_by_itr(test_object) -> bool:
+    return hasattr(test_object, "_dd_itr_skip") and test_object._dd_itr_skip
 
 
 def _is_marked_as_unskippable(test_object) -> bool:
@@ -535,7 +529,6 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         with _start_test_span(instance, test_suite_span) as span:
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
-
             if _CIVisibility.test_skipping_enabled():
                 if _is_marked_as_unskippable(instance):
                     span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
@@ -545,7 +538,9 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 test_module_suite_path_without_extension = "{}/{}".format(
                     os.path.splitext(test_module_path)[0], test_suite_name
                 )
-                if _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name):
+                if len(args) and _CIVisibility._instance._should_skip_path(
+                    test_module_suite_path_without_extension, test_name
+                ):
                     global _global_skipped_elements
                     _global_skipped_elements += 1
 
@@ -561,17 +556,19 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                     else:
-                        _add_skipped_by_itr_marker(instance)
+                        instance._dd_itr_skip = True
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
-                elif _is_skipped_by_itr(instance):
-                    _remove_skipped_by_itr_marker(instance)
 
             if _is_test_coverage_enabled(instance):
                 coverage = _start_coverage(root_directory)
                 instance._coverage = coverage
-
-            result = func(*args, **kwargs)
+            if is_skipped_by_itr(instance):
+                result = args[0]
+                result.startTest(test=instance)
+                result.addSkip(test=instance, reason=SKIPPED_BY_ITR_REASON)
+            else:
+                result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if hasattr(instance, "_coverage"):
                 _detach_coverage(instance._coverage, span, root_directory)
