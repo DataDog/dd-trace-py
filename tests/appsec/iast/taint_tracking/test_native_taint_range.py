@@ -23,6 +23,8 @@ try:
     from ddtrace.appsec.iast._taint_tracking import shift_taint_range
     from ddtrace.appsec.iast._taint_tracking import shift_taint_ranges
     from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec.iast._taint_tracking.aspects import add_aspect
+    from ddtrace.appsec.iast._taint_tracking.aspects import join_aspect
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
@@ -84,6 +86,66 @@ def test_unicode_fast_tainting():
         assert not is_notinterned_notfasttainted_unicode(c)
         set_fast_tainted_if_notinterned_unicode(c)
         assert not is_notinterned_notfasttainted_unicode(c)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Collisions works only in Python 3")
+def test_collisions():
+    not_tainted = []
+    tainted = []
+    mixed_tainted_ids = []
+    mixed_nottainted = []
+    mixed_tainted_and_nottainted = []
+
+    # Generate untainted strings
+    for i in range(10):
+        not_tainted.append("N%04d" % i)
+
+    # Generate tainted strings
+    for i in range(10000):
+        t = taint_pyobject(
+            "T%04d" % i, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+        )
+        tainted.append(t)
+
+    for t in tainted:
+        assert len(get_ranges(t)) > 0
+
+    for n in not_tainted:
+        assert get_ranges(n) == []
+
+    # Do join and format operations mixing tainted and untainted strings, store in mixed_tainted_and_nottainted
+    for _ in range(10000):
+        _ = add_aspect(add_aspect("_", random.choice(not_tainted)), "{}_")
+
+        t2 = random.choice(tainted)
+
+        n3 = random.choice(not_tainted)
+
+        t4 = random.choice(tainted)
+        mixed_tainted_ids.append(id(t4))
+
+        t6 = join_aspect(t4, [t2, n3])
+        mixed_tainted_ids.append(id(t6))
+
+    for t in mixed_tainted_and_nottainted:
+        assert len(get_ranges(t)) == 2
+
+    # Do join and format operations with only untainted strings, store in mixed_nottainted
+    for i in range(10):
+        _ = add_aspect("===", not_tainted[i])
+
+        n2 = random.choice(not_tainted)
+
+        n3 = random.choice(not_tainted)
+
+        n4 = random.choice(not_tainted)
+
+        n6 = join_aspect(n4, [n2, n3])
+
+        mixed_nottainted.append(n6)
+
+    for n in mixed_nottainted:
+        assert len(get_ranges(n)) == 0
 
 
 def test_set_get_ranges_str():
