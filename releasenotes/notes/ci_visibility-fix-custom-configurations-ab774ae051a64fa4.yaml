@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where custom configurations specified with ``DD_TAGS`` using the 
+    ``test.configuration`` prefix were not used to query the Intelligent Test Runner skippable tests endpoint.
