@@ -601,6 +601,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
         del dsm_processor._current_context.value
     except AttributeError:
         pass
+
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
@@ -618,3 +619,44 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     consumer.commit(asynchronous=False)
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_data_streams_kafka_default_context_propagation(dummy_tracer, consumer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "context test"
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == b"context test"
+
+    # DSM header 'dd-pathway-ctx' was propagated in the headers
+    assert message.headers()[0][0] == PROPAGATION_KEY
+    assert message.headers()[0][1] is not None
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span1 = traces[1][0]
+    consume_span2 = traces[2][0]
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+
+    # None of the kafka.consume spans have parents
+    assert consume_span1.name == "kafka.consume"
+    assert consume_span1.parent_id is None
+    assert consume_span2.name == "kafka.consume"
+    assert consume_span2.parent_id is None
+
+    # None of these spans are part of the same trace
+    assert produce_span.trace_id != consume_span1.trace_id
+    assert consume_span1.trace_id != consume_span2.trace_id
