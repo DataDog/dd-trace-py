@@ -27,9 +27,11 @@ from ddtrace.pin import Pin
 
 _Producer = confluent_kafka.Producer
 _Consumer = confluent_kafka.Consumer
-_SerializingProducer = confluent_kafka.SerializingProducer if hasattr(confluent_kafka, "SerializingProducer") else None
+_has_serializing_producer = hasattr(confluent_kafka, "SerializingProducer")
+_has_deserializing_consumer = hasattr(confluent_kafka, "DeserializingConsumer")
+_SerializingProducer = confluent_kafka.SerializingProducer if _has_serializing_producer else confluent_kafka.Producer
 _DeserializingConsumer = (
-    confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
+    confluent_kafka.DeserializingConsumer if _has_deserializing_consumer else confluent_kafka.Consumer
 )
 
 
@@ -66,6 +68,23 @@ class TracedProducer(confluent_kafka.Producer):
     __nonzero__ = __bool__
 
 
+class TracedSerializingProducer(_SerializingProducer):
+    def __init__(self, config, *args, **kwargs):
+        super(TracedSerializingProducer, self).__init__(config, *args, **kwargs)
+        self._dd_bootstrap_servers = (
+            config.get("bootstrap.servers")
+            if config.get("bootstrap.servers") is not None
+            else config.get("metadata.broker.list")
+        )
+
+    # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
+    # which makes the Pin functionality ignore it.
+    def __bool__(self):
+        return True
+
+    __nonzero__ = __bool__
+
+
 class TracedConsumer(confluent_kafka.Consumer):
     def __init__(self, config, *args, **kwargs):
         super(TracedConsumer, self).__init__(config, *args, **kwargs)
@@ -79,6 +98,13 @@ class TracedConsumer(confluent_kafka.Consumer):
         return super(TracedConsumer, self).commit(message, args, kwargs)
 
 
+class TracedDeserializingConsumer(_DeserializingConsumer):
+    def __init__(self, config, *args, **kwargs):
+        super(TracedDeserializingConsumer, self).__init__(config, *args, **kwargs)
+        self._group_id = config.get("group.id", "")
+        self._auto_commit = asbool(config.get("enable.auto.commit", True))
+
+
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
@@ -86,10 +112,10 @@ def patch():
 
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
-    if _SerializingProducer is not None:
-        confluent_kafka.SerializingProducer = TracedProducer
-    if _DeserializingConsumer is not None:
-        confluent_kafka.DeserializingConsumer = TracedConsumer
+    if _has_serializing_producer:
+        confluent_kafka.SerializingProducer = TracedSerializingProducer
+    if _has_deserializing_consumer:
+        confluent_kafka.DeserializingConsumer = TracedDeserializingConsumer
 
     trace_utils.wrap(TracedProducer, "produce", traced_produce)
     trace_utils.wrap(TracedConsumer, "poll", traced_poll)
@@ -111,9 +137,9 @@ def unpatch():
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
-    if _SerializingProducer is not None:
+    if _has_serializing_producer:
         confluent_kafka.SerializingProducer = _SerializingProducer
-    if _DeserializingConsumer is not None:
+    if _has_deserializing_consumer:
         confluent_kafka.DeserializingConsumer = _DeserializingConsumer
 
 
