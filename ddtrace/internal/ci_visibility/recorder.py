@@ -27,6 +27,7 @@ from ddtrace.provider import CIContextProvider
 from .. import agent
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import CUSTOM_CONFIGURATIONS_PREFIX
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -74,8 +75,8 @@ def _get_custom_configurations():
     # type () -> dict
     custom_configurations = {}
     for tag, value in ddconfig.tags.items():
-        if tag.startswith("test.configuration."):
-            custom_configurations[tag.replace("test.configuration.", "", 1)] = value
+        if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
+            custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
 
     return custom_configurations
 
