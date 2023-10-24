@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <cxxabi.h>
 #include <execinfo.h>
-#include <iostream>
+#include <thread>
 #include <unistd.h>
 
 // State

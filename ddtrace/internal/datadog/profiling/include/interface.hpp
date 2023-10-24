@@ -23,17 +23,18 @@ void ddup_config_max_nframes(int max_nframes);
 void ddup_config_user_tag(const char *key, const char *val);
 void ddup_config_sample_type(unsigned int type);
 
-void ddup_init();
+bool ddup_init();
+char *get_err();
 
-void ddup_start_sample(unsigned int nframes);
-void ddup_push_walltime(int64_t walltime, int64_t count);
-void ddup_push_cputime(int64_t cputime, int64_t count);
-void ddup_push_acquire(int64_t acquire_time, int64_t count);
-void ddup_push_release(int64_t release_time, int64_t count);
-void ddup_push_alloc(uint64_t size, uint64_t count);
-void ddup_push_heap(uint64_t size);
-void ddup_push_lock_name(const char *lock_name);
-void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
+bool ddup_start_sample(unsigned int nframes);
+bool ddup_push_walltime(int64_t walltime, int64_t count);
+bool ddup_push_cputime(int64_t cputime, int64_t count);
+bool ddup_push_acquire(int64_t acquire_time, int64_t count);
+bool ddup_push_release(int64_t release_time, int64_t count);
+bool ddup_push_alloc(uint64_t size, uint64_t count);
+bool ddup_push_heap(uint64_t size);
+bool ddup_push_lock_name(const char *lock_name);
+bool ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                           const char *thread_name);
 void ddup_push_task_id(int64_t task_id);
 void ddup_push_task_name(const char *task_name);
