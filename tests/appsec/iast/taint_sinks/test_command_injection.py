@@ -1,6 +1,6 @@
 from copy import copy
 import os
-import subprocess
+import subprocess  # nosec
 import sys
 
 import pytest

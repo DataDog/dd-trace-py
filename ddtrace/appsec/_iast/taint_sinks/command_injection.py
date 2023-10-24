@@ -1,7 +1,7 @@
 import os
 import re
 import shlex
-import subprocess
+import subprocess  # nosec
 from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
