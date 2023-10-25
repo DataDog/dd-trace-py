@@ -1046,6 +1046,14 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="structlog",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/structlog",
+            pkgs={
+                "structlog": ["~=20.2.0", latest],
+            },
+        ),
+        Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
@@ -1205,7 +1213,7 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
+            command="pytest {cmdargs} tests/contrib/pyramid",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],

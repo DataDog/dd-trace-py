@@ -16,9 +16,6 @@ class BufferFull(Exception):
 class BufferItemTooLarge(Exception):
     pass
 
-class EncodingValidationError(Exception):
-    pass
-
 class BufferedEncoder(object):
     max_size: int
     max_item_size: int
