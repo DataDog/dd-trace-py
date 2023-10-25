@@ -297,12 +297,12 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
             // operations, since they would be redundant.
             it->second.second->decref();
             tainted_object->incref();
-            it->second.second = tainted_object;
+            it->second = std::make_pair(hash, tainted_object);
         }
         return;
     }
     tainted_object->incref();
-    tx_taint_map->insert({ obj_id, std::make_pair(((PyASCIIObject*)str)->hash, tainted_object) });
+    tx_taint_map->insert({ obj_id, std::make_pair(hash, tainted_object) });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
