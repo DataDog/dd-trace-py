@@ -29,7 +29,6 @@ def get_version():
 
 
 def _tracer_injection(event_dict):
-
     span = ddtrace.tracer.current_span()
 
     trace_id = None
@@ -118,8 +117,8 @@ def patch():
         return
     loguru._datadog_patch = True
 
-    _w(loguru._handler, "Handler._serialize_record", _w_serialize)
     _w(loguru.logger, "add", _w_add)
+    _w(loguru._handler.Handler, "_serialize_record", _w_serialize)
 
 
 def unpatch():
@@ -127,3 +126,4 @@ def unpatch():
         loguru._datadog_patch = False
 
         _u(loguru.logger, "add")
+        _u(loguru._handler.Handler, "_serialize_record")

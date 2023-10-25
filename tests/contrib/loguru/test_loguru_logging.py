@@ -1,5 +1,6 @@
 import json
 
+import loguru
 from loguru import logger
 import pytest
 
@@ -223,3 +224,60 @@ def test_log_DD_TAGS():
 
     captured_logs.clear()
     unpatch()
+
+
+@pytest.mark.subprocess
+def test_configured_format():
+    """
+    Ensure injection works when user configured format is used
+    """
+
+    def log_format(record):
+        record["extra"]["serialized"] = serialize(record)
+        return "{extra[serialized]}\n"
+
+    def serialize(record):
+        subset = {
+            "text": record["message"],
+            "dd.trace_id": record["dd.trace_id"],
+            "dd.span_id": record["dd.span_id"],
+            "dd.env": record["dd.env"],
+            "dd.version": record["dd.version"],
+            "dd.service": record["dd.service"],
+        }
+
+        return json.dumps(subset)
+
+    import json
+
+    from loguru import logger
+
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.loguru import patch
+    from ddtrace.contrib.loguru import unpatch
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    patch()
+
+    captured_logs = []
+    logger.remove()
+    logger.add(captured_logs.append, format=log_format)
+
+    span = tracer.trace("test.logging")
+    logger.debug("Hello!")
+    span.finish()
+
+    assert "Hello" in json.loads(captured_logs[0])["text"]
+    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["dd.env"] == "global.env"
+    assert json.loads(captured_logs[0])["dd.service"] == "logging"
+    assert json.loads(captured_logs[0])["dd.version"] == "global.version"
+
+    captured_logs.clear()
+    unpatch()
+
