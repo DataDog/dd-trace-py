@@ -280,4 +280,3 @@ def test_configured_format():
 
     captured_logs.clear()
     unpatch()
-
