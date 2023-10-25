@@ -197,11 +197,22 @@ Uploader::thread_upload_impl(const Profile* profile) {
 void
 Uploader::upload(const Profile* profile)
 {
+    // If the upload thread is busy, give it some time.
+    // We give it up to 3 seconds, which is arbitrary
+    int check_count = 3;
+    while (thread_working.load() && check_count > 0) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      --check_count;
+    }
     if (upload_thread && upload_thread->joinable()) {
       upload_thread->join();
       upload_thread.reset();
     }
 
+    // Launch the thread.  We mark the working state here, potentially
+    // before the thread even launches, but the fence at the top of this
+    // function should ensure the thread has been created by the time
+    // joinability is checked
     thread_working.store(true);
     upload_thread.emplace(&Uploader::thread_upload_impl, this, profile);
 }

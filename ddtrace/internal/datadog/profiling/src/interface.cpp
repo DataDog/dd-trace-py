@@ -289,8 +289,6 @@ ddup_upload()
 
     // We use a double-buffering strategy, start the upload (which will happen in a thread)
     // and switch the buffer
-    static int call_count = 0;
-    std::cout << "{" << call_count++ << "}" << std::endl;
     g_uploader->upload(g_profile);
     g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
