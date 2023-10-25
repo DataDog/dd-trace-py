@@ -251,13 +251,9 @@ def test_load_new_configurations_dispatch_applied_configs(
         remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"test": "data"}]}, None
-        )
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
 
-        mock_appsec_1click_activation.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"test": "data"}]}, None
-        )
+        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"test": "data"}]}, None)
     disable_appsec_rc()
 
 
@@ -298,11 +294,9 @@ def test_load_new_configurations_empty_config(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
 
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True, "api_security": {}}, "data": []}, None)
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
 
-        mock_appsec_1click_activation.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": []}, None
-        )
+        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": []}, None)
     disable_appsec_rc()
 
 
@@ -456,13 +450,9 @@ def test_load_multiple_targets_file_same_product(
         remoteconfig_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
-        mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"a": 1}, {"b": 2}]}, None
-        )
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
 
-        mock_appsec_1click_activation.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"a": 1}, {"b": 2}]}, None
-        )
+        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
     disable_appsec_rc()
 
 
@@ -556,9 +546,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"a": 1}]}, None
-        )
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}]}, None)
         disable_appsec_rc()
 
 
@@ -874,7 +862,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
+            {"asm": {"enabled": True}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
         )
         mock_appsec_rules_data.reset_mock()
 
@@ -891,9 +879,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True, "api_security": {}}, "data": [{"x": 1}], "data2": []}, None
-        )
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"x": 1}], "data2": []}, None)
     disable_appsec_rc()
 
 
