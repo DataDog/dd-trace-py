@@ -138,7 +138,6 @@ def _preprocess_results_appsec_1click_activation(
         )
 
         rc_appsec_enabled = None
-        rc_api_security = {}
         if features is not None:
             if APPSEC_ENV in os.environ:
                 rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
@@ -148,7 +147,6 @@ def _preprocess_results_appsec_1click_activation(
                 asm_features = features.get("asm", {})
                 if asm_features is not None:
                     rc_appsec_enabled = asm_features.get("enabled")
-                    rc_api_security = asm_features.get("api_security", {})
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
@@ -174,7 +172,7 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
-            features["asm"] = {"enabled": rc_appsec_enabled, "api_security": rc_api_security}
+            features["asm"] = {"enabled": rc_appsec_enabled}
     log.debug("rc preprocess %s", features)
     return features
 
@@ -242,7 +240,7 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
         str(config._api_security_enabled),
     )
     if config._remote_config_enabled and config._api_security_enabled:
-        rc_api_security_sample_rate = features.get("asm", {}).get("api_security", {}).get("request_sample_rate")
+        rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
         log.debug("_appsec_api_security_settings > sample rate found: %s", str(rc_api_security_sample_rate))
         if rc_api_security_sample_rate is not None:
             try:
