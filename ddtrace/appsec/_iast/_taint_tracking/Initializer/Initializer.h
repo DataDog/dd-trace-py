@@ -65,7 +65,6 @@ class Initializer
 
     void debug_print_taint_map();
 
-
     /**
      * Gets the size of the Initializer object.
      *

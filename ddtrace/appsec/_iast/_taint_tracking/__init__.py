@@ -15,10 +15,10 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import parse_params
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
+    from ._native.initializer import debug_print_taint_map
     from ._native.initializer import destroy_context
     from ._native.initializer import initializer_size
     from ._native.initializer import num_objects_tainted
-    from ._native.initializer import debug_print_taint_map
     from ._native.initializer import reset_context
     from ._native.taint_tracking import OriginType
     from ._native.taint_tracking import Source
