@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiler: Move the ddup uploader thread into the Uploader object and give it the correct synchronization fences.  This was causing a sigabrt in certain scenarios.
