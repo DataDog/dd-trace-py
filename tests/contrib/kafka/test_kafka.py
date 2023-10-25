@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import uuid
 
 import confluent_kafka
 from confluent_kafka import KafkaException
@@ -47,9 +46,29 @@ class KafkaConsumerPollFilter(TraceFilter):
 
 @pytest.fixture()
 def kafka_topic(request):
-    random_uuid = uuid.uuid4()
-    test_name = request.node.name.replace("[", "_").replace("]", "")
-    topic_name = f"{test_name}_{random_uuid}"
+    topic_name = request.node.name.replace("[", "_").replace("]", "")
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
+
+
+@pytest.fixture()
+def empty_kafka_topic(request):
+    """
+    Deletes a kafka topic to clear message if it exists.
+    """
+    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.delete_topics([topic_name]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already doesn't exist
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
@@ -623,7 +642,8 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
 
-def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
