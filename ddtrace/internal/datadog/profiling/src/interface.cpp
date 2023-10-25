@@ -126,8 +126,12 @@ sigsegv_handler(int sig, siginfo_t* si, void* uc)
 }
 
 #endif
-char *ddup_errmsg = nullptr;
-char *get_err() { return ddup_errmsg; }
+char* ddup_errmsg = nullptr;
+char*
+get_err()
+{
+    return ddup_errmsg;
+}
 
 bool
 ddup_init()
@@ -146,8 +150,8 @@ ddup_init()
         g_profile = g_profile_real[g_prof_flag];
         g_uploader = uploader_builder.build_ptr();
         if (!g_uploader) {
-          ddup_errmsg = const_cast<char *>(uploader_builder.errmsg.c_str());
-          return false;
+            ddup_errmsg = const_cast<char*>(uploader_builder.errmsg.c_str());
+            return false;
         }
         is_initialized = true;
     }
@@ -155,9 +159,11 @@ ddup_init()
     return true;
 }
 
-bool set_err(bool value, std::string &str) {
-  ddup_errmsg = value ? const_cast<char *>(str.c_str()) : nullptr;
-  return value;
+bool
+set_err(bool value, std::string& str)
+{
+    ddup_errmsg = value ? const_cast<char*>(str.c_str()) : nullptr;
+    return value;
 }
 
 bool
