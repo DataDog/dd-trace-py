@@ -12,6 +12,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.wrapping import wrap
 
 from . import _endpoint_hooks
@@ -37,6 +38,46 @@ config._add(
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
+
+_RESOURCES = {
+    "model.Model": {
+        "list": _endpoint_hooks._ListHook,
+        "retrieve": _endpoint_hooks._RetrieveHook,
+    },
+    "completion.Completion": {
+        "create": _endpoint_hooks._CompletionHook,
+    },
+    "chat_completion.ChatCompletion": {
+        "create": _endpoint_hooks._ChatCompletionHook,
+    },
+    "edit.Edit": {
+        "create": _endpoint_hooks._EditHook,
+    },
+    "image.Image": {
+        "create": _endpoint_hooks._ImageCreateHook,
+        "create_edit": _endpoint_hooks._ImageEditHook,
+        "create_variation": _endpoint_hooks._ImageVariationHook,
+    },
+    "audio.Audio": {
+        "transcribe": _endpoint_hooks._AudioTranscriptionHook,
+        "translate": _endpoint_hooks._AudioTranslationHook,
+    },
+    "embedding.Embedding": {
+        "create": _endpoint_hooks._EmbeddingHook,
+    },
+    "moderation.Moderation": {
+        "create": _endpoint_hooks._ModerationHook,
+    },
+    "file.File": {
+        "create": _endpoint_hooks._FileCreateHook,
+        "delete": _endpoint_hooks._DeleteHook,
+        "download": _endpoint_hooks._FileDownloadHook,
+    },
+    "fine_tune.FineTune": {
+        "create": _endpoint_hooks._FineTuneCreateHook,
+        "cancel": _endpoint_hooks._FineTuneCancelHook,
+    },
+}
 
 
 def get_version():
@@ -159,170 +200,19 @@ def patch():
     wrap(openai.api_requestor._make_session, _patched_make_session)
     wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
 
-    if hasattr(openai.api_resources, "model"):
-        _wrap_classmethod(
-            openai.api_resources.model.Model.list, _patched_endpoint(openai, integration, _endpoint_hooks._ListHook)
-        )
-        _wrap_classmethod(
-            openai.api_resources.model.Model.alist,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ListHook),
-        )
+    for resource, method_hook_dict in _RESOURCES.items():
+        if deep_getattr(openai.api_resources, resource) is not None:
+            for method_name, endpoint_hook in method_hook_dict.items():
+                sync_method = deep_getattr(openai.api_resources, "%s.%s" % (resource, method_name))
+                async_method = deep_getattr(openai.api_resources, "%s.a%s" % (resource, method_name))
+                _wrap_classmethod(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
+                _wrap_classmethod(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
 
-        _wrap_classmethod(
-            openai.api_resources.model.Model.retrieve,
-            _patched_endpoint(openai, integration, _endpoint_hooks._RetrieveHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.model.Model.aretrieve,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._RetrieveHook),
-        )
-
-    if hasattr(openai.api_resources, "completion"):
-        _wrap_classmethod(
-            openai.api_resources.completion.Completion.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._CompletionHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.completion.Completion.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._CompletionHook),
-        )
-
-    if hasattr(openai.api_resources, "chat_completion"):
-        _wrap_classmethod(
-            openai.api_resources.chat_completion.ChatCompletion.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._ChatCompletionHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.chat_completion.ChatCompletion.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ChatCompletionHook),
-        )
-
-    if hasattr(openai.api_resources, "edit"):
-        _wrap_classmethod(
-            openai.api_resources.edit.Edit.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._EditHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.edit.Edit.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._EditHook),
-        )
-
-    if hasattr(openai.api_resources, "image"):
-        _wrap_classmethod(
-            openai.api_resources.image.Image.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._ImageCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.image.Image.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ImageCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.image.Image.create_edit,
-            _patched_endpoint(openai, integration, _endpoint_hooks._ImageEditHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.image.Image.acreate_edit,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ImageEditHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.image.Image.create_variation,
-            _patched_endpoint(openai, integration, _endpoint_hooks._ImageVariationHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.image.Image.acreate_variation,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ImageVariationHook),
-        )
-
-    if hasattr(openai.api_resources, "embedding"):
-        _wrap_classmethod(
-            openai.api_resources.embedding.Embedding.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._EmbeddingHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.embedding.Embedding.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._EmbeddingHook),
-        )
-
-    if hasattr(openai.api_resources, "audio"):
-        _wrap_classmethod(
-            openai.api_resources.audio.Audio.transcribe,
-            _patched_endpoint(openai, integration, _endpoint_hooks._AudioTranscriptionHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.audio.Audio.atranscribe,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._AudioTranscriptionHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.audio.Audio.translate,
-            _patched_endpoint(openai, integration, _endpoint_hooks._AudioTranslationHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.audio.Audio.atranslate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._AudioTranslationHook),
-        )
-
-    if hasattr(openai.api_resources, "moderation"):
-        _wrap_classmethod(
-            openai.api_resources.moderation.Moderation.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._ModerationHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.moderation.Moderation.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._ModerationHook),
-        )
-
-    if hasattr(openai.api_resources, "file"):
-        # File.list() and File.retrieve() share the same underlying classmethod as Model.list() and Model.retrieve()
-        # this means they are already wrapped.
-        _wrap_classmethod(
-            openai.api_resources.file.File.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FileCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.file.File.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._FileCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.file.File.delete,
-            _patched_endpoint(openai, integration, _endpoint_hooks._DeleteHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.file.File.adelete,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._DeleteHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.file.File.download,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FileDownloadHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.file.File.adownload,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._FileDownloadHook),
-        )
-
-    if hasattr(openai.api_resources, "fine_tune"):
-        # FineTune.list()/retrieve() share the same underlying classmethod as Model.list() and Model.retrieve()
-        # this means they are already wrapped.
-        # FineTune.delete() share the same underlying classmethod as File.delete(), this means they are already wrapped.
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.create,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.acreate,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCreateHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.list_events,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.cancel,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneCancelHook),
-        )
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.acancel,
-            _patched_endpoint_async(openai, integration, _endpoint_hooks._FineTuneCancelHook),
-        )
+    # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
+    _wrap_classmethod(
+        openai.api_resources.fine_tune.FineTune.list_events,
+        _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
+    )
 
     openai.__datadog_patch = True
 

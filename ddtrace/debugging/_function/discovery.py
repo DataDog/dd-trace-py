@@ -149,7 +149,8 @@ def _undecorate(f, name, path):
     while q:
         g = q.popleft()
 
-        # Look for a wrapped function
+        # Look for a wrapped function. These attributes are generally used by
+        # the decorators provided by the standard library (e.g. partial)
         for attr in ("__wrapped__", "func"):
             try:
                 wrapped = object.__getattribute__(g, attr)
@@ -161,6 +162,9 @@ def _undecorate(f, name, path):
             except AttributeError:
                 pass
 
+        # A partial object is a common decorator. The function can either be the
+        # curried function, or it can appear as one of the arguments (e.g. the
+        # implementation of the wraps decorator).
         if _isinstance(g, partial):
             p = cast(partial, g)
             if match(p.func):

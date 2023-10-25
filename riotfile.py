@@ -1050,7 +1050,7 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/structlog",
             pkgs={
-                "structlog": latest,
+                "structlog": ["~=20.2.0", latest],
             },
         ),
         Venv(
