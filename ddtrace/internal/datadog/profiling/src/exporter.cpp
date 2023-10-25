@@ -17,10 +17,12 @@ to_slice(std::string_view str)
     return { .ptr = str.data(), .len = str.size() };
 }
 
-inline std::string err_to_msg(ddog_Error *err, std::string_view msg) {
-  auto ddog_err = ddog_Error_message(err);
-  std::string err_msg;
-  return std::string{msg} + "(" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
+inline std::string
+err_to_msg(ddog_Error* err, std::string_view msg)
+{
+    auto ddog_err = ddog_Error_message(err);
+    std::string err_msg;
+    return std::string{ msg } + "(" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
 }
 
 UploaderBuilder&
@@ -89,17 +91,19 @@ bool
 add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
 {
     // NB the storage of `val` needs to be guaranteed until the tags are flushed
-    constexpr std::array<std::string_view, static_cast<size_t>(ExportTagKey::_Length)> keys = { EXPORTER_TAGS(X_STR) };
-
-    // If the value is empty, return an error.
-    if (val.empty())
-        return false;
+    constexpr size_t num_keys = static_cast<size_t>(ExportTagKey::_Length);
+    constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_TAGS(X_STR) };
     std::string_view key_sv = keys[static_cast<size_t>(key)];
+
+    // Can't add empty keys.  This isn't an error.
+    if (val.empty())
+        return true;
 
     // Add
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
         errmsg = err_to_msg(&res.err, "Error pushing tag");
+        errmsg += "(val:'" + std::string(val) + "')";
         ddog_Error_drop(&res.err);
         return false;
     }
@@ -130,8 +134,7 @@ UploaderBuilder::build_ptr()
     // These three tags are guaranteed by the backend; they can be omitted if needed
 
     // Add the tags, emitting the first failure
-    if (!add_tag(tags, ExportTagKey::env, env, errmsg) ||
-        !add_tag(tags, ExportTagKey::service, service, errmsg) ||
+    if (!add_tag(tags, ExportTagKey::env, env, errmsg) || !add_tag(tags, ExportTagKey::service, service, errmsg) ||
         !add_tag(tags, ExportTagKey::version, version, errmsg) ||
         !add_tag(tags, ExportTagKey::language, language, errmsg) ||
         !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
@@ -176,7 +179,8 @@ Uploader::set_runtime_id(std::string_view id)
 bool
 Uploader::upload(const Profile* profile)
 {
-    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
+    ddog_prof_Profile_SerializeResult result =
+      ddog_prof_Profile_serialize(&profile->ddog_profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         errmsg = err_to_msg(&result.err, "Error serializing pprof");
         ddog_Error_drop(&result.err);
@@ -190,11 +194,11 @@ Uploader::upload(const Profile* profile)
 
     // Attach file
     ddog_prof_Exporter_File file[] = {
-      {
+        {
           .name = to_slice("auto.pprof"),
           .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-      },
-  };
+        },
+    };
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -202,16 +206,15 @@ Uploader::upload(const Profile* profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
-    auto build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter.get(),
-      start,
-      end,
-      ddog_prof_Exporter_Slice_File_empty(),
-      { .ptr = file, .len = 1 },
-      &tags,
-      nullptr,
-      nullptr,
-      5000);
+    auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
+                                                      start,
+                                                      end,
+                                                      ddog_prof_Exporter_Slice_File_empty(),
+                                                      { .ptr = file, .len = 1 },
+                                                      &tags,
+                                                      nullptr,
+                                                      nullptr,
+                                                      5000);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         errmsg = err_to_msg(&build_res.err, "Error building request");
@@ -313,10 +316,7 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     std::fill(values.begin(), values.end(), 0);
 
     ddog_prof_Period default_period = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    auto prof_res = ddog_prof_Profile_new(
-        { &samplers[0], samplers.size() }, 
-        &default_period,
-        nullptr);
+    auto prof_res = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_period, nullptr);
 
     // Check that the profile was created properly
     if (prof_res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
@@ -361,7 +361,7 @@ Profile::reset()
         ddog_Error_drop(&reset_res.err);
         return false;
     }
-  return true;
+    return true;
 }
 
 bool
