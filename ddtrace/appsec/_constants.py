@@ -70,12 +70,19 @@ class IAST(metaclass=Constant_Class):
     ENV = "DD_IAST_ENABLED"
     ENV_DEBUG = "_DD_IAST_DEBUG"
     TELEMETRY_REPORT_LVL = "DD_IAST_TELEMETRY_VERBOSITY"
-    JSON = "_dd.iast.json"
-    ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
+
+
+class IAST_SPAN_TAGS(metaclass=Constant_Class):
+    """Specific constants for IAST span tags"""
+
+    JSON = "_dd.iast.json"
+    ENABLED = "_dd.iast.enabled"
+    TELEMETRY_REQUEST_TAINTED = "_dd.iast.telemetry.request.tainted"
+    TELEMETRY_EXECUTED_SINK = "_dd.iast.telemetry.executed.sink"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):

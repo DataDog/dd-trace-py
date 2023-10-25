@@ -1,6 +1,7 @@
 import os
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
@@ -98,10 +99,32 @@ def _set_metric_iast_executed_sink(vulnerability_type):
     )
 
 
-@metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
-def _set_metric_iast_request_tainted():
+def _request_tainted():
     from ._taint_tracking import num_objects_tainted
 
-    total_objects_tainted = num_objects_tainted()
+    return num_objects_tainted()
+
+
+@metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
+def _set_metric_iast_request_tainted():
+    total_objects_tainted = _request_tainted()
     if total_objects_tainted > 0:
         telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted)
+
+
+def _set_span_tag_iast_request_tainted(span):
+    total_objects_tainted = _request_tainted()
+
+    if total_objects_tainted > 0:
+        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
+
+
+def _set_span_tag_iast_executed_sink(span):
+    from ddtrace.appsec._asm_request_context import get_iast_span_metrics
+
+    data = get_iast_span_metrics()
+
+    if data is not None:
+        for key, value in data.items():
+            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK):
+                span.set_tag(key, value)

@@ -7,6 +7,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config
 
 from .. import oce
+from ..._asm_request_context import increment_iast_span_metric
+from ..._constants import IAST_SPAN_TAGS
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
 from .._utils import _scrub
@@ -159,6 +161,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     from .._metrics import _set_metric_iast_executed_sink
 
     report_ssrf = kwargs.get("url", False)
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
     _set_metric_iast_executed_sink(SSRF.vulnerability_type)
     if report_ssrf:
         if oce.request_has_quota and SSRF.has_quota():

@@ -14,6 +14,8 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 
 from .. import oce
+from ..._asm_request_context import increment_iast_span_metric
+from ..._constants import IAST_SPAN_TAGS
 from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
@@ -252,5 +254,6 @@ def _iast_report_cmdi(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
         _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)

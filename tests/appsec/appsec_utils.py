@@ -32,21 +32,29 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
 
 
 @contextmanager
-def flask_server(appsec_enabled="true", remote_configuration_enabled="true", token=None):
+def flask_server(appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", token=None):
     cmd = ["python", "tests/appsec/app.py", "--no-reload"]
     yield from appsec_application_server(
-        cmd, appsec_enabled=appsec_enabled, remote_configuration_enabled=remote_configuration_enabled, token=token
+        cmd,
+        appsec_enabled=appsec_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        iast_enabled=iast_enabled,
+        token=token,
     )
 
 
-def appsec_application_server(cmd, appsec_enabled="true", remote_configuration_enabled="true", token=None):
+def appsec_application_server(
+    cmd, appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", token=None
+):
     env = _build_env()
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
         env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
-    if appsec_enabled:
+    if appsec_enabled is not None:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
+    if iast_enabled is not None and iast_enabled != "false":
+        env["DD_IAST_ENABLED"] = iast_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
 
     server_process = subprocess.Popen(

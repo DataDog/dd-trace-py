@@ -32,7 +32,7 @@ _CONTEXT_CALL = "context"
 _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
-
+_IAST_METRICS = "iast_metrics"
 
 GLOBAL_CALLBACKS: Dict[str, Any] = {}
 
@@ -119,6 +119,7 @@ class _DataHandler:
         self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
         env.telemetry[_WAF_RESULTS] = [], [], []
+        env.telemetry[_IAST_METRICS] = dict()
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
@@ -319,6 +320,22 @@ def reset_waf_results() -> None:
     set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
 
 
+def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
+    data = get_iast_span_metrics()
+    full_key = prefix + "." + metric_key.lower()
+    if data is not None:
+        result = data.get(full_key, 0)
+        data[full_key] = result + counter
+
+
+def get_iast_span_metrics() -> Optional[Dict]:
+    return get_value(_TELEMETRY, _IAST_METRICS)
+
+
+def reset_iast_span_metrics() -> None:
+    set_value(_TELEMETRY, _IAST_METRICS, dict())
+
+
 @contextlib.contextmanager
 def asm_request_context_manager(
     remote_ip: Optional[str] = None,
@@ -342,7 +359,7 @@ def asm_request_context_manager(
 def _start_context(
     remote_ip: Optional[str], headers: Any, headers_case_sensitive: bool, block_request_callable: Optional[Callable]
 ) -> Optional[_DataHandler]:
-    if config._appsec_enabled:
+    if config._appsec_enabled or config._ias:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         _handlers.listen()

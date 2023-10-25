@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 from ddtrace.internal.compat import six
 
 from .. import oce
+from ..._asm_request_context import increment_iast_span_metric
+from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
@@ -47,11 +49,13 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
         evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)
             _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
             InsecureCookie.report(evidence_value=evidence)
             return
 
         if ";httponly" not in lvalue:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoHttpOnlyCookie.vulnerability_type)
             _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
             NoHttpOnlyCookie.report(evidence_value=evidence)
             return
@@ -68,5 +72,6 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             report_samesite = True
 
         if report_samesite:
-            NoSameSite.report(evidence_value=evidence)
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoSameSite.vulnerability_type)
             _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
+            NoSameSite.report(evidence_value=evidence)

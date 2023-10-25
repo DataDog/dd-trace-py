@@ -3,6 +3,8 @@ from typing import Any
 from ddtrace.internal.logger import get_logger
 
 from .. import oce
+from ..._asm_request_context import increment_iast_span_metric
+from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
@@ -52,6 +54,7 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
             from .._metrics import _set_metric_iast_executed_sink
             from .._taint_tracking import is_pyobject_tainted
 
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, PathTraversal.vulnerability_type)
             _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
             if is_pyobject_tainted(args[0]):
                 PathTraversal.report(evidence_value=args[0])

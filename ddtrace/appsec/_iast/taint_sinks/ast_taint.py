@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+from ..._asm_request_context import increment_iast_span_metric
+from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
@@ -29,6 +31,7 @@ def ast_funcion(
 
     if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakRandomness.vulnerability_type)
         _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)
         WeakRandomness.report(evidence_value=cls_name + "." + func_name)
     elif hasattr(func, "__module__") and DEFAULT_PATH_TRAVERSAL_FUNCTIONS.get(func.__module__):
