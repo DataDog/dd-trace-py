@@ -4,7 +4,6 @@ import attr
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -50,17 +49,17 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         if not oce._enabled or not _is_iast_enabled():
-            span.set_metric(IAST_SPAN_TAGS.ENABLED, 0.0)
+            span.set_metric(IAST.ENABLED, 0.0)
             return
 
         from ._taint_tracking import reset_context  # noqa: F401
 
-        span.set_metric(IAST_SPAN_TAGS.ENABLED, 1.0)
+        span.set_metric(IAST.ENABLED, 1.0)
 
         data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
-            span.set_tag_str(IAST_SPAN_TAGS.JSON, _iast_report_to_str(data))
+            span.set_tag_str(IAST.JSON, _iast_report_to_str(data))
             _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()
