@@ -10,6 +10,7 @@ try:
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+    from ddtrace.appsec._iast._taint_utils import LazyTaintList
     from ddtrace.appsec._iast._taint_utils import check_tainted_args
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -253,3 +254,14 @@ def test_json_encode_dict():
         '{"tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", '
         '{"tr_key_005": "tr_val_004"}], "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}}}'
     )
+
+
+def test_json_encode_list():
+    import json
+
+    tainted_list = LazyTaintList(
+        ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
