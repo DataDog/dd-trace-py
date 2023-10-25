@@ -26,8 +26,7 @@ try:
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
     from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
-except (ImportError, AttributeError) as e:
-    print(e)
+except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
