@@ -240,7 +240,10 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
             throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
         }
     }
-    if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+    // if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
+    //     return nullptr;
+    // }
+    if (tx_map->empty()) {
         return nullptr;
     }
 
@@ -283,7 +286,7 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
         }
         hash = ((PyASCIIObject*)str)->hash;
     }
-    set_fast_tainted_if_notinterned_unicode(str);
+    // set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
