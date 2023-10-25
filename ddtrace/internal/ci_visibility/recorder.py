@@ -100,8 +100,11 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            # Create a new CI tracer
-            self.tracer = Tracer(context_provider=CIContextProvider())
+            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+                # Create a new CI tracer
+                self.tracer = Tracer(context_provider=CIContextProvider())
+            else:
+                self.tracer = Tracer()
 
         self._app_key = os.getenv(
             "_CI_DD_APP_KEY",
