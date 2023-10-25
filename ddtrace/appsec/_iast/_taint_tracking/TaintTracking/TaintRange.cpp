@@ -274,12 +274,12 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
 
     auto obj_id = get_unique_id(str);
     auto it = tx_taint_map->find(obj_id);
-    auto hash = ((PyASCIIObject*)str)->hash;
+    Py_hash_t hash = ((PyASCIIObject*)str)->hash;
     if (hash == -1) {
         // Force the generation of the hash
-        Py_hash_t result = PyObject_Hash(str);
-        if (result != NULL) {
-            Py_DECREF(result);
+        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
+        if (hash_result != NULL) {
+            Py_DECREF(hash_result);
         }
         hash = ((PyASCIIObject*)str)->hash;
     }
