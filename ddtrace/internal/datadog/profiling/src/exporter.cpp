@@ -163,10 +163,11 @@ UploaderBuilder::build_ptr()
     return new Uploader(url, ddog_exporter);
 }
 
-Uploader::wait_for_thread(int tries) {
+Uploader::wait_for_thread(int tries)
+{
     while (thread_working.load() && tries > 0) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      --tries;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        --tries;
     }
 }
 
@@ -175,11 +176,12 @@ Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   , url{ _url }
 {}
 
-Uploader::~Uploader() {
+Uploader::~Uploader()
+{
     wait_for_thread(3);
     if (upload_thread && upload_thread->joinable()) {
-      upload_thread->join();
-      upload_thread.reset();
+        upload_thread->join();
+        upload_thread.reset();
     }
 }
 
@@ -191,7 +193,8 @@ Uploader::set_runtime_id(std::string_view id)
 }
 
 bool
-Uploader::thread_upload_impl(const Profile* profile) {
+Uploader::thread_upload_impl(const Profile* profile)
+{
     // As per convention, we wrap the thread so that all return paths
     // mark the termination of the thread.
     // There's a race condition here, because the thread will still be
@@ -208,8 +211,8 @@ Uploader::upload(const Profile* profile)
     // If the upload thread is busy, give it some time.  We give it up to 3 seconds, which is arbitrary
     wait_for_thread(3);
     if (upload_thread && upload_thread->joinable()) {
-      upload_thread->join();
-      upload_thread.reset();
+        upload_thread->join();
+        upload_thread.reset();
     }
 
     // Launch the thread.  We mark the working state here, potentially
