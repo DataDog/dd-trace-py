@@ -10,6 +10,7 @@
       "type": "test",
       "meta": {
         "_dd.base_service": "",
+        "_dd.ci.itr.tests_skipped": "true",
         "_dd.origin": "ciapp-test",
         "_dd.p.dm": "-0",
         "component": "unittest",
@@ -18,7 +19,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "10e90d3a88c647358df2eabff36274c4",
+        "runtime-id": "c7f6dbba5e044dee9f18658869e5e177",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -26,20 +27,25 @@
         "test.command": "python -m unittest",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
-        "test.itr.tests_skipping.enabled": "false",
+        "test.itr.forced_run": "true",
+        "test.itr.tests_skipping.enabled": "true",
+        "test.itr.tests_skipping.tests_skipped": "true",
+        "test.itr.tests_skipping.type": "test",
+        "test.itr.unskippable": "true",
         "test.status": "pass",
         "test.type": "test",
-        "test_session_id": "10354869464380730743",
+        "test_session_id": "14973979041617869486",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32378
+        "process_id": 32407,
+        "test.itr.tests_skipping.count": 2
       },
-      "duration": 22630250,
-      "start": 1698240175239579711
+      "duration": 29023666,
+      "start": 1698240176703459962
     },
     {
       "name": "unittest.test_module",
@@ -51,6 +57,7 @@
       "type": "test",
       "meta": {
         "_dd.base_service": "",
+        "_dd.ci.itr.tests_skipped": "true",
         "_dd.origin": "ciapp-test",
         "component": "unittest",
         "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
@@ -64,17 +71,24 @@
         "test.command": "python -m unittest",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
-        "test.itr.tests_skipping.enabled": "false",
+        "test.itr.forced_run": "true",
+        "test.itr.tests_skipping.enabled": "true",
+        "test.itr.tests_skipping.tests_skipped": "true",
+        "test.itr.tests_skipping.type": "test",
+        "test.itr.unskippable": "true",
         "test.module": "test_my_coverage",
         "test.module_path": "test_my_coverage.py",
         "test.status": "pass",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
+        "test_module_id": "2311482066944371006",
+        "test_session_id": "14973979041617869486",
         "type": "test_module_end"
       },
-      "duration": 22172834,
-      "start": 1698240175239959044
+      "metrics": {
+        "test.itr.tests_skipping.count": 2
+      },
+      "duration": 28527500,
+      "start": 1698240176703854420
     },
     {
       "name": "unittest.test_suite",
@@ -103,13 +117,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "2311482066944371006",
+        "test_session_id": "14973979041617869486",
+        "test_suite_id": "1342668013039093630",
         "type": "test_suite_end"
       },
-      "duration": 22083459,
-      "start": 1698240175240038669
+      "duration": 28427958,
+      "start": 1698240176703943920
     },
     {
       "name": "unittest.test",
@@ -132,22 +146,24 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[9, 0, 10, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[16, 0, 17, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
+        "test.itr.forced_run": "true",
+        "test.itr.unskippable": "true",
         "test.module": "test_my_coverage",
         "test.module_path": "test_my_coverage.py",
         "test.name": "test_cov",
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "2311482066944371006",
+        "test_session_id": "14973979041617869486",
+        "test_suite_id": "1342668013039093630",
         "type": "test"
       },
-      "duration": 21855791,
-      "start": 1698240175240069503
+      "duration": 22807125,
+      "start": 1698240176703981962
     },
     {
       "name": "unittest.test",
@@ -170,22 +186,62 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[20, 0, 21, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
+        "test.framework": "unittest",
+        "test.framework_version": "3.10.11",
+        "test.itr.forced_run": "true",
+        "test.itr.unskippable": "true",
+        "test.module": "test_my_coverage",
+        "test.module_path": "test_my_coverage.py",
+        "test.name": "test_second",
+        "test.status": "pass",
+        "test.suite": "CoverageTestCase",
+        "test.type": "test",
+        "test_module_id": "2311482066944371006",
+        "test_session_id": "14973979041617869486",
+        "test_suite_id": "1342668013039093630",
+        "type": "test"
+      },
+      "duration": 3061709,
+      "start": 1698240176726894628
+    },
+    {
+      "name": "unittest.test",
+      "service": "unittest",
+      "resource": "CoverageTestCase.test_third",
+      "trace_id": 0,
+      "span_id": 6,
+      "parent_id": 3,
+      "type": "test",
+      "meta": {
+        "_dd.base_service": "",
+        "_dd.origin": "ciapp-test",
+        "component": "unittest",
+        "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+        "os.architecture": "aarch64",
+        "os.platform": "Linux",
+        "os.version": "5.15.49-linuxkit-pr",
+        "runtime.name": "CPython",
+        "runtime.version": "3.10.11",
+        "span.kind": "test",
+        "test.class_hierarchy": "CoverageTestCase",
+        "test.command": "python -m unittest",
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[23, 0, 24, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[2, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_my_coverage",
         "test.module_path": "test_my_coverage.py",
-        "test.name": "test_second",
-        "test.skip_reason": "this should not have coverage",
-        "test.status": "skip",
+        "test.name": "test_third",
+        "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "2311482066944371006",
+        "test_session_id": "14973979041617869486",
+        "test_suite_id": "1342668013039093630",
         "type": "test"
       },
-      "duration": 80500,
-      "start": 1698240175262028669
+      "duration": 2327542,
+      "start": 1698240176730026795
     }
   ]
 ]

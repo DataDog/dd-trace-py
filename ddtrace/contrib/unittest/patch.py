@@ -378,6 +378,14 @@ def _update_test_skipping_count_span(span: ddtrace):
         span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
 
 
+def _extract_skip_if_reason(args, kwargs):
+    if len(args) >= 2:
+        return _extract_test_reason(args)
+    elif kwargs and "reason" in kwargs:
+        return kwargs["reason"]
+    return ""
+
+
 def patch():
     """
     Patch the instrumented methods from unittest
@@ -500,7 +508,7 @@ def _add_skippable_test(obj):
 
 
 def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
-    if len(args) >= 2 and _extract_test_reason(args) == ITR_UNSKIPPABLE_REASON:
+    if args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON:
         return _add_skippable_test
     return func(*args, **kwargs)
 
@@ -555,7 +563,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
-                    else:
+                    elif not _is_skipped_test(instance):
                         instance._dd_itr_skip = True
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)

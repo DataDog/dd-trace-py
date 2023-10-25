@@ -1,0 +1,51 @@
+[
+  [
+    {
+      "name": "unittest.test_session",
+      "service": "unittest",
+      "resource": "python -m unittest",
+      "trace_id": 0,
+      "span_id": 1,
+      "parent_id": 0,
+      "type": "test",
+      "meta": {
+        "_dd.base_service": "",
+        "_dd.ci.itr.tests_skipped": "false",
+        "_dd.origin": "ciapp-test",
+        "_dd.p.dm": "-0",
+        "component": "unittest",
+        "language": "python",
+        "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+        "os.architecture": "aarch64",
+        "os.platform": "Linux",
+        "os.version": "5.15.49-linuxkit-pr",
+        "runtime-id": "123a64a2fa544415baced0626e54c15d",
+        "runtime.name": "CPython",
+        "runtime.version": "3.10.11",
+        "span.kind": "test",
+        "test.code_coverage.enabled": "true",
+        "test.command": "python -m unittest",
+        "test.framework": "unittest",
+        "test.framework_version": "3.10.11",
+        "test.itr.forced_run": "false",
+        "test.itr.tests_skipping.enabled": "true",
+        "test.itr.tests_skipping.tests_skipped": "false",
+        "test.itr.tests_skipping.type": "test",
+        "test.itr.unskippable": "false",
+        "test.suite": "fail",
+        "test.type": "test",
+        "test_session_id": "7914074148531026198",
+        "type": "test_session_end"
+      },
+      "metrics": {
+        "_dd.top_level": 1,
+        "_dd.tracer_kr": 1.0,
+        "_sampling_priority_v1": 1,
+        "process_id": 32552,
+        "test.itr.tests_skipping.count": 0
+      },
+      "duration": 566875,
+      "start": 1698240181226254714
+    }
+  ]
+]
