@@ -4,6 +4,7 @@ import pytest
 
 try:
     from ddtrace.appsec._iast import oce
+    from ddtrace.appsec._iast._patch_modules import patch_iast
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import create_context
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
@@ -15,6 +16,7 @@ except (ImportError, AttributeError):
 
 
 def setup():
+    patch_iast()
     create_context()
     oce._enabled = True
 
@@ -233,4 +235,21 @@ def test_checked_tainted_args():
     # Returns True:
     assert check_tainted_args(
         args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="psycopg", method=cursor.execute
+    )
+
+
+def test_json_encode_dict():
+    import json
+
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_dict) == (
+        '{"tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", '
+        '{"tr_key_005": "tr_val_004"}], "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}}}'
     )
