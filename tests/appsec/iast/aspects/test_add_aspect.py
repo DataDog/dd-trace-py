@@ -87,8 +87,6 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     assert result == obj1 + obj2
     if isinstance(obj2, (bytes, str, bytearray)) and len(obj2):
         assert result is not obj1 + obj2
-    print("JJJ get_tainted_ranges(result): %s" % get_tainted_ranges(result))
-    print("JJJ get_tainted_ranges(obj1): %s" % get_tainted_ranges(obj1))
     assert is_pyobject_tainted(result) == should_be_tainted
     if should_be_tainted:
         assert get_tainted_ranges(result) == get_tainted_ranges(obj1)

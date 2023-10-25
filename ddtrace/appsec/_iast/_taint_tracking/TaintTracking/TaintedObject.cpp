@@ -72,21 +72,26 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
     }
 }
 
-TaintedObject::operator string()
-{
+std::string
+TaintedObject::toString() {
     stringstream ss;
 
     ss << "TaintedObject [";
     if (not ranges_.empty()) {
         ss << ", ranges=[";
         for (const auto& range : ranges_) {
-            ss << range << ", ";
+            ss << range->toString() << ", ";
         }
         ss << "]";
     }
     ss << "]";
 
     return ss.str();
+}
+
+TaintedObject::operator string()
+{
+    return toString();
 }
 
 void

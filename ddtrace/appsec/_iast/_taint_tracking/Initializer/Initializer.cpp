@@ -91,7 +91,7 @@ Initializer::debug_print_taint_map()
 
     for (auto& item : *ctx_map) {
         std::cerr << "Id-Clave: " << item.first << std::endl;
-        std::cerr << "Value: Hash: " << item.second.first << " TaintedObject: " << item.second.second << std::endl;
+        std::cerr << "Value: Hash: " << item.second.first << " TaintedObject: " << item.second.second->toString() << std::endl;
     }
 }
 

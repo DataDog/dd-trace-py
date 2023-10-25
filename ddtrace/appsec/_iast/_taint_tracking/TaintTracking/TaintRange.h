@@ -135,8 +135,13 @@ api_is_unicode_and_not_fast_tainted(const py::object str)
 TaintedObject*
 get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
 
+Py_hash_t bytearray_hash(PyObject* bytearray);
+
+Py_hash_t get_internal_hash(const PyObject* obj);
+
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map,
+                   Py_hash_t original_bytearray_hash=0);
 
 void
 pyexport_taintrange(py::module& m);

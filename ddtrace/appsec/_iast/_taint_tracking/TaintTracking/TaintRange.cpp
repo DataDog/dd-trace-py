@@ -138,7 +138,7 @@ get_ranges(const PyObject* string_input, TaintRangeMapType* tx_map)
         return {};
     }
 
-    if (((PyASCIIObject*)string_input)->hash != it->second.first) {
+    if (get_internal_hash(string_input) != it->second.first) {
         return {};
     }
 
@@ -167,21 +167,15 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
     auto it = tx_map->find(obj_id);
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
 
-    if ((((PyASCIIObject*)str)->hash) == -1) {
-        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
-        if (hash_result != NULL) {
-            Py_DECREF(hash_result);
-        }
-    }
     set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second.second->decref();
-        it->second = std::make_pair(((PyASCIIObject*)str)->hash, new_tainted_object);
+        it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
         return;
     }
 
-    tx_map->insert({ obj_id, std::make_pair(((PyASCIIObject*)str)->hash, new_tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
@@ -250,24 +244,49 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
         return nullptr;
     }
 
-    if ((((PyASCIIObject*)str)->hash) == -1) {
-        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
-        if (hash_result != NULL) {
-            Py_DECREF(hash_result);
-        }
-    }
-    if (((PyASCIIObject*)str)->hash != it->second.first) {
+    if (get_internal_hash(str) != it->second.first) {
         it->second.second->decref();
         return nullptr;
     }
     return it == tx_map->end() ? nullptr : it->second.second;
 }
 
-void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map)
+Py_hash_t bytearray_hash(PyObject* bytearray)
 {
-    if (not str or not is_text(str))
+    // Bytearrays don't have hash by default so we will generate one by getting the internal str hash
+    auto str = py::str(bytearray);
+    PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str.ptr(), NULL);
+    if (hash_result != NULL) {
+        Py_DECREF(hash_result);
+    }
+    return ((PyASCIIObject*)str.ptr())->hash;
+}
+
+Py_hash_t get_internal_hash(const PyObject* obj)
+{
+    if (PyByteArray_Check(obj)) {
+        return bytearray_hash(obj);
+    }
+
+    Py_hash_t hash = ((PyASCIIObject *) obj)->hash;
+    if (hash == -1) {
+        // Force the generation of the hash
+        PyObject *hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, obj, NULL);
+        if (hash_result != NULL) {
+            Py_DECREF(hash_result);
+        }
+        hash = ((PyASCIIObject *) obj)->hash;
+    }
+    return hash;
+}
+
+void
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map,
+                   Py_hash_t original_bytearray_hash)
+{
+    if (not str or not is_text(str)) {
         return;
+    }
 
     if (not tx_taint_map) {
         tx_taint_map = initializer->get_tainting_map();
@@ -277,17 +296,8 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
     }
 
     auto obj_id = get_unique_id(str);
-    auto it = tx_taint_map->find(obj_id);
-    Py_hash_t hash = ((PyASCIIObject*)str)->hash;
-    if (hash == -1) {
-        // Force the generation of the hash
-        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
-        if (hash_result != NULL) {
-            Py_DECREF(hash_result);
-        }
-        hash = ((PyASCIIObject*)str)->hash;
-    }
     set_fast_tainted_if_notinterned_unicode(str);
+    auto it = tx_taint_map->find(obj_id);
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
@@ -299,10 +309,12 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
             tainted_object->incref();
             it->second.second = tainted_object;
         }
+        // Update the hash, because for bytearrays it could have changed after the extend operation
+        it->second.first = get_internal_hash(str);
         return;
     }
     tainted_object->incref();
-    tx_taint_map->insert({ obj_id, std::make_pair(((PyASCIIObject*)str)->hash, tainted_object) });
+    tx_taint_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
