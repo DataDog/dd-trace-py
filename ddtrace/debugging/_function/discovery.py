@@ -6,11 +6,6 @@ from wrapt.wrappers import FunctionWrapper
 
 
 try:
-    from collections.abc import Iterator
-except ImportError:
-    from collections import Iterator  # type: ignore[attr-defined,no-redef]
-
-try:
     from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
@@ -20,6 +15,7 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -61,8 +57,8 @@ else:
 class FullyNamed(Protocol):
     """A fully named object."""
 
-    __name__ = None  # type: Optional[str]
-    __fullname__ = None  # type: Optional[str]
+    __name__: Optional[str] = None
+    __fullname__: Optional[str] = None
 
 
 class FullyNamedFunction(FullyNamed):
@@ -81,10 +77,9 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 
     def __init__(
         self,
-        container,  # type: FunctionContainerType
-        origin=None,  # type: Optional[Union[Tuple[ContainerIterator, ContainerKey], Tuple[FullyNamedFunction, str]]]
-    ):
-        # type: (...) -> None
+        container: FunctionContainerType,
+        origin: Optional[Union[Tuple["ContainerIterator", ContainerKey], Tuple[FullyNamedFunction, str]]] = None,
+    ) -> None:
         if isinstance(container, (type, ModuleType)):
             self._iter = iter(container.__dict__.items())
             self.__name__ = container.__name__
@@ -115,12 +110,10 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         else:
             self.__fullname__ = self.__name__
 
-    def __iter__(self):
-        # type: () -> Iterator[Tuple[ContainerKey, Any]]
+    def __iter__(self) -> Iterator[Tuple[ContainerKey, Any]]:
         return self._iter
 
-    def __next__(self):
-        # type: () -> Tuple[ContainerKey, Any]
+    def __next__(self) -> Tuple[ContainerKey, Any]:
         return next(self._iter)
 
     next = __next__
@@ -129,8 +122,7 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
 
 
-def _undecorate(f, name, path):
-    # type: (FunctionType, str, str) -> FunctionType
+def _undecorate(f: FunctionType, name: str, path: str) -> FunctionType:
     # Find the original function object from a decorated function. We use the
     # expected function name to guide the search and pick the correct function.
     # The recursion is needed in case of multiple decorators. We make it BFS
@@ -156,8 +148,7 @@ def _undecorate(f, name, path):
     return f
 
 
-def _local_name(name, f):
-    # type: (str, FunctionType) -> str
+def _local_name(name: str, f: FunctionType) -> str:
     func_name = f.__name__
     if func_name.startswith("__") and name.endswith(func_name):
         # Quite likely a mangled name
@@ -170,8 +161,7 @@ def _local_name(name, f):
     return func_name
 
 
-def _collect_functions(module):
-    # type: (ModuleType) -> Dict[str, FullyNamedFunction]
+def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
     """Collect functions from a given module.
 
     All the collected functions are augmented with a ``__fullname__`` attribute
@@ -237,8 +227,7 @@ class FunctionDiscovery(defaultdict):
     module object itself.
     """
 
-    def __init__(self, module):
-        # type: (ModuleType) -> None
+    def __init__(self, module: ModuleType) -> None:
         super(FunctionDiscovery, self).__init__(list)
         self._module = module
 
@@ -260,8 +249,7 @@ class FunctionDiscovery(defaultdict):
             self._fullname_index[fname] = function
             seen_functions.add(function)
 
-    def at_line(self, line):
-        # type: (int) -> List[FullyNamedFunction]
+    def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
 
         Note that, in general, there can be multiple copies of the same
@@ -269,8 +257,7 @@ class FunctionDiscovery(defaultdict):
         """
         return self[line]
 
-    def by_name(self, qualname):
-        # type: (str) -> FullyNamedFunction
+    def by_name(self, qualname: str) -> FullyNamedFunction:
         """Get the function by its qualified name."""
         fullname = ".".join((self._module.__name__, qualname))
         try:
@@ -279,8 +266,7 @@ class FunctionDiscovery(defaultdict):
             raise ValueError("Function '%s' not found" % fullname)
 
     @classmethod
-    def from_module(cls, module):
-        # type: (ModuleType) -> FunctionDiscovery
+    def from_module(cls, module: ModuleType) -> "FunctionDiscovery":
         """Return a function discovery object from the given module.
 
         If this is called on a module for the first time, it caches the

@@ -168,14 +168,20 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
     auto it = tx_map->find(obj_id);
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
 
+    Py_hash_t hash = ((PyASCIIObject*)str)->hash;
+    if (hash == -1) {
+        // Force the generation of the hash
+        hash = PyObject_Hash(str);
+    }
+    set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second.second->decref();
-        it->second = std::make_pair(PyObject_Hash(str), new_tainted_object);
+        it->second = std::make_pair(hash, new_tainted_object);
         return;
     }
 
-    tx_map->insert({ obj_id, std::make_pair(PyObject_Hash(str), new_tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(hash, new_tainted_object) });
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
@@ -286,7 +292,7 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
             // operations, since they would be redundant.
             it->second.second->decref();
             tainted_object->incref();
-            it->second.second = tainted_object;
+            it->second = std::make_pair(hash, tainted_object);
         }
         return;
     }
