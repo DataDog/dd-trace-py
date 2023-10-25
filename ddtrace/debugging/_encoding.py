@@ -30,8 +30,7 @@ class JsonBuffer(object):
         self.max_size = max_size
         self._reset()
 
-    def put(self, item):
-        # type: (bytes) -> int
+    def put(self, item: bytes) -> int:
         if self._flushed:
             self._reset()
 
@@ -61,8 +60,7 @@ class JsonBuffer(object):
 
 class Encoder(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
-    def encode(self, item):
-        # type: (Any) -> bytes
+    def encode(self, item: Any) -> bytes:
         """Encode the given snapshot."""
 
 
@@ -70,18 +68,15 @@ class BufferedEncoder(six.with_metaclass(abc.ABCMeta)):
     count = 0
 
     @abc.abstractmethod
-    def put(self, item):
-        # type: (Any) -> int
+    def put(self, item: Any) -> int:
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def encode(self):
-        # type: () -> Optional[bytes]
+    def encode(self) -> Optional[bytes]:
         """Encode the given item."""
 
 
-def _logs_track_logger_details(thread, frame):
-    # type: (Thread, FrameType) -> Dict[str, Any]
+def _logs_track_logger_details(thread: Thread, frame: FrameType) -> Dict[str, Any]:
     code = frame.f_code
 
     return {
@@ -99,11 +94,10 @@ def add_tags(payload):
 
 
 def _build_log_track_payload(
-    service,  # type: str
-    signal,  # type: LogSignal
-    host,  # type: Optional[str]
-):
-    # type: (...) -> Dict[str, Any]
+    service: str,
+    signal: LogSignal,
+    host: Optional[str],
+) -> Dict[str, Any]:
     context = signal.trace_context
 
     payload = {
@@ -122,19 +116,21 @@ def _build_log_track_payload(
 
 
 class LogSignalJsonEncoder(Encoder):
-    def __init__(self, service, host=None):
-        # type: (str, Optional[str]) -> None
+    def __init__(self, service: str, host: Optional[str] = None) -> None:
         self._service = service
         self._host = host
 
-    def encode(self, log_signal):
-        # type: (LogSignal) -> bytes
+    def encode(self, log_signal: LogSignal) -> bytes:
         return json.dumps(_build_log_track_payload(self._service, log_signal, self._host)).encode("utf-8")
 
 
 class BatchJsonEncoder(BufferedEncoder):
-    def __init__(self, item_encoders, buffer_size=4 * (1 << 20), on_full=None):
-        # type: (Dict[Type, Union[Encoder, Type]], int, Optional[Callable[[Any, bytes], None]]) -> None
+    def __init__(
+        self,
+        item_encoders: Dict[Type, Union[Encoder, Type]],
+        buffer_size: int = 4 * (1 << 20),
+        on_full: Optional[Callable[[Any, bytes], None]] = None,
+    ) -> None:
         self._encoders = item_encoders
         self._buffer = JsonBuffer(buffer_size)
         self._lock = forksafe.Lock()
@@ -143,23 +139,20 @@ class BatchJsonEncoder(BufferedEncoder):
         self.max_size = buffer_size - self._buffer.size
 
     @cachedmethod()
-    def _lookup_encoder(self, item_class):
-        # type: (Type[Any]) -> Optional[Union[Encoder, Type]]
+    def _lookup_encoder(self, item_class: Type[Any]) -> Optional[Union[Encoder, Type]]:
         for ic, encoder in self._encoders.items():
             if issubclass(item_class, ic):
                 return encoder
         return None
 
-    def put(self, item):
-        # type: (Union[Snapshot, str]) -> int
+    def put(self, item: Union[Snapshot, str]) -> int:
         encoder = self._lookup_encoder(type(item))
         if encoder is None:
             raise ValueError("No encoder for item type: %r" % type(item))
 
         return self.put_encoded(item, encoder.encode(item))
 
-    def put_encoded(self, item, encoded):
-        # type: (Union[Snapshot, str], bytes) -> int
+    def put_encoded(self, item: Union[Snapshot, str], encoded: bytes) -> int:
         try:
             with self._lock:
                 size = self._buffer.put(encoded)
@@ -170,8 +163,7 @@ class BatchJsonEncoder(BufferedEncoder):
                 self._on_full(item, encoded)
             six.reraise(*sys.exc_info())
 
-    def encode(self):
-        # type: () -> Optional[bytes]
+    def encode(self) -> Optional[bytes]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory
