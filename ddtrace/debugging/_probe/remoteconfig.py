@@ -191,6 +191,9 @@ class MetricProbeFactory(ProbeFactory):
 
     @classmethod
     def update_args(cls, args, attribs):
+        # adding probe_id to probe-tags so it would be recorded as a metric tag
+        args["tags"]["debugger.probeid"] = args["probe_id"]
+
         args.update(
             condition=_compile_expression(attribs.get("when")),
             name=attribs["metricName"],
