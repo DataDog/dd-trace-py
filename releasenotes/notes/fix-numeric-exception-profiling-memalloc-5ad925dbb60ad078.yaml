@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    fix(profiling): numeric type exception in memalloc
+    When pushing allocation samples, an exception was being thrown due to a float being passed instead of an integer.
+    We now cast the ceiled value to an integer.

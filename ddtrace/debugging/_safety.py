@@ -12,8 +12,7 @@ from ddtrace.internal.safety import get_slots
 GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]
 
 
-def get_args(frame):
-    # type: (FrameType) -> Iterator[Tuple[str, Any]]
+def get_args(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     code = frame.f_code
     nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
     arg_names = code.co_varnames[:nargs]
@@ -22,8 +21,7 @@ def get_args(frame):
     return zip(arg_names, arg_values)
 
 
-def get_locals(frame):
-    # type: (FrameType) -> Iterator[Tuple[str, Any]]
+def get_locals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     code = frame.f_code
     nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
     names = code.co_varnames[nargs:]
@@ -32,16 +30,14 @@ def get_locals(frame):
     return zip(names, values)
 
 
-def get_globals(frame):
-    # type: (FrameType) -> Iterator[Tuple[str, Any]]
+def get_globals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     nonlocal_names = frame.f_code.co_names
     _globals = globals()
 
     return ((name, _globals[name]) for name in nonlocal_names if name in _globals)
 
 
-def safe_getattr(obj, name):
-    # type: (Any, str) -> Any
+def safe_getattr(obj: Any, name: str) -> Any:
     try:
         return object.__getattribute__(obj, name)
     except Exception as e:
@@ -58,8 +54,7 @@ def safe_getitem(obj, index):
     raise TypeError("Type is not indexable collection " + str(type(obj)))
 
 
-def _safe_dict(o):
-    # type: (Any) -> Dict[str, Any]
+def _safe_dict(o: Any) -> Dict[str, Any]:
     try:
         __dict__ = object.__getattribute__(o, "__dict__")
         if type(__dict__) is dict:
@@ -70,8 +65,7 @@ def _safe_dict(o):
     raise AttributeError("No safe __dict__")
 
 
-def get_fields(obj):
-    # type: (Any) -> Dict[str, Any]
+def get_fields(obj: Any) -> Dict[str, Any]:
     try:
         return _safe_dict(obj)
     except AttributeError:
