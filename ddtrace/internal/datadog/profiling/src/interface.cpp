@@ -11,7 +11,6 @@
 #include <cxxabi.h>
 #include <execinfo.h>
 #include <iostream>
-#include <thread>
 #include <unistd.h>
 
 // State
@@ -281,26 +280,18 @@ ddup_set_runtime_id(const char* id, size_t sz)
 }
 
 void
-ddup_upload_impl(Datadog::Profile* prof)
-{
-    g_uploader->upload(prof);
-}
-
-void
 ddup_upload()
 {
-    static std::thread upload_thread;
     if (!is_initialized) {
         // Rationalize return for interface
         std::cout << "WHOA NOT INITIALIZED" << std::endl;
     }
 
-    if (upload_thread.joinable()) {
-        // The upload thread is still going.  We'll block on it.
-        upload_thread.join();
-    }
-    upload_thread = std::thread(ddup_upload_impl, g_profile);
-
+    // We use a double-buffering strategy, start the upload (which will happen in a thread)
+    // and switch the buffer
+    static int call_count = 0;
+    std::cout << "{" << call_count++ << "}" << std::endl;
+    g_uploader->upload(g_profile);
     g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();

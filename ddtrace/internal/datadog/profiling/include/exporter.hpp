@@ -13,6 +13,8 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <atomic>
+#include <thread>
 #include <vector>
 
 extern "C" {
@@ -71,13 +73,19 @@ class Uploader {
   std::string runtime_id;
   std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
   std::string url;
+  std::optional<std::thread> upload_thread;
+  std::atomic<bool> thread_working{false};
 
   std::string errmsg;
 
+  bool thread_upload_impl(const Profile* profile);
+  bool upload_impl(const Profile* profile);
+
 public:
   Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);
+  ~Uploader();
   bool set_runtime_id(std::string_view id);
-  bool upload(const Profile *profile);
+  void upload(const Profile *profile);
 };
 
 class UploaderBuilder {
