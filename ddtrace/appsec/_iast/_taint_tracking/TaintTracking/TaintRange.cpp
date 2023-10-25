@@ -211,6 +211,14 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
     auto obj_id = get_unique_id(str);
     auto it = tx_taint_map->find(obj_id);
     auto hash = ((PyASCIIObject*)str)->hash;
+    if (hash == -1) {
+        // Force the generation of the hash
+        Py_hash_t result = PyObject_Hash(str);
+        if (result != NULL) {
+            Py_DECREF(result);
+        }
+        hash = ((PyASCIIObject*)str)->hash;
+    }
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
