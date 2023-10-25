@@ -240,6 +240,9 @@ get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
     }
 
     auto it = tx_map->find(get_unique_id(str));
+    if (it == tx_map->end()) {
+        return nullptr;
+    }
 
     Py_hash_t hash = ((PyASCIIObject*)str)->hash;
     if (hash == -1) {
