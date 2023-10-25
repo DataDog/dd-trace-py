@@ -1,6 +1,5 @@
 import json
 
-import loguru
 from loguru import logger
 import pytest
 
