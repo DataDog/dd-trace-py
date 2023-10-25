@@ -36,6 +36,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
                    -e _CI_DD_API_KEY \
                    -e _CI_DD_APP_KEY \
                    -e RIOT_RUN_RECOMPILE_REQS \
+                   -e DD_TAGS \
                    --no-TTY \
                    --quiet-pull \
                    --rm \
