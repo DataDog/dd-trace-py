@@ -167,15 +167,20 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
     auto it = tx_map->find(obj_id);
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
 
-    auto hash = ((PyASCIIObject*)str)->hash;
+    if ((((PyASCIIObject*)str)->hash) == -1) {
+        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
+        if (hash_result != NULL) {
+            Py_DECREF(hash_result);
+        }
+    }
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second.second->decref();
-        it->second = std::pair{ hash, new_tainted_object };
+        it->second = std::pair{ ((PyASCIIObject*)str)->hash, new_tainted_object };
         return;
     }
 
-    tx_map->insert({ obj_id, std::pair{ hash, new_tainted_object } });
+    tx_map->insert({ obj_id, std::pair{ ((PyASCIIObject*)str)->hash, new_tainted_object } });
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
@@ -241,8 +246,13 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
 
     auto it = tx_map->find(get_unique_id(str));
 
-    auto hash = ((PyASCIIObject*)str)->hash;
-    if (hash != it->second.first) {
+    if ((((PyASCIIObject*)str)->hash) == -1) {
+        PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
+        if (hash_result != NULL) {
+            Py_DECREF(hash_result);
+        }
+    }
+    if (((PyASCIIObject*)str)->hash != it->second.first) {
         it->second.second->decref();
         return nullptr;
     }
@@ -274,7 +284,6 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
         hash = ((PyASCIIObject*)str)->hash;
     }
     set_fast_tainted_if_notinterned_unicode(str);
-
     if (it != tx_taint_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
@@ -289,7 +298,7 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
         return;
     }
     tainted_object->incref();
-    tx_taint_map->insert({ hash, std::pair{ hash, tainted_object } });
+    tx_taint_map->insert({ obj_id, std::pair{ ((PyASCIIObject*)str)->hash, tainted_object } });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
