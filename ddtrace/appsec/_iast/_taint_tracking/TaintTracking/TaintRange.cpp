@@ -245,6 +245,9 @@ get_tainted_object(const PyObject* str, TaintRangeMapType* tx_map)
     }
 
     auto it = tx_map->find(get_unique_id(str));
+    if (it == tx_map->end()) {
+        return nullptr;
+    }
 
     if ((((PyASCIIObject*)str)->hash) == -1) {
         PyObject* hash_result = PyObject_CallFunctionObjArgs(HASH_FUNC, str, NULL);
