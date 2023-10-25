@@ -182,10 +182,6 @@ class SubprocessCmdLine(object):
             self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
                 cache_key, self.env_vars, self.binary, self.arguments, self.truncated
             )
-        if config._iast_enabled:
-            from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
-
-            _iast_report_cmdi(shell_args)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
