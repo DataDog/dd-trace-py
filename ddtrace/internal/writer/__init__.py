@@ -1,4 +1,3 @@
-from .writer import AgentResponse  # noqa
 from .writer import AgentWriter  # noqa
 from .writer import DEFAULT_SMA_WINDOW  # noqa
 from .writer import HTTPWriter  # noqa
