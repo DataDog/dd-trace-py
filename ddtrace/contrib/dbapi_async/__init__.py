@@ -2,8 +2,8 @@ from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
-from ...appsec._asm_request_context import increment_iast_span_metric
 from ...appsec._constants import IAST_SPAN_TAGS
+from ...appsec._iast._metrics import increment_iast_span_metric
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY

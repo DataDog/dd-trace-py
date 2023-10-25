@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -26,6 +27,8 @@ METRICS_REPORT_LVLS = (
     (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
     (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
 )
+
+_IAST_SPAN_METRICS: Dict[str, int] = {}
 
 
 def get_iast_metrics_report_lvl(*args, **kwargs):
@@ -114,17 +117,34 @@ def _set_metric_iast_request_tainted():
 
 def _set_span_tag_iast_request_tainted(span):
     total_objects_tainted = _request_tainted()
-
+    print("_set_span_tag_iast_request_tainted!!!!!!!!!!!!!!!!!!!!1")
+    print(total_objects_tainted)
     if total_objects_tainted > 0:
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
 def _set_span_tag_iast_executed_sink(span):
-    from ddtrace.appsec._asm_request_context import get_iast_span_metrics
-
     data = get_iast_span_metrics()
 
     if data is not None:
         for key, value in data.items():
             if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK):
                 span.set_tag(key, value)
+
+    reset_iast_span_metrics()
+
+
+def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
+    data = get_iast_span_metrics()
+    full_key = prefix + "." + metric_key.lower()
+    result = data.get(full_key, 0)
+    data[full_key] = result + counter
+
+
+def get_iast_span_metrics() -> Dict:
+    return _IAST_SPAN_METRICS
+
+
+def reset_iast_span_metrics() -> None:
+    global _IAST_SPAN_METRICS
+    _IAST_SPAN_METRICS = dict()

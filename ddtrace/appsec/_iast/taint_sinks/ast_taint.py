@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
-from ..._asm_request_context import increment_iast_span_metric
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
+from .._metrics import increment_iast_span_metric
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from .path_traversal import check_and_report_path_traversal

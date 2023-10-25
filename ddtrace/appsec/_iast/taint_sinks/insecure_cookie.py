@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING
 from ddtrace.internal.compat import six
 
 from .. import oce
-from ..._asm_request_context import increment_iast_span_metric
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
+from .._metrics import increment_iast_span_metric
 from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE

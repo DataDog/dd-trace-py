@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 from ddtrace.internal.logger import get_logger
 
 from .. import oce
-from ..._asm_request_context import increment_iast_span_metric
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
+from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_unwrap
