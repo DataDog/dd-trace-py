@@ -36,14 +36,12 @@ CWD = os.path.abspath(os.getcwd())
 TESTS = os.path.join(CWD, "test")
 
 
-def from_editable_install(module):
-    # type: (ModuleType) -> bool
+def from_editable_install(module: ModuleType) -> bool:
     o = origin(module)
     return o.startswith(CWD) and not o.startswith(TESTS) and (config.venv is None or not o.startswith(config.venv))
 
 
-def is_included(module):
-    # type: (ModuleType) -> bool
+def is_included(module: ModuleType) -> bool:
     segments = module.__name__.split(".")
     for i in config.include:
         if i == segments[: len(i)]:
@@ -51,8 +49,7 @@ def is_included(module):
     return False
 
 
-def is_ddtrace(module):
-    # type: (ModuleType) -> bool
+def is_ddtrace(module: ModuleType) -> bool:
     name = module.__name__
     return name == "ddtrace" or name.startswith("ddtrace.")
 
@@ -61,10 +58,9 @@ class ModuleCollector(DebuggerModuleWatchdog):
     def __init__(self, *args, **kwargs):
         super(ModuleCollector, self).__init__(*args, **kwargs)
 
-        self._imported_modules = set()  # type: t.Set[str]
+        self._imported_modules: t.Set[str] = set()
 
-    def on_collect(self, discovery):
-        # type: (FunctionDiscovery) -> None
+    def on_collect(self, discovery: FunctionDiscovery) -> None:
         raise NotImplementedError()
 
     def _on_new_module(self, module):
@@ -91,8 +87,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
             status("Error after module import %s: %s" % (module.__name__, e))
             raise e
 
-    def after_import(self, module):
-        # type: (ModuleType) -> None
+    def after_import(self, module: ModuleType) -> None:
         name = module.__name__
         if name in self._imported_modules:
             return
@@ -165,8 +160,7 @@ class NoopProbeStatusLogger(object):
 
 
 class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
-    def encode(self, snapshot):
-        # type: (Snapshot) -> bytes
+    def encode(self, snapshot: Snapshot) -> bytes:
         return b""
 
 
@@ -181,8 +175,7 @@ class ExplorationSignalCollector(SignalCollector):
         self._failed_encoding = []
         self.on_snapshot = None
 
-    def _enqueue(self, snapshot):
-        # type: (Snapshot) -> None
+    def _enqueue(self, snapshot: Snapshot) -> None:
         if config.encode:
             try:
                 self._snapshots.append(self._encoder.encode(snapshot))
@@ -194,13 +187,11 @@ class ExplorationSignalCollector(SignalCollector):
             self.on_snapshot(snapshot)
 
     @property
-    def snapshots(self):
-        # type: () -> t.List[Snapshot]
+    def snapshots(self) -> t.List[Snapshot]:
         return self._snapshots or [None]
 
     @property
-    def probes(self):
-        # type: () -> t.List[Probe]
+    def probes(self) -> t.List[Probe]:
         return self._probes or [None]
 
 
@@ -213,18 +204,15 @@ class ExplorationDebugger(Debugger):
     __poller__ = NoopProbePoller
 
     @classmethod
-    def on_disable(cls):
-        # type: () -> None
+    def on_disable(cls) -> None:
         raise NotImplementedError()
 
     @classmethod
-    def on_snapshot(cls, snapshot):
-        # type: (Snapshot) -> None
+    def on_snapshot(cls, snapshot: Snapshot) -> None:
         pass
 
     @classmethod
-    def enable(cls):
-        # type: () -> None
+    def enable(cls) -> None:
         di_config.max_probes = float("inf")
         di_config.global_rate_limit = float("inf")
         di_config.metrics = False
@@ -234,8 +222,7 @@ class ExplorationDebugger(Debugger):
         cls._instance._collector.on_snapshot = cls.on_snapshot
 
     @classmethod
-    def disable(cls, join=True):
-        # type: (bool) -> None
+    def disable(cls, join: bool = True) -> None:
         registry = cls._instance._probe_registry
 
         nprobes = len(registry)
@@ -256,44 +243,37 @@ class ExplorationDebugger(Debugger):
         super(ExplorationDebugger, cls).disable(join=join)
 
     @classmethod
-    def get_snapshots(cls):
-        # type: () -> t.List[Snapshot]
+    def get_snapshots(cls) -> t.List[Snapshot]:
         if cls._instance is None:
             return None
         return cls._instance._collector.snapshots
 
     @classmethod
-    def get_triggered_probes(cls):
-        # type: () -> t.List[Probe]
+    def get_triggered_probes(cls) -> t.List[Probe]:
         if cls._instance is None:
             return None
         return cls._instance._collector.probes
 
     @classmethod
-    def add_probe(cls, probe):
-        # type: (Probe) -> None
+    def add_probe(cls, probe: Probe) -> None:
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, [probe])
 
     @classmethod
-    def add_probes(cls, probes):
-        # type: (t.List[Probe]) -> None
+    def add_probes(cls, probes: t.List[Probe]) -> None:
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
 
     @classmethod
-    def delete_probe(cls, probe):
-        # type: (Probe) -> None
+    def delete_probe(cls, probe: Probe) -> None:
         cls._instance._on_configuration(ProbePollerEvent.DELETED_PROBES, [probe])
 
 
 if config.status_messages:
 
-    def status(msg):
-        # type: (str) -> None
+    def status(msg: str) -> None:
         print(("{:%d}" % COLS).format(msg))
 
 
 else:
 
-    def status(msg):
-        # type: (str) -> None
+    def status(msg: str) -> None:
         pass
