@@ -67,7 +67,7 @@ class BufferItemTooLarge(Exception):
     pass
 
 
-class EncodingValidationError(Exception):    
+class EncodingValidationError(Exception):
     def __init__(self, msg="", debug_message=""):
         Exception.__init__(self, msg)
         self.msg = msg
