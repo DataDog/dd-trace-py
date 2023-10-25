@@ -163,6 +163,7 @@ UploaderBuilder::build_ptr()
     return new Uploader(url, ddog_exporter);
 }
 
+void
 Uploader::wait_for_thread(int tries)
 {
     while (thread_working.load() && tries > 0) {
