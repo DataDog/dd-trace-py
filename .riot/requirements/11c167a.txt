@@ -36,7 +36,7 @@ six==1.16.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==2.0.2
-werkzeug==2.3.4
+werkzeug==3.0.1
 wheel==0.40.0
 
 # The following packages are considered to be unsafe in a requirements file:

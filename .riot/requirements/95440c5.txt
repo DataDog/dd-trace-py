@@ -31,5 +31,5 @@ requests==2.31.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==2.0.4
-werkzeug==2.3.7
+werkzeug==3.0.1
 zipp==3.16.2
