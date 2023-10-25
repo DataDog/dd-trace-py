@@ -644,6 +644,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
 
 def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
     kafka_topic = empty_kafka_topic
+
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
