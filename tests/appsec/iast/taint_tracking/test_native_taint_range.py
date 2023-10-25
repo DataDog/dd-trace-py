@@ -15,8 +15,10 @@ try:
     from ddtrace.appsec._iast._taint_tracking import create_context
     from ddtrace.appsec._iast._taint_tracking import get_range_by_hash
     from ddtrace.appsec._iast._taint_tracking import get_ranges
+    from ddtrace.appsec._iast._taint_tracking import is_notinterned_notfasttainted_unicode
     from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec._iast._taint_tracking import reset_context
+    from ddtrace.appsec._iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ddtrace.appsec._iast._taint_tracking import set_ranges
     from ddtrace.appsec._iast._taint_tracking import shift_taint_range
     from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
@@ -24,7 +26,8 @@ try:
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
     from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
-except (ImportError, AttributeError):
+except (ImportError, AttributeError) as e:
+    print(e)
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
@@ -58,6 +61,33 @@ _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
 
 _RANGE1 = TaintRange(0, 2, _SOURCE1)
 _RANGE2 = TaintRange(1, 3, _SOURCE2)
+
+
+def test_unicode_fast_tainting():
+    for i in range(5000):
+        s = "somestr" * random.randint(4 * i + 7, 4 * i + 9)
+        s_check = "somestr" * (4 * i + 10)
+        # Check that s is not interned since fast tainting only works on non-interned strings
+        assert s is not s_check
+        assert is_notinterned_notfasttainted_unicode(s), "%s,%s" % (i, len(s) // 7)
+
+        set_fast_tainted_if_notinterned_unicode(s)
+        assert not is_notinterned_notfasttainted_unicode(s)
+
+        b = b"foobar" * 4000
+        assert not is_notinterned_notfasttainted_unicode(b)
+        set_fast_tainted_if_notinterned_unicode(b)
+        assert not is_notinterned_notfasttainted_unicode(b)
+
+        ba = bytearray(b"sfdsdfsdf" * 4000)
+        assert not is_notinterned_notfasttainted_unicode(ba)
+        set_fast_tainted_if_notinterned_unicode(ba)
+        assert not is_notinterned_notfasttainted_unicode(ba)
+
+        c = 12345
+        assert not is_notinterned_notfasttainted_unicode(c)
+        set_fast_tainted_if_notinterned_unicode(c)
+        assert not is_notinterned_notfasttainted_unicode(c)
 
 
 def test_collisions():

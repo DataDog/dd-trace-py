@@ -116,6 +116,22 @@ api_are_all_text_all_ranges(const py::object& candidate_text, const py::tuple& p
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
+void
+set_fast_tainted_if_notinterned_unicode(const PyObject* objptr);
+inline void
+api_set_fast_tainted_if_unicode(const py::object& obj)
+{
+    set_fast_tainted_if_notinterned_unicode(obj.ptr());
+}
+
+bool
+is_notinterned_notfasttainted_unicode(const PyObject* objptr);
+inline bool
+api_is_unicode_and_not_fast_tainted(const py::object str)
+{
+    return is_notinterned_notfasttainted_unicode(str.ptr());
+}
+
 TaintedObject*
 get_tainted_object(const PyObject* str, TaintRangeMapType* tx_taint_map);
 

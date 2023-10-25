@@ -25,7 +25,10 @@ if _is_python_version_supported():
     from ._native.taint_tracking import are_all_text_all_ranges
     from ._native.taint_tracking import get_range_by_hash
     from ._native.taint_tracking import get_ranges
+    from ._native.taint_tracking import is_notinterned_notfasttainted_unicode
     from ._native.taint_tracking import is_tainted
+    from ._native.taint_tracking import origin_to_str
+    from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ._native.taint_tracking import set_ranges
     from ._native.taint_tracking import shift_taint_range
     from ._native.taint_tracking import shift_taint_ranges
@@ -58,6 +61,8 @@ __all__ = [
     "shift_taint_range",
     "shift_taint_ranges",
     "get_range_by_hash",
+    "is_notinterned_notfasttainted_unicode",
+    "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
     "reset_context",
     "destroy_context",
