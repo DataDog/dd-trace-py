@@ -16,12 +16,11 @@ from ddtrace.internal.module import origin
 
 
 # Track all instrumented functions and their call count.
-_tracked_funcs = {}  # type: t.Dict[str, int]
+_tracked_funcs: t.Dict[str, int] = {}
 
 
 class FunctionCollector(ModuleCollector):
-    def on_collect(self, discovery):
-        # type: (FunctionDiscovery) -> None
+    def on_collect(self, discovery: FunctionDiscovery) -> None:
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
         for fname, f in discovery._fullname_index.items():
@@ -46,8 +45,7 @@ class DeterministicProfiler(ExplorationDebugger):
     __watchdog__ = FunctionCollector
 
     @classmethod
-    def report_func_calls(cls):
-        # type: () -> None
+    def report_func_calls(cls) -> None:
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, FunctionLocationMixin)):
             _tracked_funcs[".".join([probe.module, probe.func_qname])] += 1
         print(("{:=^%ds}" % COLS).format(" Function coverage "))
@@ -67,13 +65,11 @@ class DeterministicProfiler(ExplorationDebugger):
         print("")
 
     @classmethod
-    def on_disable(cls):
-        # type: () -> None
+    def on_disable(cls) -> None:
         cls.report_func_calls()
 
     @classmethod
-    def on_snapshot(cls, snapshot):
-        # type: (Snapshot) -> None
+    def on_snapshot(cls, snapshot: Snapshot) -> None:
         if config.profiler.delete_probes:
             cls.delete_probe(snapshot.probe)
 

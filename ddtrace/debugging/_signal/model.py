@@ -60,8 +60,7 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
     timestamp = attr.ib(type=float, factory=time.time)
     uuid = attr.ib(type=str, init=False, factory=lambda: str(uuid4()))
 
-    def _eval_condition(self, _locals=None):
-        # type: (Optional[Dict[str, Any]]) -> bool
+    def _eval_condition(self, _locals: Optional[Dict[str, Any]] = None) -> bool:
         """Evaluate the probe condition against the collected frame."""
         probe = cast(ProbeConditionMixin, self.probe)
         condition = probe.condition

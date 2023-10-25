@@ -20,12 +20,11 @@ from ddtrace.internal.module import origin
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
-_tracked_modules = {}  # type: t.Dict[str, t.Tuple[ModuleType, t.Set[int]]]
+_tracked_modules: t.Dict[str, t.Tuple[ModuleType, t.Set[int]]] = {}
 
 
 class LineCollector(ModuleCollector):
-    def on_collect(self, discovery):
-        # type: (FunctionDiscovery) -> None
+    def on_collect(self, discovery: FunctionDiscovery) -> None:
         o = origin(discovery._module)
         status("[coverage] collecting lines from %s" % o)
         _tracked_modules[o] = (discovery._module, {_ for _ in discovery.keys()})
@@ -48,8 +47,7 @@ class LineCoverage(ExplorationDebugger):
     __watchdog__ = LineCollector
 
     @classmethod
-    def report_coverage(cls):
-        # type: () -> None
+    def report_coverage(cls) -> None:
         seen_lines_map = defaultdict(set)
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
             seen_lines_map[probe.source_file].add(probe.line)
@@ -85,13 +83,11 @@ class LineCoverage(ExplorationDebugger):
         print("")
 
     @classmethod
-    def on_disable(cls):
-        # type: () -> None
+    def on_disable(cls) -> None:
         cls.report_coverage()
 
     @classmethod
-    def on_snapshot(cls, snapshot):
-        # type: (Snapshot) -> None
+    def on_snapshot(cls, snapshot: Snapshot) -> None:
         if config.coverage.delete_probes:
             cls.delete_probe(snapshot.probe)
 
