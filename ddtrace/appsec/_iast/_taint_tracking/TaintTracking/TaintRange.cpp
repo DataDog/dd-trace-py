@@ -250,14 +250,16 @@ get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
     return it == tx_map->end() ? nullptr : it->second.second;
 }
 
-Py_hash_t bytearray_hash(PyObject* bytearray)
+Py_hash_t
+bytearray_hash(PyObject* bytearray)
 {
     // Bytearrays don't have hash by default so we will generate one by getting the internal str hash
     auto str = py::str(bytearray);
     return PyObject_Hash(str.ptr());
 }
 
-Py_hash_t get_internal_hash(PyObject* obj)
+Py_hash_t
+get_internal_hash(PyObject* obj)
 {
     if (PyByteArray_Check(obj)) {
         return bytearray_hash(obj);

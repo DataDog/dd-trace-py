@@ -50,7 +50,8 @@ struct TaintRange
       : start(start)
       , length(length)
       , source(std::move(source))
-    {}
+    {
+    }
 
     inline void set_values(RANGE_START start_, RANGE_LENGTH length_, Source source_)
     {
@@ -135,9 +136,11 @@ api_is_unicode_and_not_fast_tainted(const py::object str)
 TaintedObject*
 get_tainted_object(PyObject* str, TaintRangeMapType* tx_taint_map);
 
-Py_hash_t bytearray_hash(PyObject* bytearray);
+Py_hash_t
+bytearray_hash(PyObject* bytearray);
 
-Py_hash_t get_internal_hash(PyObject* obj);
+Py_hash_t
+get_internal_hash(PyObject* obj);
 
 void
 set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);

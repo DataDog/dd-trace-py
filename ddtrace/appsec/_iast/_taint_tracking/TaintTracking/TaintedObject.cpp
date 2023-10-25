@@ -73,7 +73,8 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
 }
 
 std::string
-TaintedObject::toString() {
+TaintedObject::toString()
+{
     stringstream ss;
 
     ss << "TaintedObject [";
