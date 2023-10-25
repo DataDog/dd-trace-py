@@ -7,8 +7,7 @@ from envier import En
 from ddtrace.debugging._probe.model import CaptureLimits
 
 
-def parse_venv(value):
-    # type: (str) -> t.Optional[str]
+def parse_venv(value: str) -> t.Optional[str]:
     try:
         return os.path.abspath(value) if value is not None else None
     except TypeError:
