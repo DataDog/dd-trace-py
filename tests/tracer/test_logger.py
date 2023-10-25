@@ -426,3 +426,26 @@ def test_logger_no_dummy_thread_name_after_module_cleanup():
     t = Thread(target=logger.error, args=("Hello from thread",), name="MyThread")
     t.start()
     t.join()
+
+
+@pytest.mark.subprocess()
+def test_logger_does_not_add_handler_on_import_when_already_configured():
+    import logging
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    ddtrace_logger.addHandler(logging.NullHandler())
+    import ddtrace  # noqa
+
+    assert len(ddtrace_logger.handlers) == 1
+    assert ddtrace_logger.handlers[0].__class__ == logging.NullHandler
+
+
+@pytest.mark.subprocess()
+def test_logger_does_add_handler_on_import_when_not_configured():
+    import logging
+
+    import ddtrace  # noqa
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    assert len(ddtrace_logger.handlers) == 1
+    assert ddtrace_logger.handlers[0].__class__ == logging.StreamHandler

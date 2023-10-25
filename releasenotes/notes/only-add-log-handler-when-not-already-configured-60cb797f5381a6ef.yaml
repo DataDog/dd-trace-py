@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    logging: This fixes an issue where a log handler was added to the ddtrace logger
+    upon ddtrace import, when not using ddtrace-run. This could lead to duplicate logging 
+    if users added additional loggers and did not explicitly modify the ddtrace logger.
+    With this fix we will only add the handler if the ddtrace logger is not already 
+    configured with one.
