@@ -49,7 +49,7 @@ def _tracer_injection(_, __, event_dict):
 
 def _w_get_logger(func, instance, args, kwargs):
     dd_processor = [_tracer_injection]
-    structlog._config._CONFIG.default_processors = dd_processor + structlog._config._CONFIG.default_processors[:]
+    structlog._config._CONFIG.default_processors = dd_processor + structlog._config._CONFIG.default_processors
     return func(*args, **kwargs)
 
 
