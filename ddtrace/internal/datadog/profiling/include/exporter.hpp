@@ -93,10 +93,12 @@ class UploaderBuilder {
   std::string runtime_version = "";
   std::string profiler_version = "";
   std::string url = "http://localhost:8126";
-  ExporterTagset user_tags;
 
+  // These never change
   static constexpr std::string_view language = "python";
   static constexpr std::string_view family = "python";
+
+  ExporterTagset user_tags;
 
 public:
   std::string errmsg;

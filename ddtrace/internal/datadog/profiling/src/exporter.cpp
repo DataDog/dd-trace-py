@@ -132,8 +132,7 @@ UploaderBuilder::build_ptr()
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
     // Add the tags, emitting the first failure
-    if (!add_tag(tags, ExportTagKey::env, env, errmsg) ||
-        !add_tag(tags, ExportTagKey::service, service, errmsg) ||
+    if (!add_tag(tags, ExportTagKey::env, env, errmsg) || !add_tag(tags, ExportTagKey::service, service, errmsg) ||
         !add_tag(tags, ExportTagKey::version, version, errmsg) ||
         !add_tag(tags, ExportTagKey::language, language, errmsg) ||
         !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
@@ -360,7 +359,7 @@ Profile::reset()
         ddog_Error_drop(&reset_res.err);
         return false;
     }
-  return true;
+    return true;
 }
 
 bool
