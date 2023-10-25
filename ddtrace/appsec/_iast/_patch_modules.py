@@ -6,7 +6,6 @@ IAST_PATCH = {
     "path_traversal": True,
     "weak_cipher": True,
     "weak_hash": True,
-    "json": True,
 }
 
 
