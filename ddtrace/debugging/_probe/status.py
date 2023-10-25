@@ -22,14 +22,14 @@ ErrorInfo = Tuple[str, str]
 
 
 class ProbeStatusLogger(object):
-    def __init__(self, service, encoder):
-        # type: (str, BufferedEncoder) -> None
+    def __init__(self, service: str, encoder: BufferedEncoder) -> None:
         self._service = service
         self._encoder = encoder
-        self._retry_queue = deque()  # type: deque[Tuple[str, float]]
+        self._retry_queue: deque[Tuple[str, float]] = deque()
 
-    def _payload(self, probe, status, message, timestamp, error=None):
-        # type: (Probe, str, str, float, Optional[ErrorInfo]) -> str
+    def _payload(
+        self, probe: Probe, status: str, message: str, timestamp: float, error: Optional[ErrorInfo] = None
+    ) -> str:
         payload = {
             "service": self._service,
             "timestamp": int(timestamp * 1e3),  # milliseconds
@@ -56,8 +56,7 @@ class ProbeStatusLogger(object):
 
         return json.dumps(payload)
 
-    def _write(self, probe, status, message, error=None):
-        # type: (Probe, str, str, Optional[ErrorInfo]) -> None
+    def _write(self, probe: Probe, status: str, message: str, error: Optional[ErrorInfo] = None) -> None:
         if self._retry_queue:
             meter.distribution("backlog.size", len(self._retry_queue))
 
@@ -91,22 +90,19 @@ class ProbeStatusLogger(object):
         except Exception:
             log.error("Failed to write probe status payload", exc_info=True)
 
-    def received(self, probe, message=None):
-        # type: (Probe, Optional[str]) -> None
+    def received(self, probe: Probe, message: Optional[str] = None) -> None:
         self._write(
             probe,
             "RECEIVED",
             message or "Probe %s has been received correctly" % probe.probe_id,
         )
 
-    def installed(self, probe, message=None):
-        # type: (Probe, Optional[str]) -> None
+    def installed(self, probe: Probe, message: Optional[str] = None) -> None:
         self._write(
             probe,
             "INSTALLED",
             message or "Probe %s instrumented correctly" % probe.probe_id,
         )
 
-    def error(self, probe, error=None):
-        # type: (Probe, Optional[ErrorInfo]) -> None
+    def error(self, probe: Probe, error: Optional[ErrorInfo] = None) -> None:
         self._write(probe, "ERROR", "Failed to instrument probe %s" % probe.probe_id, error)

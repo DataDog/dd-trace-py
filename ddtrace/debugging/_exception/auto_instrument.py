@@ -41,12 +41,11 @@ FRAME_LINE_TAG = "_dd.debug.error.%d.line"
 
 
 def unwind_exception_chain(
-    exc,  # type: t.Optional[BaseException]
-    tb,  # type: t.Optional[TracebackType]
-):
-    # type: (...) -> t.Tuple[t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]], t.Optional[uuid.UUID]]
+    exc: t.Optional[BaseException],
+    tb: t.Optional[TracebackType],
+) -> t.Tuple[t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]], t.Optional[uuid.UUID]]:
     """Unwind the exception chain and assign it an ID."""
-    chain = deque()  # type: t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]]
+    chain: t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]] = deque()
 
     while exc is not None:
         chain.append((exc, tb))
@@ -80,8 +79,7 @@ def unwind_exception_chain(
 @attr.s
 class SpanExceptionProbe(LogLineProbe):
     @classmethod
-    def build(cls, exc_id, tb):
-        # type: (uuid.UUID, TracebackType) -> SpanExceptionProbe
+    def build(cls, exc_id: uuid.UUID, tb: TracebackType) -> "SpanExceptionProbe":
         _exc_id = str(exc_id)
         frame = tb.tb_frame
         filename = frame.f_code.co_filename
@@ -110,8 +108,7 @@ class SpanExceptionSnapshot(Snapshot):
     exc_id = attr.ib(type=t.Optional[uuid.UUID], default=None)
 
     @property
-    def data(self):
-        # type: () -> t.Dict[str, t.Any]
+    def data(self) -> t.Dict[str, t.Any]:
         data = super(SpanExceptionSnapshot, self).data
 
         data.update({"exception-id": str(self.exc_id)})
@@ -119,8 +116,7 @@ class SpanExceptionSnapshot(Snapshot):
         return data
 
 
-def can_capture(span):
-    # type: (Span) -> bool
+def can_capture(span: Span) -> bool:
     # We determine if we should capture the exception information from the span
     # by looking at its local root. If we have budget to capture, we mark the
     # root as "info captured" and return True. If we don't have budget, we mark
@@ -150,12 +146,10 @@ def can_capture(span):
 class SpanExceptionProcessor(SpanProcessor):
     collector = attr.ib(type=SignalCollector)
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         if not (span.error and can_capture(span)):
             # No error or budget to capture
             return
