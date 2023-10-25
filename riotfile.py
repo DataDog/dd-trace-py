@@ -2175,6 +2175,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="loguru",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/loguru",
+            pkgs={
+                "loguru": ["~=0.4.0", latest],
+            },
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(),
