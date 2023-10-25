@@ -173,6 +173,7 @@ set_ranges(const PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType*
             Py_DECREF(hash_result);
         }
     }
+    set_fast_tainted_if_notinterned_unicode(str);
     new_tainted_object->incref();
     if (it != tx_map->end()) {
         it->second.second->decref();
