@@ -163,12 +163,20 @@ UploaderBuilder::build_ptr()
     return new Uploader(url, ddog_exporter);
 }
 
+Uploader::wait_for_thread(int tries) {
+    while (thread_working.load() && tries > 0) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      --tries;
+    }
+}
+
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : ddog_exporter{ _ddog_exporter }
   , url{ _url }
 {}
 
 Uploader::~Uploader() {
+    wait_for_thread(3);
     if (upload_thread && upload_thread->joinable()) {
       upload_thread->join();
       upload_thread.reset();
@@ -197,13 +205,8 @@ Uploader::thread_upload_impl(const Profile* profile) {
 void
 Uploader::upload(const Profile* profile)
 {
-    // If the upload thread is busy, give it some time.
-    // We give it up to 3 seconds, which is arbitrary
-    int check_count = 3;
-    while (thread_working.load() && check_count > 0) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      --check_count;
-    }
+    // If the upload thread is busy, give it some time.  We give it up to 3 seconds, which is arbitrary
+    wait_for_thread(3);
     if (upload_thread && upload_thread->joinable()) {
       upload_thread->join();
       upload_thread.reset();

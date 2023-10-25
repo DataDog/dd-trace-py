@@ -78,6 +78,7 @@ class Uploader {
 
   std::string errmsg;
 
+  void wait_for_thread(int tries);
   bool thread_upload_impl(const Profile* profile);
   bool upload_impl(const Profile* profile);
 
