@@ -96,7 +96,6 @@ def get_git_tags():
 
         if config.enabled:
             repository_url, commit_sha = _get_tags_from_env(config)
-
             log.debug("git tags from env: %s %s", repository_url, commit_sha)
             if not repository_url or not commit_sha:
                 pkg_repository_url, pkg_commit_sha = _get_tags_from_package(config)
