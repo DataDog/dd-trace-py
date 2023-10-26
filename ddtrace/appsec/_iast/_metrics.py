@@ -117,8 +117,7 @@ def _set_metric_iast_request_tainted():
 
 def _set_span_tag_iast_request_tainted(span):
     total_objects_tainted = _request_tainted()
-    print("_set_span_tag_iast_request_tainted!!!!!!!!!!!!!!!!!!!!1")
-    print(total_objects_tainted)
+
     if total_objects_tainted > 0:
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 

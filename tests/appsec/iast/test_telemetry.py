@@ -127,4 +127,3 @@ def test_flask_when_appsec_reads_empty_body_hang():
         assert response.content == b"OK"
 
     # TODO: move tests/telemetry/conftest.py::test_agent_session into a common conftest
-    #   events = test_agent_session.get_events()

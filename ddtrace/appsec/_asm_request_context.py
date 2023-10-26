@@ -33,6 +33,7 @@ _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
 
+
 GLOBAL_CALLBACKS: Dict[str, Any] = {}
 
 
