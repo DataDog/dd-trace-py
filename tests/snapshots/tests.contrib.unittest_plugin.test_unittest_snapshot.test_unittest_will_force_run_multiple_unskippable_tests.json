@@ -19,7 +19,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "c7f6dbba5e044dee9f18658869e5e177",
+        "runtime-id": "1eae2a17dfa247ba9bc3f140f8229e31",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -34,18 +34,18 @@
         "test.itr.unskippable": "true",
         "test.status": "pass",
         "test.type": "test",
-        "test_session_id": "14973979041617869486",
+        "test_session_id": "9935277194321657038",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32407,
+        "process_id": 35125,
         "test.itr.tests_skipping.count": 2
       },
-      "duration": 29023666,
-      "start": 1698240176703459962
+      "duration": 26577292,
+      "start": 1698323864115803636
     },
     {
       "name": "unittest.test_module",
@@ -80,15 +80,15 @@
         "test.module_path": "test_my_coverage.py",
         "test.status": "pass",
         "test.type": "test",
-        "test_module_id": "2311482066944371006",
-        "test_session_id": "14973979041617869486",
+        "test_module_id": "269823980351260049",
+        "test_session_id": "9935277194321657038",
         "type": "test_module_end"
       },
       "metrics": {
         "test.itr.tests_skipping.count": 2
       },
-      "duration": 28527500,
-      "start": 1698240176703854420
+      "duration": 26010250,
+      "start": 1698323864116292678
     },
     {
       "name": "unittest.test_suite",
@@ -117,13 +117,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2311482066944371006",
-        "test_session_id": "14973979041617869486",
-        "test_suite_id": "1342668013039093630",
+        "test_module_id": "269823980351260049",
+        "test_session_id": "9935277194321657038",
+        "test_suite_id": "10669167644696916759",
         "type": "test_suite_end"
       },
-      "duration": 28427958,
-      "start": 1698240176703943920
+      "duration": 25907000,
+      "start": 1698323864116386511
     },
     {
       "name": "unittest.test",
@@ -146,7 +146,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[16, 0, 17, 0, -1]]}, {"filename": "lib_fn.py", "segments": [[1, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[16, 0, 17, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.itr.forced_run": "true",
@@ -157,13 +157,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2311482066944371006",
-        "test_session_id": "14973979041617869486",
-        "test_suite_id": "1342668013039093630",
+        "test_module_id": "269823980351260049",
+        "test_session_id": "9935277194321657038",
+        "test_suite_id": "10669167644696916759",
         "type": "test"
       },
-      "duration": 22807125,
-      "start": 1698240176703981962
+      "duration": 20837292,
+      "start": 1698323864116418886
     },
     {
       "name": "unittest.test",
@@ -186,7 +186,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[20, 0, 21, 0, -1]]}, {"filename": "ret_false.py", "segments": [[1, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[20, 0, 21, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.itr.forced_run": "true",
@@ -197,13 +197,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2311482066944371006",
-        "test_session_id": "14973979041617869486",
-        "test_suite_id": "1342668013039093630",
+        "test_module_id": "269823980351260049",
+        "test_session_id": "9935277194321657038",
+        "test_suite_id": "10669167644696916759",
         "type": "test"
       },
-      "duration": 3061709,
-      "start": 1698240176726894628
+      "duration": 2728250,
+      "start": 1698323864137346220
     },
     {
       "name": "unittest.test",
@@ -226,7 +226,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[23, 0, 24, 0, -1]]}, {"filename": "ret_false.py", "segments": [[2, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[23, 0, 24, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[2, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_my_coverage",
@@ -235,13 +235,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2311482066944371006",
-        "test_session_id": "14973979041617869486",
-        "test_suite_id": "1342668013039093630",
+        "test_module_id": "269823980351260049",
+        "test_session_id": "9935277194321657038",
+        "test_suite_id": "10669167644696916759",
         "type": "test"
       },
-      "duration": 2327542,
-      "start": 1698240176730026795
+      "duration": 2143333,
+      "start": 1698323864140134553
     }
   ]
 ]

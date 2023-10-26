@@ -18,7 +18,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "10e90d3a88c647358df2eabff36274c4",
+        "runtime-id": "eb6297603f0e4b3f9b3aef718673f73f",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -29,17 +29,17 @@
         "test.itr.tests_skipping.enabled": "false",
         "test.status": "pass",
         "test.type": "test",
-        "test_session_id": "10354869464380730743",
+        "test_session_id": "15363414586676320699",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32378
+        "process_id": 35096
       },
-      "duration": 22630250,
-      "start": 1698240175239579711
+      "duration": 21865291,
+      "start": 1698323863276354303
     },
     {
       "name": "unittest.test_module",
@@ -69,12 +69,12 @@
         "test.module_path": "test_my_coverage.py",
         "test.status": "pass",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
+        "test_module_id": "5716345041465226941",
+        "test_session_id": "15363414586676320699",
         "type": "test_module_end"
       },
-      "duration": 22172834,
-      "start": 1698240175239959044
+      "duration": 21431917,
+      "start": 1698323863276689344
     },
     {
       "name": "unittest.test_suite",
@@ -103,13 +103,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "5716345041465226941",
+        "test_session_id": "15363414586676320699",
+        "test_suite_id": "11222068830623091105",
         "type": "test_suite_end"
       },
-      "duration": 22083459,
-      "start": 1698240175240038669
+      "duration": 21339291,
+      "start": 1698323863276772303
     },
     {
       "name": "unittest.test",
@@ -132,7 +132,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[9, 0, 10, 0, -1]]}, {"filename": "lib_fn.py", "segments": [[1, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[9, 0, 10, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_my_coverage",
@@ -141,13 +141,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "5716345041465226941",
+        "test_session_id": "15363414586676320699",
+        "test_suite_id": "11222068830623091105",
         "type": "test"
       },
-      "duration": 21855791,
-      "start": 1698240175240069503
+      "duration": 21100458,
+      "start": 1698323863276804053
     },
     {
       "name": "unittest.test",
@@ -179,13 +179,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "16087037666211995014",
-        "test_session_id": "10354869464380730743",
-        "test_suite_id": "11397512595931676506",
+        "test_module_id": "5716345041465226941",
+        "test_session_id": "15363414586676320699",
+        "test_suite_id": "11222068830623091105",
         "type": "test"
       },
-      "duration": 80500,
-      "start": 1698240175262028669
+      "duration": 80708,
+      "start": 1698323863298017803
     }
   ]
 ]

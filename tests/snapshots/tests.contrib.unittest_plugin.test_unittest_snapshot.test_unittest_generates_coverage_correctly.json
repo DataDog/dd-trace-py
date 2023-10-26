@@ -18,7 +18,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "dd471b28ff67417da49f2f5557a80b53",
+        "runtime-id": "13d3a46ddef242e48897676f2cd1a65a",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -29,17 +29,17 @@
         "test.itr.tests_skipping.enabled": "false",
         "test.status": "pass",
         "test.type": "test",
-        "test_session_id": "15198885056355585419",
+        "test_session_id": "17548512764008251836",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32349
+        "process_id": 35067
       },
-      "duration": 26326250,
-      "start": 1698240174284525210
+      "duration": 24568042,
+      "start": 1698323862425954260
     },
     {
       "name": "unittest.test_module",
@@ -69,12 +69,12 @@
         "test.module_path": "test_my_coverage.py",
         "test.status": "pass",
         "test.type": "test",
-        "test_module_id": "5853773530286531457",
-        "test_session_id": "15198885056355585419",
+        "test_module_id": "464008630873960127",
+        "test_session_id": "17548512764008251836",
         "type": "test_module_end"
       },
-      "duration": 25900250,
-      "start": 1698240174284879169
+      "duration": 24117750,
+      "start": 1698323862426313719
     },
     {
       "name": "unittest.test_suite",
@@ -103,13 +103,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "5853773530286531457",
-        "test_session_id": "15198885056355585419",
-        "test_suite_id": "17142518281793840002",
+        "test_module_id": "464008630873960127",
+        "test_session_id": "17548512764008251836",
+        "test_suite_id": "3385917464712852404",
         "type": "test_suite_end"
       },
-      "duration": 25811041,
-      "start": 1698240174284958419
+      "duration": 24027417,
+      "start": 1698323862426393677
     },
     {
       "name": "unittest.test",
@@ -132,7 +132,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[9, 0, 10, 0, -1]]}, {"filename": "lib_fn.py", "segments": [[1, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[9, 0, 10, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_my_coverage",
@@ -141,13 +141,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "5853773530286531457",
-        "test_session_id": "15198885056355585419",
-        "test_suite_id": "17142518281793840002",
+        "test_module_id": "464008630873960127",
+        "test_session_id": "17548512764008251836",
+        "test_suite_id": "3385917464712852404",
         "type": "test"
       },
-      "duration": 22914791,
-      "start": 1698240174284990169
+      "duration": 20740334,
+      "start": 1698323862426423135
     },
     {
       "name": "unittest.test",
@@ -170,7 +170,7 @@
         "span.kind": "test",
         "test.class_hierarchy": "CoverageTestCase",
         "test.command": "python -m unittest",
-        "test.coverage": '{"files": [{"filename": "test_my_coverage.py", "segments": [[12, 0, 13, 0, -1]]}, {"filename": "ret_false.py", "segments": [[1, 0, 2, 0, -1]]}]}',
+        "test.coverage": "{\"files\": [{\"filename\": \"test_my_coverage.py\", \"segments\": [[12, 0, 13, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_my_coverage",
@@ -179,13 +179,13 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "5853773530286531457",
-        "test_session_id": "15198885056355585419",
-        "test_suite_id": "17142518281793840002",
+        "test_module_id": "464008630873960127",
+        "test_session_id": "17548512764008251836",
+        "test_suite_id": "3385917464712852404",
         "type": "test"
       },
-      "duration": 2736416,
-      "start": 1698240174308016169
+      "duration": 3121958,
+      "start": 1698323862447277927
     }
   ]
 ]

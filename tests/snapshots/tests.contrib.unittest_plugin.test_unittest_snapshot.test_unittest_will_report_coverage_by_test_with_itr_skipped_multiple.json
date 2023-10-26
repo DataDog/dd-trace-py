@@ -19,7 +19,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "b7dbb57420d347b79f61de68b0d62e75",
+        "runtime-id": "17afd0e2cf134100817860354b6e202c",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -34,18 +34,18 @@
         "test.itr.unskippable": "false",
         "test.status": "skip",
         "test.type": "test",
-        "test_session_id": "14507671876345911531",
+        "test_session_id": "7758374178207492613",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32494,
+        "process_id": 35212,
         "test.itr.tests_skipping.count": 2
       },
-      "duration": 892000,
-      "start": 1698240179478355255
+      "duration": 890584,
+      "start": 1698323866623111137
     },
     {
       "name": "unittest.test_module",
@@ -80,15 +80,15 @@
         "test.module_path": "test_my_coverage.py",
         "test.status": "skip",
         "test.type": "test",
-        "test_module_id": "13520307033366886068",
-        "test_session_id": "14507671876345911531",
+        "test_module_id": "5147830649997343024",
+        "test_session_id": "7758374178207492613",
         "type": "test_module_end"
       },
       "metrics": {
         "test.itr.tests_skipping.count": 2
       },
-      "duration": 428084,
-      "start": 1698240179478749296
+      "duration": 418625,
+      "start": 1698323866623513679
     },
     {
       "name": "unittest.test_suite",
@@ -117,13 +117,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "13520307033366886068",
-        "test_session_id": "14507671876345911531",
-        "test_suite_id": "7531044049087822093",
+        "test_module_id": "5147830649997343024",
+        "test_session_id": "7758374178207492613",
+        "test_suite_id": "17180088000986049944",
         "type": "test_suite_end"
       },
-      "duration": 336000,
-      "start": 1698240179478832046
+      "duration": 329667,
+      "start": 1698323866623593762
     },
     {
       "name": "unittest.test",
@@ -156,13 +156,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "13520307033366886068",
-        "test_session_id": "14507671876345911531",
-        "test_suite_id": "7531044049087822093",
+        "test_module_id": "5147830649997343024",
+        "test_session_id": "7758374178207492613",
+        "test_suite_id": "17180088000986049944",
         "type": "test"
       },
-      "duration": 124167,
-      "start": 1698240179478864296
+      "duration": 126291,
+      "start": 1698323866623623721
     },
     {
       "name": "unittest.test",
@@ -195,13 +195,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "13520307033366886068",
-        "test_session_id": "14507671876345911531",
-        "test_suite_id": "7531044049087822093",
+        "test_module_id": "5147830649997343024",
+        "test_session_id": "7758374178207492613",
+        "test_suite_id": "17180088000986049944",
         "type": "test"
       },
-      "duration": 108042,
-      "start": 1698240179479045838
+      "duration": 107375,
+      "start": 1698323866623804429
     }
   ]
 ]
