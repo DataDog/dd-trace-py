@@ -22,10 +22,13 @@ class TestStructlogPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, structlog):
-        self.assert_wrapped(structlog.configure)
+        self.assert_wrapped(structlog.get_logger)
+        self.assert_wrapped(structlog.getLogger)
 
     def assert_not_module_patched(self, structlog):
-        self.assert_not_wrapped(structlog.configure)
+        self.assert_not_wrapped(structlog.get_logger)
+        self.assert_not_wrapped(structlog.getLogger)
 
     def assert_not_module_double_patched(self, structlog):
-        self.assert_not_double_wrapped(structlog.configure)
+        self.assert_not_double_wrapped(structlog.get_logger)
+        self.assert_not_double_wrapped(structlog.getLogger)
