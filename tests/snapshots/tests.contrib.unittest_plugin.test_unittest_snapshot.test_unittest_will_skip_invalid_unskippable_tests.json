@@ -10,7 +10,7 @@
       "type": "test",
       "meta": {
         "_dd.base_service": "",
-        "_dd.ci.itr.tests_skipped": "true",
+        "_dd.ci.itr.tests_skipped": "false",
         "_dd.origin": "ciapp-test",
         "_dd.p.dm": "-0",
         "component": "unittest",
@@ -19,7 +19,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "344803e7d1294493bccfac513a68add1",
+        "runtime-id": "ddd1d16eb9a04a69bbeaf10ee3d88a4a",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -29,23 +29,23 @@
         "test.framework_version": "3.10.11",
         "test.itr.forced_run": "false",
         "test.itr.tests_skipping.enabled": "true",
-        "test.itr.tests_skipping.tests_skipped": "true",
+        "test.itr.tests_skipping.tests_skipped": "false",
         "test.itr.tests_skipping.type": "test",
         "test.itr.unskippable": "false",
         "test.status": "skip",
         "test.type": "test",
-        "test_session_id": "17646658737348529078",
+        "test_session_id": "10218612764025669298",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 32523,
-        "test.itr.tests_skipping.count": 2
+        "process_id": 33339,
+        "test.itr.tests_skipping.count": 0
       },
-      "duration": 1404333,
-      "start": 1698240180350903922
+      "duration": 1218041,
+      "start": 1698322206569144633
     },
     {
       "name": "unittest.test_module",
@@ -57,7 +57,7 @@
       "type": "test",
       "meta": {
         "_dd.base_service": "",
-        "_dd.ci.itr.tests_skipped": "true",
+        "_dd.ci.itr.tests_skipped": "false",
         "_dd.origin": "ciapp-test",
         "component": "unittest",
         "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
@@ -73,22 +73,22 @@
         "test.framework_version": "3.10.11",
         "test.itr.forced_run": "false",
         "test.itr.tests_skipping.enabled": "true",
-        "test.itr.tests_skipping.tests_skipped": "true",
+        "test.itr.tests_skipping.tests_skipped": "false",
         "test.itr.tests_skipping.type": "test",
         "test.itr.unskippable": "false",
         "test.module": "test_my_coverage",
         "test.module_path": "test_my_coverage.py",
         "test.status": "skip",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
         "type": "test_module_end"
       },
       "metrics": {
-        "test.itr.tests_skipping.count": 2
+        "test.itr.tests_skipping.count": 0
       },
-      "duration": 894208,
-      "start": 1698240180351327630
+      "duration": 685416,
+      "start": 1698322206569600008
     },
     {
       "name": "unittest.test_suite",
@@ -117,13 +117,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
-        "test_suite_id": "6326330050381972806",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
+        "test_suite_id": "15292342787789240813",
         "type": "test_suite_end"
       },
-      "duration": 694833,
-      "start": 1698240180351517755
+      "duration": 585666,
+      "start": 1698322206569690383
     },
     {
       "name": "unittest.test",
@@ -155,13 +155,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
-        "test_suite_id": "6326330050381972806",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
+        "test_suite_id": "15292342787789240813",
         "type": "test"
       },
-      "duration": 163375,
-      "start": 1698240180351553088
+      "duration": 117833,
+      "start": 1698322206569721758
     },
     {
       "name": "unittest.test",
@@ -193,13 +193,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
-        "test_suite_id": "6326330050381972806",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
+        "test_suite_id": "15292342787789240813",
         "type": "test"
       },
-      "duration": 102625,
-      "start": 1698240180351787505
+      "duration": 92875,
+      "start": 1698322206569902591
     },
     {
       "name": "unittest.test",
@@ -231,13 +231,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
-        "test_suite_id": "6326330050381972806",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
+        "test_suite_id": "15292342787789240813",
         "type": "test"
       },
-      "duration": 94375,
-      "start": 1698240180351938047
+      "duration": 87666,
+      "start": 1698322206570041883
     },
     {
       "name": "unittest.test",
@@ -269,13 +269,13 @@
         "test.status": "skip",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "2835108157841477103",
-        "test_session_id": "17646658737348529078",
-        "test_suite_id": "6326330050381972806",
+        "test_module_id": "16217764416719476473",
+        "test_session_id": "10218612764025669298",
+        "test_suite_id": "15292342787789240813",
         "type": "test"
       },
-      "duration": 114000,
-      "start": 1698240180352085922
+      "duration": 87541,
+      "start": 1698322206570174133
     }
   ]
 ]

@@ -546,8 +546,10 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 test_module_suite_path_without_extension = "{}/{}".format(
                     os.path.splitext(test_module_path)[0], test_suite_name
                 )
-                if len(args) and _CIVisibility._instance._should_skip_path(
-                    test_module_suite_path_without_extension, test_name
+                if (
+                    len(args)
+                    and _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name)
+                    and not _is_skipped_test(instance)
                 ):
                     global _global_skipped_elements
                     _global_skipped_elements += 1
@@ -563,7 +565,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
-                    elif not _is_skipped_test(instance):
+                    else:
                         instance._dd_itr_skip = True
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)

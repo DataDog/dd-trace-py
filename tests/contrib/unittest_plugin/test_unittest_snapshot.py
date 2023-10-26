@@ -333,12 +333,12 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 "test_my_coverage/CoverageTestCase": ["test_cov", "test_third"],
             }
             class CoverageTestCase(unittest.TestCase):
-                @unittest.skip(True, reason="something else")
+                @unittest.skip(reason="something else")
                 @unittest.skipIf(False, reason="datadog_itr_unskippable")
                 def test_cov(self):
                     from lib_fn import lib_fn
                     assert lib_fn()
-                @unittest.skip(True, reason="something else")
+                @unittest.skip(reason="something else")
                 @unittest.skipIf(False, reason="datadog_itr_unskippable")
                 def test_second(self):
                     from ret_false import ret_false
