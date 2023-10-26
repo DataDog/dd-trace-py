@@ -313,13 +313,12 @@ class CIVisibility(Service):
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:
             log.warning("Request timeout while fetching skippable tests")
-            self._test_suites_to_skip = []
             return
 
         self._test_suites_to_skip = []
 
         if response.status >= 400:
-            log.warning("Test skips request responded with status %d", response.status)
+            log.warning("Skippable tests request responded with status %d", response.status)
             return
         try:
             if isinstance(response.body, bytes):
@@ -327,18 +326,27 @@ class CIVisibility(Service):
             else:
                 parsed = json.loads(response.body)
         except json.JSONDecodeError:
-            log.warning("Test skips request responded with invalid JSON '%s'", response.body)
+            log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
             return
 
-        for item in parsed["data"]:
-            if item["type"] == skipping_mode and "suite" in item["attributes"]:
-                module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
-                path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+        if "data" not in parsed:
+            log.warning("Skippable tests request missing data, no tests will be skipped")
+            return
 
-                if skipping_mode == SUITE:
-                    self._test_suites_to_skip.append(path)
-                else:
-                    self._tests_to_skip[path].append(item["attributes"]["name"])
+        try:
+            for item in parsed["data"]:
+                if item["type"] == skipping_mode and "suite" in item["attributes"]:
+                    module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
+                    path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+
+                    if skipping_mode == SUITE:
+                        self._test_suites_to_skip.append(path)
+                    else:
+                        self._tests_to_skip[path].append(item["attributes"]["name"])
+        except Exception:
+            log.warning("Error processing skippable test data, no tests will be skipped", exc_info=True)
+            self._test_suites_to_skip = []
+            self._tests_to_skip = {}
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         if test_skipping_mode is None:
