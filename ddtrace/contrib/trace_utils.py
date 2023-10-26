@@ -647,11 +647,11 @@ def set_user(
     if span is None:
         span = tracer.current_root_span()
     if span:
-        # Required unique identifier of the user
-        str_user_id = str(user_id)
-        span.set_tag_str(user.ID, str_user_id)
-        if propagate:
-            span.context.dd_user_id = str_user_id
+        if user_id:
+            str_user_id = str(user_id)
+            span.set_tag_str(user.ID, str_user_id)
+            if propagate:
+                span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
