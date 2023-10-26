@@ -1097,6 +1097,13 @@ jobs:
           pattern: "langchain"
           snapshot: true
 
+  loguru:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'loguru'
+          snapshot: true
+
   build_docs:
     # build documentation and store as an artifact
     executor: ddtrace_dev

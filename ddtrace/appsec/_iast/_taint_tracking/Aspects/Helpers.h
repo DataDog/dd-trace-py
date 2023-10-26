@@ -24,7 +24,7 @@ common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-as_formatted_evidence(const StrType& text,
+as_formatted_evidence(StrType& text,
                       optional<TaintRangeRefs>& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges);
