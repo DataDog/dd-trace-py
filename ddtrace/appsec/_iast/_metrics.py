@@ -145,5 +145,4 @@ def get_iast_span_metrics() -> Dict:
 
 
 def reset_iast_span_metrics() -> None:
-    global _IAST_SPAN_METRICS
-    _IAST_SPAN_METRICS = dict()
+    _IAST_SPAN_METRICS.clear()
