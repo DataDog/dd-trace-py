@@ -34,12 +34,10 @@ class DynamicSpan(Signal):
 
     _span_cm = attr.ib(type=t.Optional[t.ContextManager[Span]], init=False)
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __attrs_post_init__(self) -> None:
         self._span_cm = None
 
-    def enter(self):
-        # type: () -> None
+    def enter(self) -> None:
         probe = self.probe
         if not isinstance(probe, SpanFunctionProbe):
             log.debug("Dynamic span entered with non-span probe: %s", self.probe)
@@ -61,8 +59,7 @@ class DynamicSpan(Signal):
 
         self.state = SignalState.DONE
 
-    def exit(self, retval, exc_info, duration):
-        # type: (t.Any, ExcInfoType, float) -> None
+    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
         if not isinstance(self.probe, SpanFunctionProbe):
             log.debug("Dynamic span exited with non-span probe: %s", self.probe)
             return
@@ -79,8 +76,7 @@ class DynamicSpan(Signal):
 class SpanDecoration(LogSignal):
     """Decorate a span."""
 
-    def _decorate_span(self, _locals):
-        # type: (t.Dict[str, t.Any]) -> None
+    def _decorate_span(self, _locals: t.Dict[str, t.Any]) -> None:
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
@@ -113,8 +109,7 @@ class SpanDecoration(LogSignal):
                         span.set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
                         span.set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
-    def enter(self):
-        # type: () -> None
+    def enter(self) -> None:
         probe = self.probe
         if not isinstance(probe, SpanDecorationFunctionProbe):
             log.debug("Span decoration entered with non-span decoration probe: %s", self.probe)
@@ -124,8 +119,7 @@ class SpanDecoration(LogSignal):
             self._decorate_span(dict(self.args) if self.args else {})
             self.state = SignalState.DONE
 
-    def exit(self, retval, exc_info, duration):
-        # type: (t.Any, ExcInfoType, float) -> None
+    def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float) -> None:
         probe = self.probe
 
         if not isinstance(probe, SpanDecorationFunctionProbe):
