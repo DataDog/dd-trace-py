@@ -244,6 +244,9 @@
         "logging": [
             "ddtrace/contrib/logging/*"
         ],
+        "loguru": [
+            "ddtrace/contrib/logging/*"
+        ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
         ],
@@ -477,6 +480,10 @@
             "@tracing",
             "@logging",
             "tests/contrib/logging/*"
+        ],
+        "loguru": [
+            "@loguru",
+            "tests/contrib/loguru/*"
         ],
         "asyncio": [
             "@bootstrap",
