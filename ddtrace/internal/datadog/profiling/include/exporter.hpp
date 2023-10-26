@@ -6,15 +6,16 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
-#include <atomic>
-#include <thread>
 #include <vector>
 
 extern "C" {
