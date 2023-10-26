@@ -160,9 +160,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(user.ID) == TEST_USER
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+                assert root_span.get_tag(user.ID) == "1"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "extended"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == TEST_USER
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == TEST_EMAIL
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == TEST_USER_NAME
@@ -185,11 +185,11 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == "1"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.login")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
         finally:
             unpatch_login()
 
@@ -244,9 +244,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.status_code == 200
                 assert resp.data == b"User not found"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
         finally:
             unpatch_login()
 
@@ -263,9 +263,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.status_code == 200
                 assert resp.data == b"Authentication failure"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "1"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
         finally:
             unpatch_login()
 
@@ -287,8 +287,8 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == TEST_USER
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
         finally:
             unpatch_login()
 
