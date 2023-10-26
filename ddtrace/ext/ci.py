@@ -72,7 +72,7 @@ LIBRARY_VERSION = "library_version"
 # CI Visibility env vars used for pipeline correlation ID
 _CI_ENV_VARS = "_dd.ci.env_vars"
 
-_RE_URL = re.compile(r"(https?://)[^/]*@")
+_RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
 
 
 log = get_logger(__name__)

@@ -9,6 +9,7 @@ import six
 
 from ddtrace.ext import ci
 from ddtrace.ext import git
+from ddtrace.ext.ci import _filter_sensitive_info
 from tests import utils
 
 
@@ -70,6 +71,32 @@ def test_git_extract_repository_url(git_repo):
     """Make sure that the git repository url is extracted properly."""
     expected_repository_url = "git@github.com:test-repo-url.git"
     assert git.extract_repository_url(cwd=git_repo) == expected_repository_url
+
+
+def test_git_filter_repository_url_valid():
+    """Make sure that valid git repository urls are not filtered."""
+    valid_url_1 = "https://github.com/DataDog/dd-trace-py.git"
+    valid_url_2 = "git@github.com:DataDog/dd-trace-py.git"
+    valid_url_3 = "ssh://github.com/Datadog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(valid_url_1) == valid_url_1
+    assert _filter_sensitive_info(valid_url_2) == valid_url_2
+    assert _filter_sensitive_info(valid_url_3) == valid_url_3
+
+
+def test_git_filter_repository_url_invalid():
+    """Make sure that valid git repository urls are not filtered."""
+    invalid_url_1 = "https://username:password@github.com/DataDog/dd-trace-py.git"
+    invalid_url_2 = "https://username@github.com/DataDog/dd-trace-py.git"
+
+    invalid_url_3 = "ssh://username:password@github.com/DataDog/dd-trace-py.git"
+    invalid_url_4 = "ssh://username@github.com/DataDog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(invalid_url_1) == "https://github.com/DataDog/dd-trace-py.git"
+    assert _filter_sensitive_info(invalid_url_2) == "https://github.com/DataDog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(invalid_url_3) == "ssh://github.com/DataDog/dd-trace-py.git"
+    assert _filter_sensitive_info(invalid_url_4) == "ssh://github.com/DataDog/dd-trace-py.git"
 
 
 def test_git_extract_repository_url_error(git_repo_empty):
