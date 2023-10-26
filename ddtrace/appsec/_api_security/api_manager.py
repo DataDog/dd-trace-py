@@ -91,7 +91,6 @@ class APIManager(Service):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         sample_rate = config._api_security_sample_rate
-        log.debug("_should_collect_shema > sample rate: %s %s", str(sample_rate), str(self.current_sampling_value))
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))

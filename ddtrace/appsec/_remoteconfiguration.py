@@ -93,11 +93,8 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
-    log.debug("appsec_callback 1click %s", str(config))
     _appsec_1click_activation(config, test_tracer)
-    log.debug("appsec_callback api_security %s", str(config))
     _appsec_api_security_settings(config, test_tracer)
-    log.debug("appsec_callback rules_data %s", str(config))
     _appsec_rules_data(config, test_tracer)
 
 
@@ -173,7 +170,6 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
             features["asm"] = {"enabled": rc_appsec_enabled}
-    log.debug("rc preprocess %s", features)
     return features
 
 
@@ -234,18 +230,11 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
     Update API Security settings from remote config
     Actually: Update sample rate
     """
-    log.debug(
-        "_appsec_api_security_settings > callback: %s %s",
-        str(config._remote_config_enabled),
-        str(config._api_security_enabled),
-    )
     if config._remote_config_enabled and config._api_security_enabled:
         rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
-        log.debug("_appsec_api_security_settings > sample rate found: %s", str(rc_api_security_sample_rate))
         if rc_api_security_sample_rate is not None:
             try:
                 sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                log.debug("_appsec_api_security_settings > set sample rate: %f", sample_rate)
                 config._api_security_sample_rate = sample_rate
             except BaseException:  # nosec
                 pass

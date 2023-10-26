@@ -495,7 +495,6 @@ class RemoteConfigClient(object):
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             raise RemoteConfigError("invalid agent payload received")
 
-        log.debug(">>>RC content parsed %s", payload)
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
         # 1. Deserialize targets
@@ -536,7 +535,6 @@ class RemoteConfigClient(object):
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
             response = self._send_request(payload)
-            log.debug(">>>RC content received %s", response)
             if response is None:
                 return False
             self._process_response(response)
