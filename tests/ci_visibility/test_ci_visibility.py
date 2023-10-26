@@ -1230,12 +1230,62 @@ class TestFetchTestsToSkip:
             assert mock_civisibility._test_suites_to_skip is None
             assert mock_civisibility._tests_to_skip == {}
 
-    def test_fetch_test_to_skip_invalid_data(self, mock_civisibility):
+    def test_fetch_test_to_skip_invalid_data_missing_key(self, mock_civisibility):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
             return_value=Response(
                 status=200,
                 body='{"data": [{"somekey": "someval"}]}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_type_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": "2"
+                            },
+                            "suite": 1
+                        }
+                    }]}""",
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_attribute_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": 2
+                            },
+                            "suite": "1"
+                        }
+                    }]}""",
+                ),
             ),
         ):
             ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()

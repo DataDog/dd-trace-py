@@ -346,7 +346,7 @@ class CIVisibility(Service):
         except Exception:
             log.warning("Error processing skippable test data, no tests will be skipped", exc_info=True)
             self._test_suites_to_skip = []
-            self._tests_to_skip = {}
+            self._tests_to_skip = defaultdict(list)
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         if test_skipping_mode is None:
