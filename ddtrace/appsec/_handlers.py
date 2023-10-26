@@ -36,7 +36,7 @@ def _on_request_span_modifier(
                 seekable = False
             if not seekable:
                 content_length = int(environ.get("CONTENT_LENGTH", 0))
-                body = wsgi_input.read(content_length) if content_length else b""
+                body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:

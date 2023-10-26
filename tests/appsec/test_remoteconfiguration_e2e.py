@@ -1,20 +1,87 @@
 import base64
+from contextlib import contextmanager
 import datetime
 import hashlib
 import json
 from multiprocessing.pool import ThreadPool
 import os
 import signal
+import subprocess
 import sys
 import time
 import uuid
 
+import psutil
 import pytest
 
 from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
-from tests.appsec.appsec_utils import gunicorn_server
+from ddtrace.internal.utils.retry import RetryError
+from tests.webclient import Client
+
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _build_env():
+    environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
+    if os.environ.get("PATH"):
+        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
+    if os.environ.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    return environ
+
+
+@contextmanager
+def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", token=None):
+    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
+    env = _build_env()
+    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
+    if token:
+        env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
+    if appsec_enabled:
+        env["DD_APPSEC_ENABLED"] = appsec_enabled
+    env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
+    server_process = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        close_fds=True,
+        preexec_fn=os.setsid,
+    )
+    try:
+        client = Client("http://0.0.0.0:8000")
+        try:
+            print("Waiting for server to start")
+            client.wait(max_tries=100, delay=0.1)
+            print("Server started")
+        except RetryError:
+            raise AssertionError(
+                "Server failed to start, see stdout and stderr logs"
+                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                % (server_process.stdout, server_process.stderr)
+            )
+        time.sleep(1)
+        parent = psutil.Process(server_process.pid)
+        children = parent.children(recursive=True)
+
+        yield server_process, client, children[1].pid
+        try:
+            client.get_ignored("/shutdown")
+        except Exception:
+            raise AssertionError(
+                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                % (server_process.stdout, server_process.stderr)
+            )
+    finally:
+        server_process.terminate()
+        server_process.wait()
 
 
 def _get_agent_client():
@@ -194,7 +261,7 @@ def _request_200(client, debug_mode=False, max_retries=40, sleep_time=1):
     previous = False
     for id_try in range(max_retries):
         results = _multi_requests(client, debug_mode)
-        check = all(response.status_code == 200 and response.content == b"OK_index" for response in results)
+        check = all(response.status_code == 200 and response.content == b"OK" for response in results)
         if check:
             if previous:
                 return
