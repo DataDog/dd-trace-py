@@ -806,10 +806,11 @@ jobs:
           pattern: 'pytest'
 
   unittest:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'unittest'
+          snapshot: true
 
   asynctest:
     executor: ddtrace_dev
