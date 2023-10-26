@@ -44,7 +44,7 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     }
 
     for (auto& kv_taint_map : *tx_map) {
-        kv_taint_map.second->decref();
+        kv_taint_map.second.second->decref();
     }
 
     tx_map->clear();
@@ -78,6 +78,22 @@ Initializer::num_objects_tainted()
         return ctx_map->size();
     }
     return 0;
+}
+
+void
+Initializer::debug_print_taint_map()
+{
+    auto ctx_map = initializer->get_tainting_map();
+    if (!ctx_map) {
+        std::cerr << "No tainting map\n";
+        return;
+    }
+
+    for (auto& item : *ctx_map) {
+        std::cerr << "Id-Clave: " << item.first << std::endl;
+        std::cerr << "Value: Hash: " << item.second.first << " TaintedObject: " << item.second.second->toString()
+                  << std::endl;
+    }
 }
 
 int
@@ -231,6 +247,7 @@ void
 pyexport_initializer(py::module& m)
 {
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
+    m.def("debug_print_taint_map", [] { initializer->debug_print_taint_map(); });
 
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });
