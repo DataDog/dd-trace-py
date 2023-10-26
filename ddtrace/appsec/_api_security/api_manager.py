@@ -100,10 +100,6 @@ class APIManager(Service):
         if self.current_sampling_value >= 1.0:
             self.current_sampling_value -= 1.0
             return True
-        # WAF has triggered, always collect schemas
-        # results = env.telemetry.get(_WAF_RESULTS)
-        # if results and any((result.data for result in results[0])):
-        #    return True
         return False
 
     def _schema_callback(self, env):
