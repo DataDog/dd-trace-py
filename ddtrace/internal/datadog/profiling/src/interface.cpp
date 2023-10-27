@@ -279,19 +279,21 @@ ddup_set_runtime_id(const char* id, size_t sz)
         g_uploader->set_runtime_id(std::string_view(id, sz));
 }
 
-void
+bool
 ddup_upload()
 {
     if (!is_initialized) {
         // Rationalize return for interface
         std::cout << "WHOA NOT INITIALIZED" << std::endl;
+        return false;
     }
 
     // NB., this function strongly assumes single-threaded access in the
     // caller; otherwise the collection will be serialized as it is being
     // written to, which is undefined behavior for libdatadog.
-    auto upload_profile = g_profile g_prof_flag ^= true;
+    auto upload_profile = g_profile;
+    g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
-    g_uploader->upload(upload_profile);
+    return g_uploader->upload(upload_profile);
 }

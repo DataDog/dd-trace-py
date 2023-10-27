@@ -59,7 +59,7 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line)
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
-        void ddup_upload()
+        bint ddup_upload()
 
     def init(
             service: Optional[str],
