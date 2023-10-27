@@ -1,6 +1,4 @@
 import functools
-from typing import Any
-from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 from wrapt.importer import when_imported
@@ -16,19 +14,6 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
-
-
-def _get_content_length(environ: dict[str, Any]) -> Optional[int]:
-    content_length = environ.get("CONTENT_LENGTH")
-    transer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
-
-    if transer_encoding == "chunked" or content_length is None:
-        return None
-
-    try:
-        return max(0, int(content_length))
-    except ValueError:
-        return 0
 
 
 def _on_request_init(wrapped, instance, args, kwargs):

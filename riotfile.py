@@ -144,6 +144,20 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
                 # Flask 2.x.x
                 Venv(
                     pkgs={

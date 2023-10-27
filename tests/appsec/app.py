@@ -15,7 +15,7 @@ def index():
     return "OK_index", 200
 
 
-@app.post("/submit/file")
+@app.route("/submit/file", methods=["POST"])
 def support_flare():
     user_file = request.stream.read()
     if not user_file:
