@@ -4,9 +4,9 @@ from builtins import str as builtin_str
 import codecs
 import traceback
 from types import BuiltinFunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import iteritems
 
@@ -281,7 +281,7 @@ def format_aspect(
         new_template = as_formatted_evidence(
             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
         )
-        fun = (
+        fun = (  # noqa: E731
             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
             if isinstance(arg, TEXT_TYPES)
             else arg
