@@ -129,7 +129,7 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
-        "_trace_sample_rate",
+        "trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
         "_trace_api",
@@ -153,6 +153,7 @@ def override_global_config(values):
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -172,6 +173,7 @@ def override_config(integration, values):
         yield
     finally:
         options.update(original)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager

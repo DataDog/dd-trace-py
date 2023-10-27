@@ -8,7 +8,6 @@ from .integration import IntegrationConfig
 # Default global config
 _config = Config()
 
-
 __all__ = [
     "Config",
     "ConfigException",

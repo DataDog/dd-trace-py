@@ -335,7 +335,7 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
+                (TELEMETRY_TRACE_SAMPLING_RATE, config.trace_sample_rate, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),

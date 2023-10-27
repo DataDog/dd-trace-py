@@ -241,7 +241,7 @@ import ddtrace.auto
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
         {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 0.5},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "unknown",

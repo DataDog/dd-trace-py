@@ -3,12 +3,12 @@ import multiprocessing
 import os
 import re
 import sys
+from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-
-from envier import En
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -38,6 +38,12 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
+
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -190,6 +196,72 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
+ConfigSource = Literal["default", "env", "code"]
+
+
+class _ConfigItem:
+    """Configuration item that tracks the value of a setting, and where it came from."""
+
+    def __init__(self, name, default, envs):
+        self._name = name
+        self._default_value = default
+        self._env_value = None
+        self._code_value = None
+        self._envs = envs
+        for (env_var, parser) in envs:
+            if env_var in os.environ:
+                self._env_value = parser(os.environ[env_var])
+                break
+
+    def set_code(self, value):
+        self._code_value = value
+
+    def value(self):
+        if self._code_value is not None:
+            return self._code_value
+        if self._env_value is not None:
+            return self._env_value
+        return self._default_value
+
+    def source(self):
+        # type: () -> ConfigSource
+        if self._code_value is not None:
+            return "code"
+        if self._env_value is not None:
+            return "env"
+        return "default"
+
+    def __repr__(self):
+        return "<{} name={} default={} env_value={} user_value={}>".format(
+            self.__class__.__name__,
+            self._name,
+            self._default_value,
+            self._env_value,
+            self._code_value,
+        )
+
+
+def _default_config():
+    # type: () -> Dict[str, _ConfigItem]
+    return {
+        "trace_sample_rate": _ConfigItem(
+            name="trace_sample_rate",
+            default=1.0,
+            envs=[("DD_TRACE_SAMPLE_RATE", float)],
+        ),
+        "logs_injection": _ConfigItem(
+            name="logs_injection",
+            default=False,
+            envs=[("DD_LOGS_INJECTION", asbool)],
+        ),
+        "trace_http_header_tags": _ConfigItem(
+            name="trace_http_header_tags",
+            default={},
+            envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+    }
+
+
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
@@ -242,7 +314,7 @@ class Config(object):
 
     def __init__(self):
         # Must come before _integration_configs due to __setattr__
-        self._envier_config = GlobalConfig()
+        self._config = _default_config()
 
         # use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
@@ -256,7 +328,7 @@ class Config(object):
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
-        self.http = HttpConfig(header_tags=self._envier_config.trace_http_header_tags)
+        self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
@@ -435,8 +507,8 @@ class Config(object):
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
-        if name in self._envier_config.keys():
-            return getattr(self._envier_config, name)
+        if name in self._config:
+            return self._config[name].value()
 
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
@@ -561,57 +633,20 @@ class Config(object):
                 sub_handler(self, sub_updated_items)
 
     def __setattr__(self, key, value):
-        if key == "_envier_config":
+        # type: (str, Any) -> None
+        if key == "_config":
             return super(self.__class__, self).__setattr__(key, value)
-        elif key in self._envier_config.keys():
-            setattr(self._envier_config, key, value)
+        elif key in self._config:
+            self._config[key].set_code(value)
             self._notify_subscribers([key])
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def reset(self):
+    def _reset(self):
         # type: () -> None
-        self._envier_config = GlobalConfig()
+        self._config = _default_config()
 
-
-class GlobalConfig(En):
-    """Global configuration of the ddtrace library.
-
-    TODO: for each setting
-        - Add usage examples
-        - Add validators
-    """
-    __prefix__ = "dd"
-
-    trace_sample_rate = En.v(
-        Optional[float],
-        "trace_sample_rate",
-        default=1.0,
-        help_type="Float",
-        help="Global sample rate for all traces.",
-    )
-
-    logs_injection = En.v(
-        Optional[bool],
-        "logs_injection",
-        default=False,
-        help_type="Bool",
-        help=(
-            "Enable trace id injection into logs. "
-            "This setting requires a change to the string format of the logger. No change is required when using "
-            "an structured logger. "
-            "Note that this setting is only compatible with ``ddtrace-run`` and when using Library Injection.",
-        )
-    )
-
-    trace_http_header_tags = En.v(
-        dict,
-        "trace_header_tags",
-        default={},
-        parser=parse_tags_str,
-        help_type="Dict[str, str]",
-        help=(
-            "A comma-separated list of HTTP headers tags to be set as span tags."
-        )
-    )
+    def _get_source(self, item):
+        # type: (str) -> str
+        return self._config[item].source()
