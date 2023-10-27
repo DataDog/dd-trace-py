@@ -1292,3 +1292,80 @@ class TestFetchTestsToSkip:
             mock_civisibility._fetch_tests_to_skip(SUITE)
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
+
+def test_fetch_tests_to_skip_custom_configurations():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
+            DD_SERVICE="test-service",
+            DD_ENV="test-env",
+        )
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+    ), mock.patch.multiple(
+        CIVisibilityGitClient,
+        _get_repository_url=mock.DEFAULT,
+        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+        _get_filtered_revisions=mock.DEFAULT,
+        _build_packfiles=mock.DEFAULT,
+        _upload_packfiles=mock.DEFAULT,
+    ), mock.patch(
+        "ddtrace.ext.ci._get_runtime_and_os_metadata",
+        return_value={
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        },
+    ), mock.patch(
+        "ddtrace.ext.ci.tags",
+        return_value={
+            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+            "git.commit.sha": "mytestcommitsha1234",
+        },
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder._do_request",
+        return_value=Response(
+            status=200,
+            body='{"data": []}',
+        ),
+    ) as mock_do_request:
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+
+        expected_data_arg = json.dumps(
+            {
+                "data": {
+                    "type": "test_params",
+                    "attributes": {
+                        "service": "test-service",
+                        "env": "test-env",
+                        "repository_url": "git@github.com:TestDog/dd-test-py.git",
+                        "sha": "mytestcommitsha1234",
+                        "configurations": {
+                            "os.architecture": "testarch64",
+                            "os.platform": "Not Actually Linux",
+                            "os.version": "1.2.3-test",
+                            "runtime.name": "CPythonTest",
+                            "runtime.version": "1.2.3",
+                            "custom": {"disk": "slow", "memory": "low"},
+                        },
+                        "test_level": "test",
+                    },
+                }
+            }
+        )
+
+        mock_do_request.assert_called_once_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+            expected_data_arg,
+            {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
+        )
+        CIVisibility.disable()
