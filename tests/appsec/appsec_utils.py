@@ -22,6 +22,7 @@ def _build_env():
     return environ
 
 
+@contextmanager
 def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None):
     cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
     yield from appsec_application_server(
