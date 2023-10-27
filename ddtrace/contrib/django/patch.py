@@ -691,12 +691,12 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
         return super(_DjangoUserInfoRetriever, self).get_name()
 
-    def get_email(self):
+    def get_user_email(self):
         if hasattr(self.user, "EMAIL_FIELD") and not config._user_model_name_field:
             user_type = type(self.user)
             return getattr(self.user, user_type.EMAIL_FIELD, None)
 
-        return super(_DjangoUserInfoRetriever, self).get_email()
+        return super(_DjangoUserInfoRetriever, self).get_user_email()
 
 
 @trace_utils.with_traced_module
