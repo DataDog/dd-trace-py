@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from ast import literal_eval
 import random
 import sys
 
@@ -13,6 +14,7 @@ try:
     from ddtrace.appsec._iast._taint_tracking import TaintRange
     from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
     from ddtrace.appsec._iast._taint_tracking import create_context
+    from ddtrace.appsec._iast._taint_tracking import debug_taint_map
     from ddtrace.appsec._iast._taint_tracking import get_range_by_hash
     from ddtrace.appsec._iast._taint_tracking import get_ranges
     from ddtrace.appsec._iast._taint_tracking import is_notinterned_notfasttainted_unicode
@@ -153,6 +155,11 @@ def test_collisions_str():
     for n in mixed_nottainted:
         assert len(get_ranges(n)) == 0, f"id {id(n)} in {(id(n) in mixed_tainted_ids)}"
 
+    taint_map = literal_eval(debug_taint_map())
+    assert taint_map != []
+    for i in taint_map:
+        assert abs(i["Value"]["Hash"]) > 1000
+
 
 def test_collisions_bytes():
     not_tainted = []
@@ -216,6 +223,11 @@ def test_collisions_bytes():
 
     for n in mixed_nottainted:
         assert len(get_ranges(n)) == 0, f"id {id(n)} in {(id(n) in mixed_tainted_ids)}"
+
+    taint_map = literal_eval(debug_taint_map())
+    assert taint_map != []
+    for i in taint_map:
+        assert abs(i["Value"]["Hash"]) > 1000
 
 
 def test_collisions_bytearray():
@@ -286,6 +298,11 @@ def test_collisions_bytearray():
 
     for n in mixed_nottainted:
         assert len(get_ranges(n)) == 0, f"id {id(n)} in {(id(n) in mixed_tainted_ids)}"
+
+    taint_map = literal_eval(debug_taint_map())
+    assert taint_map != []
+    for i in taint_map:
+        assert abs(i["Value"]["Hash"]) > 1000
 
 
 def test_set_get_ranges_str():
