@@ -117,7 +117,7 @@ def traced_produce(func, instance, args, kwargs):
         value = None
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
-    core.dispatch("kafka.produce.start", [instance, args, kwargs])
+    _results, _exceptions = core.dispatch("kafka.produce.start", [instance, args, kwargs])
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
