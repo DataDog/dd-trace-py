@@ -671,7 +671,7 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] == 5
 
-    
+
 def test_data_streams_default_context_propagation(dummy_tracer, consumer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
