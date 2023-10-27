@@ -1,8 +1,12 @@
 import functools
+import io
+import json
 
 from wrapt import wrap_function_wrapper as _w
 from wrapt.importer import when_imported
+import xmltodict
 
+from ddtrace import config
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -14,6 +18,79 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+
+
+def _get_content_length(environ):
+    content_length = environ.get("CONTENT_LENGTH")
+    transer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
+
+    if transer_encoding == "chunked" or content_length is None:
+        return None
+
+    try:
+        return max(0, int(content_length))
+    except ValueError:
+        return 0
+
+
+def _on_request_span_modifier(
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+):
+    req_body = None
+    if config._appsec_enabled and request.method in _BODY_METHODS:
+        content_type = request.content_type
+        wsgi_input = environ.get("wsgi.input", "")
+
+        # Copy wsgi input if not seekable
+        if wsgi_input:
+            try:
+                seekable = wsgi_input.seekable()
+            except AttributeError:
+                seekable = False
+            if not seekable:
+                # https://gist.github.com/mitsuhiko/5721547
+                # Provide wsgi.input as an end-of-file terminated stream.
+                # In that case wsgi.input_terminated is set to True
+                # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
+                if environ.get("wsgi.input_terminated"):
+                    body = wsgi_input.read()
+                else:
+                    content_length = _get_content_length(environ)
+                    body = wsgi_input.read(content_length) if content_length else b""
+                environ["wsgi.input"] = io.BytesIO(body)
+
+        try:
+            if content_type == "application/json" or content_type == "text/json":
+                if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
+                    req_body = request.json
+                else:
+                    req_body = json.loads(request.data.decode("UTF-8"))
+            elif content_type in ("application/xml", "text/xml"):
+                req_body = xmltodict.parse(request.get_data())
+            elif hasattr(request, "form"):
+                req_body = request.form.to_dict()
+            else:
+                # no raw body
+                req_body = None
+        except (
+            exception_type,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+            xmltodict.expat.ExpatError,
+            xmltodict.ParsingInterrupted,
+        ):
+            log.warning("Failed to parse request body", exc_info=True)
+        finally:
+            # Reset wsgi input to the beginning
+            if wsgi_input:
+                if seekable:
+                    wsgi_input.seek(0)
+                else:
+                    environ["wsgi.input"] = io.BytesIO(body)
+    return req_body
 
 
 def _on_request_init(wrapped, instance, args, kwargs):
@@ -191,6 +268,7 @@ def _on_django_patch():
 
 
 def listen():
+    core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_init", _on_request_init)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
