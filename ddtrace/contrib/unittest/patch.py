@@ -51,11 +51,11 @@ def get_version():
 
 
 def _enable_unittest_if_not_started():
+    if not hasattr(_CIVisibility, "_unittest_data"):
+        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     if _CIVisibility.enabled:
         return
     _CIVisibility.enable(config=ddtrace.config.unittest)
-    if not hasattr(_CIVisibility, "_unittest_data"):
-        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
 
 
 def _set_tracer(tracer: ddtrace.tracer):
