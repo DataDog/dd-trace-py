@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 import signal
 import subprocess
@@ -22,6 +23,7 @@ def _build_env():
     return environ
 
 
+@contextmanager
 def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None):
     cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
     yield from appsec_application_server(
@@ -33,6 +35,7 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
     )
 
 
+@contextmanager
 def flask_server(appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None):
     cmd = ["python", "tests/appsec/app.py", "--no-reload"]
     yield from appsec_application_server(
