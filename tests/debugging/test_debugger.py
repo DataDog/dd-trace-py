@@ -512,6 +512,28 @@ def test_debugger_multiple_function_probes_on_same_function():
             Stuff.instancestuff.__dd_wrappers__
 
 
+def test_debugger_multiple_function_probes_on_same_lazy_module():
+    sys.modules.pop("tests.submod.stuff", None)
+
+    probes = [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method-%d" % i,
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=float("inf"),
+        )
+        for i in range(3)
+    ]
+
+    with debugger() as d:
+        d.add_probes(*probes)
+
+        import tests.submod.stuff  # noqa
+
+        assert len(d._probe_registry) == len(probes)
+        assert all(_.error_type is None for _ in d._probe_registry.values())
+
+
 # DEV: The following tests are to ensure compatibility with the tracer
 import wrapt as wrapt  # noqa
 
@@ -861,7 +883,7 @@ def test_debugger_log_live_probe_generate_messages():
                     " ",
                     {"dsl": "bar", "json": {"ref": "bar"}},
                     "!",
-                )
+                ),
             ),
         )
 
@@ -999,7 +1021,7 @@ def test_debugger_modified_probe():
                 version=1,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello world")
+                **compile_template("hello world"),
             )
         )
 
@@ -1015,7 +1037,7 @@ def test_debugger_modified_probe():
                 version=2,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello brave new world")
+                **compile_template("hello brave new world"),
             )
         )
 
