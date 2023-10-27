@@ -633,7 +633,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
-        if _CIVisibility.enabled and test_session_span:
+        if _CIVisibility.enabled and test_session_span and hasattr(_CIVisibility, "_unittest_data"):
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
@@ -649,6 +649,8 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestResult, arg
     if _is_invoked_by_cli(instance):
         return func(*args, **kwargs)
     _enable_unittest_if_not_started()
+    if not hasattr(_CIVisibility, "_unittest_data"):
+        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     _CIVisibility._datadog_entry = "TextTestRunner"
     if not hasattr(_CIVisibility, "_datadog_session_span"):
         _CIVisibility._datadog_session_span = _start_test_session_span(instance)
