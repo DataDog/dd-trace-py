@@ -54,8 +54,8 @@ def _on_request_span_modifier(
                 # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
                 if environ.get("wsgi.input_terminated"):
                     # Double check for Gunicorn applications
-                    if hasattr(wsgi_input, "buf") and wsgi_input.buf.tell() == 0:
-                        return
+                    # if hasattr(wsgi_input, "buf") and wsgi_input.buf.tell() == 0:
+                    #     return
                     body = wsgi_input.read()
                 else:
                     content_length = _get_content_length(environ)

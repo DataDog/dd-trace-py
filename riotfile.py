@@ -131,7 +131,6 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "requests": latest,
@@ -161,14 +160,14 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "flask": "~=2.2",
                     },
                 ),
                 # Flask 3.x.x
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": "~=3.0",
                     },
