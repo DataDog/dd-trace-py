@@ -51,8 +51,8 @@ def _on_request_span_modifier(
                 seekable = False
             if not seekable:
                 # https://gist.github.com/mitsuhiko/5721547
-                # Provide wsgi.input as an end-of-file terminated stream. In that case
-                # wsgi.input_terminated is set to True.
+                # Provide wsgi.input as an end-of-file terminated stream.
+                # In that case wsgi.input_terminated is set to True.
                 # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
                 if environ.get("wsgi.input_terminated"):
                     body = wsgi_input.read()
