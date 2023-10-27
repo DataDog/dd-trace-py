@@ -660,3 +660,4 @@ Profile::push_class_name(std::string_view class_name)
         return false;
     }
     return true;
+}
