@@ -112,6 +112,19 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
+def _get_content_length(environ):
+    content_length = environ.get("CONTENT_LENGTH")
+    transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
+
+    if transfer_encoding == "chunked" or content_length is None:
+        return None
+
+    try:
+        return max(0, int(content_length))
+    except ValueError:
+        return 0
+
+
 def taint_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
@@ -202,8 +215,15 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 except AttributeError:
                     seekable = False
                 if not seekable:
-                    content_length = int(environ.get("CONTENT_LENGTH", 0))
-                    body = wsgi_input.read(content_length) if content_length else b""
+                    # https://gist.github.com/mitsuhiko/5721547
+                    # Provide wsgi.input as an end-of-file terminated stream.
+                    # In that case wsgi.input_terminated is set to True
+                    # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
+                    if environ.get("wsgi.input_terminated"):
+                        body = wsgi_input.read()
+                    else:
+                        content_length = _get_content_length(environ)
+                        body = wsgi_input.read(content_length) if content_length else b""
                     environ["wsgi.input"] = BytesIO(body)
 
             try:
