@@ -22,9 +22,9 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 def _get_content_length(environ):
     content_length = environ.get("CONTENT_LENGTH")
-    transer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
+    transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
 
-    if transer_encoding == "chunked" or content_length is None:
+    if transfer_encoding == "chunked" or content_length is None:
         return None
 
     try:
