@@ -54,9 +54,6 @@ def _on_request_span_modifier(
             except AttributeError:
                 seekable = False
             if not seekable:
-                content_length = int(environ.get("CONTENT_LENGTH", 0))
-                body = wsgi_input.read(content_length) if content_length else b""
-                environ["wsgi.input"] = BytesIO(body)
                 # https://gist.github.com/mitsuhiko/5721547
                 # Provide wsgi.input as an end-of-file terminated stream.
                 # In that case wsgi.input_terminated is set to True
