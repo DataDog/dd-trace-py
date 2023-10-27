@@ -146,6 +146,7 @@ venv = Venv(
             venvs=[
                 # Flask 1.x.x
                 Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
                         "flask": "~=1.0",
                         # https://github.com/pallets/itsdangerous/issues/290
@@ -160,12 +161,14 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "flask": "~=2.2",
                     },
                 ),
                 # Flask 3.x.x
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "flask": "~=3.0",
                     },
