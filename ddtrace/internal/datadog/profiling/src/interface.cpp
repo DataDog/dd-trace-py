@@ -290,8 +290,7 @@ ddup_upload()
     // NB., this function strongly assumes single-threaded access in the
     // caller; otherwise the collection will be serialized as it is being
     // written to, which is undefined behavior for libdatadog.
-    auto upload_profile = g_profile
-    g_prof_flag ^= true;
+    auto upload_profile = g_profile g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
     g_uploader->upload(upload_profile);
