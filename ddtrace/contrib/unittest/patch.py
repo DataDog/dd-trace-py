@@ -91,7 +91,7 @@ def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
         log.warning("No coverage collector or data found for item")
         return
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
+    span.set_tag_str(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
     coverage_data.erase()
     del coverage_data
 
@@ -109,7 +109,7 @@ def _is_skipped_test(test_object) -> bool:
     )
 
 
-def is_skipped_by_itr(test_object) -> bool:
+def _is_skipped_by_itr(test_object) -> bool:
     return hasattr(test_object, "_dd_itr_skip") and test_object._dd_itr_skip
 
 
@@ -373,7 +373,7 @@ def _update_remaining_suites_and_modules(
         _finish_span(test_module_span)
 
 
-def _update_test_skipping_count_span(span: ddtrace):
+def _update_test_skipping_count_span(span: ddtrace.Span):
     if _CIVisibility.test_skipping_enabled():
         span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
 
@@ -497,7 +497,7 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
     return func(*args, **kwargs)
 
 
-def _add_skippable_test(obj):
+def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
     test_module_path = os.path.relpath(obj.__code__.co_filename)
@@ -509,7 +509,7 @@ def _add_skippable_test(obj):
 
 def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
     if args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON:
-        return _add_skippable_test
+        return _mark_test_as_unskippable
     return func(*args, **kwargs)
 
 
@@ -573,7 +573,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             if _is_test_coverage_enabled(instance):
                 coverage = _start_coverage(root_directory)
                 instance._coverage = coverage
-            if is_skipped_by_itr(instance):
+            if _is_skipped_by_itr(instance):
                 result = args[0]
                 result.startTest(test=instance)
                 result.addSkip(test=instance, reason=SKIPPED_BY_ITR_REASON)
@@ -642,9 +642,9 @@ def _start_test_session_span(instance) -> ddtrace.Span:
     )
     if _CIVisibility.test_skipping_enabled():
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_session_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, TEST)
-        test_session_span.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
-        test_session_span.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
+        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "false")
         test_session_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
     else:
@@ -689,14 +689,14 @@ def _start_test_module_span(instance) -> ddtrace.Span:
     )
     if _CIVisibility.test_skipping_enabled():
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_module_span.set_tag(test.ITR_TEST_SKIPPING_TYPE, TEST)
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
         test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "false")
         test_module_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
-        test_module_span.set_tag(test.ITR_TEST_SKIPPING_ENABLED, "false")
+        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_suite_identifier(instance)
     return test_module_span
 
