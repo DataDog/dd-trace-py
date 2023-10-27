@@ -3,6 +3,7 @@ import os
 import pytest
 from requests.exceptions import ConnectionError
 
+
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
@@ -72,18 +73,6 @@ def test_corner_case_when_appsec_reads_chunked_request_with_no_body(appsec_enabl
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
 def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, server):
-    """A bug was detected when running a Flask application locally
-
-    file1.py:
-        app.run(debug=True, port=8000)
-
-    then:
-       DD_APPSEC_ENABLED=true poetry run ddtrace-run python -m file1:app
-       DD_APPSEC_ENABLED=true python -m ddtrace-run python file1.py
-
-    If you make an empty POST request (curl -X POST '127.0.0.1:8000/'), Flask hangs when the ASM handler tries to read
-    an empty body
-    """
     with server(
         appsec_enabled=appsec_enabled, tracer_enabled=tracer_enabled, remote_configuration_enabled="false", token=None
     ) as context:
@@ -98,6 +87,7 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, se
 
         assert response.status_code == 200
         assert response.content == b"OK_test-body-hang"
+
 
 
 @pytest.mark.skip(reason="We're still finding a solution to this corner case. It hangs in CI")

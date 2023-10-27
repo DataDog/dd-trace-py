@@ -26,10 +26,7 @@ from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
-from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
-from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
-from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
@@ -50,12 +47,11 @@ class CIVisibilityGitClient(object):
     def __init__(
         self,
         api_key,
-        app_key,
         requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
         base_url="",
     ):
-        # type: (str, str, int, str) -> None
-        self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
+        # type: (str, int, str) -> None
+        self._serializer = CIVisibilityGitClientSerializerV1(api_key)
         self._worker = None  # type: Optional[Process]
         self._response = RESPONSE
         self._requests_mode = requests_mode
@@ -155,12 +151,10 @@ class CIVisibilityGitClient(object):
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
-            AGENTLESS_APP_KEY_HEADER_NAME: serializer.app_key,
         }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
-                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
         if headers is not None:
             _headers.update(headers)
@@ -256,10 +250,9 @@ class CIVisibilityGitClient(object):
 
 
 class CIVisibilityGitClientSerializerV1(object):
-    def __init__(self, api_key, app_key):
-        # type: (str, str) -> None
+    def __init__(self, api_key):
+        # type: (str) -> None
         self.api_key = api_key
-        self.app_key = app_key
 
     def search_commits_encode(self, repo_url, latest_commits):
         # type: (str, list[str]) -> str

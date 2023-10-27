@@ -55,7 +55,7 @@ def _on_request_span_modifier(
                 seekable = False
             if not seekable:
                 content_length = int(environ.get("CONTENT_LENGTH", 0))
-                body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
+                body = wsgi_input.read(content_length) if content_length else b""
                 environ["wsgi.input"] = BytesIO(body)
                 # https://gist.github.com/mitsuhiko/5721547
                 # Provide wsgi.input as an end-of-file terminated stream.
@@ -67,7 +67,6 @@ def _on_request_span_modifier(
                     content_length = _get_content_length(environ)
                     body = wsgi_input.read(content_length) if content_length else b""
                 environ["wsgi.input"] = BytesIO(body)
-
         try:
             if content_type == "application/json" or content_type == "text/json":
                 if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
