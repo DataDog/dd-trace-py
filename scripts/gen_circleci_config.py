@@ -70,19 +70,9 @@ def gen_pre_checks(template: dict) -> None:
         paths={"tests/snapshots/*", "hatch.toml"},
     )
     check(
-        name="Slots check",
-        command="hatch run slotscheck:_",
-        paths={"ddtrace/*.py", "hatch.toml"},
-    )
-    check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
         paths={"scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
-    )
-    check(
-        name="Run conftest tests",
-        command="hatch run meta-testing:meta-testing",
-        paths={"tests/*conftest.py", "tests/meta/*"},
     )
     check(
         name="Validate suitespec JSON file",
@@ -97,6 +87,22 @@ def gen_build_docs(template: dict) -> None:
 
     if pr_matches_patterns({"docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*"}):
         template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
+
+
+def gen_slotscheck(template: dict) -> None:
+    """Include the slotscheck if the Python source has changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"ddtrace/*.py", "hatch.toml"}):
+        template["workflows"]["test"]["jobs"].append({"slotscheck": template["requires_pre_check"]})
+
+
+def gen_conftests(template: dict) -> None:
+    """Include the conftests if the Python conftest or tests/meta has changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns({"tests/*conftest.py", "tests/meta/*"}):
+        template["workflows"]["test"]["jobs"].append({"conftests": template["requires_pre_check"]})
 
 
 def gen_c_check(template: dict) -> None:
