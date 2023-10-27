@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
@@ -32,13 +33,28 @@ try:
     COLS, _ = os.get_terminal_size()
 except Exception:
     COLS = 80
-CWD = os.path.abspath(os.getcwd())
-TESTS = os.path.join(CWD, "test")
+CWD = Path.cwd()
+
+
+# Taken from Python 3.9. This is not implemented in older versions of Python
+def is_relative_to(self, other):
+    """Return True if the path is relative to another path or False."""
+    try:
+        self.relative_to(other)
+        return True
+    except ValueError:
+        return False
 
 
 def from_editable_install(module: ModuleType) -> bool:
     o = origin(module)
-    return o.startswith(CWD) and not o.startswith(TESTS) and (config.venv is None or not o.startswith(config.venv))
+    if o is None:
+        return False
+    return (
+        is_relative_to(o, CWD)
+        and not any(_.stem.startswith("test") for _ in o.parents)
+        and (config.venv is None or not is_relative_to(o, config.venv))
+    )
 
 
 def is_included(module: ModuleType) -> bool:

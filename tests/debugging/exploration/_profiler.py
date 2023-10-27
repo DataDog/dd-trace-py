@@ -1,4 +1,4 @@
-from os.path import abspath
+from pathlib import Path
 import typing as t
 
 from _config import config as expl_config
@@ -24,7 +24,7 @@ class FunctionCollector(ModuleCollector):
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
         for fname, f in discovery._fullname_index.items():
-            if origin(module) != abspath(f.__code__.co_filename):
+            if origin(module) != Path(f.__code__.co_filename).resolve():
                 # Do not wrap functions that do not belong to the module. We
                 # will have a chance to wrap them when we discover the module
                 # they belong to.
