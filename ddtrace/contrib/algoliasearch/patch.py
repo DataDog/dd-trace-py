@@ -9,9 +9,9 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 
-from .. import trace_utils
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from .. import trace_utils
 
 
 DD_PATCH_ATTR = "_datadog_patch"

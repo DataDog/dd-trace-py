@@ -2,8 +2,8 @@
 import time
 
 import psycopg
-from psycopg.sql import Literal
 from psycopg.sql import SQL
+from psycopg.sql import Literal
 
 from ddtrace import Pin
 from ddtrace.contrib.psycopg.patch import patch
