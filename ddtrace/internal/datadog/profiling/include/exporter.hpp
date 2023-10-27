@@ -6,14 +6,12 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 #include <chrono>
 #include <deque>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -74,14 +72,8 @@ class Uploader {
   std::string runtime_id;
   std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
   std::string url;
-  std::optional<std::thread> upload_thread;
-  std::atomic<bool> thread_working{false};
 
   std::string errmsg;
-
-  void wait_for_thread(int tries);
-  bool thread_upload_impl(const Profile* profile);
-  bool upload_impl(const Profile* profile);
 
 public:
   Uploader(std::string_view _url, ddog_prof_Exporter *ddog_exporter);

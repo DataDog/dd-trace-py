@@ -163,28 +163,10 @@ UploaderBuilder::build_ptr()
     return new Uploader(url, ddog_exporter);
 }
 
-void
-Uploader::wait_for_thread(int tries)
-{
-    while (thread_working.load() && tries > 0) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        --tries;
-    }
-}
-
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : ddog_exporter{ _ddog_exporter }
   , url{ _url }
 {}
-
-Uploader::~Uploader()
-{
-    wait_for_thread(3);
-    if (upload_thread && upload_thread->joinable()) {
-        upload_thread->join();
-        upload_thread.reset();
-    }
-}
 
 bool
 Uploader::set_runtime_id(std::string_view id)
@@ -194,38 +176,7 @@ Uploader::set_runtime_id(std::string_view id)
 }
 
 bool
-Uploader::thread_upload_impl(const Profile* profile)
-{
-    // As per convention, we wrap the thread so that all return paths
-    // mark the termination of the thread.
-    // There's a race condition here, because the thread will still be
-    // alive for several cycles after the return of this, but it shouldn't
-    // matter since that context is non-consuming and in a pre-join state.
-    bool ret = upload_impl(profile);
-    thread_working.store(false);
-    return ret;
-}
-
-void
 Uploader::upload(const Profile* profile)
-{
-    // If the upload thread is busy, give it some time.  We give it up to 3 seconds, which is arbitrary
-    wait_for_thread(3);
-    if (upload_thread && upload_thread->joinable()) {
-        upload_thread->join();
-        upload_thread.reset();
-    }
-
-    // Launch the thread.  We mark the working state here, potentially
-    // before the thread even launches, but the fence at the top of this
-    // function should ensure the thread has been created by the time
-    // joinability is checked
-    thread_working.store(true);
-    upload_thread.emplace(&Uploader::thread_upload_impl, this, profile);
-}
-
-bool
-Uploader::upload_impl(const Profile* profile)
 {
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
