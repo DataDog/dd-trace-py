@@ -3,7 +3,6 @@ import os
 import pytest
 from requests.exceptions import ConnectionError
 
-
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
