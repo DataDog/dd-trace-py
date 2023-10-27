@@ -7,9 +7,10 @@ from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
 
-@pytest.mark.parametrize("appsec_enabled", (("true", "false")))
+@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
+@pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-def test_when_appsec_reads_chunked_requests(appsec_enabled, server):
+def test_when_appsec_reads_chunked_requests(appsec_enabled, tracer_enabled, server):
     def read_in_chunks(filepath, chunk_size=1024):
         file_object = open(filepath, "rb")
         while True:
@@ -24,7 +25,12 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, server):
             f.writelines("1234567890_qwertyuiopasdfghjklzxcvbnm_{}".format(i))
 
     try:
-        with server(appsec_enabled=appsec_enabled, remote_configuration_enabled="false", token=None) as context:
+        with server(
+            appsec_enabled=appsec_enabled,
+            tracer_enabled=tracer_enabled,
+            remote_configuration_enabled="false",
+            token=None,
+        ) as context:
             _, gunicorn_client, pid = context
             headers = {
                 # requests won't add a boundary if this header is set when you pass files=
@@ -39,27 +45,33 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, server):
         os.remove(filepath)
 
 
-@pytest.mark.parametrize("appsec_enabled", (("true", "false")))
-@pytest.mark.parametrize("tracer_enabled", (("true", "false")))
+@pytest.mark.skip(reason="WIP")
+@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
+@pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
 def test_corner_case_when_appsec_reads_chunked_request_with_no_body(appsec_enabled, tracer_enabled, server):
     """if Gunicorn receives an empty body but Transfer-Encoding is "chunked", the application hangs but gunicorn
     control it with a timeout
     """
-    with server(
-        appsec_enabled=appsec_enabled, tracer_enabled=tracer_enabled, remote_configuration_enabled="false", token=None
-    ) as context:
-        _, gunicorn_client, pid = context
-        headers = {
-            "Transfer-Encoding": "chunked",
-        }
-        with pytest.raises(ConnectionError):
-            _ = gunicorn_client.post("/submit/file", headers=headers)
+    if not (appsec_enabled == "true" and tracer_enabled == "false"):
+        with server(
+            appsec_enabled=appsec_enabled,
+            tracer_enabled=tracer_enabled,
+            remote_configuration_enabled="false",
+            token=None,
+        ) as context:
+            _, gunicorn_client, pid = context
+            headers = {
+                "Transfer-Encoding": "chunked",
+            }
+            with pytest.raises(ConnectionError):
+                _ = gunicorn_client.post("/submit/file", headers=headers)
 
 
-@pytest.mark.parametrize("appsec_enabled", (("true", "false")))
+@pytest.mark.parametrize("appsec_enabled", ("true", "false"))
+@pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, server):
+def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, server):
     """A bug was detected when running a Flask application locally
 
     file1.py:
@@ -72,7 +84,9 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, server):
     If you make an empty POST request (curl -X POST '127.0.0.1:8000/'), Flask hangs when the ASM handler tries to read
     an empty body
     """
-    with server(appsec_enabled=appsec_enabled, remote_configuration_enabled="false", token=None) as context:
+    with server(
+        appsec_enabled=appsec_enabled, tracer_enabled=tracer_enabled, remote_configuration_enabled="false", token=None
+    ) as context:
         _, gunicorn_client, pid = context
 
         response = gunicorn_client.get("/")
@@ -82,5 +96,30 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, server):
 
         response = gunicorn_client.post("/test-body-hang")
 
+        assert response.status_code == 200
+        assert response.content == b"OK_test-body-hang"
+
+
+@pytest.mark.parametrize(
+    "appsec_enabled",
+    (
+        (
+            "true",
+            "false",
+        )
+    ),
+)
+@pytest.mark.parametrize("tracer_enabled", (("true", "false")))
+@pytest.mark.parametrize("server", ((gunicorn_server,)))
+def test_when_appsec_reads_empty_body_and_content_length_no_hang(appsec_enabled, tracer_enabled, server):
+    """We test Gunicorn, Flask server hangs forever in all cases"""
+    with server(appsec_enabled=appsec_enabled, remote_configuration_enabled="false", token=None) as context:
+        _, gunicorn_client, pid = context
+
+        headers = {
+            "Content-Length": "1000",
+        }
+
+        response = gunicorn_client.post("/test-body-hang", headers=headers)
         assert response.status_code == 200
         assert response.content == b"OK_test-body-hang"

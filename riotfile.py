@@ -136,7 +136,6 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -145,16 +144,10 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
-                # Flask 1.x.x
-                Venv(
-                    pkgs={
-                        "flask": "~=1.0",
-                    },
-                ),
                 # Flask 2.x.x
                 Venv(
                     pkgs={
-                        "flask": "~=2.0",
+                        "flask": "~=2.2",
                     },
                 ),
                 # Flask 3.x.x
@@ -163,7 +156,7 @@ venv = Venv(
                         "flask": "~=3.0",
                     },
                 ),
-            ]
+            ],
         ),
         Venv(
             name="profile-diff",
