@@ -45,17 +45,6 @@ def flask_server(appsec_enabled="true", remote_configuration_enabled="true", tra
     )
 
 
-def flask_server(appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None):
-    cmd = ["python", "tests/appsec/app.py", "--no-reload"]
-    yield from appsec_application_server(
-        cmd,
-        appsec_enabled=appsec_enabled,
-        remote_configuration_enabled=remote_configuration_enabled,
-        tracer_enabled=tracer_enabled,
-        token=token,
-    )
-
-
 def appsec_application_server(
     cmd, appsec_enabled="true", remote_configuration_enabled="true", tracer_enabled="true", token=None
 ):
