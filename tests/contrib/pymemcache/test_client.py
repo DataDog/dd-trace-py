@@ -20,9 +20,9 @@ from tests.utils import TracerTestCase
 from tests.utils import override_config
 
 from .test_client_mixin import PYMEMCACHE_VERSION
-from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .test_client_mixin import TEST_HOST
 from .test_client_mixin import TEST_PORT
+from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .utils import MockSocket
 from .utils import _str
 

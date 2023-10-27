@@ -13,15 +13,15 @@ from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
+from tests.appsec.test_processor import _IP
 from tests.appsec.test_processor import RESPONSE_CUSTOM_HTML
 from tests.appsec.test_processor import RESPONSE_CUSTOM_JSON
 from tests.appsec.test_processor import RULES_BAD_VERSION
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
-from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _IP
+from tests.appsec.test_processor import RULES_SRBCA
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
