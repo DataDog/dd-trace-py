@@ -47,7 +47,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Style",
         command="hatch run lint:style",
-        paths={"*.py", "*.pyi", "hatch.toml"},
+        paths={"*.py", "*.pyi", "hatch.toml", "pyproject.toml"},
     )
     check(
         name="Typing",
