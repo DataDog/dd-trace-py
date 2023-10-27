@@ -1,6 +1,7 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
 from flask import Flask
+from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
@@ -12,6 +13,14 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     return "OK_index", 200
+
+
+@app.post("/submit/file")
+def support_flare():
+    user_file = request.stream.read()
+    if not user_file:
+        raise Exception("user_file is missing")
+    return "OK_file"
 
 
 @app.route("/test-body-hang", methods=["POST"])

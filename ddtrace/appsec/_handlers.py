@@ -2,6 +2,7 @@ import functools
 import io
 import json
 from typing import Any
+from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 from wrapt.importer import when_imported
@@ -21,11 +22,11 @@ log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
-def _get_content_length(environ: dict[str, Any]) -> int | None:
+def _get_content_length(environ: dict[str, Any]) -> Optional[int]:
     content_length = environ.get("CONTENT_LENGTH")
     transer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
 
-    if transfer_encoding == "chunked" or content_length is None:
+    if transer_encoding == "chunked" or content_length is None:
         return None
 
     try:
@@ -50,7 +51,8 @@ def _on_request_span_modifier(
                 seekable = False
             if not seekable:
                 # https://gist.github.com/mitsuhiko/5721547
-                # Provide wsgi.input as an end-of-file terminated stream. In that case wsgi.input_terminated is set to True
+                # Provide wsgi.input as an end-of-file terminated stream. In that case
+                # wsgi.input_terminated is set to True.
                 # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
                 if environ.get("wsgi.input_terminated"):
                     body = wsgi_input.read()
