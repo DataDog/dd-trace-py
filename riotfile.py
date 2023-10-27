@@ -145,7 +145,7 @@ venv = Venv(
             venvs=[
                 # Flask 1.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
                         "flask": "~=1.0",
                         # https://github.com/pallets/itsdangerous/issues/290
