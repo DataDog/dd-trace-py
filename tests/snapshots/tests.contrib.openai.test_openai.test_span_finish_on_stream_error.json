@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "openai.request",
+    "service": null,
+    "resource": "createCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "error.message": "Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.",
+      "error.stack": "Traceback (most recent call last):\n  openai.error.AuthenticationError: Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.\n",
+      "error.type": "openai.error.AuthenticationError",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.max_tokens": "150",
+      "openai.request.method": "POST",
+      "openai.request.model": "text-curie-001",
+      "openai.request.n": "1",
+      "openai.request.prompt": "how does openai tokenize prompts?",
+      "openai.request.stream": "True",
+      "openai.request.temperature": "0.8",
+      "openai.user.api_key": "sk-...-key",
+      "runtime-id": "0a0a92d644714949b7544ee81c6d1bf1"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 91222
+    },
+    "duration": 291271000,
+    "start": 1694536282656608000
+  }]]

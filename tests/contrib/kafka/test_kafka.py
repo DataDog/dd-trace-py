@@ -4,7 +4,9 @@ import time
 
 import confluent_kafka
 from confluent_kafka import KafkaException
+from confluent_kafka import TopicPartition
 from confluent_kafka import admin as kafka_admin
+import mock
 import pytest
 import six
 
@@ -13,6 +15,10 @@ from ddtrace import Tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
+import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
+from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
@@ -26,6 +32,7 @@ if six.PY3:
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 else:
     PAYLOAD = bytes("hueh hueh hueh")
+DSM_TEST_PATH_HEADER_SIZE = 20
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -40,6 +47,28 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     topic_name = request.node.name.replace("[", "_").replace("]", "")
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
+
+
+@pytest.fixture()
+def empty_kafka_topic(request):
+    """
+    Deletes a kafka topic to clear message if it exists.
+    """
+    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.delete_topics([topic_name]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already doesn't exist
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
@@ -71,6 +100,13 @@ def tracer():
 
 
 @pytest.fixture
+def dsm_processor(tracer):
+    processor = tracer.data_streams_processor
+    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
+        yield processor
+
+
+@pytest.fixture
 def producer(tracer):
     _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     Pin.override(_producer, tracer=tracer)
@@ -86,6 +122,29 @@ def consumer(tracer, kafka_topic):
             "auto.offset.reset": "earliest",
         }
     )
+
+    tp = TopicPartition(kafka_topic, 0)
+    tp.offset = 0  # we want to read the first message
+    _consumer.commit(offsets=[tp])
+    Pin.override(_consumer, tracer=tracer)
+    _consumer.subscribe([kafka_topic])
+    yield _consumer
+    _consumer.close()
+
+
+@pytest.fixture
+def non_auto_commit_consumer(tracer, kafka_topic):
+    _consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
+        }
+    )
+    tp = TopicPartition(kafka_topic, 0)
+    tp.offset = 0  # we want to read the first message
+    _consumer.commit(offsets=[tp])
     Pin.override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
@@ -181,6 +240,36 @@ def test_message(producer, consumer, tombstone, kafka_topic):
         message = consumer.poll(1.0)
 
 
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(message)
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_offset(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(offsets=[TopicPartition(kafka_topic)])
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
+    consumer.commit(asynchronous=False)
+
+
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
 )
@@ -222,18 +311,53 @@ def retry_until_not_none(factory):
     return None
 
 
-def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializing_producer, kafka_topic):
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+@pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
+@pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
+def test_data_streams_payload_size(
+    dsm_processor, deserializing_consumer, serializing_producer, kafka_topic, payload_and_length, key_and_length
+):
+    payload, payload_length = payload_and_length
+    key, key_length = key_and_length
+    test_headers = {"1234": "5678"}
+    test_header_size = 0
+    for k, v in test_headers.items():
+        test_header_size += len(k) + len(v)
+    expected_payload_size = float(payload_length + key_length)
+    expected_payload_size += test_header_size  # to account for headers we add here
+    expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+    expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
+
     try:
-        del tracer.data_streams_processor._current_context.value
+        del dsm_processor._current_context.value
     except AttributeError:
         pass
+
+    serializing_producer.produce(kafka_topic, payload, key=key, headers=test_headers)
+    serializing_producer.flush()
+    message = None
+    while message is None:
+        message = deserializing_consumer.poll(1.0)
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    first = list(buckets.values())[0].pathway_stats
+    for _bucket_name, bucket in first.items():
+        assert bucket.payload_size._count >= 1
+        assert bucket.payload_size._sum == expected_payload_size
+
+
+def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+
     serializing_producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     serializing_producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll(1.0)
-    buckets = tracer.data_streams_processor._buckets
+    buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     assert (
@@ -268,18 +392,19 @@ def test_data_streams_kafka_serializing(tracer, deserializing_consumer, serializ
     )
 
 
-def test_data_streams_kafka(tracer, consumer, producer, kafka_topic):
+def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
     try:
-        del tracer.data_streams_processor._current_context.value
+        del dsm_processor._current_context.value
     except AttributeError:
         pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll(1.0)
-    buckets = tracer.data_streams_processor._buckets
+    buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
     assert (
@@ -415,3 +540,193 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
+
+
+def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message:
+                consumer.commit(asynchronous=False, message=message)
+                return message
+
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    consumer = non_auto_commit_consumer
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+    buckets = dsm_processor._buckets
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    producer.flush()
+
+    _message = _read_single_message(consumer)  # noqa: F841
+
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message and message.offset() is not None:
+                tp = TopicPartition(message.topic(), message.partition())
+                tp.offset = message.offset() + 1
+                offsets = [tp]
+
+                consumer.commit(asynchronous=False, offsets=offsets)
+                return message
+
+    consumer = non_auto_commit_consumer
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    producer.flush()
+
+    _message = _read_single_message(consumer)  # noqa: F841
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic):
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message:
+                return message
+
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
+    producer.flush()
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    consumer.commit(asynchronous=False)
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+
+    _message = _read_single_message(consumer)  # noqa: F841
+    consumer.commit(asynchronous=False)
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
+
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message:
+                return message
+
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+
+    # All of these should work
+    producer.produce(kafka_topic)
+    producer.produce(kafka_topic, PAYLOAD)
+    producer.produce(kafka_topic, value=PAYLOAD)
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, value=PAYLOAD, key="test_key_2")
+    producer.produce(kafka_topic, key="test_key_3")
+    producer.flush()
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] == 5
+
+
+def test_data_streams_default_context_propagation(dummy_tracer, consumer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "context test"
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == b"context test"
+
+    # DSM header 'dd-pathway-ctx' was propagated in the headers
+    assert message.headers()[0][0] == PROPAGATION_KEY
+    assert message.headers()[0][1] is not None
+
+
+# It is not currently expected for kafka produce and consume spans to connect in a trace
+def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "context test"
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == b"context test"
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span1 = traces[1][0]
+    consume_span2 = traces[2][0]
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+
+    # None of the kafka.consume spans have parents
+    assert consume_span1.name == "kafka.consume"
+    assert consume_span1.parent_id is None
+    assert consume_span2.name == "kafka.consume"
+    assert consume_span2.parent_id is None
+
+    # None of these spans are part of the same trace
+    assert produce_span.trace_id != consume_span1.trace_id
+    assert consume_span1.trace_id != consume_span2.trace_id

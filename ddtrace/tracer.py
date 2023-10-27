@@ -11,22 +11,16 @@ from typing import TYPE_CHECKING
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.compat import ensure_pep562
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.settings import Config
-from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor import debtcollector
 
 from . import _hooks
-from ._monkey import patch
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .internal import agent
@@ -57,7 +51,7 @@ from .internal.serverless import in_azure_function_consumption_plan
 from .internal.serverless import in_gcp_function
 from .internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
+from .internal.utils.http import verify_url
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -84,24 +78,6 @@ from typing import TypeVar
 log = get_logger(__name__)
 
 
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-)
-if config._debug_mode and not hasHandlers(log) and config._call_basic_config:
-    debtcollector.deprecate(
-        "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application.",
-        removal_version="2.0.0",
-    )
-    if config.logs_injection:
-        # We need to ensure logging is patched in case the tracer logs during initialization
-        patch(logging=True)
-        logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
-    else:
-        logging.basicConfig(level=logging.DEBUG)
-
-
 _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 
 
@@ -112,7 +88,7 @@ def _start_appsec_processor():
     # type: () -> Optional[Any]
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
-        from .appsec.processor import AppSecSpanProcessor
+        from .appsec._processor import AppSecSpanProcessor
 
         return AppSecSpanProcessor()
     except Exception as e:
@@ -171,7 +147,7 @@ def _default_span_processors_factory(
         appsec_processor = None
 
     if iast_enabled:
-        from .appsec.iast.processor import AppSecIastSpanProcessor
+        from .appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
 
@@ -249,13 +225,13 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
-        agent.verify_url(self._agent_url)
+        verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
@@ -270,8 +246,8 @@ class Tracer(object):
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
-        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        self._partial_flush_enabled = config._partial_flush_enabled
+        self._partial_flush_min_spans = config._partial_flush_min_spans
         self._appsec_enabled = config._appsec_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
@@ -462,7 +438,7 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 new_url = "%s://%s:%s" % (scheme, hostname, port)
-            agent.verify_url(new_url)
+            verify_url(new_url)
             self._agent_url = new_url
         else:
             new_url = None
@@ -759,16 +735,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span)
-            if not isinstance(self._sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self._sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
-            else:
-                # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
+            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
@@ -1025,14 +992,6 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
-            try:
-                # Data streams tries to flush data on shutdown.
-                # Adding a try except here to ensure we don't crash the application if the agent is killed before
-                # the application for example.
-                self.data_streams_processor.shutdown(timeout)
-            except Exception as e:
-                if config._data_streams_enabled:
-                    log.warning("Failed to shutdown data streams processor: %s", repr(e))
             span_processors = self._span_processors
             deferred_processors = self._deferred_processors
             self._span_processors = []
@@ -1093,20 +1052,3 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
-
-
-def __getattr__(name):
-    if name == "DD_LOG_FORMAT":
-        debtcollector.deprecate(
-            ("%s.%s is deprecated." % (__name__, name)),
-            removal_version="2.0.0",
-        )
-        return DD_LOG_FORMAT
-
-    if name in globals():
-        return globals()[name]
-
-    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
-
-
-ensure_pep562(__name__)

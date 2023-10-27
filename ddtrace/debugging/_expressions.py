@@ -25,6 +25,7 @@ Full grammar:
 """  # noqa
 from itertools import chain
 import re
+import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -39,7 +40,7 @@ from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
 
-from ddtrace.debugging.safety import safe_getitem
+from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
@@ -48,25 +49,24 @@ DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
 if PY < (3, 0):
     IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
-    def _is_identifier(name):
-        # type: (str) -> bool
+    def _is_identifier(name: str) -> bool:
         return isinstance(name, str) and IDENT_RE.match(name) is not None
 
 
 else:
 
-    def _is_identifier(name):
-        # type: (str) -> bool
+    def _is_identifier(name: str) -> bool:
         return isinstance(name, str) and name.isidentifier()
 
 
-def _make_function(ast, args, name):
-    # type: (DDASTType, Tuple[str,...], str) -> FunctionType
+def _make_function(ast: DDASTType, args: Tuple[str, ...], name: str) -> FunctionType:
     compiled = _compile_predicate(ast)
     if compiled is None:
         raise ValueError("Invalid predicate: %r" % ast)
 
     instrs = compiled + [Instr("RETURN_VALUE")]
+    if sys.version_info >= (3, 11):
+        instrs.insert(0, Instr("RESUME", 0))
 
     abstract_code = Bytecode(instrs)
     abstract_code.argcount = len(args)
@@ -76,13 +76,11 @@ def _make_function(ast, args, name):
     return FunctionType(abstract_code.to_code(), {}, name, (), None)
 
 
-def _make_lambda(ast):
-    # type: (DDASTType) -> Callable[[Any, Any], Any]
+def _make_lambda(ast: DDASTType) -> Callable[[Any, Any], Any]:
     return _make_function(ast, ("_dd_it", "_locals"), "<lambda>")
 
 
-def _compile_direct_predicate(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_direct_predicate(ast: DDASTType) -> Optional[List[Instr]]:
     # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
     # direct_predicate_type  =>  not | isEmpty | isUndefined
     if not isinstance(ast, dict):
@@ -104,8 +102,7 @@ def _compile_direct_predicate(ast):
     return value
 
 
-def _compile_arg_predicate(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_arg_predicate(ast: DDASTType) -> Optional[List[Instr]]:
     # arg_predicate       =>  {"<arg_predicate_type>": [<argument_list>]}
     # arg_predicate_type  =>  eq | ne | gt | ge | lt | le | any | all | and | or
     #                            | startsWith | endsWith | contains | matches
@@ -177,8 +174,7 @@ def _compile_arg_predicate(ast):
     return None
 
 
-def _compile_direct_operation(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_direct_operation(ast: DDASTType) -> Optional[List[Instr]]:
     # direct_opearation  =>  {"<direct_op_type>": <value_source>}
     # direct_op_type     =>  len | count | ref
     if not isinstance(ast, dict):
@@ -208,8 +204,7 @@ def _compile_direct_operation(ast):
     return None
 
 
-def _call_function(func, *args):
-    # type: (Callable, List[Instr]) -> List[Instr]
+def _call_function(func: Callable, *args: List[Instr]) -> List[Instr]:
     if PY < (3, 11):
         return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
     elif PY >= (3, 12):
@@ -223,8 +218,7 @@ def _call_function(func, *args):
     )
 
 
-def _compile_arg_operation(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_arg_operation(ast: DDASTType) -> Optional[List[Instr]]:
     # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
     # arg_op_type    =>  filter | substring
     if not isinstance(ast, dict):
@@ -284,14 +278,12 @@ def _compile_arg_operation(ast):
     return None
 
 
-def _compile_operation(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_operation(ast: DDASTType) -> Optional[List[Instr]]:
     # operation  =>  <direct_operation> | <arg_operation>
     return _compile_direct_operation(ast) or _compile_arg_operation(ast)
 
 
-def _compile_literal(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_literal(ast: DDASTType) -> Optional[List[Instr]]:
     # literal  =>  <number> | true | false | "string" | null
     if not (isinstance(ast, (str, int, float, bool)) or ast is None):
         return None
@@ -299,20 +291,17 @@ def _compile_literal(ast):
     return [Instr("LOAD_CONST", ast)]
 
 
-def _compile_value_source(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_value_source(ast: DDASTType) -> Optional[List[Instr]]:
     # value_source  =>  <literal> | <operation>
     return _compile_operation(ast) or _compile_literal(ast)
 
 
-def _compile_predicate(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
+def _compile_predicate(ast: DDASTType) -> Optional[List[Instr]]:
     # predicate  =>  <direct_predicate> | <arg_predicate> | <value_source>
     return _compile_direct_predicate(ast) or _compile_arg_predicate(ast) or _compile_value_source(ast)
 
 
-def dd_compile(ast):
-    # type: (DDASTType) -> Callable[[Dict[str, Any]], Any]
+def dd_compile(ast: DDASTType) -> Callable[[Dict[str, Any]], Any]:
     return _make_function(ast, ("_locals",), "<expr>")
 
 
@@ -327,8 +316,8 @@ class DDExpressionEvaluationError(Exception):
 
 @attr.s
 class DDExpression(object):
-    dsl = attr.ib(type=str)  # type: str
-    callable = attr.ib(type=Callable[[Dict[str, Any]], Any])  # type: Callable[[Dict[str, Any]], Any]
+    dsl = attr.ib(type=str)
+    callable = attr.ib(type=Callable[[Dict[str, Any]], Any])
 
     def eval(self, _locals):
         try:

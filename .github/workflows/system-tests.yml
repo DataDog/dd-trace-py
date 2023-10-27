@@ -3,8 +3,7 @@ name: System Tests
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
+      - 2.x
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -34,6 +33,9 @@ jobs:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
           - weblog-variant: django-poc
+          - weblog-variant: fastapi
+        #   runs django-poc for 3.12
+          - weblog-variant: python3.12
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -45,109 +47,112 @@ jobs:
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
       - name: Setup python 3.9
-        if: needs.needs-run.outputs.outcome == 'success'
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
   
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
 
       - name: Checkout dd-trace-py
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v3
         with:
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
 
       - name: Build
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
 
       - name: Run
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
 
       - name: Run APPSEC_MISSING_RULES
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_MISSING_RULES
 
       - name: Run APPSEC_CUSTOM_RULES
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_CUSTOM_RULES
 
       - name: Run APPSEC_CORRUPTED_RULES
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_CORRUPTED_RULES
 
       - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
 
       - name: Run APPSEC_BLOCKING
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_BLOCKING
 
       - name: Run APPSEC_DISABLED
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_DISABLED
 
       - name: Run APPSEC_LOW_WAF_TIMEOUT
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
 
       - name: Run APPSEC_CUSTOM_OBFUSCATION
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
 
       - name: Run APPSEC_RATE_LIMITER
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_RATE_LIMITER
 
       - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
       - name: Run APPSEC_REQUEST_BLOCKING
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_REQUEST_BLOCKING
 
       - name: Run APPSEC_RUNTIME_ACTIVATION
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_RUNTIME_ACTIVATION
 
       - name: Run APPSEC_WAF_TELEMETRY
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh APPSEC_WAF_TELEMETRY
 
       - name: Run SAMPLING
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh SAMPLING
+
+      - name: Run INTEGRATIONS 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh INTEGRATIONS 
 
       # even on failures, we want to have artifact to be able to investigate
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: logs_${{ matrix.weblog-variant }}
           path: artifact.tar.gz
@@ -160,31 +165,31 @@ jobs:
       PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
 
       - uses: actions/setup-python@v4
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           python-version: '3.9'
 
       - name: Build
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh -i runner
 
       - name: Run
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh PARAMETRIC
 
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: logs_parametric
           path: artifact.tar.gz

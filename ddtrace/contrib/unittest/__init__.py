@@ -24,12 +24,25 @@ Global Configuration
    variable.
 
    Default: ``"unittest.test"``
+
+   .. py:data:: ddtrace.config.unittest["strict_naming"]
+
+   Requires all ``unittest`` tests to start with ``test`` as stated in the Python documentation
+
+   This option can also be set with the ``DD_CIVISIBILITY_UNITTEST_STRICT_NAMING`` environment
+   variable.
+
+   Default: ``True``
 """
+from ...internal.utils.importlib import require_modules
 from .patch import get_version
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+required_modules = ["unittest"]
 
-patch()
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+
+        __all__ = ["patch", "unpatch", "get_version"]

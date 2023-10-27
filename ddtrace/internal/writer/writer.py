@@ -18,7 +18,6 @@ from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.vendor.dogstatsd import DogStatsd
 
-from .. import agent
 from .. import compat
 from .. import periodic
 from .. import service
@@ -36,8 +35,6 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
-from ..serverless import in_azure_function_consumption_plan
-from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -169,7 +166,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.get_trace_agent_timeout()
+            timeout = config._agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -487,7 +484,7 @@ class AgentWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.get_trace_agent_timeout()
+            timeout = config._agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -498,11 +495,8 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = (
-            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
-        )
 
-        self._api_version = api_version or config._trace_api or (default_api_version if priority_sampling else "v0.3")
+        self._api_version = api_version or config._trace_api or ("v0.4" if priority_sampling else "v0.3")
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
@@ -626,7 +620,9 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            telemetry_writer.enable()
+            if not telemetry_writer.started:
+                telemetry_writer._app_started_event()
+                telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

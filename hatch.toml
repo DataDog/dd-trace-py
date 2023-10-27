@@ -29,7 +29,7 @@ dependencies = [
     "flake8-rst-docstrings",
     "flake8-isort",
     "pygments",
-    "riot==0.17.4",
+    "riot==0.19.0",
 ]
 
 [envs.lint.scripts]
@@ -54,9 +54,12 @@ fmt-snapshots = [
 riot = [
     "python -m doctest {args} riotfile.py"
 ]
+fmt = [
+    "black {args:.}",
+    "isort {args:.}",
+]
 
 [envs.docs]
-type = "container"
 template = "docs"
 dev-mode = false
 python = "3.10"
@@ -67,7 +70,7 @@ extra-dependencies = [
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
-    # Later release of furro breaks formatting for code blocks
+    # Later release of furo breaks formatting for code blocks
     "furo<=2023.05.20",
 ]
 pre-install-commands = [
@@ -80,12 +83,8 @@ build = [
 ]
 
 [envs.docs.overrides]
-# CircleCI executor is an image already set up for docs
-# We skip the pre-install as well
-env.CIRCLECI.type = [
-    { value = "virtual", if = ["true"] },
-]
-
+# Local MacOS development requires Docker containers
+platform.macos.type = { value = "container" }
 
 [envs.slotscheck]
 template = "slotscheck"

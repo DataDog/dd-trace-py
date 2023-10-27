@@ -1,3 +1,4 @@
+from functools import wraps
 from os.path import abspath
 
 import pytest
@@ -111,7 +112,7 @@ def test_function_mangled(stuff_discovery):
 
 
 def test_discovery_after_external_wrapping(stuff):
-    import ddtrace.vendor.wrapt as wrapt
+    import wrapt as wrapt
 
     def wrapper(wrapped, inst, args, kwargs):
         pass
@@ -157,3 +158,27 @@ def test_undecorate():
     assert f is _undecorate(f, name, path)
 
     assert _undecorate(_undecorate, name, path) is _undecorate
+
+
+def test_discovery_class_decoration():
+    class Decorator:
+        def __init__(self, f):
+            self.f = f
+
+    @Decorator
+    def f():
+        pass
+
+    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    assert code.co_name == "f"
+    assert code.co_filename == abspath(__file__)
+
+
+def test_discovery_wrapped_decoration():
+    @wraps
+    def f():
+        pass
+
+    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    assert code.co_name == "f"
+    assert code.co_filename == abspath(__file__)

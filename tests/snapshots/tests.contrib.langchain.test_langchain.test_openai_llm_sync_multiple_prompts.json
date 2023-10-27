@@ -1,13 +1,11 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": null,
     "resource": "langchain.llms.openai.OpenAI",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.api_key": "...key>",
@@ -31,19 +29,20 @@
       "langchain.response.completions.1.logprobs": "None",
       "langchain.response.completions.1.text": "\\n\\nSpongebob has failed his road test a total of three times.",
       "language": "python",
-      "runtime-id": "dfd2ce0f0c3347ffb6655649ad48bd1f"
+      "runtime-id": "cfe560562fe5439bb5acb2287ceb37cb"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 114,
       "langchain.tokens.prompt_tokens": 24,
       "langchain.tokens.total_cost": 0.0027600000000000003,
       "langchain.tokens.total_tokens": 138,
-      "process_id": 52007
+      "process_id": 13644
     },
-    "duration": 5322644,
-    "start": 1691167368562019309
+    "duration": 5029091,
+    "start": 1694032716836039205
   }]]

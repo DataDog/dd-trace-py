@@ -1,0 +1,4 @@
+---
+prelude: >
+  Vulnerability Management for Code-level (IAST) is now available in private beta. Use the environment variable 
+  ``DD_IAST_ENABLED=True`` to enable this feature.

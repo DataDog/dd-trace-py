@@ -1,6 +1,8 @@
 from copy import deepcopy
+import multiprocessing
 import os
 import re
+import sys
 from typing import Callable
 from typing import List
 from typing import Optional
@@ -25,8 +27,9 @@ from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -55,6 +58,8 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|public[-_]?"
     r"|access[-_]?"
     r"|secret[-_]?"
+    r"|app(?:lica"
+    r"tion)?[-_]?"
     r")key(?:[-_]?id)?"
     r"|token"
     r"|consumer[-_]?(?:id|key|secret)"
@@ -97,7 +102,8 @@ def _parse_propagation_styles(name, default):
 
     - "datadog"
     - "b3multi"
-    - "b3 single header"
+    - "b3" (formerly 'b3 single header')
+    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "none"
 
@@ -117,7 +123,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
-        DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
+        DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
     envvar = os.getenv(name, default=default)
@@ -125,14 +131,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
-        if style == "b3":
+        if style == "b3 single header":
             deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
-                removal_version="2.0.0",
+                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
+                removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            style = PROPAGATION_STYLE_B3
+            style = PROPAGATION_STYLE_B3_SINGLE
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -191,6 +197,10 @@ class Config(object):
     available and can be updated by users.
     """
 
+    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
+        512
+    )  # type: multiprocessing.Queue
+
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -239,16 +249,11 @@ class Config(object):
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
-        self._call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-        if self._call_basic_config:
-            deprecate(
-                "`DD_CALL_BASIC_CONFIG` is deprecated and will be removed in the next major version.",
-                message="Call `logging.basicConfig()` to configure logging in your application",
-                removal_version="2.0.0",
-            )
 
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self._envier_config.trace_http_header_tags)
@@ -274,6 +279,15 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
+        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+
+        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
+        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
@@ -294,6 +308,7 @@ class Config(object):
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
+        self._extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
@@ -374,18 +389,9 @@ class Config(object):
         except (TypeError, ValueError):
             pass
 
-        if "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN" in os.environ:
-            deprecate(
-                "`DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN` is deprecated "
-                "and will be removed in the next major version.",
-                message="use `DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP` instead",
-                removal_version="2.0.0",
-            )
-            dd_trace_obfuscation_query_string_regexp = os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN")
-        else:
-            dd_trace_obfuscation_query_string_regexp = os.getenv(
-                "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-            )
+        dd_trace_obfuscation_query_string_regexp = os.getenv(
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+        )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
@@ -404,7 +410,6 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
-        self._ci_visibility_unittest_enabled = asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_ENABLED", default=False))
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -412,7 +417,7 @@ class Config(object):
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", False))
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
         self._iast_redaction_name_pattern = os.getenv(
@@ -427,6 +432,7 @@ class Config(object):
             + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
             + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
         )
+        self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
         if name in self._envier_config.keys():
@@ -436,6 +442,25 @@ class Config(object):
             self._integration_configs[name] = IntegrationConfig(self, name)
 
         return self._integration_configs[name]
+
+    def _add_extra_service(self, service_name: str) -> None:
+        if self._remote_config_enabled and service_name != self.service:
+            try:
+                self._extra_services_queue.put_nowait(service_name)
+            except BaseException:  # nosec
+                pass
+
+    def _get_extra_services(self):
+        # type: () -> set[str]
+
+        try:
+            while True:
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) > 64:
+                    self._extra_services.pop()
+        except BaseException:  # nosec
+            pass
+        return self._extra_services
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.

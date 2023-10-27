@@ -87,8 +87,7 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
 
 
 class TestSignalCollector(SignalCollector):
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super(TestSignalCollector, self).__init__(*args, **kwargs)
         self.test_queue = []
         self.signal_state_counter = Counter()
@@ -121,16 +120,13 @@ class TestDebugger(Debugger):
     __uploader__ = MockLogsIntakeUploaderV1
     __collector__ = TestSignalCollector
 
-    def add_probes(self, *probes):
-        # type: (Probe) -> None
+    def add_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
 
-    def remove_probes(self, *probes):
-        # type: (Probe) -> None
+    def remove_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
 
-    def modify_probes(self, *probes):
-        # type: (Probe) -> None
+    def modify_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.MODIFIED_PROBES, probes)
 
     @property
@@ -153,6 +149,9 @@ class TestDebugger(Debugger):
     def probe_status_logger(self):
         return self._probe_registry.logger
 
+    def log_probe_status(self):
+        self._probe_registry.log_probes_status()
+
     def assert_no_snapshots(self):
         assert len(self.test_queue) == 0
 
@@ -163,8 +162,7 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def _debugger(config_to_override, config_overrides):
-    # type: (En, Any) -> Generator[TestDebugger, None, None]
+def _debugger(config_to_override: En, config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
@@ -189,8 +187,7 @@ def _debugger(config_to_override, config_overrides):
 
 
 @contextmanager
-def debugger(**config_overrides):
-    # type: (Any) -> Generator[TestDebugger, None, None]
+def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     with _debugger(di_config, config_overrides) as debugger:
         yield debugger

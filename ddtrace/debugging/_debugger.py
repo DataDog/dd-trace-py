@@ -11,7 +11,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import cast
 
@@ -58,6 +57,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
@@ -68,11 +68,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.module import ModuleHookType
-    from ddtrace.tracer import Tracer
+from ddtrace.tracer import Tracer
 
 
 # Coroutine support
@@ -96,11 +92,10 @@ class DebuggerError(Exception):
 
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
-    _locations = set()  # type: Set[str]
+    _locations: Set[str] = set()
 
     @classmethod
-    def register_origin_hook(cls, origin, hook):
-        # type: (str, ModuleHookType) -> None
+    def register_origin_hook(cls, origin: str, hook: ModuleHookType) -> None:
         if origin in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
@@ -115,8 +110,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         super(DebuggerModuleWatchdog, cls).register_origin_hook(origin, hook)
 
     @classmethod
-    def unregister_origin_hook(cls, origin, hook):
-        # type: (str, ModuleHookType) -> None
+    def unregister_origin_hook(cls, origin: str, hook: ModuleHookType) -> None:
         try:
             cls._locations.remove(origin)
         except KeyError:
@@ -126,12 +120,11 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         return super(DebuggerModuleWatchdog, cls).unregister_origin_hook(origin, hook)
 
     @classmethod
-    def register_module_hook(cls, module_name, hook):
-        # type: (str, ModuleHookType) -> None
+    def register_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
         if module_name in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
-            module = sys.modules[module_name]
+            module = sys.modules.get(module_name)
             if module is not None:
                 hook(module)
 
@@ -142,8 +135,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         super(DebuggerModuleWatchdog, cls).register_module_hook(module_name, hook)
 
     @classmethod
-    def unregister_module_hook(cls, module_name, hook):
-        # type: (str, ModuleHookType) -> None
+    def unregister_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
         try:
             cls._locations.remove(module_name)
         except KeyError:
@@ -153,8 +145,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
         return super(DebuggerModuleWatchdog, cls).unregister_module_hook(module_name, hook)
 
     @classmethod
-    def on_run_module(cls, module):
-        # type: (ModuleType) -> None
+    def on_run_module(cls, module: ModuleType) -> None:
         if cls._instance is not None:
             # Treat run module as an import to trigger import hooks and register
             # the module's origin.
@@ -162,9 +153,9 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
 
 class Debugger(Service):
-    _instance = None  # type: Optional[Debugger]
+    _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
-    _span_processor = None  # type: Optional[SpanExceptionProcessor]
+    _span_processor: Optional[SpanExceptionProcessor] = None
 
     __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
@@ -173,8 +164,7 @@ class Debugger(Service):
     __logger__ = ProbeStatusLogger
 
     @classmethod
-    def enable(cls, run_module=False):
-        # type: (bool) -> None
+    def enable(cls, run_module: bool = False) -> None:
         """Enable dynamic instrumentation
 
         This class method is idempotent. Dynamic instrumentation will be
@@ -204,8 +194,7 @@ class Debugger(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls, join=True):
-        # type: (bool) -> None
+    def disable(cls, join: bool = True) -> None:
         """Disable dynamic instrumentation.
 
         This class method is idempotent. Called automatically at exit, if
@@ -237,8 +226,7 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self, tracer=None):
-        # type: (Optional[Tracer]) -> None
+    def __init__(self, tracer: Optional[Tracer] = None) -> None:
         super(Debugger, self).__init__()
 
         self._tracer = tracer or ddtrace.tracer
@@ -295,8 +283,7 @@ class Debugger(Service):
         # Send upload request
         self._uploader.upload()
 
-    def _dd_debugger_hook(self, probe):
-        # type: (Probe) -> None
+    def _dd_debugger_hook(self, probe: Probe) -> None:
         """Debugger probe hook.
 
         This gets called with a reference to the probe. We only check whether
@@ -306,7 +293,7 @@ class Debugger(Service):
         """
         try:
             actual_frame = sys._getframe(1)
-            signal = None  # type: Optional[Signal]
+            signal: Optional[Signal] = None
             if isinstance(probe, MetricLineProbe):
                 signal = MetricSample(
                     probe=probe,
@@ -345,8 +332,7 @@ class Debugger(Service):
         except Exception:
             log.error("Failed to execute debugger probe hook", exc_info=True)
 
-    def _dd_debugger_wrapper(self, wrappers):
-        # type: (Dict[str, FunctionProbe]) -> Wrapper
+    def _dd_debugger_wrapper(self, wrappers: Dict[str, FunctionProbe]) -> Wrapper:
         """Debugger wrapper.
 
         This gets called with a reference to the wrapped function and the probe,
@@ -355,8 +341,7 @@ class Debugger(Service):
         capture all the relevant debugging context.
         """
 
-        def _(wrapped, args, kwargs):
-            # type: (FunctionType, Tuple[Any], Dict[str,Any]) -> Any
+        def _(wrapped: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
             if not wrappers:
                 return wrapped(*args, **kwargs)
 
@@ -367,7 +352,7 @@ class Debugger(Service):
             trace_context = self._tracer.current_trace_context()
 
             open_contexts = []
-            signal = None  # type: Optional[Signal]
+            signal: Optional[Signal] = None
             for probe in wrappers.values():
                 if isinstance(probe, MetricFunctionProbe):
                     signal = MetricSample(
@@ -437,14 +422,13 @@ class Debugger(Service):
 
         return _
 
-    def _probe_injection_hook(self, module):
-        # type: (ModuleType) -> None
+    def _probe_injection_hook(self, module: ModuleType) -> None:
         # This hook is invoked by the ModuleWatchdog or the post run module hook
         # to inject probes.
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[Probe]]
+        probes_for_function: Dict[FullyNamedWrappedFunction, List[Probe]] = defaultdict(list)
         for probe in self._probe_registry.get_pending(origin(module)):
             if not isinstance(probe, LineLocationMixin):
                 continue
@@ -458,7 +442,7 @@ class Debugger(Service):
                     origin(module),
                 )
                 log.error(message)
-                self._probe_registry.set_error(probe, message)
+                self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
             for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                 probes_for_function[function].append(cast(LineProbe, probe))
@@ -470,7 +454,7 @@ class Debugger(Service):
 
             for probe in probes:
                 if probe.probe_id in failed:
-                    self._probe_registry.set_error(probe, "Failed to inject")
+                    self._probe_registry.set_error(probe, "InjectionFailure", "Failed to inject")
                 else:
                     self._probe_registry.set_installed(probe)
 
@@ -485,10 +469,12 @@ class Debugger(Service):
                 function,
             )
 
-    def _inject_probes(self, probes):
-        # type: (List[LineProbe]) -> None
+    def _inject_probes(self, probes: List[LineProbe]) -> None:
         for probe in probes:
             if probe not in self._probe_registry:
+                if len(self._probe_registry) >= di_config.max_probes:
+                    log.warning("Too many active probes. Ignoring new ones.")
+                    return
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
@@ -497,7 +483,7 @@ class Debugger(Service):
                 log.error(
                     "Cannot inject probe %s: source file %s cannot be resolved", probe.probe_id, probe.source_file
                 )
-                self._probe_registry.set_error(probe, "Source file location cannot be resolved")
+                self._probe_registry.set_error(probe, "NoSourceFile", "Source file location cannot be resolved")
                 continue
 
         for source in {probe.source_file for probe in probes if probe.source_file is not None}:
@@ -508,14 +494,16 @@ class Debugger(Service):
                 for probe in probes:
                     if probe.source_file != source:
                         continue
-                    self._probe_registry.set_exc_info(probe, exc_info)
+                    exc_type, exc, _ = exc_info
+                    self._probe_registry.set_error(
+                        probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
+                    )
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
-    def _eject_probes(self, probes_to_eject):
-        # type: (List[LineProbe]) -> None
+    def _eject_probes(self, probes_to_eject: List[LineProbe]) -> None:
         # TODO[perf]: Bulk-collect probes as for injection. This is lower
         # priority as probes are normally removed manually by users.
-        unregistered_probes = []  # type: List[LineProbe]
+        unregistered_probes: List[LineProbe] = []
         for probe in probes_to_eject:
             if probe not in self._probe_registry:
                 log.error("Attempted to eject unregistered probe %r", probe)
@@ -524,7 +512,7 @@ class Debugger(Service):
             (registered_probe,) = self._probe_registry.unregister(probe)
             unregistered_probes.append(cast(LineProbe, registered_probe))
 
-        probes_for_source = defaultdict(list)  # type: Dict[str, List[LineProbe]]
+        probes_for_source: Dict[str, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
             if probe.source_file is None:
                 continue
@@ -534,7 +522,7 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[LineProbe]]
+                probes_for_function: Dict[FullyNamedWrappedFunction, List[LineProbe]] = defaultdict(list)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
                         continue
@@ -562,8 +550,7 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister injection hook for %r", probe, exc_info=True)
 
-    def _probe_wrapping_hook(self, module):
-        # type: (ModuleType) -> None
+    def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
         for probe in probes:
             if not isinstance(probe, FunctionLocationMixin):
@@ -578,7 +565,7 @@ class Debugger(Service):
                     probe.func_qname,
                     probe.module,
                 )
-                self._probe_registry.set_error(probe, message)
+                self._probe_registry.set_error(probe, "NoFunctionInModule", message)
                 log.error(message)
                 continue
 
@@ -606,23 +593,28 @@ class Debugger(Service):
                 )
             self._probe_registry.set_installed(probe)
 
-    def _wrap_functions(self, probes):
-        # type: (List[FunctionProbe]) -> None
+    def _wrap_functions(self, probes: List[FunctionProbe]) -> None:
         for probe in probes:
+            if len(self._probe_registry) >= di_config.max_probes:
+                log.warning("Too many active probes. Ignoring new ones.")
+                return
+
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None  # nosec
                 self.__watchdog__.register_module_hook(probe.module, self._probe_wrapping_hook)
             except Exception:
-                self._probe_registry.set_exc_info(probe, sys.exc_info())
+                exc_type, exc, _ = sys.exc_info()
+                self._probe_registry.set_error(
+                    probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
+                )
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
-    def _unwrap_functions(self, probes):
-        # type: (List[FunctionProbe]) -> None
+    def _unwrap_functions(self, probes: List[FunctionProbe]) -> None:
 
         # Keep track of all the modules involved to see if there are any import
         # hooks that we can clean up at the end.
-        touched_modules = set()  # type: Set[str]
+        touched_modules: Set[str] = set()
 
         for probe in probes:
             registered_probes = self._probe_registry.unregister(probe)
@@ -659,12 +651,8 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_configuration(self, event, probes):
-        # type: (ProbePollerEventType, Iterable[Probe]) -> None
+    def _on_configuration(self, event: ProbePollerEventType, probes: Iterable[Probe]) -> None:
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
-        if len(list(probes)) + len(self._probe_registry) > di_config.max_probes:
-            log.warning("Too many active probes. Ignoring new ones.")
-            return
 
         if event == ProbePollerEvent.STATUS_UPDATE:
             self._probe_registry.log_probes_status()
@@ -682,8 +670,8 @@ class Debugger(Service):
 
             return
 
-        line_probes = []  # type: List[LineProbe]
-        function_probes = []  # type: List[FunctionProbe]
+        line_probes: List[LineProbe] = []
+        function_probes: List[FunctionProbe] = []
         for probe in probes:
             if isinstance(probe, LineLocationMixin):
                 line_probes.append(cast(LineProbe, probe))
@@ -701,16 +689,14 @@ class Debugger(Service):
         else:
             raise ValueError("Unknown probe poller event %r" % event)
 
-    def _stop_service(self, join=True):
-        # type: (bool) -> None
+    def _stop_service(self, join: bool = True) -> None:
         self._function_store.restore_all()
         for service in self._services:
             service.stop()
             if join:
                 service.join()
 
-    def _start_service(self):
-        # type: () -> None
+    def _start_service(self) -> None:
         for service in self._services:
             log.debug("[%s][P: %s] Debugger. Start service %s", os.getpid(), os.getppid(), service)
             service.start()
@@ -722,8 +708,7 @@ class Debugger(Service):
         cls.enable()
 
     @classmethod
-    def _on_run_module(cls, module):
-        # type: (ModuleType) -> None
+    def _on_run_module(cls, module: ModuleType) -> None:
         debugger = cls._instance
         if debugger is not None:
             debugger.__watchdog__.on_run_module(module)

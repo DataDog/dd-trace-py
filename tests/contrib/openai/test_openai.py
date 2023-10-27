@@ -15,7 +15,6 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai.patch import get_version
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
@@ -46,7 +45,7 @@ def get_openai_vcr():
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization"],
+        filter_headers=["authorization", "OpenAI-Organization", "api-key"],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -97,6 +96,14 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
     for m in mods:
         del sys.modules[m]
+
+
+@pytest.fixture
+def azure_openai(openai):
+    openai.api_type = "azure"
+    openai.api_version = "2023-05-15"
+    openai.api_base = "https://test-openai.openai.azure.com/"
+    yield openai
 
 
 class FilterOrg(TraceFilter):
@@ -187,12 +194,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
 def iswrapped(obj):
     return hasattr(obj, "__dd_wrapped__")
-
-
-def test_module_implements_get_version():
-    version = get_version()
-    assert type(version) == str
-    assert version != ""
 
 
 def test_patching(openai):
@@ -570,6 +571,46 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
                 n=2,
                 user="ddtrace-test",
             )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    student_description = """
+    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
+    David is an active member of the university's Chess Club and the South Asian Student Association.
+    He hopes to pursue a career in software engineering after graduating.
+    """
+    student_custom_functions = [
+        {
+            "name": "extract_student_info",
+            "description": "Get the student information from the body of the input text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the person"},
+                    "major": {"type": "string", "description": "Major subject."},
+                    "school": {"type": "string", "description": "The university name."},
+                    "grades": {"type": "integer", "description": "GPA of the student."},
+                    "clubs": {
+                        "type": "array",
+                        "description": "School clubs for extracurricular activities. ",
+                        "items": {"type": "string", "description": "Name of School Club"},
+                    },
+                },
+            },
+        },
+    ]
+
+    with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": student_description}],
+            functions=student_custom_functions,
+            function_call="auto",
+            user="ddtrace-test",
+        )
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
@@ -1645,6 +1686,21 @@ def test_misuse(openai, snapshot_tracer):
         openai.Completion.create(input="wrong arg")
 
 
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "meta.error.stack"])
+def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
+        with pytest.raises(openai.error.AuthenticationError):
+            openai.Completion.create(
+                api_key="sk-wrong-api-key",
+                model="text-curie-001",
+                prompt="how does openai tokenize prompts?",
+                temperature=0.8,
+                n=1,
+                max_tokens=150,
+                stream=True,
+            )
+
+
 def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -2132,6 +2188,93 @@ def test_est_tokens():
         )
         == 97
     )  # oracle: 92
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("azure_completion.yaml"):
+        azure_openai.Completion.create(
+            api_key=openai_api_key,
+            engine="gpt-35-turbo",
+            prompt="why do some languages have words that can't directly be translated to other languages?",
+            temperature=0,
+            n=1,
+            max_tokens=20,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("azure_acompletion.yaml"):
+        await azure_openai.Completion.acreate(
+            api_key=openai_api_key,
+            engine="gpt-35-turbo",
+            prompt="why do some languages have words that can't directly be translated to other languages?",
+            temperature=0,
+            n=1,
+            max_tokens=20,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    if not hasattr(azure_openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with openai_vcr.use_cassette("azure_chat_completion.yaml"):
+        azure_openai.ChatCompletion.create(
+            api_key=openai_api_key,
+            engine="gpt-35-turbo",
+            messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
+            temperature=0,
+            n=1,
+            max_tokens=20,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    if not hasattr(azure_openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with openai_vcr.use_cassette("azure_chat_acompletion.yaml"):
+        await azure_openai.ChatCompletion.acreate(
+            api_key=openai_api_key,
+            engine="gpt-35-turbo",
+            messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
+            temperature=0,
+            n=1,
+            max_tokens=20,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("azure_embedding.yaml"):
+        azure_openai.Embedding.create(
+            api_key=openai_api_key,
+            engine="text-embedding-ada-002",
+            input="Hello world",
+            temperature=0,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+async def test_azure_openai_aembedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("azure_aembedding.yaml"):
+        await azure_openai.Embedding.acreate(
+            api_key=openai_api_key,
+            engine="text-embedding-ada-002",
+            input="Hello world",
+            temperature=0,
+            user="ddtrace-test",
+        )
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)

@@ -128,7 +128,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         d.add_probes(probe)
 
         assert probe in d._probe_registry
-        assert _get_probe_location(probe) in sys.modules._locations
+        assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -137,7 +137,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         # Test that the probe was ejected
         assert probe not in d._probe_registry
 
-        assert _get_probe_location(probe) not in sys.modules._locations
+        assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -512,8 +512,30 @@ def test_debugger_multiple_function_probes_on_same_function():
             Stuff.instancestuff.__dd_wrappers__
 
 
+def test_debugger_multiple_function_probes_on_same_lazy_module():
+    sys.modules.pop("tests.submod.stuff", None)
+
+    probes = [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method-%d" % i,
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=float("inf"),
+        )
+        for i in range(3)
+    ]
+
+    with debugger() as d:
+        d.add_probes(*probes)
+
+        import tests.submod.stuff  # noqa
+
+        assert len(d._probe_registry) == len(probes)
+        assert all(_.error_type is None for _ in d._probe_registry.values())
+
+
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa
+import wrapt as wrapt  # noqa
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -594,7 +616,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -617,15 +639,17 @@ def test_probe_status_logging(remote_config_worker):
 
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1})
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2})
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3})
 
 
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=0.2, enabled=True) as d:
+    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -662,6 +686,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
         assert versions(queue, "INSTALLED") == [1, 2]
         assert versions(queue, "RECEIVED") == [1]
 
+        d.log_probe_status()
         logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 1})
         assert versions(queue, "INSTALLED") == [1, 2, 2]
 
@@ -670,7 +695,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 
-    with debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0) as d:
         d.add_probes(
             create_snapshot_function_probe(
                 probe_id="duration-probe",
@@ -688,7 +713,7 @@ def test_debugger_function_probe_duration(duration):
 def test_debugger_condition_eval_then_rate_limit():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -718,7 +743,7 @@ def test_debugger_condition_eval_then_rate_limit():
 def test_debugger_condition_eval_error_get_reported_once():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -846,7 +871,7 @@ def test_debugger_lambda_fuction_access_locals():
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -858,7 +883,7 @@ def test_debugger_log_live_probe_generate_messages():
                     " ",
                     {"dsl": "bar", "json": {"ref": "bar"}},
                     "!",
-                )
+                ),
             ),
         )
 
@@ -989,14 +1014,14 @@ class SpanProbeTestCase(TracerTestCase):
 def test_debugger_modified_probe():
     from tests.submod.stuff import Stuff
 
-    with debugger(upload_flush_interval=0.1) as d:
+    with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
                 version=1,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello world")
+                **compile_template("hello world"),
             )
         )
 
@@ -1012,7 +1037,7 @@ def test_debugger_modified_probe():
                 version=2,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello brave new world")
+                **compile_template("hello brave new world"),
             )
         )
 

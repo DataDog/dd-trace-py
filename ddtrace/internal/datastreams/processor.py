@@ -1,6 +1,7 @@
 # coding: utf-8
 import base64
 from collections import defaultdict
+from functools import partial
 import gzip
 import os
 import struct
@@ -20,6 +21,7 @@ import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -68,6 +70,7 @@ log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
 PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+SHUTDOWN_TIMEOUT = 5
 
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
@@ -82,11 +85,12 @@ PathwayAggrKey = typing.Tuple[
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
-    __slots__ = ("full_pathway_latency", "edge_latency")
+    __slots__ = ("full_pathway_latency", "edge_latency", "payload_size")
 
     def __init__(self):
         self.full_pathway_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
         self.edge_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.payload_size = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -135,12 +139,13 @@ class DataStreamsProcessor(PeriodicService):
             initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
         )(self._flush_stats)
 
+        register_on_exit_signal(partial(_atexit, obj=self))
         self.start()
 
     def on_checkpoint_creation(
-        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec
+        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
-        # type: (int, int, List[str], float, float, float) -> None
+        # type: (int, int, List[str], float, float, float, Optional[int]) -> None
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -168,6 +173,7 @@ class DataStreamsProcessor(PeriodicService):
             stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
+            stats.payload_size.add(payload_size)
             self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
     def track_kafka_produce(self, topic, partition, offset, now_sec):
@@ -338,7 +344,14 @@ class DataStreamsProcessor(PeriodicService):
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None):
+    def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+        """
+        type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
+        :param tags: a list of strings identifying the pathway and direction
+        :param now_sec: The time in seconds to count as "now" when computing latencies
+        :param payload_size: The size of the payload being sent in bytes
+        """
+
         if not now_sec:
             now_sec = time.time()
         if hasattr(self._current_context, "value"):
@@ -346,7 +359,12 @@ class DataStreamsProcessor(PeriodicService):
         else:
             ctx = self.new_pathway()
             self._current_context.value = ctx
-        ctx.set_checkpoint(tags, now_sec=now_sec)
+        if "direction:out" in tags:
+            # Add the header for this now, as the callee doesn't have access
+            # when producing
+            payload_size += len(ctx.encode())
+            payload_size += len(PROPAGATION_KEY)
+        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size)
         return ctx
 
 
@@ -396,7 +414,9 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None):
+    def set_checkpoint(
+        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+    ):
         """
         type: (List[str], float, float, float) -> None
 
@@ -440,5 +460,16 @@ class DataStreamsCtx:
         self.hash = hash_value
         self.current_edge_start_sec = now_sec
         self.processor.on_checkpoint_creation(
-            hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec
+            hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec, payload_size=payload_size
         )
+
+
+def _atexit(obj=None):
+    try:
+        # Data streams tries to flush data on shutdown.
+        # Adding a try except here to ensure we don't crash the application if the agent is killed before
+        # the application for example.
+        obj.shutdown(SHUTDOWN_TIMEOUT)
+    except Exception as e:
+        if config._data_streams_enabled:
+            log.warning("Failed to shutdown data streams processor: %s", repr(e))

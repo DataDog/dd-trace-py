@@ -6,17 +6,17 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Type
 
 from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging._probe.model import MAXLEN
 from ddtrace.debugging._probe.model import MAXLEVEL
 from ddtrace.debugging._probe.model import MAXSIZE
-from ddtrace.debugging.safety import get_fields
+from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
+from ddtrace.internal.compat import Collection
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.compat import NoneType
 from ddtrace.internal.compat import stringify
@@ -24,15 +24,11 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.compat import Collection
-
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
 
 
 @cached()
-def qualname(_type):
-    # type: (Type) -> str
+def qualname(_type: Type) -> str:
     try:
         return stringify(_type.__qualname__)
     except AttributeError:
@@ -44,8 +40,9 @@ def qualname(_type):
             return repr(_type)
 
 
-def _serialize_collection(value, brackets, level, maxsize, maxlen, maxfields):
-    # type: (Collection, str, int, int, int, int) -> str
+def _serialize_collection(
+    value: Collection, brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
+) -> str:
     o, c = brackets[0], brackets[1]
     ellipsis = ", ..." if len(value) > maxsize else ""
     return "".join(
@@ -53,8 +50,9 @@ def _serialize_collection(value, brackets, level, maxsize, maxlen, maxfields):
     )
 
 
-def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=MAXFIELDS):
-    # type: (Any, int, int, int, int) -> str
+def serialize(
+    value: Any, level: int = MAXLEVEL, maxsize: int = MAXSIZE, maxlen: int = MAXLEN, maxfields: int = MAXFIELDS
+) -> str:
     """Python object serializer.
 
     We provide our own serializer to avoid any potential side effects of calling
@@ -99,9 +97,8 @@ def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=M
     raise TypeError("Unhandled type: %s", type(value))
 
 
-def capture_stack(top_frame, max_height=4096):
-    # type: (FrameType, int) -> List[dict]
-    frame = top_frame  # type: Optional[FrameType]
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:
+    frame: Optional[FrameType] = top_frame
     stack = []
     h = 0
     while frame and h < max_height:
@@ -118,8 +115,7 @@ def capture_stack(top_frame, max_height=4096):
     return stack
 
 
-def capture_exc_info(exc_info):
-    # type: (ExcInfoType) -> Optional[Dict[str, Any]]
+def capture_exc_info(exc_info: ExcInfoType) -> Optional[Dict[str, Any]]:
     _type, value, tb = exc_info
     if _type is None or value is None:
         return None
@@ -136,8 +132,14 @@ def capture_exc_info(exc_info):
     }
 
 
-def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfields=MAXFIELDS, stopping_cond=None):
-    # type: (Any, int, int, int, int, Optional[Callable[[Any], bool]]) -> Dict[str, Any]
+def capture_value(
+    value: Any,
+    level: int = MAXLEVEL,
+    maxlen: int = MAXLEN,
+    maxsize: int = MAXSIZE,
+    maxfields: int = MAXFIELDS,
+    stopping_cond: Optional[Callable[[Any], bool]] = None,
+) -> Dict[str, Any]:
     cond = stopping_cond if stopping_cond is not None else (lambda _: False)
 
     _type = type(value)
@@ -183,7 +185,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                 "size": len(value),
             }
 
-        collection = None  # type: Optional[List[Any]]
+        collection: Optional[List[Any]] = None
         if _type is dict:
             # Mapping
             collection = [

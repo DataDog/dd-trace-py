@@ -1,6 +1,5 @@
 import sqlalchemy
-
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from wrapt import wrap_function_wrapper as _w
 
 from ..trace_utils import unwrap
 from .engine import _wrap_create_engine

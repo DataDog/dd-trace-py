@@ -1,15 +1,10 @@
 from collections import defaultdict
 from collections import deque
+from functools import partial
 
 from six import PY2
+from wrapt.wrappers import FunctionWrapper
 
-from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
-
-
-try:
-    from collections.abc import Iterator
-except ImportError:
-    from collections import Iterator  # type: ignore[attr-defined,no-redef]
 
 try:
     from typing import Protocol
@@ -21,6 +16,7 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -62,8 +58,8 @@ else:
 class FullyNamed(Protocol):
     """A fully named object."""
 
-    __name__ = None  # type: Optional[str]
-    __fullname__ = None  # type: Optional[str]
+    __name__: Optional[str] = None
+    __fullname__: Optional[str] = None
 
 
 class FullyNamedFunction(FullyNamed):
@@ -82,10 +78,9 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 
     def __init__(
         self,
-        container,  # type: FunctionContainerType
-        origin=None,  # type: Optional[Union[Tuple[ContainerIterator, ContainerKey], Tuple[FullyNamedFunction, str]]]
-    ):
-        # type: (...) -> None
+        container: FunctionContainerType,
+        origin: Optional[Union[Tuple["ContainerIterator", ContainerKey], Tuple[FullyNamedFunction, str]]] = None,
+    ) -> None:
         if isinstance(container, (type, ModuleType)):
             self._iter = iter(container.__dict__.items())
             self.__name__ = container.__name__
@@ -116,12 +111,10 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         else:
             self.__fullname__ = self.__name__
 
-    def __iter__(self):
-        # type: () -> Iterator[Tuple[ContainerKey, Any]]
+    def __iter__(self) -> Iterator[Tuple[ContainerKey, Any]]:
         return self._iter
 
-    def __next__(self):
-        # type: () -> Tuple[ContainerKey, Any]
+    def __next__(self) -> Tuple[ContainerKey, Any]:
         return next(self._iter)
 
     next = __next__
@@ -130,35 +123,94 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
 
 
-def _undecorate(f, name, path):
-    # type: (FunctionType, str, str) -> FunctionType
+def _undecorate(f: FunctionType, name: str, path: str) -> FunctionType:
     # Find the original function object from a decorated function. We use the
     # expected function name to guide the search and pick the correct function.
     # The recursion is needed in case of multiple decorators. We make it BFS
     # to find the function as soon as possible.
-    # DEV: We are deliberately not handling decorators that store the original
-    #      function in __wrapped__ for now.
-    if not (f.__code__.co_name == name and abspath(f.__code__.co_filename) == path):
-        seen_functions = {f}
-        q = deque([f])  # FIFO: use popleft and append
 
-        while q:
-            next_f = q.popleft()
+    def match(g):
+        return g.__code__.co_name == name and abspath(g.__code__.co_filename) == path
 
-            for g in (
-                _.cell_contents for _ in (next_f.__closure__ or []) if _isinstance(_.cell_contents, FunctionType)
-            ):
-                if g.__code__.co_name == name and abspath(g.__code__.co_filename) == path:
-                    return g
-                if g not in seen_functions:
-                    q.append(g)
-                    seen_functions.add(g)
+    if _isinstance(f, FunctionType) and match(f):
+        return f
+
+    seen_functions = {f}
+    q = deque([f])  # FIFO: use popleft and append
+
+    while q:
+        g = q.popleft()
+
+        # Look for a wrapped function. These attributes are generally used by
+        # the decorators provided by the standard library (e.g. partial)
+        for attr in ("__wrapped__", "func"):
+            try:
+                wrapped = object.__getattribute__(g, attr)
+                if _isinstance(wrapped, FunctionType) and wrapped not in seen_functions:
+                    if match(wrapped):
+                        return wrapped
+                    q.append(wrapped)
+                    seen_functions.add(wrapped)
+            except AttributeError:
+                pass
+
+        # A partial object is a common decorator. The function can either be the
+        # curried function, or it can appear as one of the arguments (e.g. the
+        # implementation of the wraps decorator).
+        if _isinstance(g, partial):
+            p = cast(partial, g)
+            if match(p.func):
+                return cast(FunctionType, p.func)
+            for arg in p.args:
+                if _isinstance(arg, FunctionType) and arg not in seen_functions:
+                    if match(arg):
+                        return arg
+                    q.append(arg)
+                    seen_functions.add(arg)
+            for arg in p.keywords.values():
+                if _isinstance(arg, FunctionType) and arg not in seen_functions:
+                    if match(arg):
+                        return arg
+                    q.append(arg)
+                    seen_functions.add(arg)
+
+        # Look for a closure (function decoration)
+        if _isinstance(g, FunctionType):
+            for c in (_.cell_contents for _ in (g.__closure__ or []) if _isinstance(_.cell_contents, FunctionType)):
+                if c not in seen_functions:
+                    if match(c):
+                        return c
+                    q.append(c)
+                    seen_functions.add(c)
+
+        # Look for a function attribute (method decoration)
+        # DEV: We don't recurse over arbitrary objects. We stop at the first
+        # depth level.
+        try:
+            for v in object.__getattribute__(g, "__dict__").values():
+                if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
+                    return v
+        except AttributeError:
+            # Maybe we have slots
+            try:
+                for v in (object.__getattribute__(g, _) for _ in object.__getattribute__(g, "__slots__")):
+                    if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
+                        return v
+            except AttributeError:
+                pass
+
+        # Last resort
+        try:
+            for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
+                if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
+                    return v
+        except AttributeError:
+            pass
 
     return f
 
 
-def _local_name(name, f):
-    # type: (str, FunctionType) -> str
+def _local_name(name: str, f: FunctionType) -> str:
     func_name = f.__name__
     if func_name.startswith("__") and name.endswith(func_name):
         # Quite likely a mangled name
@@ -171,8 +223,7 @@ def _local_name(name, f):
     return func_name
 
 
-def _collect_functions(module):
-    # type: (ModuleType) -> Dict[str, FullyNamedFunction]
+def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
     """Collect functions from a given module.
 
     All the collected functions are augmented with a ``__fullname__`` attribute
@@ -238,8 +289,7 @@ class FunctionDiscovery(defaultdict):
     module object itself.
     """
 
-    def __init__(self, module):
-        # type: (ModuleType) -> None
+    def __init__(self, module: ModuleType) -> None:
         super(FunctionDiscovery, self).__init__(list)
         self._module = module
 
@@ -261,8 +311,7 @@ class FunctionDiscovery(defaultdict):
             self._fullname_index[fname] = function
             seen_functions.add(function)
 
-    def at_line(self, line):
-        # type: (int) -> List[FullyNamedFunction]
+    def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
 
         Note that, in general, there can be multiple copies of the same
@@ -270,8 +319,7 @@ class FunctionDiscovery(defaultdict):
         """
         return self[line]
 
-    def by_name(self, qualname):
-        # type: (str) -> FullyNamedFunction
+    def by_name(self, qualname: str) -> FullyNamedFunction:
         """Get the function by its qualified name."""
         fullname = ".".join((self._module.__name__, qualname))
         try:
@@ -280,8 +328,7 @@ class FunctionDiscovery(defaultdict):
             raise ValueError("Function '%s' not found" % fullname)
 
     @classmethod
-    def from_module(cls, module):
-        # type: (ModuleType) -> FunctionDiscovery
+    def from_module(cls, module: ModuleType) -> "FunctionDiscovery":
         """Return a function discovery object from the given module.
 
         If this is called on a module for the first time, it caches the

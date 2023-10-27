@@ -22,9 +22,10 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
+from wrapt import wrap_function_wrapper as _w
+
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
@@ -105,18 +106,22 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers)
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
-            results, exceptions = core.dispatch("flask.start_response", [])
+            results, exceptions = core.dispatch("flask.start_response", "Flask")
             if not any(exceptions) and results and results[0]:
                 headers_from_context = results[0]
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 block_config = core.get_item(HTTP_REQUEST_BLOCKED)
-                if block_config.get("type", "auto") == "auto":
-                    ctype = "text/html" if "text/html" in headers_from_context else "text/json"
-                else:
-                    ctype = "text/" + block_config["type"]
+                desired_type = block_config.get("type", "auto")
                 status = block_config.get("status_code", 403)
-                response_headers = [("content-type", ctype)]
+                if desired_type == "none":
+                    response_headers = []
+                else:
+                    if block_config.get("type", "auto") == "auto":
+                        ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                    else:
+                        ctype = "text/" + block_config["type"]
+                    response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
             else:
@@ -372,7 +377,12 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    core.dispatch("flask.finalize_request.post", rv)
+    response = None
+    headers = None
+    if getattr(rv, "is_sequence", False):
+        response = rv.response
+        headers = rv.headers
+    core.dispatch("flask.finalize_request.post", [response, headers])
     return rv
 
 

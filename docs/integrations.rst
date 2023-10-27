@@ -181,6 +181,12 @@ Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
 
+.. _flask_login:
+
+Flask Login
+^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.flask_login
+
 
 .. _futures:
 
@@ -254,6 +260,12 @@ kombu
 LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.langchain
+
+.. _loguru:
+
+Loguru
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.loguru
 
 
 .. _mako:
@@ -429,6 +441,13 @@ Snowflake
 Starlette
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.starlette
+
+
+.. _structlog:
+
+Structlog
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.structlog
 
 
 .. _sqlalchemy:

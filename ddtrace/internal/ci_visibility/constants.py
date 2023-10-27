@@ -46,8 +46,16 @@ GIT_API_BASE_PATH = "/api/v2/git"
 SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 
+# Intelligent Test Runner constants
+ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
+SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
+
 
 class REQUESTS_MODE(IntEnum):
     AGENTLESS_EVENTS = 0
     EVP_PROXY_EVENTS = 1
     TRACES = 2
+
+
+# Miscellaneous constants
+CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"

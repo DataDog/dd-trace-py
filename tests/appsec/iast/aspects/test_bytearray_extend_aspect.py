@@ -3,11 +3,11 @@ import pytest
 
 
 try:
-    from ddtrace.appsec.iast._taint_tracking import OriginType
-    from ddtrace.appsec.iast._taint_tracking import Source
-    from ddtrace.appsec.iast._taint_tracking import TaintRange
-    from ddtrace.appsec.iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import Source
+    from ddtrace.appsec._iast._taint_tracking import TaintRange
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from tests.appsec.iast.aspects.conftest import _iast_patched_module
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -86,7 +86,7 @@ class TestByteArrayExtendAspect(object):
             pyobject=bytearray(b"123"), source_name="test1", source_value="foo", source_origin=OriginType.PARAMETER
         )
         ba2 = taint_pyobject(
-            pyobject=bytearray(b"456"), source_name="test2", source_value="foo", source_origin=OriginType.PARAMETER
+            pyobject=bytearray(b"456"), source_name="test2", source_value="bar", source_origin=OriginType.BODY
         )
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")

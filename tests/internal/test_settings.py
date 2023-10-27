@@ -4,7 +4,6 @@ import pytest
 from ddtrace.settings import Config
 
 
-
 @pytest.fixture
 def config():
     yield Config()

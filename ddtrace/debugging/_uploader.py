@@ -1,4 +1,5 @@
 from typing import Optional
+from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import BufferedEncoder
@@ -26,8 +27,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, encoder, interval=None):
-        # type: (BufferedEncoder, Optional[float]) -> None
+    def __init__(self, encoder: BufferedEncoder, interval: Optional[float] = None) -> None:
         super(LogsIntakeUploaderV1, self).__init__(interval or di_config.upload_flush_interval)
         self._encoder = encoder
         self._headers = {
@@ -42,7 +42,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
                 self._headers["Datadog-Container-Id"] = container_id
 
         if di_config._tags_in_qs and di_config.tags:
-            self.ENDPOINT += "?ddtags=" + di_config.tags
+            self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         # Make it retryable
@@ -58,8 +58,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             self.interval,
         )
 
-    def _write(self, payload):
-        # type: (bytes) -> None
+    def _write(self, payload: bytes) -> None:
         try:
             with self._connect() as conn:
                 conn.request(
@@ -79,13 +78,11 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
 
-    def upload(self):
-        # type: () -> None
+    def upload(self) -> None:
         """Upload request."""
         self.awake()
 
-    def periodic(self):
-        # type: () -> None
+    def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""
         count = self._encoder.count
         if count:

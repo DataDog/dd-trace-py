@@ -85,7 +85,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`dogpile.cache`                             | >= 0.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`elasticsearch`                             | >= 1.6, < 8.0 | Yes            | 
+| :ref:`elasticsearch`                             | >= 1.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`falcon`                                    | >= 1.0        | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -94,6 +94,8 @@ contacting support.
 | :ref:`flask`                                     | >= 0.10       | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`flask_cache`                               | >= 0.12       | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`flask_login`                               | >= 2.1        | Yes [6]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`gevent`                                    | >= 1.1        | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -114,6 +116,8 @@ contacting support.
 | :ref:`kombu`                                     | >= 4.0        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`langchain`                                 | >= 0.0.192    | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`loguru`                                    | >= 0.3.0      | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mako`                                      | >= 0.1.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -169,6 +173,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`starlette`                                 | >= 0.13.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`structlog`                                 | >= 20.2.0     | No             |
++--------------------------------------------------+---------------+----------------+
 | :ref:`tornado`                                   | >= 4.0        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`urllib3`                                   | >= 1.22       | No             |
@@ -195,6 +201,8 @@ contacting support.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
+.. [6] Automatically instrumented if ``DD_APPSEC_ENABLED=1``.
+
 
 .. _`Instrumentation Telemetry`:
 
@@ -209,6 +217,12 @@ with obfuscated stack traces, and various system performance metrics.
 To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
 
 See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
+
+Release Notes
+-------------
+
+You can view historical release notes for all past versions of this repository on
+`GitHub <https://github.com/DataDog/dd-trace-py/releases>`_.
 
 Indices and tables
 ==================
@@ -231,4 +245,3 @@ Indices and tables
     versioning
     upgrading
     api
-    release_notes

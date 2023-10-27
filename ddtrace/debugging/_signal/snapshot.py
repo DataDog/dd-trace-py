@@ -8,7 +8,7 @@ from typing import cast
 
 import attr
 
-from ddtrace.debugging import safety
+from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -34,12 +34,11 @@ CAPTURE_TIME_BUDGET = 0.2  # seconds
 
 
 def _capture_context(
-    arguments,  # type: List[Tuple[str, Any]]
-    _locals,  # type: List[Tuple[str, Any]]
-    throwable,  # type: ExcInfoType
-    limits=DEFAULT_CAPTURE_LIMITS,  # type: CaptureLimits
-):
-    # type: (...) -> Dict[str, Any]
+    arguments: List[Tuple[str, Any]],
+    _locals: List[Tuple[str, Any]],
+    throwable: ExcInfoType,
+    limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
+) -> Dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
@@ -65,8 +64,7 @@ def _capture_context(
 _EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
 
 
-def format_captured_value(value):
-    # type: (Any) -> str
+def format_captured_value(value: Any) -> str:
     v = value.get("value")
     if v is not None:
         return v
@@ -88,8 +86,7 @@ def format_captured_value(value):
     return "%s()" % value["type"]
 
 
-def format_message(function, args, retval=None):
-    # type: (str, Dict[str, Any], Optional[Any]) -> str
+def format_message(function: str, args: Dict[str, Any], retval: Optional[Any] = None) -> str:
     message = "%s(%s)" % (
         function,
         ", ".join(("=".join((n, format_captured_value(a))) for n, a in args.items())),
@@ -115,8 +112,7 @@ class Snapshot(LogSignal):
     _message = attr.ib(type=Optional[str], default=None)
     duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
 
-    def _eval_segment(self, segment, _locals):
-        # type: (TemplateSegment, Dict[str, Any]) -> str
+    def _eval_segment(self, segment: TemplateSegment, _locals: Dict[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
         capture = probe.limits
         try:
@@ -133,8 +129,7 @@ class Snapshot(LogSignal):
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
             return "ERROR"
 
-    def _eval_message(self, _locals):
-        # type: (Dict[str, Any]) -> None
+    def _eval_message(self, _locals: Dict[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
 
@@ -144,7 +139,7 @@ class Snapshot(LogSignal):
 
         probe = self.probe
         frame = self.frame
-        _args = list(self.args or safety.get_args(frame))
+        _args = list(self.args or _safety.get_args(frame))
 
         if probe.evaluate_at == ProbeEvaluateTimingForMethod.EXIT:
             return
@@ -190,7 +185,7 @@ class Snapshot(LogSignal):
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
-                self.args or safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
+                self.args or _safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
             )
         self.duration = duration
         self.state = SignalState.DONE
@@ -213,8 +208,8 @@ class Snapshot(LogSignal):
                 return
 
             self.line_capture = _capture_context(
-                self.args or safety.get_args(frame),
-                safety.get_locals(frame),
+                self.args or _safety.get_args(frame),
+                _safety.get_locals(frame),
                 sys.exc_info(),
                 limits=probe.limits,
             )
@@ -223,12 +218,10 @@ class Snapshot(LogSignal):
         self.state = SignalState.DONE
 
     @property
-    def message(self):
-        # type: () -> Optional[str]
+    def message(self) -> Optional[str]:
         return self._message
 
-    def has_message(self):
-        # type: () -> bool
+    def has_message(self) -> bool:
         return self._message is not None or bool(self.errors)
 
     @property

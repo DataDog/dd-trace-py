@@ -97,7 +97,7 @@ class CIVisibilityWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.get_trace_agent_timeout()
+            timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
             intake_url = agent.get_trace_url()
