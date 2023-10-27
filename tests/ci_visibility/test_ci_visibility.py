@@ -1293,6 +1293,7 @@ class TestFetchTestsToSkip:
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
 
+
 def test_fetch_tests_to_skip_custom_configurations():
     with override_env(
         dict(
