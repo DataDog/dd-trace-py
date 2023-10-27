@@ -1,3 +1,5 @@
+""" This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
+"""
 from flask import Flask
 from flask import request
 
