@@ -16,7 +16,7 @@ def index():
 
 
 @app.route("/submit/file", methods=["POST"])
-def support_flare():
+def submit_file():
     user_file = request.stream.read()
     if not user_file:
         raise Exception("user_file is missing")
