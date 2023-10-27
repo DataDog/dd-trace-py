@@ -1,9 +1,9 @@
 import os
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import TYPE_CHECKING
 
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model

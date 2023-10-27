@@ -21,11 +21,11 @@ from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
 
-from .. import trace_utils
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
+from .. import trace_utils
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
