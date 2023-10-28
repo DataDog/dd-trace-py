@@ -1239,15 +1239,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    # pynamodb dropped support for Python 2.7/3.5 in 4.4
-                    pys=select_pys(max_version="3.5"),
-                    pkgs={
-                        "pynamodb": ["~=4.3.0"],
-                        "moto": ">=0.0,<1.0",
-                        "rsa": "<4.7.1",
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
@@ -1404,11 +1395,6 @@ venv = Venv(
                     },
                 ),
             ],
-        ),
-        Venv(
-            name="boto",
-            command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
