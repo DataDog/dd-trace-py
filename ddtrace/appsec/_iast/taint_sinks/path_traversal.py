@@ -2,8 +2,8 @@ from typing import Any
 
 from ddtrace.internal.logger import get_logger
 
-from .. import oce
 from ..._constants import IAST_SPAN_TAGS
+from .. import oce
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched

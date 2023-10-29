@@ -3,8 +3,8 @@
 import subprocess  # nosec
 
 from flask import Flask
-from flask import request
 from flask import Response
+from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip

@@ -36,7 +36,9 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
 
 
 @contextmanager
-def flask_server(appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", tracer_enabled="true", token=None):
+def flask_server(
+    appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", tracer_enabled="true", token=None
+):
     cmd = ["python", "tests/appsec/app.py", "--no-reload"]
     yield from appsec_application_server(
         cmd,
@@ -49,7 +51,12 @@ def flask_server(appsec_enabled="true", remote_configuration_enabled="true", ias
 
 
 def appsec_application_server(
-    cmd, appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", tracer_enabled="true", token=None
+    cmd,
+    appsec_enabled="true",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    token=None,
 ):
     env = _build_env()
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"

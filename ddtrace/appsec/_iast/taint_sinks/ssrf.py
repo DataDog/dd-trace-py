@@ -6,8 +6,8 @@ from typing import Set
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config
 
-from .. import oce
 from ..._constants import IAST_SPAN_TAGS
+from .. import oce
 from .._metrics import increment_iast_span_metric
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub

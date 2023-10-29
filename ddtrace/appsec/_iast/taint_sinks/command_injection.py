@@ -13,8 +13,8 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 
-from .. import oce
 from ..._constants import IAST_SPAN_TAGS
+from .. import oce
 from .._metrics import increment_iast_span_metric
 from .._utils import _has_to_scrub
 from .._utils import _scrub

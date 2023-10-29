@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 
-from .. import oce
 from ..._constants import IAST_SPAN_TAGS
+from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
