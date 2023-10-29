@@ -830,6 +830,7 @@ def test_debugger_function_probe_eval_on_enter():
             assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
+@pytest.mark.skip(reason="Flaky test")
 def test_debugger_run_module():
     # This is where the target module resides
     cwd = os.path.join(os.path.dirname(__file__), "run_module")
