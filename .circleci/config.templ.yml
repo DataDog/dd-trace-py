@@ -343,7 +343,7 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'appsec'
+          pattern: 'appsec$'
 
   appsec_iast:
     <<: *machine_executor
