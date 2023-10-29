@@ -344,8 +344,20 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec'
+
+  appsec_iast:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast'
+
+  appsec_integrations:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_integrations'
           snapshot: true
-    
+
   aws_lambda:
     <<: *machine_executor
     steps:

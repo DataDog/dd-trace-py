@@ -131,13 +131,32 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            command="pytest {cmdargs} tests/appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/appsec/",
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+        ),
+        Venv(
+            name="appsec_iast",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
-                "gunicorn": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+        ),
+        Venv(
+            name="appsec_integrations",
+            command="pytest {cmdargs} tests/appsec/integrations/",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
