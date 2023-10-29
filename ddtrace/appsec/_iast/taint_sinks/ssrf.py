@@ -14,8 +14,8 @@ from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
-from ..constants import VULNERABILITY_TOKEN_TYPE
 from ..constants import VULN_SSRF
+from ..constants import VULNERABILITY_TOKEN_TYPE
 from ..reporter import IastSpanReporter
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase

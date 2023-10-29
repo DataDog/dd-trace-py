@@ -10,8 +10,8 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
-from . import oce
 from .._trace_utils import _asm_manual_keep
+from . import oce
 from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted

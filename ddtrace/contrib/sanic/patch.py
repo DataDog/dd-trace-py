@@ -17,8 +17,8 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 
-from .. import trace_utils
 from ...internal.logger import get_logger
+from .. import trace_utils
 
 
 log = get_logger(__name__)
