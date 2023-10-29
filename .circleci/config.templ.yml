@@ -270,6 +270,7 @@ jobs:
       - run:
           name: "Spelling"
           command: hatch run lint:spelling
+
   ccheck:
     executor: cimg_base
     steps:
@@ -1117,6 +1118,20 @@ jobs:
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
+
+  slotscheck:
+    executor: python310
+    steps:
+      - checkout
+      - setup_hatch
+      - run: hatch run slotscheck:_
+
+  conftests:
+    executor: python310
+    steps:
+      - checkout
+      - setup_hatch
+      - run: hatch run meta-testing:meta-testing
 
 requires_pre_check: &requires_pre_check
   requires:

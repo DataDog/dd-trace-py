@@ -9,8 +9,8 @@ import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
-from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import MAXSIZE
+from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context

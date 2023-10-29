@@ -3,10 +3,10 @@ import time
 
 import mock
 import psycopg
+from psycopg.sql import SQL
 from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
-from psycopg.sql import SQL
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
