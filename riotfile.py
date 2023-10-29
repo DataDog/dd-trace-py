@@ -133,9 +133,6 @@ venv = Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
-            env={
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-            },
         ),
         Venv(
             name="appsec_iast",
@@ -179,7 +176,7 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "flask": "~=2.2",
                     },
