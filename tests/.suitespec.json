@@ -316,9 +316,6 @@
         ],
         "appsec_iast": [
             "ddtrace/appsec/iast/*"
-        ],
-        "appsec_integrations": [
-            "ddtrace/appsec/*"
         ]
     },
     "suites": {
@@ -397,7 +394,6 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "@appsec_integrations",
             "tests/appsec/appsec/*",
             "tests/snapshots/tests.appsec.*"
         ],
@@ -407,7 +403,6 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "@appsec_integrations",
             "tests/appsec/iast/*"
         ],
         "appsec_integrations": [
@@ -416,7 +411,6 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "@appsec_integrations",
             "tests/appsec/iast_integrations/*"
         ],
         "aws_lambda": [
