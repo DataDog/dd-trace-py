@@ -8,6 +8,7 @@ from tests.utils import snapshot
 
 
 SNAPSHOT_IGNORES = [
+    "meta.error.stack",
     "meta.library_version",
     "meta.os.architecture",
     "meta.os.platform",
