@@ -42,11 +42,11 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
+from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
-from ..appsec.test_processor import tracer_appsec
 from ..utils import override_env
 
 
