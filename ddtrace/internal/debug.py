@@ -123,7 +123,7 @@ def collect(tracer):
         os_name=platform.system(),
         # eg. 12.5.0
         os_version=platform.release(),
-        is_64_bit=sys.maxsize > 2**32,
+        is_64_bit=sys.maxsize > 2 ** 32,
         architecture=architecture()[0],
         vm=platform.python_implementation(),
         version=ddtrace.__version__,

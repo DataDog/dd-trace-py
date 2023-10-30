@@ -56,7 +56,7 @@ def _track_user_login_common(
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
         auto_tag_mode = (
-            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else config._automatic_login_events_mode
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else asm_config._automatic_login_events_mode
         )
         span.set_tag_str(mode_tag, auto_tag_mode)
 
@@ -117,7 +117,7 @@ def track_user_login_success_event(
 
     if (
         login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)
-        and not config._user_model_login_field
+        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 

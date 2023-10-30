@@ -30,5 +30,21 @@ class ASMConfig(Env):
         help="Timeout in microseconds for WAF computations",
     )
 
+    _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
+    _iast_redaction_name_pattern = Env.var(
+        str,
+        "DD_IAST_REDACTION_NAME_PATTERN",
+        default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
+        + r"public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
+        + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
+    )
+    _iast_redaction_value_pattern = Env.var(
+        str,
+        "DD_IAST_REDACTION_VALUE_PATTERN",
+        default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
+        + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
+        + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
+    )
+
 
 config = ASMConfig()

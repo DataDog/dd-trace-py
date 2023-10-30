@@ -252,7 +252,7 @@ class Tracer(object):
         self._appsec_enabled = asm_config._asm_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
-        self._iast_enabled = config._iast_enabled
+        self._iast_enabled = asm_config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
