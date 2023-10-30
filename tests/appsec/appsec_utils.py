@@ -83,7 +83,7 @@ def appsec_application_server(
 
         try:
             print("Waiting for server to start")
-            client.wait(max_tries=10, delay=0.1)
+            client.wait(max_tries=100, delay=0.1)
             print("Server started")
         except RetryError:
             raise AssertionError(
