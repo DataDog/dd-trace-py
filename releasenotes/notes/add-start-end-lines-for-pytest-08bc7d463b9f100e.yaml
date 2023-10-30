@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    CI Visibility: adds start/end line support for ``pytest`` test spans
