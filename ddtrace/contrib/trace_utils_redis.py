@@ -102,7 +102,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
-        span.resource = query
+        span.resource = query.split(" ")[0] if config_integration.resource_only_command else query
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
         span.set_tag_str(span_name, query)
         if pin.tags:
