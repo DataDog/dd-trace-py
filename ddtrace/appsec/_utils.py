@@ -9,6 +9,7 @@ from ddtrace.internal.utils.http import _get_blocked_template  # noqa
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa
 from ddtrace.internal.utils.http import parse_form_params  # noqa
 from ddtrace.settings import _config as config
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -69,7 +70,7 @@ def _appsec_rc_features_is_enabled() -> bool:
 
 
 def _appsec_apisec_features_is_active() -> bool:
-    return config._appsec_enabled and config._api_security_enabled and config._api_security_sample_rate > 0.0
+    return asm_config._asm_enabled and asm_config._api_security_enabled and asm_config._api_security_sample_rate > 0.0
 
 
 def _safe_userid(user_id):

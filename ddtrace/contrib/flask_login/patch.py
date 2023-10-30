@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from ...appsec._utils import _UserInfoRetriever
 from ...ext import SpanTypes
@@ -37,7 +38,7 @@ def traced_login_user(func, instance, args, kwargs):
 
     try:
         mode = config._automatic_login_events_mode
-        if not config._appsec_enabled or mode == "disabled":
+        if not asm_config._asm_enabled or mode == "disabled":
             return
 
         user = get_argument_value(args, kwargs, 0, "user")
