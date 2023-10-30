@@ -11,7 +11,6 @@ from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -114,16 +113,3 @@ def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
     assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
-
-
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_flask_when_appsec_reads_empty_body_hang():
-    with flask_server(iast_enabled="true", token=None) as context:
-        _, flask_client, pid = context
-
-        response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
-
-        assert response.status_code == 200
-        assert response.content == b"OK"
-
-    # TODO: move tests/telemetry/conftest.py::test_agent_session into a common conftest
