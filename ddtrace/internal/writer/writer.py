@@ -420,6 +420,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 )
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
+                # _metrics is updated when traces are queued.
+                # Here we get a copy of the metrics dictionary as early as possible
+                metrics = self._metrics.copy()
                 namespace = self.STATSD_NAMESPACE
                 # Note that we cannot use the batching functionality of dogstatsd because
                 # it's not thread-safe.
@@ -427,7 +430,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 # This really isn't ideal as now we're going to do a ton of socket calls.
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                for name, metric_tags in self._metrics.items():
+                for name, metric_tags in metrics.items():
                     for tags, count in metric_tags.items():
                         self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the thread responsible to sending traces is killed due to concurrent dictionary modification.
