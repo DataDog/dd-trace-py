@@ -29,8 +29,8 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
-from tests.appsec.test_processor import ROOT_DIR
-from tests.appsec.test_processor import Config
+from tests.appsec.appsec.test_processor import ROOT_DIR
+from tests.appsec.appsec.test_processor import Config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -979,7 +979,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/appsec/rules.json")
+    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(ROOT_DIR))), "ddtrace/appsec/rules.json")
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:

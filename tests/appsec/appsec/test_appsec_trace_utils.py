@@ -15,8 +15,8 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import tracer_appsec  # noqa: F401
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
