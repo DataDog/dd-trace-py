@@ -228,6 +228,44 @@ def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     )
 
 
+def _extract_test_method_object(test_object):
+    test_method_object = None
+    if hasattr(test_object, "_testMethodName"):
+        test_method_object = getattr(test_object, test_object._testMethodName, None)
+    return test_method_object
+
+
+def _get_source_file_path_for_test_method(test_object):
+    test_name = _extract_test_method_name(test_object)
+    test_method_object = _extract_test_method_object(test_object)
+    source_file_path = os.path.relpath(inspect.getfile(test_method_object))
+    if not test_method_object:
+        log.debug(
+            "Tried to collect source file path for test %s but the original test method could not be found",
+            test_name,
+        )
+    return source_file_path
+
+
+def _get_source_lines_for_test_method(test_object):
+    start_line, end_line = None, None
+    test_name = _extract_test_method_name(test_object)
+    test_method_object = _extract_test_method_object(test_object)
+    if not test_method_object:
+        log.debug(
+            "Tried to collect source start/end lines for test %s but the original test method could not be found",
+            test_name,
+        )
+        return start_line, end_line
+    try:
+        source_lines_tuple = inspect.getsourcelines(test_method_object)
+        start_line = source_lines_tuple[1]
+        end_line = start_line + len(source_lines_tuple[0])
+    except TypeError or OSError:
+        log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
+    return start_line, end_line
+
+
 def _is_invoked_by_text_test_runner() -> bool:
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
 
@@ -561,6 +599,8 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    source_file_path = _get_source_file_path_for_test_method(instance)
+    start_line, end_line = _get_source_lines_for_test_method(instance)
     test_suite_name = _extract_suite_name_from_test_method(instance)
     test_name = _extract_test_method_name(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
@@ -591,6 +631,11 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     span.set_tag_str(test.MODULE_PATH, test_suite_span.get_tag(test.MODULE_PATH))
     span.set_tag_str(test.STATUS, test.Status.FAIL.value)
     span.set_tag_str(test.CLASS_HIERARCHY, test_suite_name)
+
+    span.set_tag_str(test.SOURCE_FILE, source_file_path)
+    span.set_tag(test.SOURCE_START, start_line)
+    print(end_line)
+    span.set_tag(test.SOURCE_END, end_line)
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
