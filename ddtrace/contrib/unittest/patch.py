@@ -239,17 +239,17 @@ def _extract_test_method_object(test_object):
 def _get_source_file_path_for_test_method(test_object):
     test_name = _extract_test_method_name(test_object)
     test_method_object = _extract_test_method_object(test_object)
-    source_file_path = os.path.relpath(inspect.getfile(test_method_object))
     if not test_method_object:
         log.debug(
             "Tried to collect source file path for test %s but the original test method could not be found",
             test_name,
         )
+        return None
+    source_file_path = os.path.relpath(inspect.getfile(test_method_object))
     return source_file_path
 
 
 def _get_source_lines_for_test_method(test_object):
-    start_line, end_line = None, None
     test_name = _extract_test_method_name(test_object)
     test_method_object = _extract_test_method_object(test_object)
     if not test_method_object:
@@ -257,14 +257,14 @@ def _get_source_lines_for_test_method(test_object):
             "Tried to collect source start/end lines for test %s but the original test method could not be found",
             test_name,
         )
-        return start_line, end_line
+        return None, None
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
-        if len(source_lines_tuple) >= 2:
-            start_line = source_lines_tuple[1]
-            end_line = start_line + len(source_lines_tuple[0])
+        start_line = source_lines_tuple[1]
+        end_line = start_line + len(source_lines_tuple[0])
     except TypeError or OSError:
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
+        return None, None
     return start_line, end_line
 
 
