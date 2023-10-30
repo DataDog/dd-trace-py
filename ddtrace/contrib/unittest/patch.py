@@ -26,7 +26,8 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
-from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method, get_source_lines_for_test_method
+from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
