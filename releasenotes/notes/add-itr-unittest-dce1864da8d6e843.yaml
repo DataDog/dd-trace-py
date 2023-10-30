@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    CI Visibility: adds ITR support for ``unittest``
