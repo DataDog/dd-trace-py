@@ -24,10 +24,10 @@ PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
 
 
 if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import SQL
     from psycopg2.sql import Composed
     from psycopg2.sql import Identifier
     from psycopg2.sql import Literal
-    from psycopg2.sql import SQL
 
 TEST_PORT = POSTGRES_CONFIG["port"]
 
