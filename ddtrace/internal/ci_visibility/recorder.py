@@ -329,6 +329,7 @@ class CIVisibility(Service):
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:
             log.warning("Request timeout while fetching skippable tests")
+            self._test_suites_to_skip = []
             return
 
         self._test_suites_to_skip = []

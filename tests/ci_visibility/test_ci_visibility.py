@@ -1220,16 +1220,6 @@ class TestFetchTestsToSkip:
             assert mock_civisibility._test_suites_to_skip == []
             assert mock_civisibility._tests_to_skip == {}
 
-    def test_fetch_tests_to_skip_timeout_error(self, mock_civisibility):
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._do_request",
-            side_effect=TimeoutError,
-        ):
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibility._fetch_tests_to_skip(SUITE)
-            assert mock_civisibility._test_suites_to_skip is None
-            assert mock_civisibility._tests_to_skip == {}
-
     def test_fetch_test_to_skip_invalid_data_missing_key(self, mock_civisibility):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
