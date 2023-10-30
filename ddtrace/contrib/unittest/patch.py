@@ -51,6 +51,8 @@ def get_version():
 
 
 def _enable_unittest_if_not_started():
+    if not hasattr(_CIVisibility, "_unittest_data"):
+        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     if _CIVisibility.enabled:
         return
     _CIVisibility.enable(config=ddtrace.config.unittest)
@@ -482,8 +484,6 @@ def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: t
     """
     if not _is_valid_module_suite_call(func):
         return func(*args, **kwargs)
-    if not hasattr(_CIVisibility, "_unittest_data"):
-        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     if _is_invoked_by_text_test_runner():
         seen_suites = _CIVisibility._unittest_data["suites"]
         seen_modules = _CIVisibility._unittest_data["modules"]
@@ -664,8 +664,6 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     test_session_span = None
     if _is_invoked_by_cli(instance):
         _enable_unittest_if_not_started()
-        if not hasattr(_CIVisibility, "_unittest_data"):
-            _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
         for parent_module in instance.test._tests:
             for module in parent_module._tests:
                 _populate_suites_and_modules(
@@ -679,7 +677,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
-        if _CIVisibility.enabled and test_session_span:
+        if _CIVisibility.enabled and test_session_span and hasattr(_CIVisibility, "_unittest_data"):
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
