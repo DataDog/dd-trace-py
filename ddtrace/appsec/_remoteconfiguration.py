@@ -20,6 +20,7 @@ from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -217,12 +218,12 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                 if not tracer._appsec_enabled:
                     tracer.configure(appsec_enabled=True)
                 else:
-                    config._appsec_enabled = True
+                    asm_config._appsec_enabled = True
             else:
                 if tracer._appsec_enabled:
                     tracer.configure(appsec_enabled=False)
                 else:
-                    config._appsec_enabled = False
+                    asm_config._appsec_enabled = False
 
 
 def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
@@ -230,11 +231,11 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
     Update API Security settings from remote config
     Actually: Update sample rate
     """
-    if config._remote_config_enabled and config._api_security_enabled:
+    if config._remote_config_enabled and asm_config._api_security_enabled:
         rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
         if rc_api_security_sample_rate is not None:
             try:
                 sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                config._api_security_sample_rate = sample_rate
+                asm_config._api_security_sample_rate = sample_rate
             except BaseException:  # nosec
                 pass
