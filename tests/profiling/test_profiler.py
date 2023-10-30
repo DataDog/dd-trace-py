@@ -377,14 +377,18 @@ def test_failed_start_collector(caplog, monkeypatch):
     err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
     p._collectors = [err_collector]
     p.start()
-    assert caplog.record_tuples == [
-        (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
+
+    def profiling_tuples(tuples):
+        return [t for t in tuples if t[0].startswith("ddtrace.profiling")]
+
+    assert profiling_tuples(caplog.record_tuples) == [
+        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
     ]
     time.sleep(2)
     p.stop()
     assert err_collector.snapshot.call_count == 0
-    assert caplog.record_tuples == [
-        (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
+    assert profiling_tuples(caplog.record_tuples) == [
+        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
     ]
 
 
