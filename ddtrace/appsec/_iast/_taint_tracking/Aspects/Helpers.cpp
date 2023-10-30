@@ -97,7 +97,7 @@ range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
 // TODO OPTIMIZATION: Remove py::types once this isn't used in Python
 template<class StrType>
 StrType
-as_formatted_evidence(const StrType& text,
+as_formatted_evidence(StrType& text,
                       optional<TaintRangeRefs>& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges)

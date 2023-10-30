@@ -261,6 +261,12 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.langchain
 
+.. _loguru:
+
+Loguru
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.loguru
+
 
 .. _mako:
 
