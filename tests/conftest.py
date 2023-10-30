@@ -129,7 +129,6 @@ if PY2:
         marshal.dump(code, file)
         file.flush()
 
-
 else:
     import importlib
 
@@ -335,7 +334,7 @@ def create_package(directory, pyproject, setup):
         _run("git config --local user.email user@company.com")
         _run("git add .")
         _run("git commit --no-gpg-sign -m init")
-        _run("git remote add origin https://github.com/companydotcom/repo.git")
+        _run("git remote add origin https://username:password@github.com/companydotcom/repo.git")
 
         yield package_dir
     finally:
