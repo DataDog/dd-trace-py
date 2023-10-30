@@ -21,6 +21,8 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_STYLE_NONE
+from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
@@ -28,13 +30,11 @@ from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
-from ..internal.constants import _PROPAGATION_STYLE_NONE
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
-from ..span import _MetaDictType
 from ..span import _get_64_highest_order_bits_as_hex
 from ..span import _get_64_lowest_order_bits_as_int
+from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 

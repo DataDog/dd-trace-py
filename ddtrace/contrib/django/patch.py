@@ -40,9 +40,9 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 
-from .. import trace_utils
 from ...appsec._utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
+from .. import trace_utils
 from ..trace_utils import _get_request_header_user_agent
 from ..trace_utils import _set_url_tag
 

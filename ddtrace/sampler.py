@@ -4,10 +4,10 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
+from typing import TYPE_CHECKING
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Tuple
 
 import six
@@ -15,9 +15,9 @@ import six
 from .constants import ENV_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .internal.compat import iteritems
+from .internal.constants import _PRIORITY_CATEGORY
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from .internal.constants import _PRIORITY_CATEGORY
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.sampling import _apply_rate_limit
