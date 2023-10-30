@@ -9,6 +9,7 @@ from typing import Optional
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
+from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
@@ -60,7 +61,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
     )
 
-    if _appsec_rc_features_is_enabled():
+    if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
     if tracer._appsec_enabled and _appsec_rc_file_is_not_static():
@@ -93,6 +94,7 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
+    _appsec_api_security_settings(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
 
 
@@ -111,6 +113,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset)
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
+        _add_rules_to_list(features, "scanners", "scanners", ruleset)
         if ruleset:
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
@@ -220,3 +223,18 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     tracer.configure(appsec_enabled=False)
                 else:
                     config._appsec_enabled = False
+
+
+def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+    """
+    Update API Security settings from remote config
+    Actually: Update sample rate
+    """
+    if config._remote_config_enabled and config._api_security_enabled:
+        rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
+        if rc_api_security_sample_rate is not None:
+            try:
+                sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
+                config._api_security_sample_rate = sample_rate
+            except BaseException:  # nosec
+                pass

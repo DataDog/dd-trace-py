@@ -2,9 +2,9 @@ from functools import reduce
 import json
 import operator
 import os
+from typing import TYPE_CHECKING
 from typing import List
 from typing import Set
-from typing import TYPE_CHECKING
 import zlib
 
 import attr
