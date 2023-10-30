@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+import copy
 import logging
 import os
 import sys
@@ -421,8 +422,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
                 # _metrics is updated when traces are queued.
-                # Here we get a copy of the metrics dictionary as early as possible
-                metrics = self._metrics.copy()
+                # Here we get a deep copy of the nested metrics dictionary as early as possible
+                metrics = copy.deepcopy(self._metrics)
                 namespace = self.STATSD_NAMESPACE
                 # Note that we cannot use the batching functionality of dogstatsd because
                 # it's not thread-safe.
