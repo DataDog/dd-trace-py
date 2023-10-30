@@ -86,7 +86,7 @@ class TestByteArrayExtendAspect(object):
             pyobject=bytearray(b"123"), source_name="test1", source_value="foo", source_origin=OriginType.PARAMETER
         )
         ba2 = taint_pyobject(
-            pyobject=bytearray(b"456"), source_name="test2", source_value="foo", source_origin=OriginType.PARAMETER
+            pyobject=bytearray(b"456"), source_name="test2", source_value="bar", source_origin=OriginType.BODY
         )
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
