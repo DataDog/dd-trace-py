@@ -259,8 +259,9 @@ def _get_source_lines_for_test_method(test_object):
         return start_line, end_line
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
-        start_line = source_lines_tuple[1]
-        end_line = start_line + len(source_lines_tuple[0])
+        if len(source_lines_tuple) >= 2:
+            start_line = source_lines_tuple[1]
+            end_line = start_line + len(source_lines_tuple[0])
     except TypeError or OSError:
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
     return start_line, end_line
