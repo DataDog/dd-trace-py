@@ -244,7 +244,7 @@ class _ConfigItem:
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
-        "trace_sample_rate": _ConfigItem(
+        "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],

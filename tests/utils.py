@@ -130,7 +130,7 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
-        "trace_sample_rate",
+        "_trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
         "_trace_api",

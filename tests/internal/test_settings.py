@@ -14,26 +14,26 @@ def config():
     [
         {
             "expected": {
-                "trace_sample_rate": 1.0,
+                "_trace_sample_rate": 1.0,
                 "logs_injection": False,
                 "trace_http_header_tags": {},
             },
             "expected_source": {
-                "trace_sample_rate": "default",
+                "_trace_sample_rate": "default",
                 "logs_injection": "default",
                 "trace_http_header_tags": "default",
             },
         },
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
-            "expected": {"trace_sample_rate": 0.9},
-            "expected_source": {"trace_sample_rate": "env"},
+            "expected": {"_trace_sample_rate": 0.9},
+            "expected_source": {"_trace_sample_rate": "env"},
         },
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
-            "code": {"trace_sample_rate": 0.8},
-            "expected": {"trace_sample_rate": 0.8},
-            "expected_source": {"trace_sample_rate": "code"},
+            "code": {"_trace_sample_rate": 0.8},
+            "expected": {"_trace_sample_rate": 0.8},
+            "expected_source": {"_trace_sample_rate": "code"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
@@ -77,7 +77,7 @@ def test_settings(testcase, config, monkeypatch):
 
 
 def test_config_subscription(config):
-    for s in ("trace_sample_rate", "logs_injection", "trace_http_header_tags"):
+    for s in ("_trace_sample_rate", "logs_injection", "trace_http_header_tags"):
         _handler = mock.MagicMock()
         config._subscribe([s], _handler)
         setattr(config, s, "1")
