@@ -32,7 +32,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         patch()
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
-        self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._asm_enabled = appsec_enabled
         self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
@@ -50,7 +50,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
         with override_global_config(
-            dict(_appsec_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
         ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
@@ -96,7 +96,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
         with override_global_config(
-            dict(_appsec_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
         ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
@@ -141,7 +141,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         # appsec disabled must not block
-        with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
+        with override_global_config(dict(_asm_enabled=False, _api_security_enabled=False)), override_env(
             {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
         ):
             self._aux_appsec_prepare_tracer(appsec_enabled=False)

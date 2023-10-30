@@ -156,7 +156,7 @@ def collect(tracer):
         partial_flush_min_spans=tracer._partial_flush_min_spans,
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
-        waf_timeout=ddtrace.config._waf_timeout,
+        waf_timeout=asm_config._waf_timeout,
         remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 

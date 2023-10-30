@@ -112,7 +112,7 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
-        "_appsec_enabled",
+        "_asm_enabled",
         "_api_security_enabled",
         "_api_security_sample_rate",
         "_waf_timeout",
@@ -137,7 +137,7 @@ def override_global_config(values):
     ]
 
     asm_config_keys = [
-        "_appsec_enabled",
+        "_asm_enabled",
         "_api_security_enabled",
         "_api_security_sample_rate",
         "_waf_timeout",
@@ -150,15 +150,13 @@ def override_global_config(values):
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    asm_originals = dict((key, getattr(ddtrace.config, key)) for key in asm_config_keys)
+    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
         elif key in asm_config_keys:
-            if key == "_appsec_enabled":
-                key = "_asm_enabled"
             setattr(ddtrace.settings.asm.config, key, value)
     try:
         yield
@@ -167,8 +165,6 @@ def override_global_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
         for key, value in asm_originals.items():
-            if key == "_appsec_enabled":
-                key = "_asm_enabled"
             setattr(ddtrace.settings.asm.config, key, value)
 
 
