@@ -1,5 +1,6 @@
 from envier import En
 
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
@@ -15,6 +16,9 @@ def _derive_tags(c):
     # type: (En) -> str
     _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
     _tags.update(ddconfig.tags)
+
+    # Add git metadata tags, if available
+    gitmetadata.add_tags(_tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
