@@ -16,8 +16,8 @@ from ddtrace.internal.compat import PY2
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
 from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
 from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
 from tests.webclient import Client

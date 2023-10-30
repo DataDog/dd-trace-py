@@ -14,11 +14,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from tests.appsec.test_processor import Config
-from tests.appsec.test_processor import ROOT_DIR
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import _IP
-from tests.appsec.test_processor import _enable_appsec
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import ROOT_DIR
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import Config
+from tests.appsec.appsec.test_processor import _enable_appsec
 from tests.utils import override_env
 from tests.utils import override_global_config
 
