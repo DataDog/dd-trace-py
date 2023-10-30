@@ -5,12 +5,12 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from .. import trace_utils
 from .signals import trace_after_publish
 from .signals import trace_before_publish
 from .signals import trace_failure

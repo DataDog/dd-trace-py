@@ -7,7 +7,6 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ... import Pin
 from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -21,6 +20,7 @@ from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
+from .. import trace_utils
 from ..trace_utils import unwrap as _u
 from .wrappers import MOLTEN_ROUTE
 from .wrappers import WrapperComponent

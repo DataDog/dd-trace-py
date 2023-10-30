@@ -5,8 +5,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
-from . import constants as c
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -15,6 +13,8 @@ from ...ext import SpanTypes
 from ...ext import net
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
+from . import constants as c
 from .utils import attach_span
 from .utils import detach_span
 from .utils import retrieve_span

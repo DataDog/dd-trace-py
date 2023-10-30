@@ -612,9 +612,9 @@ class TracerTestCases(TracerTestCase):
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == user_id_string
+        assert span.get_tag(user.ID) is None
         assert span.context.dd_user_id is None
-        assert user_id == user_id_string
+        assert not user_id
 
     @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
     def test_tracer_set_user_propagation_string_error_py3(self):

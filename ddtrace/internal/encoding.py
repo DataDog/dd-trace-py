@@ -1,9 +1,9 @@
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03

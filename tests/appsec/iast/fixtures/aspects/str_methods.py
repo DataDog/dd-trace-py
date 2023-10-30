@@ -10,9 +10,9 @@ import random
 import re
 import sys
 import threading
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Text
 
 from six import StringIO

@@ -5,8 +5,8 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
-from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 def nanoseconds(x):

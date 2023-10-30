@@ -57,6 +57,28 @@ def kafka_topic(request):
     yield topic_name
 
 
+@pytest.fixture()
+def empty_kafka_topic(request):
+    """
+    Deletes a kafka topic to clear message if it exists.
+    """
+    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.delete_topics([topic_name]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already doesn't exist
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
+
+
 @pytest.fixture
 def dummy_tracer():
     patch()
@@ -618,6 +640,36 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     consumer.commit(asynchronous=False)
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
+
+    def _read_single_message(consumer):
+        message = None
+        while message is None or str(message.value()) != str(PAYLOAD):
+            message = consumer.poll(1.0)
+            if message:
+                return message
+
+    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    try:
+        del dsm_processor._current_context.value
+    except AttributeError:
+        pass
+
+    # All of these should work
+    producer.produce(kafka_topic)
+    producer.produce(kafka_topic, PAYLOAD)
+    producer.produce(kafka_topic, value=PAYLOAD)
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.produce(kafka_topic, value=PAYLOAD, key="test_key_2")
+    producer.produce(kafka_topic, key="test_key_3")
+    producer.flush()
+
+    buckets = dsm_processor._buckets
+    assert len(buckets) == 1
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] == 5
 
 
 def test_data_streams_default_context_propagation(dummy_tracer, consumer, producer, kafka_topic):

@@ -14,11 +14,11 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal import core
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
+from .. import trace_utils
 from .utils import guarantee_single_callable
 
 
