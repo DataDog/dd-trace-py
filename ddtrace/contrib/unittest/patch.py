@@ -635,7 +635,6 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
 
     span.set_tag_str(test.SOURCE_FILE, source_file_path)
     span.set_tag(test.SOURCE_START, start_line)
-    print(end_line)
     span.set_tag(test.SOURCE_END, end_line)
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
