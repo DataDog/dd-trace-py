@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    remote config: change log levels of messages about agent down or request config to debug level.
