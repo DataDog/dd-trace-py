@@ -1405,15 +1405,6 @@ venv = Venv(
                     pkgs={"moto[all]": latest, "botocore": latest},
                 ),
                 Venv(
-                    pys=["2.7"],
-                    pkgs={
-                        "moto": "~=1.0",
-                        "botocore": "~=1.20.0",
-                        "python-jose[cryptography]": "==3.1.0",
-                        "rsa": "<4.7.1",
-                    },
-                ),
-                Venv(
                     pkgs={
                         "cffi": "==1.14.0",
                         "cfn-lint": "==0.33.2",
@@ -1421,12 +1412,6 @@ venv = Venv(
                         "python-jose[cryptography]": "==3.1.0",
                     },
                     venvs=[
-                        Venv(
-                            pys=["3.5"],
-                            pkgs={
-                                "moto[all]": "~=1.0",
-                            },
-                        ),
                         Venv(
                             pys=["3.6"],
                             pkgs={
