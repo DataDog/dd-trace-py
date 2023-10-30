@@ -231,10 +231,9 @@ def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
 
 
 def _extract_test_method_object(test_object):
-    test_method_object = None
     if hasattr(test_object, "_testMethodName"):
-        test_method_object = getattr(test_object, test_object._testMethodName, None)
-    return test_method_object
+        return getattr(test_object, test_object._testMethodName, None)
+    return None
 
 
 def _get_source_file_path_for_test_method(test_object):
