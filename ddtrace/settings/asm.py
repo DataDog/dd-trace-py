@@ -48,5 +48,3 @@ class ASMConfig(Env):
 
 
 config = ASMConfig()
-
-assert isinstance(config._waf_timeout, float)
