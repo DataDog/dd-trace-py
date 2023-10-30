@@ -1,6 +1,6 @@
 from ddtrace.contrib.subprocess.patch import get_version
 from ddtrace.contrib.subprocess.patch import patch
-from ddtrace.settings.asm import asm_config
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
