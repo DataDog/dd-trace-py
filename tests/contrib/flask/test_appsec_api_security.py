@@ -6,9 +6,9 @@ import sys
 from flask import request
 import pytest
 
-from ddtrace import config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.appsec.test_processor import RULES_SRB
 from tests.contrib.flask import BaseFlaskTestCase
@@ -61,7 +61,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             )
             assert resp.status_code == 200
             root_span = self.pop_spans()[0]
-            assert config._api_security_enabled
+            assert asm_config._api_security_enabled
 
             for name, expected_value in [
                 (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -107,7 +107,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             )
             assert resp.status_code == 403
             root_span = self.pop_spans()[0]
-            assert config._api_security_enabled
+            assert asm_config._api_security_enabled
 
             for name, expected_value in [
                 (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -154,7 +154,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert resp.status_code == 200
             root_span = self.pop_spans()[0]
-            assert not config._api_security_enabled
+            assert not asm_config._api_security_enabled
             for name in [
                 API_SECURITY.REQUEST_BODY,
                 API_SECURITY.REQUEST_HEADERS_NO_COOKIES,

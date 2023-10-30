@@ -70,7 +70,7 @@ def daphne_client(django_asgi, additional_env=None):
         "metrics._dd.appsec.waf.duration_ext",
     ]
 )
-def test_asm_enabled():
+def test_appsec_enabled():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/")
         assert resp.status_code == 200
@@ -87,7 +87,7 @@ def test_asm_enabled():
         "metrics._dd.appsec.waf.duration_ext",
     ]
 )
-def test_asm_enabled_attack():
+def test_appsec_enabled_attack():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/.git")
         assert resp.status_code == 404
