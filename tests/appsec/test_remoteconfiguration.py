@@ -29,8 +29,8 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
-from tests.appsec.test_processor import Config
 from tests.appsec.test_processor import ROOT_DIR
+from tests.appsec.test_processor import Config
 from tests.utils import override_env
 from tests.utils import override_global_config
 

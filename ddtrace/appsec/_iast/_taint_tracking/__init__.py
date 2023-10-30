@@ -15,7 +15,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import parse_params
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
-    from ._native.initializer import debug_print_taint_map
+    from ._native.initializer import debug_taint_map
     from ._native.initializer import destroy_context
     from ._native.initializer import initializer_size
     from ._native.initializer import num_objects_tainted
@@ -76,6 +76,7 @@ __all__ = [
     "as_formatted_evidence",
     "parse_params",
     "num_objects_tainted",
+    "debug_taint_map",
 ]
 
 
