@@ -551,13 +551,14 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         return string_to_buff(dd_origin)
 
     cdef inline int _pack_links(self, object span_links):
-        ret = msgpack_pack_map(&self.pk, len(span_links))
+        ret = msgpack_pack_array(&self.pk, len(span_links))
         if ret != 0:
             return ret
 
         for link in span_links:
+            # SpanLink.to_dict() returns all serializable span link fields
             d = link.to_dict()
-            # encode 128 bit trace ids usings two 64bit integers
+            # Encode 128 bit trace ids usings two 64bit integers
             d["trace_id_high"] = d["trace_id"] >> 64
             d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
 
@@ -566,18 +567,21 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 return ret
 
             for k, v in d.items():
-                # pack key
+                # pack the name of a span link field (ex: trace_id, span_id, flags, ...)
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
                     return ret
-                # pack value
+                # pack the value of a span link field (values can be number, string or dict)
                 if isinstance(v, Number):
                     ret = pack_number(&self.pk, v)
                 elif isinstance(v, str):
                     ret = pack_text(&self.pk, v)
-                elif k == "attributes" and isinstance(v, dict):
-                    ret = msgpack_pack_map(&self.pk, len(v))
-                    for attr_k, attr_v in v.items():
+                elif k == "attributes":
+                    # span links can contain attributes, this is analougous to span tags
+                    # attributes are serialized as a nested dict with string keys and values
+                    attributes = v.items()
+                    ret = msgpack_pack_map(&self.pk, len(attributes))
+                    for attr_k, attr_v in attributes:
                         ret = pack_text(&self.pk, attr_k)
                         if ret != 0:
                             return ret
@@ -585,7 +589,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                         if ret != 0:
                             return ret
                 else:
-                    ValueError(f"{v} has an unsupported type, type={type(v)}")
+                    raise ValueError(f"{v} has an unsupported type, type={type(v)}")
                 if ret != 0:
                     return ret
         return 0
