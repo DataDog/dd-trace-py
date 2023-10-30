@@ -14,11 +14,11 @@ import six
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import CaptureLimits
-from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineProbe
@@ -191,6 +191,9 @@ class MetricProbeFactory(ProbeFactory):
 
     @classmethod
     def update_args(cls, args, attribs):
+        # adding probe_id to probe-tags so it would be recorded as a metric tag
+        args["tags"]["debugger.probeid"] = args["probe_id"]
+
         args.update(
             condition=_compile_expression(attribs.get("when")),
             name=attribs["metricName"],

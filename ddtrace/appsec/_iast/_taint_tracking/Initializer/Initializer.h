@@ -63,7 +63,7 @@ class Initializer
      */
     static int num_objects_tainted();
 
-    void debug_print_taint_map();
+    string debug_taint_map();
 
     /**
      * Gets the size of the Initializer object.

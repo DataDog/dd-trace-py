@@ -9,8 +9,8 @@ import pytest
 from ddtrace import config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
-from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
+from tests.appsec.appsec.test_processor import RULES_SRB
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -49,9 +49,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
-        ):
+        with override_global_config(
+            dict(_appsec_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+        ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(
@@ -95,9 +95,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
-        ):
+        with override_global_config(
+            dict(_appsec_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+        ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(

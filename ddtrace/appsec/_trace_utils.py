@@ -8,6 +8,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._utils import _safe_userid
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
@@ -42,17 +43,26 @@ def _track_user_login_common(
     if span:
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
-        span.set_tag_str("%s.track" % tag_prefix, "true")
+
+        if success:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_SUCCESS_TRACK, "true")
+        else:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
-        else:
-            span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
 
+        mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
+        auto_tag_mode = (
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else config._automatic_login_events_mode
+        )
+        span.set_tag_str(mode_tag, auto_tag_mode)
+
+        tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
             for k, v in metadata.items():
-                span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
+                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str(v))
 
         if login:
             span.set_tag_str("%s.login" % tag_prefix, login)
@@ -104,13 +114,18 @@ def track_user_login_success_event(
     if not span:
         return
 
-    # usr.id will be set by set_user
+    if (
+        login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)
+        and not config._user_model_login_field
+    ):
+        user_id = _safe_userid(user_id)
+
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
 def track_user_login_failure_event(
     tracer: Tracer,
-    user_id: str,
+    user_id: Optional[str],
     exists: bool,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
@@ -127,9 +142,10 @@ def track_user_login_failure_event(
     if not span:
         return
 
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
+    if user_id:
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     exists_str = "true" if exists else "false"
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
+    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
 
 
 def track_user_signup_event(
@@ -270,12 +286,6 @@ def _on_django_login(
     if user:
         if str(user) != "AnonymousUser":
             user_id, user_extra = info_retriever.get_user_info()
-            if not user_id:
-                log.debug(
-                    "Automatic Login Events Tracking: " "Could not determine user id field user for the %s user Model",
-                    type(user),
-                )
-                return
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 from ddtrace.contrib.django.compat import user_is_authenticated
@@ -288,20 +298,14 @@ def _on_django_login(
                         session_id=session_key,
                         propagate=True,
                         login_events_mode=mode,
-                        **user_extra
+                        **user_extra,
                     )
                 else:
                     # Login failed but the user exists
                     track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
         else:
             # Login failed and the user is unknown
-            if mode == "extended":
-                user_id = info_retriever.get_username()
-            else:  # safe mode
-                user_id = info_retriever.get_userid()
-            if not user_id:
-                user_id = "AnonymousUser"
-
+            user_id = info_retriever.get_userid()
             track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
 
 
@@ -309,18 +313,20 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
     if not config._appsec_enabled:
         return True, result_user
 
-    userid_list = info_retriever.possible_user_id_fields if mode == "safe" else info_retriever.possible_login_fields
+    extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
+    userid_list = info_retriever.possible_user_id_fields if mode == "safe" else extended_userid_fields
 
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
     else:
-        user_id = "missing"
+        user_id = None
 
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+
     return False, None
 
 

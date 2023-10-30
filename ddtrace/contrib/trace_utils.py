@@ -4,6 +4,7 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -12,7 +13,6 @@ from typing import Iterator
 from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
 from typing import cast
@@ -647,11 +647,11 @@ def set_user(
     if span is None:
         span = tracer.current_root_span()
     if span:
-        # Required unique identifier of the user
-        str_user_id = str(user_id)
-        span.set_tag_str(user.ID, str_user_id)
-        if propagate:
-            span.context.dd_user_id = str_user_id
+        if user_id:
+            str_user_id = str(user_id)
+            span.set_tag_str(user.ID, str_user_id)
+            if propagate:
+                span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:

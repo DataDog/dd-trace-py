@@ -15,14 +15,14 @@ from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from tests.appsec.test_processor import RESPONSE_CUSTOM_HTML
-from tests.appsec.test_processor import RESPONSE_CUSTOM_JSON
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import RULES_SRB
-from tests.appsec.test_processor import RULES_SRBCA
-from tests.appsec.test_processor import RULES_SRB_METHOD
-from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_HTML
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_JSON
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import RULES_SRB
+from tests.appsec.appsec.test_processor import RULES_SRB_METHOD
+from tests.appsec.appsec.test_processor import RULES_SRB_RESPONSE
+from tests.appsec.appsec.test_processor import RULES_SRBCA
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -390,7 +390,11 @@ def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"}
+            client,
+            test_spans,
+            tracer,
+            url="/?a=1&b&c=d",
+            headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"},  # noqa: E501
         )
         assert response.status_code == 200
         # X_REAL_IP should be ignored since the client provided a header
@@ -931,9 +935,9 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(user.ID) == "fred"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+        assert login_span.get_tag(user.ID) == "1"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "extended"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
@@ -954,11 +958,11 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
         assert login_span.get_tag(user.ID) == "1"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
+        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
 
 
 @pytest.mark.django_db
@@ -1000,10 +1004,10 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         client.login(username="missing", password="secret2")
         assert not get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.auto.mode") == "extended"
+        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "extended"
 
 
 @pytest.mark.django_db
@@ -1023,5 +1027,5 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
         assert login_span.get_tag(user.ID) == "fred2"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"

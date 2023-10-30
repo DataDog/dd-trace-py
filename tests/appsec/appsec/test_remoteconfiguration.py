@@ -29,8 +29,8 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
-from tests.appsec.test_processor import Config
-from tests.appsec.test_processor import ROOT_DIR
+from tests.appsec.appsec.test_processor import ROOT_DIR
+from tests.appsec.appsec.test_processor import Config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -118,7 +118,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "B/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "A/w="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", ""),
         (False, "false", ""),
@@ -143,7 +143,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "B/4="),  # All capabilities
+        ({}, "A/4="),  # All capabilities
         ({"DD_APPSEC_RULES": DEFAULT.RULES}, "Ag=="),  # Only ASM_FEATURES
     ],
 )
@@ -195,6 +195,23 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM) is None
         assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)
+    disable_appsec_rc()
+
+
+@pytest.mark.parametrize("apisec_enabled", [True, False])
+def test_rc_activation_with_api_security_appsec_fixed(tracer, remote_config_worker, apisec_enabled):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(
+        dict(
+            _remote_config_enabled=True, _appsec_enabled=True, _api_security_enabled=apisec_enabled, api_version="v0.4"
+        )
+    ):
+        tracer.configure(appsec_enabled=True, api_version="v0.4")
+        enable_appsec_rc(tracer)
+
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM_DATA)
+        assert remoteconfig_poller._client._products.get(PRODUCTS.ASM)
+        assert bool(remoteconfig_poller._client._products.get(PRODUCTS.ASM_FEATURES)) == apisec_enabled
+
     disable_appsec_rc()
 
 
@@ -962,7 +979,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(ROOT_DIR)), "ddtrace/appsec/rules.json")
+    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(ROOT_DIR))), "ddtrace/appsec/rules.json")
     with override_global_config(dict(_appsec_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:

@@ -24,7 +24,7 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
