@@ -5,8 +5,8 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import BufferedEncoder
+from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
