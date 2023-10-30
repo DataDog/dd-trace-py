@@ -47,8 +47,10 @@ def _get_tags_from_env(config):
         repository_url = tags.get(REPOSITORY_URL, "")
     if not commit_sha:
         commit_sha = tags.get(COMMIT_SHA, "")
-
-    return _filter_sensitive_info(repository_url), commit_sha
+    filtered_git_url = _filter_sensitive_info(repository_url)
+    if type(filtered_git_url) != str:
+        return "", commit_sha
+    return filtered_git_url, commit_sha
 
 
 def _get_tags_from_package(config):
@@ -76,7 +78,10 @@ def _get_tags_from_package(config):
         if source_code_link and "#" in source_code_link:
             repository_url, commit_sha = source_code_link.split("#")
             commit_sha = commit_sha.split("&")[0]
-            return _filter_sensitive_info(repository_url), commit_sha
+            filtered_git_url = _filter_sensitive_info(repository_url)
+            if type(filtered_git_url) != str:
+                return "", commit_sha
+            return filtered_git_url, commit_sha
         return "", ""
     except importlib_metadata.PackageNotFoundError:
         return "", ""
