@@ -26,6 +26,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method, get_source_lines_for_test_method
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -234,38 +235,6 @@ def _extract_test_method_object(test_object):
     if hasattr(test_object, "_testMethodName"):
         return getattr(test_object, test_object._testMethodName, None)
     return None
-
-
-def _get_source_file_path_for_test_method(test_object):
-    test_name = _extract_test_method_name(test_object)
-    test_method_object = _extract_test_method_object(test_object)
-    if not test_method_object:
-        log.debug(
-            "Tried to collect source file path for test %s but the original test method could not be found",
-            test_name,
-        )
-        return None
-    source_file_path = os.path.relpath(inspect.getfile(test_method_object))
-    return source_file_path
-
-
-def _get_source_lines_for_test_method(test_object):
-    test_name = _extract_test_method_name(test_object)
-    test_method_object = _extract_test_method_object(test_object)
-    if not test_method_object:
-        log.debug(
-            "Tried to collect source start/end lines for test %s but the original test method could not be found",
-            test_name,
-        )
-        return None, None
-    try:
-        source_lines_tuple = inspect.getsourcelines(test_method_object)
-        start_line = source_lines_tuple[1]
-        end_line = start_line + len(source_lines_tuple[0])
-    except TypeError or OSError:
-        log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
-        return None, None
-    return start_line, end_line
 
 
 def _is_invoked_by_text_test_runner() -> bool:
@@ -599,10 +568,16 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-    source_file_path = _get_source_file_path_for_test_method(instance)
-    start_line, end_line = _get_source_lines_for_test_method(instance)
-    test_suite_name = _extract_suite_name_from_test_method(instance)
     test_name = _extract_test_method_name(instance)
+    test_method_object = _extract_test_method_object(instance)
+    if test_method_object:
+        source_file_path = get_source_file_path_for_test_method(test_method_object, test_name)
+        start_line, end_line = get_source_lines_for_test_method(test_method_object, test_name)
+    else:
+        source_file_path = None
+        start_line = None
+        end_line = None
+    test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
         ddtrace.config.unittest.operation_name,
