@@ -57,7 +57,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 
 def test_metrics_when_appsec_doesnt_runs(mock_telemetry_lifecycle_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=False)):
+    with override_global_config(dict(_asm_enabled=False)):
         tracer.configure(api_version="v0.4", appsec_enabled=False)
         mock_telemetry_lifecycle_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -71,7 +71,7 @@ def test_metrics_when_appsec_doesnt_runs(mock_telemetry_lifecycle_writer, tracer
 
 
 def test_metrics_when_appsec_runs(mock_telemetry_lifecycle_writer, tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -83,7 +83,7 @@ def test_metrics_when_appsec_runs(mock_telemetry_lifecycle_writer, tracer):
 
 
 def test_metrics_when_appsec_attack(mock_telemetry_lifecycle_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -92,7 +92,7 @@ def test_metrics_when_appsec_attack(mock_telemetry_lifecycle_writer, tracer):
 
 
 def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         mock_telemetry_lifecycle_writer._namespace.flush()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
@@ -108,7 +108,7 @@ def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
+    with override_global_config(dict(_asm_enabled=True)), override_env(
         dict(
             _DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json")
         )
@@ -125,7 +125,7 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
 def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tracer):
     with override_env(
         dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=RULES_GOOD_PATH)
-    ), override_global_config(dict(_appsec_enabled=True, _waf_timeout=0.0)):
+    ), override_global_config(dict(_asm_enabled=True, _waf_timeout=0.0)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -143,9 +143,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
-    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(
-        dict(_appsec_enabled=True)
-    ):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
 
@@ -158,7 +156,7 @@ def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update_deduplication(mock_logs_telemetry_lifecycle_writer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
         mock_logs_telemetry_lifecycle_writer.reset_queues()
@@ -177,7 +175,7 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(
     deduplication._time_lapse = 0.3
     mock_last_time_reported.return_value = 1592357416.0
     try:
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True)):
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
             mock_logs_telemetry_lifecycle_writer.reset_queues()
