@@ -4,6 +4,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -137,6 +138,15 @@ def traced_produce(func, instance, args, kwargs):
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+        # inject headers with Datadog tags:
+        try:
+            kwargs["headers"] = inject_parent_context(span, kwargs["headers"])
+        except KeyError:
+            try:
+                args[6] = inject_parent_context(span, args[6])
+            except IndexError:
+                kwargs["headers"] = inject_parent_context(span, {})
         return func(*args, **kwargs)
 
 
@@ -145,12 +155,16 @@ def traced_poll(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
-        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+    message = func(*args, **kwargs)
+    parent = None
+    if message is not None:
+        parent = extract_parent_context(message.headers())
+    with pin.tracer.start_span(
+        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
+        child_of=parent,
     ) as span:
-        message = func(*args, **kwargs)
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -182,3 +196,29 @@ def traced_commit(func, instance, args, kwargs):
     core.dispatch("kafka.commit.start", [instance, args, kwargs])
 
     return func(*args, **kwargs)
+
+
+def inject_parent_context(span, carrier):
+    carrier["x-datadog-trace-id"] = bytes(str(span.trace_id), "utf-8")
+    carrier["x-datadog-parent-id"] = bytes(str(span.span_id), "utf-8")
+    return carrier
+
+
+def extract_parent_context(carrier):
+    trace_id = None
+    span_id = None
+    sp = None
+    for key, value in carrier:
+        if key == "x-datadog-trace-id":
+            trace_id = int(value)
+        elif key == "x-datadog-parent-id":
+            span_id = int(value)
+        # elif key == 'x-datadog-tags':
+        #     for k, v in value.split(";"):
+        #         if
+        elif key == "x-datadog-sampling-priority":
+            sp = float(value)
+    if trace_id and span_id:
+        return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sp)
+    else:
+        return None
