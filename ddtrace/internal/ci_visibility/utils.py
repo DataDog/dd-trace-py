@@ -8,7 +8,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def get_source_file_path_for_test_method(test_method_object, test_name) -> typing.Union[str, None]:
+def get_source_file_path_for_test_method(test_method_object, test_name: str) -> typing.Union[str, None]:
     try:
         source_file_path = os.path.relpath(inspect.getfile(test_method_object))
     except TypeError:
@@ -18,7 +18,7 @@ def get_source_file_path_for_test_method(test_method_object, test_name) -> typin
 
 
 def get_source_lines_for_test_method(
-    test_method_object, test_name
+        test_method_object, test_name: str
 ) -> typing.Union[typing.Tuple[int, int], typing.Tuple[None, None]]:
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
