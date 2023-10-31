@@ -24,7 +24,7 @@ def setup():
 
 
 def test_ssrf(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         import requests
         from requests.exceptions import ConnectionError
