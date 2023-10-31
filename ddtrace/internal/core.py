@@ -103,9 +103,9 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from ddtrace import config
 
