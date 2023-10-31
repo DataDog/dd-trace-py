@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -120,19 +121,24 @@ class TraceMiddleware:
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
 
+        resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
-
-        with core.context_with_data(
-            "asgi.__call__",
-            remote_addr=scope.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            environ=scope,
-            middleware=self,
-        ) as ctx:
-            span = ctx.get_item("req_span")
-
+        pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
+        with pin.tracer.trace(
+                name=operation_name,
+                service=trace_utils.int_service(None, self.integration_config),
+                resource=resource,
+                span_type=SpanTypes.WEB,
+            ) as span, core.context_with_data(
+                    "asgi.__call__",
+                    remote_addr=scope.get("REMOTE_ADDR"),
+                    headers=headers,
+                    headers_case_sensitive=True,
+                    environ=scope,
+                    middleware=self,
+                    span=span,
+            ) as ctx:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
 
             # set span.kind to the type of request being performed
