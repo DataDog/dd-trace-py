@@ -205,7 +205,7 @@ def _on_trace_handlers_start_response_pre(request, has_json_mixin, exception_typ
             else:
                 req_body = json.loads(request.data.decode("UTF-8"))
         elif content_type in ("application/xml", "text/xml"):
-            req_body = xmltodict.parse(request.get_data())
+            req_body = xmltodict.parse(request.data)
         elif hasattr(request, "form"):
             req_body = request.form.to_dict()
     except (
