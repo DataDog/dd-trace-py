@@ -1,4 +1,4 @@
 ---
-feature:
+features:
   - |
     Source Code: filters Git repo URLs from env vars and setuptools
