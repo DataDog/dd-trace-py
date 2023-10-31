@@ -1,6 +1,5 @@
 import pytest
 
-from tests.utils import flaky
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
@@ -14,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
