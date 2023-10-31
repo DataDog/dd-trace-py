@@ -16,21 +16,20 @@
       "_dd.runtime_family": "python",
       "appsec.event": "true",
       "http.status_code": "404",
-      "http.url": "http://example.com/.git",
       "language": "python",
-      "runtime-id": "0fe0fc00d86a4f38831008313ebbc312"
+      "runtime-id": "b7a5cef93fb04f94b309dd02d0467745"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
       "_dd.appsec.event_rules.loaded": 144,
-      "_dd.appsec.waf.duration": 156.541,
-      "_dd.appsec.waf.duration_ext": 183.8207244873047,
+      "_dd.appsec.waf.duration": 103.238,
+      "_dd.appsec.waf.duration_ext": 174.04556274414062,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "process_id": 99583
+      "process_id": 416619
     },
-    "duration": 98000,
-    "start": 1683732371455903000
+    "duration": 262812,
+    "start": 1698579016632697894
   }]]
