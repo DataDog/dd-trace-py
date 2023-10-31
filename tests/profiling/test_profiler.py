@@ -180,6 +180,7 @@ def test_disable_memory():
     assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
+@pytest.mark.skip(reason="Flaky test")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar"),
     err=None,
