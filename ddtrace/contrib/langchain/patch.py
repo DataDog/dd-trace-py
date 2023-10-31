@@ -140,8 +140,11 @@ def _extract_model_name(instance):
 
 
 def _format_api_key(api_key):
-    # type: (str) -> str
+    # type: (str | pydantic.SecretStr) -> str
     """Obfuscate a given LLM provider API key by returning the last four characters."""
+    if hasattr(api_key, "get_secret_value"):
+        api_key = api_key.get_secret_value()
+
     if not api_key or len(api_key) < 4:
         return ""
     return "...%s" % api_key[-4:]
