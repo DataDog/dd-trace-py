@@ -27,6 +27,7 @@ from ddtrace.provider import CIContextProvider
 from .. import agent
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import CUSTOM_CONFIGURATIONS_PREFIX
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -68,6 +69,16 @@ def _extract_repository_name_from_url(repository_url):
 def _get_git_repo():
     # this exists only for the purpose of patching in tests
     return None
+
+
+def _get_custom_configurations():
+    # type () -> dict
+    custom_configurations = {}
+    for tag, value in ddconfig.tags.items():
+        if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
+            custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
+
+    return custom_configurations
 
 
 def _do_request(method, url, payload, headers):
@@ -280,6 +291,11 @@ class CIVisibility(Service):
             self._git_client.shutdown()
             self._git_client = None
 
+        configurations = ci._get_runtime_and_os_metadata()
+        custom_configurations = _get_custom_configurations()
+        if custom_configurations:
+            configurations["custom"] = custom_configurations
+
         payload = {
             "data": {
                 "type": "test_params",
@@ -288,7 +304,7 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": ci._get_runtime_and_os_metadata(),
+                    "configurations": configurations,
                     "test_level": skipping_mode,
                 },
             }
