@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.appsec import _constants
 from ddtrace.settings.asm import config as asm_config
-from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.test_processor import RULES_SRB
+from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
+from tests.appsec.appsec.test_processor import RULES_SRB
 from tests.utils import override_env
 from tests.utils import override_global_config
 

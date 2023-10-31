@@ -4,6 +4,7 @@ import logging
 
 import pytest
 
+from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import http
@@ -15,14 +16,14 @@ from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.settings.asm import config as asm_config
-from tests.appsec.test_processor import _IP
-from tests.appsec.test_processor import RESPONSE_CUSTOM_HTML
-from tests.appsec.test_processor import RESPONSE_CUSTOM_JSON
-from tests.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.test_processor import RULES_SRB
-from tests.appsec.test_processor import RULES_SRB_METHOD
-from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import RULES_SRBCA
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_HTML
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_JSON
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import RULES_SRB
+from tests.appsec.appsec.test_processor import RULES_SRB_METHOD
+from tests.appsec.appsec.test_processor import RULES_SRB_RESPONSE
+from tests.appsec.appsec.test_processor import RULES_SRBCA
 from tests.utils import override_env
 from tests.utils import override_global_config
 

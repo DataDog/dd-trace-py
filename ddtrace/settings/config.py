@@ -3,6 +3,9 @@ import multiprocessing
 import os
 import re
 import sys
+from typing import Any
+from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -30,6 +33,12 @@ from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
+
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -182,6 +191,72 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
+ConfigSource = Literal["default", "env", "code"]
+
+
+class _ConfigItem:
+    """Configuration item that tracks the value of a setting, and where it came from."""
+
+    def __init__(self, name, default, envs):
+        self._name = name
+        self._default_value = default
+        self._env_value = None
+        self._code_value = None
+        self._envs = envs
+        for (env_var, parser) in envs:
+            if env_var in os.environ:
+                self._env_value = parser(os.environ[env_var])
+                break
+
+    def set_code(self, value):
+        self._code_value = value
+
+    def value(self):
+        if self._code_value is not None:
+            return self._code_value
+        if self._env_value is not None:
+            return self._env_value
+        return self._default_value
+
+    def source(self):
+        # type: () -> ConfigSource
+        if self._code_value is not None:
+            return "code"
+        if self._env_value is not None:
+            return "env"
+        return "default"
+
+    def __repr__(self):
+        return "<{} name={} default={} env_value={} user_value={}>".format(
+            self.__class__.__name__,
+            self._name,
+            self._default_value,
+            self._env_value,
+            self._code_value,
+        )
+
+
+def _default_config():
+    # type: () -> Dict[str, _ConfigItem]
+    return {
+        "_trace_sample_rate": _ConfigItem(
+            name="trace_sample_rate",
+            default=1.0,
+            envs=[("DD_TRACE_SAMPLE_RATE", float)],
+        ),
+        "logs_injection": _ConfigItem(
+            name="logs_injection",
+            default=False,
+            envs=[("DD_LOGS_INJECTION", asbool)],
+        ),
+        "trace_http_header_tags": _ConfigItem(
+            name="trace_http_header_tags",
+            default={},
+            envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+    }
+
+
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
@@ -233,21 +308,22 @@ class Config(object):
             return False
 
     def __init__(self):
-        # use a dict as underlying storing mechanism
-        self._config = {}
+        # Must come before _integration_configs due to __setattr__
+        self._config = _default_config()
+
+        # use a dict as underlying storing mechanism for integration configs
+        self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
-        self._trace_sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
         self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
-        self.http = HttpConfig(header_tags=header_tags)
+        self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
@@ -296,7 +372,6 @@ class Config(object):
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
-
         if self.service is None and in_azure_function_consumption_plan():
             self.service = os.environ.get("WEBSITE_SITE_NAME")
 
@@ -315,8 +390,6 @@ class Config(object):
         # The version tag should not be included on all spans.
         if self.version and "version" in self.tags:
             del self.tags["version"]
-
-        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
 
         self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
@@ -398,15 +471,19 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
+        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
+        if name in self._config:
+            return self._config[name].value()
 
-        return self._config[name]
+        if name not in self._integration_configs:
+            self._integration_configs[name] = IntegrationConfig(self, name)
+
+        return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._remote_config_enabled and service_name != self.service:
@@ -465,9 +542,11 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            self._integration_configs[integration] = IntegrationConfig(
+                self, integration, _deepmerge(existing, settings)
+            )
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """
@@ -509,5 +588,35 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._config.keys())
+        integrations = ", ".join(self._integration_config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+
+    def _subscribe(self, items, handler):
+        # type: (List[str], Callable[[Config, List[str]], None]) -> None
+        self._subscriptions.append((items, handler))
+
+    def _notify_subscribers(self, changed_items):
+        # type: (List[str]) -> None
+        for sub_items, sub_handler in self._subscriptions:
+            sub_updated_items = [i for i in changed_items if i in sub_items]
+            if sub_updated_items:
+                sub_handler(self, sub_updated_items)
+
+    def __setattr__(self, key, value):
+        # type: (str, Any) -> None
+        if key == "_config":
+            return super(self.__class__, self).__setattr__(key, value)
+        elif key in self._config:
+            self._config[key].set_code(value)
+            self._notify_subscribers([key])
+            return None
+        else:
+            return super(self.__class__, self).__setattr__(key, value)
+
+    def _reset(self):
+        # type: () -> None
+        self._config = _default_config()
+
+    def _get_source(self, item):
+        # type: (str) -> str
+        return self._config[item].source()

@@ -313,6 +313,9 @@
         ],
         "appsec": [
             "ddtrace/appsec/*"
+        ],
+        "appsec_iast": [
+            "ddtrace/appsec/iast/*"
         ]
     },
     "suites": {
@@ -390,8 +393,25 @@
             "@core",
             "@tracing",
             "@appsec",
-            "tests/appsec/*",
+            "@appsec_iast",
+            "tests/appsec/appsec/*",
             "tests/snapshots/tests.appsec.*"
+        ],
+        "appsec_iast": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*"
+        ],
+        "appsec_integrations": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast_integrations/*"
         ],
         "aws_lambda": [
             "@bootstrap",
@@ -623,6 +643,7 @@
             "@tracing",
             "@contrib",
             "@appsec",
+            "@appsec_iast",
             "@asgi",
             "@wsgi",
             "@django",
@@ -672,6 +693,8 @@
             "@tracing",
             "@flask",
             "@appsec",
+            "@appsec_iast",
+            "@appsec_integrations",
             "@wsgi",
             "tests/appsec/*",
             "tests/contrib/flask/*",
