@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'ddtrace/**'
+      - 'scripts/profiles/django-simple/**'
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest
