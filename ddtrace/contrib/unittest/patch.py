@@ -572,8 +572,14 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     test_name = _extract_test_method_name(instance)
     test_method_object = _extract_test_method_object(instance)
     if test_method_object:
-        source_file_path = get_source_file_path_for_test_method(test_method_object, test_name)
-        start_line, end_line = get_source_lines_for_test_method(test_method_object, test_name)
+        source_file_path = get_source_file_path_for_test_method(test_method_object)
+        if not source_file_path:
+            log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
+        start_line, end_line = get_source_lines_for_test_method(test_method_object)
+        if not start_line or not end_line:
+            log.debug(
+                "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
+            )
     else:
         source_file_path = None
         start_line = None
