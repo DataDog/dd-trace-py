@@ -12,8 +12,8 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.vendor.wrapt.importer import when_imported
 
 
 log = get_logger(__name__)
@@ -37,7 +37,7 @@ def _on_request_span_modifier(
     ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
     req_body = None
-    if config._appsec_enabled and request.method in _BODY_METHODS:
+    if asm_config._asm_enabled and request.method in _BODY_METHODS:
         content_type = request.content_type
         wsgi_input = environ.get("wsgi.input", "")
 

@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...appsec._utils import _UserInfoRetriever
@@ -25,7 +26,7 @@ def get_version():
 
 class _FlaskLoginUserInfoRetriever(_UserInfoRetriever):
     def get_userid(self):
-        if hasattr(self.user, "get_id") and not config._user_model_login_field:
+        if hasattr(self.user, "get_id") and not asm_config._user_model_login_field:
             return self.user.get_id()
 
         return super(_FlaskLoginUserInfoRetriever, self).get_userid()
@@ -36,8 +37,8 @@ def traced_login_user(func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     try:
-        mode = config._automatic_login_events_mode
-        if not config._appsec_enabled or mode == "disabled":
+        mode = asm_config._automatic_login_events_mode
+        if not asm_config._asm_enabled or mode == "disabled":
             return
 
         user = get_argument_value(args, kwargs, 0, "user")

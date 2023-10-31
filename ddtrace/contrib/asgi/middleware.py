@@ -13,6 +13,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
 from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal import core
@@ -88,7 +89,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    return span and asm_config._asm_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):

@@ -35,6 +35,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt.importer import when_imported
@@ -671,14 +672,14 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
     def get_username(self):
-        if hasattr(self.user, "USERNAME_FIELD") and not config._user_model_name_field:
+        if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
             user_type = type(self.user)
             return getattr(self.user, user_type.USERNAME_FIELD, None)
 
         return super(_DjangoUserInfoRetriever, self).get_username()
 
     def get_name(self):
-        if not config._user_model_name_field:
+        if not asm_config._user_model_name_field:
             if hasattr(self.user, "get_full_name"):
                 try:
                     return self.user.get_full_name()
@@ -691,7 +692,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
         return super(_DjangoUserInfoRetriever, self).get_name()
 
     def get_user_email(self):
-        if hasattr(self.user, "EMAIL_FIELD") and not config._user_model_name_field:
+        if hasattr(self.user, "EMAIL_FIELD") and not asm_config._user_model_name_field:
             user_type = type(self.user)
             return getattr(self.user, user_type.EMAIL_FIELD, None)
 
@@ -703,7 +704,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
 
     try:
-        mode = config._automatic_login_events_mode
+        mode = asm_config._automatic_login_events_mode
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
 
@@ -726,7 +727,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
 def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     try:
-        mode = config._automatic_login_events_mode
+        mode = asm_config._automatic_login_events_mode
         if mode == "disabled":
             return result_user
 
