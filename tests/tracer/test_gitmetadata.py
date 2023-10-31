@@ -186,7 +186,7 @@ class GitMetadataTestCase(TracerTestCase):
 
         # must be from env variables
         assert s.get_tag("_dd.git.commit.sha") == "123456"
-        assert s.get_tag("_dd.git.repository_url") == "ssh://username@github.com/user/env_repo.git"
+        assert s.get_tag("_dd.git.repository_url") == "ssh://github.com/user/env_repo.git"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
