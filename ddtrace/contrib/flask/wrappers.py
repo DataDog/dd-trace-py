@@ -1,10 +1,10 @@
 import flask
-from wrapt import function_wrapper
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor.wrapt import function_wrapper
 
 from ...internal.logger import get_logger
 from ...internal.utils.importlib import func_name

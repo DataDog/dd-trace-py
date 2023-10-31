@@ -5,31 +5,28 @@ from os.path import isdir
 from os.path import isfile
 from os.path import join
 import sys
-import typing
+from types import ModuleType
+from typing import Any
+from typing import Callable
+from typing import DefaultDict
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Type
+from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict
-
-
-if typing.TYPE_CHECKING:
-    from types import ModuleType
-    from typing import Any
-    from typing import Callable
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Set
-    from typing import Tuple
-    from typing import Type
-    from typing import Union
-
-    ModuleHookType = Callable[[ModuleType], None]
-    PreExecHookType = Callable[[Any, ModuleType], None]
-    PreExecHookCond = Union[str, Callable[[str], bool]]
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+
+
+ModuleHookType = Callable[[ModuleType], None]
+PreExecHookType = Callable[[Any, ModuleType], None]
+PreExecHookCond = Union[str, Callable[[str], bool]]
 
 
 log = get_logger(__name__)
