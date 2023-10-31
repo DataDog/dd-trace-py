@@ -7,7 +7,7 @@
 attrs==23.1.0
 click==8.1.7
 coverage[toml]==7.3.1
-flask==1.0.4
+flask==2.2.5
 flask-login==0.6.2
 hypothesis==6.45.0
 iniconfig==2.0.0
