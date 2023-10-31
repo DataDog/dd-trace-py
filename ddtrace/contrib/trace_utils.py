@@ -17,8 +17,6 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
-import wrapt
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -36,6 +34,8 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -492,7 +492,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if config._appsec_enabled or config.retrieve_client_ip:
+        if asm_config._asm_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
 
@@ -515,7 +515,7 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if config._appsec_enabled:
+    if asm_config._asm_enabled:
         from ddtrace.appsec._iast._utils import _is_iast_enabled
 
         if _is_iast_enabled():
@@ -665,7 +665,7 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if config._appsec_enabled:
+        if asm_config._asm_enabled:
             from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
             block_request_if_user_blocked(tracer, user_id)

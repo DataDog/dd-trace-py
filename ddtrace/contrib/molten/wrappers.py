@@ -1,9 +1,9 @@
 import molten
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
 from ... import Pin
 from ...ext import SpanKind

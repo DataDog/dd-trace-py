@@ -13,6 +13,7 @@ from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -107,7 +108,7 @@ class PylonsTraceMiddleware(object):
 
             req_body = None
 
-            if ddconfig._appsec_enabled and request.method in _BODY_METHODS:
+            if asm_config._asm_enabled and request.method in _BODY_METHODS:
                 content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
 
                 try:
