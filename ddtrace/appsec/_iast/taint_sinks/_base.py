@@ -8,7 +8,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
-from ddtrace.settings import _config
+from ddtrace.settings.asm import config as asm_config
 
 from .. import oce
 from .._overhead_control_engine import Operation
@@ -206,7 +206,7 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not _config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report

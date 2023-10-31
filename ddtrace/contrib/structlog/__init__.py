@@ -5,11 +5,7 @@ Datadog APM traces can be integrated with the logs produced by structlog by:
 processor in the beginning of the chain that adds trace attributes
 to the event_dict
 
-2. Ensuring the configuration has at the minimum a processor chain that outputs
-to a log location without errors. Automatic log injection will not occur if a
-processor chain is not configured.
-
-3. For log correlation between APM and logs, the easiest format is via JSON
+2. For log correlation between APM and logs, the easiest format is via JSON
 so that no further configuration needs to be done in the Datadog UI assuming
 that the Datadog trace values are at the top level of the JSON
 
@@ -29,11 +25,10 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 Proper Formatting
 ~~~~~~~~~~~~~~~~~
 
-The trace attributes are injected via a processor in the processor block of the configuration.
-However, because the last processor in the chain must be a renderer that can be outputted to
-a log, the integration will not add attributes if no pre-existing processor chain exists.
+The trace attributes are injected via a processor in the processor block of the configuration
+whether that be the default processor chain or a user-configured chain.
 
-An example of a proper configuration that can be injected into is as below::
+An example of a configuration that outputs to a file that can be injected into is as below::
 
     structlog.configure(
         processors=[structlog.processors.JSONRenderer()],

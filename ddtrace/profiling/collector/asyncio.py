@@ -2,9 +2,9 @@ import typing
 
 import attr
 
-from . import _lock
 from .. import collector
 from .. import event
+from . import _lock
 
 
 @event.event_class

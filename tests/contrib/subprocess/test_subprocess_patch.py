@@ -1,6 +1,6 @@
-from ddtrace import config
 from ddtrace.contrib.subprocess.patch import get_version
 from ddtrace.contrib.subprocess.patch import patch
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -18,7 +18,7 @@ class TestSubprocessPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def __init__(self, *args, **kwargs):
-        config._appsec_enabled = True
+        asm_config._asm_enabled = True
         super(TestSubprocessPatch, self).__init__(*args, **kwargs)
 
     def assert_module_patched(self, subprocess):

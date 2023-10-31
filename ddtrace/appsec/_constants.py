@@ -54,8 +54,13 @@ class APPSEC(metaclass=Constant_Class):
     WAF_VERSION = "_dd.appsec.waf.version"
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
-    USER_LOGIN_EVENT_PREFIX = "appsec.events.users.login"
+    USER_LOGIN_EVENT_PREFIX = "_dd.appsec.events.users.login"
+    USER_LOGIN_EVENT_PREFIX_PUBLIC = "appsec.events.users.login"
+    USER_LOGIN_EVENT_SUCCESS_TRACK = "appsec.events.users.login.success.track"
+    USER_LOGIN_EVENT_FAILURE_TRACK = "appsec.events.users.login.failure.track"
     USER_SIGNUP_EVENT = "appsec.events.users.signup.track"
+    AUTO_LOGIN_EVENTS_SUCCESS_MODE = "_dd.appsec.events.users.login.success.auto.mode"
+    AUTO_LOGIN_EVENTS_FAILURE_MODE = "_dd.appsec.events.users.login.failure.auto.mode"
     BLOCKED = "appsec.blocked"
     EVENT = "appsec.event"
     AUTOMATIC_USER_EVENTS_TRACKING = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
@@ -76,6 +81,13 @@ class IAST(metaclass=Constant_Class):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
+
+
+class IAST_SPAN_TAGS(metaclass=Constant_Class):
+    """Specific constants for IAST span tags"""
+
+    TELEMETRY_REQUEST_TAINTED = "_dd.iast.telemetry.request.tainted"
+    TELEMETRY_EXECUTED_SINK = "_dd.iast.telemetry.executed.sink"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):

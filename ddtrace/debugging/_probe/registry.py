@@ -17,29 +17,24 @@ logger = get_logger(__name__)
 class ProbeRegistryEntry(object):
     __slots__ = ("probe", "installed", "error_type", "message")
 
-    def __init__(self, probe):
-        # type: (Probe) -> None
+    def __init__(self, probe: Probe) -> None:
         self.probe = probe
         self.installed = False
-        self.error_type = None  # type: Optional[str]
-        self.message = None  # type: Optional[str]
+        self.error_type: Optional[str] = None
+        self.message: Optional[str] = None
 
-    def set_installed(self):
-        # type: () -> None
+    def set_installed(self) -> None:
         self.installed = True
 
-    def set_error(self, error_type, message):
-        # type: (str, str) -> None
+    def set_error(self, error_type: str, message: str) -> None:
         self.error_type = error_type
         self.message = message
 
-    def update(self, probe):
-        # type: (Probe) -> None
+    def update(self, probe: Probe) -> None:
         self.probe.update(probe)
 
 
-def _get_probe_location(probe):
-    # type: (Probe) -> Optional[str]
+def _get_probe_location(probe: Probe) -> Optional[str]:
     if isinstance(probe, ProbeLocationMixin):
         return probe.location()[0]
     else:
@@ -54,19 +49,17 @@ class ProbeRegistry(dict):
     probes can be retrieved with the ``get_pending`` method.
     """
 
-    def __init__(self, status_logger, *args, **kwargs):
-        # type: (ProbeStatusLogger, Any, Any) -> None
+    def __init__(self, status_logger: ProbeStatusLogger, *args: Any, **kwargs: Any) -> None:
         """Initialize the probe registry."""
         super(ProbeRegistry, self).__init__(*args, **kwargs)
         self.logger = status_logger
 
         # Used to keep track of probes pending installation
-        self._pending = defaultdict(list)  # type: Dict[str, List[Probe]]
+        self._pending: Dict[str, List[Probe]] = defaultdict(list)
 
         self._lock = forksafe.RLock()
 
-    def register(self, *probes):
-        # type: (Probe) -> None
+    def register(self, *probes: Probe) -> None:
         """Register a probe."""
         with self._lock:
             for probe in probes:
@@ -99,8 +92,7 @@ class ProbeRegistry(dict):
 
             self.log_probe_status(probe)
 
-    def set_installed(self, probe):
-        # type: (Probe) -> None
+    def set_installed(self, probe: Probe) -> None:
         """Set the installed flag for a probe."""
         with self._lock:
             self[probe.probe_id].set_installed()
@@ -110,15 +102,13 @@ class ProbeRegistry(dict):
 
             self.logger.installed(probe)
 
-    def set_error(self, probe, error_type, message):
-        # type: (Probe, str, str) -> None
+    def set_error(self, probe: Probe, error_type: str, message: str) -> None:
         """Set the error message for a probe."""
         with self._lock:
             self[probe.probe_id].set_error(error_type, message)
             self.logger.error(probe, (error_type, message))
 
-    def _log_probe_status_unlocked(self, entry):
-        # type: (ProbeRegistryEntry) -> None
+    def _log_probe_status_unlocked(self, entry: ProbeRegistryEntry) -> None:
         if entry.installed:
             self.logger.installed(entry.probe)
         elif entry.error_type:
@@ -127,21 +117,18 @@ class ProbeRegistry(dict):
         else:
             self.logger.received(entry.probe)
 
-    def log_probe_status(self, probe):
-        # type: (Probe) -> None
+    def log_probe_status(self, probe: Probe) -> None:
         """Log the status of a probe using the status logger."""
         with self._lock:
             self._log_probe_status_unlocked(self[probe.probe_id])
 
-    def log_probes_status(self):
-        # type: () -> None
+    def log_probes_status(self) -> None:
         """Log the status of all the probes using the status logger."""
         with self._lock:
             for entry in self.values():
                 self._log_probe_status_unlocked(entry)
 
-    def _remove_pending(self, probe):
-        # type: (Probe) -> None
+    def _remove_pending(self, probe: Probe) -> None:
         location = _get_probe_location(probe)
 
         # Pending probes must have valid location information
@@ -158,15 +145,13 @@ class ProbeRegistry(dict):
         if not pending_probes:
             del self._pending[location]
 
-    def has_probes(self, location):
-        # type: (str) -> bool
+    def has_probes(self, location: str) -> bool:
         for entry in self.values():
             if _get_probe_location(entry.probe) == location:
                 return True
         return False
 
-    def unregister(self, *probes):
-        # type: (Probe) -> List[Probe]
+    def unregister(self, *probes: Probe) -> List[Probe]:
         """Unregister a collection of probes.
 
         This also ensures that any pending probes are removed if they haven't
@@ -186,13 +171,11 @@ class ProbeRegistry(dict):
                     unregistered_probes.append(probe)
         return unregistered_probes
 
-    def get_pending(self, location):
-        # type: (str) -> List[Probe]
+    def get_pending(self, location: str) -> List[Probe]:
         """Get the currently pending probes by location."""
         return self._pending[location]
 
-    def __contains__(self, probe):
-        # type: (object) -> bool
+    def __contains__(self, probe: object) -> bool:
         """Check if a probe is in the registry."""
         assert isinstance(probe, Probe), probe  # nosec
 
