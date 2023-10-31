@@ -126,19 +126,19 @@ class TraceMiddleware:
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
         pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
         with pin.tracer.trace(
-                name=operation_name,
-                service=trace_utils.int_service(None, self.integration_config),
-                resource=resource,
-                span_type=SpanTypes.WEB,
-            ) as span, core.context_with_data(
-                    "asgi.__call__",
-                    remote_addr=scope.get("REMOTE_ADDR"),
-                    headers=headers,
-                    headers_case_sensitive=True,
-                    environ=scope,
-                    middleware=self,
-                    span=span,
-            ) as ctx:
+            name=operation_name,
+            service=trace_utils.int_service(None, self.integration_config),
+            resource=resource,
+            span_type=SpanTypes.WEB,
+        ) as span, core.context_with_data(
+            "asgi.__call__",
+            remote_addr=scope.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
+            environ=scope,
+            middleware=self,
+            span=span,
+        ) as ctx:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
 
             # set span.kind to the type of request being performed

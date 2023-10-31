@@ -11,8 +11,8 @@ from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
-from tests.appsec.test_processor import _IP
-from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
@@ -87,9 +87,8 @@ def test_fastapi_ipblock_nomatch_200_default(client, tracer, test_spans):
 
 
 def test_fastapi_ipblock_match_403_json(client, tracer, test_spans):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         _aux_appsec_prepare_tracer(tracer)
-        print("\nTEST_START")
         resp = client.get("/foobar", headers={"X-Real-Ip": _IP.BLOCKED})
         assert resp.status_code == 403
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
