@@ -84,17 +84,17 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Tuple[str, Dict[str, str]]:
+def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service"}:
         parameter_value = ctx.get_item(parameter_name, traverse=False)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
-    return ctx.get_item("span_name"), span_kwargs
+    return span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
-    span_name, span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
+    span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
     distributed_headers_config = ctx.get_item("distributed_headers_config")
     if distributed_headers_config:
@@ -102,7 +102,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
     span_kwargs.update(kwargs)
-    span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
+    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
     call_keys = ctx.get_item("call_key", "call")
