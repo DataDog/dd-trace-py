@@ -8,7 +8,6 @@ from typing import Optional
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
 from pydantic import SecretStr
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
@@ -32,6 +31,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:

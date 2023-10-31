@@ -3,11 +3,10 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-import wrapt
-
 import ddtrace
 
 from .internal.logger import get_logger
+from .vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
