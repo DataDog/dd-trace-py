@@ -1065,6 +1065,7 @@ def test_encoder_py2_payload_force_unicode_strings():
     ) == {u"string_key": [1, {u"unicode_key": u"string_value"}, u"unicode_value", {u"string_key": u"unicode_value"}]}
 
 
+@pytest.mark.skipif(PY2, reason="ITR not supported in Python<=3.7")
 class TestFetchTestsToSkip:
     @pytest.fixture(scope="function")
     def mock_civisibility(self):
