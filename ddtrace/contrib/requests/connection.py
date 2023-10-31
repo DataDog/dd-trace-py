@@ -4,6 +4,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -57,7 +58,7 @@ def _wrap_request(func, instance, args, kwargs):
     """This function wraps `request.request`, which includes all request verbs like `request.get` and `request.post`.
     IAST needs to wrap this function because `Session.send` is too late, as we require the raw arguments of the request.
     """
-    if config._iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
         _iast_report_ssrf(func, *args, **kwargs)

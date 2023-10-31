@@ -34,6 +34,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.span import Span
 
 
@@ -131,13 +132,12 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
-        from ddtrace import config
         from ddtrace.appsec._ddwaf import DDWaf
 
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-                if config._api_security_enabled:
+                if asm_config._api_security_enabled:
                     with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
                         processors = json.load(f_apisec)
                         rules["processors"] = processors["processors"]
@@ -263,8 +263,6 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        from ddtrace import config
-
         if span.span_type != SpanTypes.WEB:
             return None
 
@@ -296,7 +294,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
 
-        waf_results = self._ddwaf.run(ctx, data, config._waf_timeout)
+        waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
         if waf_results and waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
