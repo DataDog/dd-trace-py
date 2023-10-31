@@ -9,8 +9,8 @@ from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
 from tests.utils import TracerTestCase
 
-from .test_httplib import HTTPLibBaseMixin
 from .test_httplib import SOCKET
+from .test_httplib import HTTPLibBaseMixin
 
 
 class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):

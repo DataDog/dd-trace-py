@@ -7,11 +7,12 @@ from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
-from .. import trace_utils
 from ...appsec._utils import _UserInfoRetriever
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
+from .. import trace_utils
 from ..flask.wrappers import get_current_app
 
 
@@ -20,12 +21,12 @@ log = get_logger(__name__)
 
 def get_version():
     # type: () -> str
-    return ""
+    return flask_login.__version__
 
 
 class _FlaskLoginUserInfoRetriever(_UserInfoRetriever):
     def get_userid(self):
-        if hasattr(self.user, "get_id") and not config._user_model_login_field:
+        if hasattr(self.user, "get_id") and not asm_config._user_model_login_field:
             return self.user.get_id()
 
         return super(_FlaskLoginUserInfoRetriever, self).get_userid()
@@ -36,8 +37,8 @@ def traced_login_user(func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     try:
-        mode = config._automatic_login_events_mode
-        if not config._appsec_enabled or mode == "disabled":
+        mode = asm_config._automatic_login_events_mode
+        if not asm_config._asm_enabled or mode == "disabled":
             return
 
         user = get_argument_value(args, kwargs, 0, "user")

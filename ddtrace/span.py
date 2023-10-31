@@ -46,6 +46,7 @@ from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import set_sampling_decision_maker
+from .tracing import _span_link
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -94,6 +95,7 @@ class Span(object):
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
+        "_links",
         "__weakref__",
     ]
 
@@ -110,6 +112,7 @@ class Span(object):
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         span_api=SPAN_API_DATADOG,  # type: str
+        links=None,  # type: Optional[List[_span_link.SpanLink]]
     ):
         # type: (...) -> None
         """
@@ -172,6 +175,7 @@ class Span(object):
         self.sampled = True  # type: bool
 
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
+        self._links = links or []
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -517,6 +521,35 @@ class Span(object):
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
+
+    def link_span(self, context, attributes=None):
+        # type: (Context, Optional[Dict[str, Any]]) -> None
+        """Defines a causal relationship between two spans"""
+        if not context.trace_id or not context.span_id:
+            raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
+
+        self._set_span_link(
+            trace_id=context.trace_id,
+            span_id=context.span_id,
+            tracestate=context._tracestate,
+            traceflags=int(context._traceflags),
+            attributes=attributes,
+        )
+
+    def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
+        # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
+        if attributes is None:
+            attributes = dict()
+
+        self._links.append(
+            _span_link.SpanLink(
+                trace_id=trace_id,
+                span_id=span_id,
+                tracestate=tracestate,
+                flags=traceflags,
+                attributes=attributes,
+            )
+        )
 
     def finish_with_ancestors(self):
         # type: () -> None

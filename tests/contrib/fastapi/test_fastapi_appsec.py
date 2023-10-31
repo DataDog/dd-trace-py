@@ -11,8 +11,8 @@ from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
-from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import _IP
+from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env

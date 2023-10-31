@@ -1,5 +1,6 @@
-from ddtrace import config
+from ddtrace.contrib.subprocess.patch import get_version
 from ddtrace.contrib.subprocess.patch import patch
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -14,9 +15,10 @@ class TestSubprocessPatch(PatchTestCase.Base):
     __module_name__ = "subprocess"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def __init__(self, *args, **kwargs):
-        config._appsec_enabled = True
+        asm_config._asm_enabled = True
         super(TestSubprocessPatch, self).__init__(*args, **kwargs)
 
     def assert_module_patched(self, subprocess):
@@ -30,9 +32,6 @@ class TestSubprocessPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, subprocess):
         self.assert_not_double_wrapped(subprocess.Popen.__init__)
         self.assert_not_double_wrapped(subprocess.Popen.wait)
-
-    def assert_module_implements_get_version(self):
-        pass
 
     # These are disabled because the base class uses @run_in_subprocess which
     # import subprocess before we have a chance to patch. However, the contrib
@@ -54,3 +53,8 @@ class TestSubprocessPatch(PatchTestCase.Base):
 
     def test_unpatch_patch_import(self):
         pass
+
+    def test_and_emit_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version == ""

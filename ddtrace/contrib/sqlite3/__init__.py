@@ -53,8 +53,14 @@ To configure the integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from .patch import get_version
-from .patch import patch
+from ...internal.utils.importlib import require_modules
 
 
-__all__ = ["patch", "get_version"]
+required_modules = ["sqlite3"]
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from .patch import get_version
+        from .patch import patch
+
+        __all__ = ["patch", "get_version"]

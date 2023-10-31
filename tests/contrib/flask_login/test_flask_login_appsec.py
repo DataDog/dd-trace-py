@@ -14,6 +14,7 @@ from ddtrace.contrib.flask_login.patch import unpatch as unpatch_login
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import user
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_global_config
 
 
@@ -85,7 +86,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
         login_manager._user_callback = load_user
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
-        self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._asm_enabled = appsec_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -114,7 +115,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="disabled")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -133,7 +134,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=False, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -153,15 +154,15 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="extended")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(user.ID) == TEST_USER
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "extended"
+                assert root_span.get_tag(user.ID) == "1"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "extended"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == TEST_USER
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == TEST_EMAIL
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == TEST_USER_NAME
@@ -177,18 +178,18 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == "1"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email")
-                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username")
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.login")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
+                assert not root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
         finally:
             unpatch_login()
 
@@ -201,7 +202,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="foobar")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -220,7 +221,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True)):
+            with override_global_config(dict(_asm_enabled=True)):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -237,15 +238,15 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="extended")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"User not found"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "missing"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "false"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
         finally:
             unpatch_login()
 
@@ -256,15 +257,15 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
 
         try:
             patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"Authentication failure"
                 root_span = self.pop_spans()[0]
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.ID) == "1"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".failure." + user.EXISTS) == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.track") == "true"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
         finally:
             unpatch_login()
 
@@ -278,7 +279,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
         try:
             patch_login()
             with override_global_config(
-                dict(_appsec_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
+                dict(_asm_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
             ):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
@@ -286,7 +287,16 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
                 assert resp.data == b"True"
                 root_span = self.pop_spans()[0]
                 assert root_span.get_tag(user.ID) == TEST_USER
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.track") == "true"
-                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.auto.mode") == "safe"
+                assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+                assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
         finally:
             unpatch_login()
+
+    def test_and_emit_get_version(self):
+        from ddtrace.contrib.flask_login import get_version
+
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
+        emit_integration_and_version_to_test_agent("flask_login", version)

@@ -3,7 +3,8 @@ from typing import Callable
 from typing import Dict
 from typing import Set
 
-from ddtrace.settings import _config
+from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
@@ -11,12 +12,15 @@ from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
-from ..constants import VULNERABILITY_TOKEN_TYPE
 from ..constants import VULN_SSRF
+from ..constants import VULNERABILITY_TOKEN_TYPE
 from ..reporter import IastSpanReporter
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained
+
+
+log = get_logger(__name__)
 
 
 _AUTHORITY_REGEXP = re.compile(r"(?:\/\/([^:@\/]+)(?::([^@\/]+))?@).*")
@@ -53,7 +57,7 @@ class SSRF(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not _config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report
@@ -152,6 +156,16 @@ class SSRF(VulnerabilityBase):
 
 
 def _iast_report_ssrf(func: Callable, *args, **kwargs):
+    from .._metrics import _set_metric_iast_executed_sink
+
     report_ssrf = kwargs.get("url", False)
+    _set_metric_iast_executed_sink(SSRF.vulnerability_type)
     if report_ssrf:
-        SSRF.report(evidence_value=report_ssrf)
+        if oce.request_has_quota and SSRF.has_quota():
+            try:
+                from .._taint_tracking import is_pyobject_tainted
+
+                if is_pyobject_tainted(report_ssrf):
+                    SSRF.report(evidence_value=report_ssrf)
+            except Exception:
+                log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
