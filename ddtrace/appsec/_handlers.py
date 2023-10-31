@@ -194,7 +194,7 @@ def _on_django_patch():
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-def _on_trace_handlers_start_response_pre(request, has_json_mixin):
+def _on_trace_handlers_start_response_pre(request, has_json_mixin, exception_type):
     req_body = None
 
     try:
@@ -209,6 +209,7 @@ def _on_trace_handlers_start_response_pre(request, has_json_mixin):
         elif hasattr(request, "form"):
             req_body = request.form.to_dict()
     except (
+            exception_type,
             AttributeError,
             RuntimeError,
             TypeError,

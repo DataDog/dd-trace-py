@@ -104,7 +104,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_call_name = "flask.response"
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers, _HAS_JSON_MIXIN)
+        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers, _HAS_JSON_MIXIN, BadRequest)
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", "Flask")
@@ -147,7 +147,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             _HAS_JSON_MIXIN,
             FLASK_VERSION,
             flask_version_str,
-            BadRequest,
         )
         if not any(exceptions) and results and any(results):
             for result in results:
@@ -443,8 +442,6 @@ def patched_endpoint(wrapped, instance, args, kwargs):
 
 def patched_flask_hook(wrapped, instance, args, kwargs):
     func = get_argument_value(args, kwargs, 0, "f")
-    JJJdata = request.data
-    print("JJJdata: %s" % JJJdata)
     return wrapped(wrap_function(instance, func))
 
 

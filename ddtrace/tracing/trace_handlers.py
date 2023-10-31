@@ -281,7 +281,7 @@ def _set_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _on_start_response_pre(request, ctx, flask_config, status_code, headers, has_json_mixin):
+def _on_start_response_pre(request, ctx, flask_config, status_code, headers, has_json_mixin, exception_type):
     span = ctx.get_item("req_span")
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -297,7 +297,7 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers, has
 
     req_body = None
 
-    results, exceptions = core.dispatch("trace_handlers.start_response.pre", request, has_json_mixin)
+    results, exceptions = core.dispatch("trace_handlers.start_response.pre", request, has_json_mixin, exception_type)
     if not any(exceptions) and results and results[0]:
         req_body = results[0]
 
@@ -389,7 +389,7 @@ def _on_render_template_context_started_flask(ctx):
 
 
 def _on_request_span_modifier(
-    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
+    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str
 ):
     span = ctx.get_item("req_span")
     # Default resource is method and path:
@@ -461,7 +461,7 @@ def listen():
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
-    core.on("flask.request_call_modifier", _on_request_span_modifier_post)
+    core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
     core.on("flask.render", _on_flask_render)
     core.on("flask.start_response.blocked", _on_start_response_blocked)
     core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
