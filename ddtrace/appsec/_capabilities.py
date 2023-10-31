@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
+from ddtrace.settings.asm import config as asm_config
 
 
 def _appsec_rc_file_is_not_static():
@@ -51,7 +52,7 @@ def _appsec_rc_flags(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
             value |= Flags.ASM_ACTIVATION
         if tracer._appsec_processor and _appsec_rc_file_is_not_static():
             value |= _ALL_ASM_BLOCKING
-        if ddtrace.config._api_security_enabled:
+        if asm_config._api_security_enabled:
             value |= Flags.ASM_API_SECURITY_SAMPLE_RATE
     return value
 
