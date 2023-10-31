@@ -137,7 +137,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == "GET cheese"
+        assert span.resource == "GET"
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_connection_error(self):
@@ -180,7 +180,7 @@ class TestRedisPatch(TracerTestCase):
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
-        assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.resource == u"SET\nRPUSH\nHGETALL"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
@@ -204,7 +204,7 @@ class TestRedisPatch(TracerTestCase):
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
-        assert span.resource == u"SET a 1"
+        assert span.resource == u"SET"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
@@ -291,7 +291,7 @@ class TestRedisPatch(TracerTestCase):
         assert dd_span.get_tag("span.kind") == "client"
         assert dd_span.get_tag("db.system") == "redis"
         assert dd_span.get_metric("redis.args_length") == 2
-        assert dd_span.resource == "GET cheese"
+        assert dd_span.resource == "GET"
 
     def test_redis_rowcount_all_keys_valid(self):
         self.r.set("key1", "value1")
@@ -634,3 +634,13 @@ class TestRedisPatchSnapshot(TracerTestCase):
     def test_custom_cmd_length(self):
         with self.override_config("redis", dict(cmd_max_length=7)):
             self.r.get("here-is-a-long-key-name")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+    @snapshot()
+    def test_full_command_in_resource_env(self):
+        self.r.get("put_key_in_resource")
+
+    @snapshot()
+    def test_full_command_in_resource_config(self):
+        with self.override_config("redis", dict(resource_only_command=False)):
+            self.r.get("put_key_in_resource")

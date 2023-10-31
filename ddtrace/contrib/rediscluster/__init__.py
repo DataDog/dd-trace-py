@@ -36,6 +36,16 @@ Global Configuration
    variable.
 
    Default: ``1000``
+
+.. py:data:: ddtrace.config.aredis["resource_only_command"]
+
+   The span resource will only include the command executed. To include all
+   arguments in the span resource, set this value to ``False``.
+
+   This option can also be set with the ``DD_REDISCLUSTER_RESOURCE_ONLY_COMMAND`` environment
+   variable.
+
+   Default: ``True``
 """
 
 from ...internal.utils.importlib import require_modules

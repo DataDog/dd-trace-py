@@ -320,3 +320,28 @@ async def test_parenting(redis_client):
     with tracer.trace("web-request", service="test"):
         await redis_client.set("blah", "boo")
         await redis_client.get("blah")
+
+
+@pytest.mark.subprocess(env=dict(DD_AIOREDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.snapshot
+def test_full_command_in_resource_env():
+    import asyncio
+
+    import ddtrace
+    from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+    async def traced_client():
+        with ddtrace.tracer.trace("web-request", service="test"):
+            redis_client = await get_redis_instance(1)
+            await redis_client.get("put_key_in_resource")
+
+    ddtrace.patch(aioredis=True)
+    asyncio.run(traced_client())
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot()
+async def test_full_command_in_resource_config(redis_client):
+    with override_config("aioerdis", dict(resource_only_command="false")):
+        with tracer.trace("web-request", service="test"):
+            await redis_client.get("put_key_in_resource")

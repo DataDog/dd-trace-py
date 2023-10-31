@@ -7,6 +7,7 @@ from wrapt import ObjectProxy
 import yaaredis
 
 from ddtrace import Pin
+from ddtrace import tracer
 from ddtrace.contrib.yaaredis.patch import patch
 from ddtrace.contrib.yaaredis.patch import unpatch
 from tests.opentracer.utils import init_tracer
@@ -215,3 +216,31 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+@pytest.mark.subprocess(env=dict(DD_YAAREDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.snapshot
+def test_full_command_in_resource_env():
+    import asyncio
+
+    import yaaredis
+
+    import ddtrace
+    from tests.contrib.config import REDIS_CONFIG
+
+    async def traced_client():
+        with ddtrace.tracer.trace("web-request", service="test"):
+            redis_client = yaaredis.StrictRedis(port=REDIS_CONFIG["port"])
+            await redis_client.get("put_key_in_resource")
+
+    ddtrace.patch(yaaredis=True)
+    asyncio.run(traced_client())
+
+
+@pytest.mark.snapshot
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_global_tracer", [True])
+async def test_full_command_in_resource_config(tracer, traced_yaaredis):
+    with override_config("yaaredis", dict(resource_only_command=False)):
+        with tracer.trace("web-request", service="test"):
+            await traced_yaaredis.get("put_key_in_resource")

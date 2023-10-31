@@ -10,42 +10,38 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "3cf1df7fb079462ab81608355e026651"
+      "runtime-id": "464ff28bde8c4ef58736c456aee2df0d"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 19999
+      "process_id": 9885
     },
-    "duration": 828125,
-    "start": 1692651823188535376
+    "duration": 24660000,
+    "start": 1698790223122227000
   },
      {
        "name": "redis.command",
-       "service": "redis",
-       "resource": "GET",
+       "service": "rediscluster",
+       "resource": "GET put_key_in_resource",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
        "meta": {
          "_dd.base_service": "",
-         "component": "redis",
+         "component": "rediscluster",
          "db.system": "redis",
-         "out.host": "127.0.0.1",
-         "redis.client_name": "testing-client-name",
-         "redis.raw_command": "GET blah",
+         "redis.raw_command": "GET put_key_in_resource",
          "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
          "db.row_count": 0,
-         "network.destination.port": 6379,
-         "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 541041,
-       "start": 1692651823188798168
+       "duration": 2637000,
+       "start": 1698790223144234000
      }]]

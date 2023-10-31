@@ -41,6 +41,9 @@ Global Configuration
    The span resource will only include the command executed. To include all
    arguments in the span resource, set this value to ``False``.
 
+   This option can also be set with the ``DD_YAAREDIS_RESOURCE_ONLY_COMMAND`` environment
+   variable.
+
    Default: ``True``
 
 

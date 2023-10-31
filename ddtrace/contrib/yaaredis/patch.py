@@ -7,6 +7,7 @@ from ddtrace import config
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
@@ -20,7 +21,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("redis"),
         cmd_max_length=int(os.getenv("DD_YAAREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=bool(os.getenv("DD_YAAREDIS_RESOURCE_ONLY_COMMAND", True)),
+        resource_only_command=asbool(os.getenv("DD_YAAREDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 
@@ -78,6 +79,5 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c, cmd_max_len=config.yaaredis.cmd_max_length) for c, _ in instance.command_stack]
-    resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.yaaredis, resource, instance):
+    with _trace_redis_execute_pipeline(pin, config.yaaredis, cmds, instance):
         return await func(*args, **kwargs)
