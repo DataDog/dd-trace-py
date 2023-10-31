@@ -20,6 +20,7 @@ from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -64,7 +65,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     if _asm_feature_is_required():
         remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
 
-    if tracer._appsec_enabled and _appsec_rc_file_is_not_static():
+    if tracer._asm_enabled and _appsec_rc_file_is_not_static():
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
@@ -134,23 +135,23 @@ def _preprocess_results_appsec_1click_activation(
             features.get("asm", {}),
         )
 
-        rc_appsec_enabled = None
+        rc_asm_enabled = None
         if features is not None:
             if APPSEC_ENV in os.environ:
-                rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+                rc_asm_enabled = asbool(os.environ.get(APPSEC_ENV))
             elif features == {}:
-                rc_appsec_enabled = False
+                rc_asm_enabled = False
             else:
                 asm_features = features.get("asm", {})
                 if asm_features is not None:
-                    rc_appsec_enabled = asm_features.get("enabled")
+                    rc_asm_enabled = asm_features.get("enabled")
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
                 os.getppid(),
-                rc_appsec_enabled,
+                rc_asm_enabled,
             )
-            if rc_appsec_enabled is not None:
+            if rc_asm_enabled is not None:
                 from ddtrace.appsec._constants import PRODUCTS
 
                 if pubsub_instance is None:
@@ -160,7 +161,7 @@ def _preprocess_results_appsec_1click_activation(
                         or AppSecRC(_preprocess_results_appsec_1click_activation, _appsec_callback)
                     )
 
-                if rc_appsec_enabled and _appsec_rc_file_is_not_static():
+                if rc_asm_enabled and _appsec_rc_file_is_not_static():
                     remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
                     remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
                     remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
@@ -169,7 +170,7 @@ def _preprocess_results_appsec_1click_activation(
                     remoteconfig_poller.unregister(PRODUCTS.ASM)
                     remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
 
-            features["asm"] = {"enabled": rc_appsec_enabled}
+            features["asm"] = {"enabled": rc_asm_enabled}
     return features
 
 
@@ -198,31 +199,31 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
         log.debug("[%s][P: %s] ASM_FEATURES: %s", os.getpid(), os.getppid(), str(features)[:100])
         if APPSEC_ENV in os.environ:
             # no one click activation if var env is set
-            rc_appsec_enabled = asbool(os.environ.get(APPSEC_ENV))
+            rc_asm_enabled = asbool(os.environ.get(APPSEC_ENV))
         elif features is False:
-            rc_appsec_enabled = False
+            rc_asm_enabled = False
         else:
-            rc_appsec_enabled = features.get("asm", {}).get("enabled", False)
+            rc_asm_enabled = features.get("asm", {}).get("enabled", False)
 
-        log.debug("APPSEC_ENABLED: %s", rc_appsec_enabled)
-        if rc_appsec_enabled is not None:
+        log.debug("APPSEC_ENABLED: %s", rc_asm_enabled)
+        if rc_asm_enabled is not None:
             log.debug(
                 "[%s][P: %s] Updating ASM Remote Configuration ASM_FEATURES: %s",
                 os.getpid(),
                 os.getppid(),
-                rc_appsec_enabled,
+                rc_asm_enabled,
             )
 
-            if rc_appsec_enabled:
-                if not tracer._appsec_enabled:
+            if rc_asm_enabled:
+                if not tracer._asm_enabled:
                     tracer.configure(appsec_enabled=True)
                 else:
-                    config._appsec_enabled = True
+                    asm_config._asm_enabled = True
             else:
-                if tracer._appsec_enabled:
+                if tracer._asm_enabled:
                     tracer.configure(appsec_enabled=False)
                 else:
-                    config._appsec_enabled = False
+                    asm_config._asm_enabled = False
 
 
 def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
@@ -230,11 +231,11 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
     Update API Security settings from remote config
     Actually: Update sample rate
     """
-    if config._remote_config_enabled and config._api_security_enabled:
+    if config._remote_config_enabled and asm_config._api_security_enabled:
         rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
         if rc_api_security_sample_rate is not None:
             try:
                 sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                config._api_security_sample_rate = sample_rate
+                asm_config._api_security_sample_rate = sample_rate
             except BaseException:  # nosec
                 pass
