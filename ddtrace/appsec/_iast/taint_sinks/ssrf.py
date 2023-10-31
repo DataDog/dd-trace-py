@@ -4,7 +4,7 @@ from typing import Dict
 from typing import Set
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config
+from ddtrace.settings.asm import config as asm_config
 
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
@@ -57,7 +57,7 @@ class SSRF(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not _config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report

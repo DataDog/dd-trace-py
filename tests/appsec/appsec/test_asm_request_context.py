@@ -9,7 +9,7 @@ _TEST_HEADERS = {"foo": "bar"}
 
 
 def test_context_set_and_reset():
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager(_TEST_IP, _TEST_HEADERS, True, lambda: True):
             assert _asm_request_context.get_ip() == _TEST_IP
             assert _asm_request_context.get_headers() == _TEST_HEADERS
@@ -25,21 +25,21 @@ def test_context_set_and_reset():
 
 
 def test_set_get_ip():
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_ip(_TEST_IP)
             assert _asm_request_context.get_ip() == _TEST_IP
 
 
 def test_set_get_headers():
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_headers(_TEST_HEADERS)
             assert _asm_request_context.get_headers() == _TEST_HEADERS
 
 
 def test_call_block_callable_none():
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_block_request_callable(None)
             assert not _asm_request_context.block_request()
@@ -50,7 +50,7 @@ def test_call_block_callable_noargs():
     def _callable():
         return 42
 
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_block_request_callable(_callable)
             assert _asm_request_context.get_value("callbacks", "block")() == 42
@@ -64,7 +64,7 @@ def test_call_block_callable_curried():
     def _callable():
         raise TestException()
 
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_block_request_callable(_callable)
             with pytest.raises(TestException):
@@ -74,7 +74,7 @@ def test_call_block_callable_curried():
 def test_set_get_headers_case_sensitive():
     # default reset value should be False
     assert not _asm_request_context.get_headers_case_sensitive()
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager():
             _asm_request_context.set_headers_case_sensitive(True)
             assert _asm_request_context.get_headers_case_sensitive()
@@ -83,7 +83,7 @@ def test_set_get_headers_case_sensitive():
 
 
 def test_asm_request_context_manager():
-    with override_global_config({"_appsec_enabled": True}):
+    with override_global_config({"_asm_enabled": True}):
         with _asm_request_context.asm_request_context_manager(_TEST_IP, _TEST_HEADERS, True, lambda: 42):
             assert _asm_request_context.get_ip() == _TEST_IP
             assert _asm_request_context.get_headers() == _TEST_HEADERS
