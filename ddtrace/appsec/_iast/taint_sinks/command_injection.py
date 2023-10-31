@@ -9,9 +9,9 @@ from typing import Union
 
 import six
 
-from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from .. import oce
 from .._utils import _has_to_scrub
@@ -42,7 +42,7 @@ def get_version():
 
 
 def patch():
-    if not config._iast_enabled:
+    if not asm_config._iast_enabled:
         return
 
     if not getattr(os, "_datadog_cmdi_patch", False):
@@ -133,7 +133,7 @@ class CommandInjection(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report

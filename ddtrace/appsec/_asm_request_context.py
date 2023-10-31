@@ -18,6 +18,7 @@ from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.span import Span
 
 
@@ -220,7 +221,7 @@ def set_waf_callback(value) -> None:
 
 
 def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
@@ -342,7 +343,7 @@ def asm_request_context_manager(
 def _start_context(
     remote_ip: Optional[str], headers: Any, headers_case_sensitive: bool, block_request_callable: Optional[Callable]
 ) -> Optional[_DataHandler]:
-    if config._appsec_enabled:
+    if asm_config._asm_enabled:
         resources = _DataHandler()
         asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         _handlers.listen()
@@ -382,7 +383,7 @@ core.on("django.traced_get_response.pre", set_block_request_callable)
 def _on_wrapped_view(kwargs):
     return_value = [None, None]
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
-    if config._appsec_enabled and in_context():
+    if asm_config._asm_enabled and in_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
         if kwargs:
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
@@ -425,7 +426,7 @@ def _on_pre_tracedrequest(ctx):
     _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     current_span = ctx.get_item("current_span")
-    if config._appsec_enabled:
+    if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             block_request()
@@ -453,7 +454,7 @@ def _on_block_decided(callback):
 
 
 def _get_headers_if_appsec():
-    if config._appsec_enabled:
+    if asm_config._asm_enabled:
         return get_headers()
 
 
