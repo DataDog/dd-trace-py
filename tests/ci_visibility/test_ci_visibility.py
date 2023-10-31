@@ -319,7 +319,7 @@ def test_git_client_get_latest_commits(git_repo):
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     backend_commits = CIVisibilityGitClient._search_commits(
         REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
     )
@@ -327,7 +327,7 @@ def test_git_client_search_commits():
 
 
 def test_get_client_do_request_agentless_headers():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
 
@@ -338,13 +338,11 @@ def test_get_client_do_request_agentless_headers():
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with(
-        "POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo", "dd-application-key": "bar"}
-    )
+    _request.assert_called_once_with("POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo"})
 
 
 def test_get_client_do_request_evp_proxy_headers():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
 
@@ -359,7 +357,7 @@ def test_get_client_do_request_evp_proxy_headers():
         "POST",
         "http://base_url/repository/endpoint",
         "payload",
-        {"X-Datadog-EVP-Subdomain": "api", "X-Datadog-NeedsAppKey": "true"},
+        {"X-Datadog-EVP-Subdomain": "api"},
     )
 
 
@@ -417,7 +415,7 @@ def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_rep
 
 
 def test_git_client_upload_packfiles(git_repo):
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
@@ -435,7 +433,7 @@ def test_git_client_upload_packfiles(git_repo):
 
 
 def test_git_do_request_agentless(git_repo):
-    mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey", "fakeappkey")
+    mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey")
     response = mock.MagicMock()
     setattr(response, "status", 200)  # noqa: B010
 
@@ -462,14 +460,13 @@ def test_git_do_request_agentless(git_repo):
                 '{"payload": "payload"}',
                 {
                     "dd-api-key": "fakeapikey",
-                    "dd-application-key": "fakeappkey",
                     "mock_header_name": "mock_header_value",
                 },
             )
 
 
 def test_git_do_request_evp(git_repo):
-    mock_serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    mock_serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     setattr(response, "status", 200)  # noqa: B010
 
@@ -495,7 +492,6 @@ def test_git_do_request_evp(git_repo):
                 "base_url/repositoryendpoint",
                 '{"payload": "payload"}',
                 {
-                    "X-Datadog-NeedsAppKey": "true",
                     "X-Datadog-EVP-Subdomain": "api",
                     "mock_header_name": "mock_header_value",
                 },
@@ -619,7 +615,6 @@ def test_civisibility_check_enabled_features_agentless_do_request_called_correct
                     mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
                     mock_civisibilty._service = "service"
                     mock_civisibilty._api_key = "myfakeapikey"
-                    mock_civisibilty._app_key = "myfakeappkey"
                     mock_civisibilty._dd_site = "datad0g.com"
                     mock_civisibilty._tags = {
                         ci.git.REPOSITORY_URL: "my_repo_url",
@@ -637,7 +632,6 @@ def test_civisibility_check_enabled_features_agentless_do_request_called_correct
                     assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
                     assert do_request_call_args[3] == {
                         "dd-api-key": "myfakeapikey",
-                        "dd-application-key": "myfakeappkey",
                         "Content-Type": "application/json",
                     }
                     assert do_request_payload == {
@@ -690,7 +684,6 @@ def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
                     )
                     assert do_request_call_args[3] == {
                         "X-Datadog-EVP-Subdomain": "api",
-                        "X-Datadog-NeedsAppKey": "true",
                     }
                     assert do_request_payload == {
                         "data": {
@@ -706,26 +699,6 @@ def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
                         }
                     }
                     assert enabled_features == (True, True)
-
-
-@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_request):
-    with override_env(
-        dict(
-            DD_API_KEY="foo.bar",
-            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
-        )
-    ):
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        CIVisibility.enable()
-
-        _do_request.assert_not_called()
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
-        CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -759,7 +732,6 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="1",
@@ -795,7 +767,7 @@ def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_requ
                     }
                 }
             ),
-            {"dd-api-key": "foo.bar", "dd-application-key": "foobar.baz", "Content-Type": "application/json"},
+            {"dd-api-key": "foo.bar", "Content-Type": "application/json"},
         )
         assert CIVisibility._instance._code_coverage_enabled_by_api is True
         assert CIVisibility._instance._test_skipping_enabled_by_api is True
@@ -814,7 +786,6 @@ def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_re
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="1",
@@ -842,7 +813,6 @@ def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_reques
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="1",
@@ -872,7 +842,6 @@ def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_ITR_ENABLED="1",

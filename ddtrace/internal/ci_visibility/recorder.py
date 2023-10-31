@@ -26,10 +26,8 @@ from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
-from .constants import AGENTLESS_APP_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
-from .constants import EVP_NEEDS_APP_KEY_HEADER_NAME
-from .constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
+from .constants import CUSTOM_CONFIGURATIONS_PREFIX
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -73,6 +71,16 @@ def _get_git_repo():
     return None
 
 
+def _get_custom_configurations():
+    # type () -> dict
+    custom_configurations = {}
+    for tag, value in ddconfig.tags.items():
+        if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
+            custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
+
+    return custom_configurations
+
+
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
@@ -106,10 +114,6 @@ class CIVisibility(Service):
             else:
                 self.tracer = Tracer()
 
-        self._app_key = os.getenv(
-            "_CI_DD_APP_KEY",
-            os.getenv("DD_APP_KEY", os.getenv("DD_APPLICATION_KEY", os.getenv("DATADOG_APPLICATION_KEY"))),
-        )
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
@@ -148,16 +152,12 @@ class CIVisibility(Service):
         self._git_client = None
 
         if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if self._app_key is None:
-                log.warning("Environment variable DD_APP_KEY not set, so no git metadata will be uploaded.")
-            elif self._requests_mode == REQUESTS_MODE.TRACES:
+            if self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
                 if not self._test_skipping_enabled_by_api:
                     log.warning("Intelligent Test Runner test skipping disabled by API")
-                self._git_client = CIVisibilityGitClient(
-                    api_key=self._api_key or "", app_key=self._app_key, requests_mode=self._requests_mode
-                )
+                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -192,17 +192,15 @@ class CIVisibility(Service):
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SETTING_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
-                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
             log.debug("Making EVP request to agent: url=%s, headers=%s", url, _headers)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-            if not self._app_key or not self._api_key:
-                log.debug("Cannot make request to setting endpoint if application key is not set")
+            if not self._api_key:
+                log.debug("Cannot make request to setting endpoint if API key is not set")
                 return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
             _headers = {
                 AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
-                AGENTLESS_APP_KEY_HEADER_NAME: self._app_key,
                 "Content-Type": "application/json",
             }
         else:
@@ -293,6 +291,11 @@ class CIVisibility(Service):
             self._git_client.shutdown()
             self._git_client = None
 
+        configurations = ci._get_runtime_and_os_metadata()
+        custom_configurations = _get_custom_configurations()
+        if custom_configurations:
+            configurations["custom"] = custom_configurations
+
         payload = {
             "data": {
                 "type": "test_params",
@@ -301,7 +304,7 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": ci._get_runtime_and_os_metadata(),
+                    "configurations": configurations,
                     "test_level": skipping_mode,
                 },
             }
@@ -309,14 +312,12 @@ class CIVisibility(Service):
 
         _headers = {
             "dd-api-key": self._api_key,
-            "dd-application-key": self._app_key,
             "Content-Type": "application/json",
         }
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
-                EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
