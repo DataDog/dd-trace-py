@@ -46,6 +46,8 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -615,7 +617,8 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item.config.hook.pytest_ddtrace_get_item_test_name(item=item))
+        test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+        span.set_tag_str(test.NAME, test_name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -635,6 +638,25 @@ def pytest_runtest_protocol(item, nextitem):
 
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
+
+        if hasattr(item, "_obj"):
+            test_method_object = item._obj
+            source_file_path = get_source_file_path_for_test_method(test_method_object)
+            if not source_file_path:
+                log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
+            start_line, end_line = get_source_lines_for_test_method(test_method_object)
+            if not start_line or not end_line:
+                log.debug(
+                    "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
+                )
+        else:
+            source_file_path = None
+            start_line = None
+            end_line = None
+
+        span.set_tag_str(test.SOURCE_FILE, source_file_path)
+        span.set_tag(test.SOURCE_START, start_line)
+        span.set_tag(test.SOURCE_END, end_line)
 
         if item.location and item.location[0]:
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
