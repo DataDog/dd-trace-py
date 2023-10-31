@@ -1,4 +1,4 @@
 ---
-upgrade:
+feature:
   - |
     CI Visibility: adds start/end line source file data to ``unittest`` test spans

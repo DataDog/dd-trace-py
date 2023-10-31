@@ -639,6 +639,10 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
 
+        source_file_path = None
+        start_line = None
+        end_line = None
+
         if hasattr(item, "_obj"):
             test_method_object = item._obj
             source_file_path = get_source_file_path_for_test_method(test_method_object)
@@ -649,14 +653,13 @@ def pytest_runtest_protocol(item, nextitem):
                 log.debug(
                     "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
                 )
-        else:
-            source_file_path = None
-            start_line = None
-            end_line = None
 
-        span.set_tag_str(test.SOURCE_FILE, source_file_path)
-        span.set_tag(test.SOURCE_START, start_line)
-        span.set_tag(test.SOURCE_END, end_line)
+        if source_file_path:
+            span.set_tag_str(test.SOURCE_FILE, source_file_path)
+            if start_line:
+                span.set_tag(test.SOURCE_START, start_line)
+            if end_line:
+                span.set_tag(test.SOURCE_END, end_line)
 
         if item.location and item.location[0]:
             _CIVisibility.set_codeowners_of(item.location[0], span=span)

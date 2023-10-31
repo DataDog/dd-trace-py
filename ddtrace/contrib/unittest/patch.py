@@ -571,6 +571,11 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_name = _extract_test_method_name(instance)
     test_method_object = _extract_test_method_object(instance)
+
+    source_file_path = None
+    start_line = None
+    end_line = None
+
     if test_method_object:
         source_file_path = get_source_file_path_for_test_method(test_method_object)
         if not source_file_path:
@@ -580,10 +585,6 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
             log.debug(
                 "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
             )
-    else:
-        source_file_path = None
-        start_line = None
-        end_line = None
     test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
@@ -614,9 +615,12 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     span.set_tag_str(test.STATUS, test.Status.FAIL.value)
     span.set_tag_str(test.CLASS_HIERARCHY, test_suite_name)
 
-    span.set_tag_str(test.SOURCE_FILE, source_file_path)
-    span.set_tag(test.SOURCE_START, start_line)
-    span.set_tag(test.SOURCE_END, end_line)
+    if source_file_path:
+        span.set_tag_str(test.SOURCE_FILE, source_file_path)
+        if start_line:
+            span.set_tag(test.SOURCE_START, start_line)
+        if end_line:
+            span.set_tag(test.SOURCE_END, end_line)
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
