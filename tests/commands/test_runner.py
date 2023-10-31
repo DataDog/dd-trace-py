@@ -361,7 +361,7 @@ def test_info_no_configs():
     Health metrics enabled: False
     Priority sampling enabled: True
     Partial flushing enabled: True
-    Partial flush minimum number of spans: 500
+    Partial flush minimum number of spans: 300
     WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None

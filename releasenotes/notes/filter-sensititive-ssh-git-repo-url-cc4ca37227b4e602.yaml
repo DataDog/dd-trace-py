@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI: fixes an issue which prevented the library from filtering user credentials for SSH Git repository URLs
+

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from ddtrace.internal.compat import six
 
 from .. import oce
+from .._metrics import _set_metric_iast_executed_sink
 from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
@@ -46,10 +47,12 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
         evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
+            _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
             InsecureCookie.report(evidence_value=evidence)
             return
 
         if ";httponly" not in lvalue:
+            _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
             NoHttpOnlyCookie.report(evidence_value=evidence)
             return
 
@@ -66,3 +69,4 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
 
         if report_samesite:
             NoSameSite.report(evidence_value=evidence)
+            _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
