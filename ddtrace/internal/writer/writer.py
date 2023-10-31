@@ -5,10 +5,10 @@ import logging
 import os
 import sys
 import threading
+from typing import TYPE_CHECKING
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import TextIO
 
 import six
@@ -16,11 +16,9 @@ import six
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
-from .. import compat
-from .. import periodic
-from .. import service
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
@@ -28,6 +26,9 @@ from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
 from ...sampler import BaseSampler
+from .. import compat
+from .. import periodic
+from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
@@ -36,9 +37,9 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
 from ..sma import SimpleMovingAverage
+from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
-from .writer_client import WRITER_CLIENTS
 from .writer_client import WriterClientBase
 
 
@@ -627,7 +628,7 @@ class AgentWriter(HTTPWriter):
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or config._remote_config_enabled
+                asm_config._asm_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
