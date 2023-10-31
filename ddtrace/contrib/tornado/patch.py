@@ -1,10 +1,10 @@
 import os
 
 import tornado
-from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
