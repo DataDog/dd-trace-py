@@ -43,12 +43,12 @@ RESPONSE_CUSTOM_HTML = os.path.join(ROOT_DIR, "response-custom.html")
 
 @pytest.fixture
 def tracer_appsec(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         yield _enable_appsec(tracer)
 
 
 def _enable_appsec(tracer):
-    tracer._appsec_enabled = True
+    tracer._asm_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     return tracer
@@ -179,7 +179,7 @@ def test_headers_collection(tracer_appsec):
 def test_appsec_cookies_no_collection_snapshot(tracer):
     # We use tracer instead of tracer_appsec because snapshot is looking for tracer fixture and not understands
     # other fixtures
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -201,7 +201,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -223,7 +223,7 @@ class _IP:
 
 
 def test_ip_block(tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -239,7 +239,7 @@ def test_ip_block(tracer):
 
 @pytest.mark.parametrize("ip", [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT])
 def test_ip_not_block(tracer, ip):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(ip, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -253,7 +253,7 @@ def test_ip_not_block(tracer, ip):
 
 
 def test_ip_update_rules_and_block(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
             {
@@ -280,7 +280,7 @@ def test_ip_update_rules_and_block(tracer):
 
 
 def test_ip_update_rules_expired_no_block(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         tracer._appsec_processor._update_rules(
             {
@@ -314,7 +314,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             span.set_tag("http.url", "http://example.com/.git")
@@ -332,7 +332,7 @@ def test_appsec_span_tags_snapshot(tracer):
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
             _enable_appsec(tracer)
             with _asm_request_context.asm_request_context_manager(), tracer.trace(
@@ -345,7 +345,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
 
 
 def test_appsec_span_rate_limit(tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span1:
             set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
@@ -446,7 +446,7 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
 
 
 def test_obfuscation_parameter_value_configured_not_matching(tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
+    with override_global_config(dict(_asm_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
         _enable_appsec(tracer)
@@ -462,7 +462,7 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
 
 
 def test_obfuscation_parameter_value_configured_matching(tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
+    with override_global_config(dict(_asm_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
         _enable_appsec(tracer)
