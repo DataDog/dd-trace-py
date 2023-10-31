@@ -16,6 +16,7 @@ import six
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
@@ -627,7 +628,7 @@ class AgentWriter(HTTPWriter):
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or config._remote_config_enabled
+                asm_config._asm_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
