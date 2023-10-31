@@ -42,7 +42,7 @@ Global Configuration
    The span resource will only include the command executed. To include all
    arguments in the span resource, set this value to ``False``.
 
-   This option can also be set with the ``DD_REDISCLUSTER_RESOURCE_ONLY_COMMAND`` environment
+   This option can also be set with the ``DD_REDIS_RESOURCE_ONLY_COMMAND`` environment
    variable.
 
    Default: ``True``

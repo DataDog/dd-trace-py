@@ -322,7 +322,7 @@ async def test_parenting(redis_client):
         await redis_client.get("blah")
 
 
-@pytest.mark.subprocess(env=dict(DD_AIOREDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import asyncio
@@ -342,6 +342,6 @@ def test_full_command_in_resource_env():
 @pytest.mark.asyncio
 @pytest.mark.snapshot()
 async def test_full_command_in_resource_config(redis_client):
-    with override_config("aioerdis", dict(resource_only_command="false")):
+    with override_config("aioredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):
             await redis_client.get("put_key_in_resource")

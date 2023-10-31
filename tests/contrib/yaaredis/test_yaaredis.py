@@ -218,7 +218,7 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-@pytest.mark.subprocess(env=dict(DD_YAAREDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import asyncio
