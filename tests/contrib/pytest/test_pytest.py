@@ -3187,7 +3187,7 @@ class PytestTestCase(TracerTestCase):
         assert test_span.get_tag("test.name") == "name_test.test_ok"
 
     def test_pytest_reports_source_file_data(self):
-        package_outer_dir = self.testdir.mkpydir("test_package")
+        package_outer_dir = self.testdir.mkpydir("test_source_package")
         os.chdir(str(package_outer_dir))
         with open("test_names.py", "w+") as fd:
             fd.write(
@@ -3242,21 +3242,21 @@ class PytestTestCase(TracerTestCase):
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 4
         assert test_spans[0].get_tag("test.name") == "test_my_first_test"
-        assert test_spans[0].get_tag("test.source.file") == "test_package/test_names.py"
+        assert test_spans[0].get_tag("test.source.file") == "test_source_package/test_names.py"
         assert test_spans[0].get_metric("test.source.start") == 8
         assert test_spans[0].get_metric("test.source.end") == 11
 
         assert test_spans[1].get_tag("test.name") == "test_my_second_test"
-        assert test_spans[1].get_tag("test.source.file") == "test_package/test_names.py"
+        assert test_spans[1].get_tag("test.source.file") == "test_source_package/test_names.py"
         assert test_spans[1].get_metric("test.source.start") == 13
         assert test_spans[1].get_metric("test.source.end") == 16
 
         assert test_spans[2].get_tag("test.name") == "test_my_third_test"
-        assert test_spans[2].get_tag("test.source.file") == "test_package/test_names.py"
+        assert test_spans[2].get_tag("test.source.file") == "test_source_package/test_names.py"
         assert test_spans[2].get_metric("test.source.start") == 18
         assert test_spans[2].get_metric("test.source.end") == 20
 
         assert test_spans[3].get_tag("test.name") == "test_my_string_test"
-        assert test_spans[3].get_tag("test.source.file") == "test_package/test_string.py"
+        assert test_spans[3].get_tag("test.source.file") == "test_source_package/test_string.py"
         assert test_spans[3].get_metric("test.source.start") == 5
         assert test_spans[3].get_metric("test.source.end") == 8
