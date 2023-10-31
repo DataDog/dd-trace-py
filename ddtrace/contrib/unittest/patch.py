@@ -581,6 +581,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 _set_test_span_status(
                     test_item=instance, skip_reason=SKIPPED_BY_ITR_REASON, status=test.Status.SKIP.value
                 )
+                result.stopTest(test=instance)
             else:
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
