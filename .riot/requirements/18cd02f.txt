@@ -71,7 +71,7 @@ types-pyyaml==6.0.12.11
 typing-extensions==4.7.1
 urllib3==1.26.16
 websocket-client==1.6.1
-werkzeug==2.3.6
+werkzeug==3.0.1
 wrapt==1.15.0
 xmltodict==0.13.0
 
