@@ -1,13 +1,11 @@
 [[
   {
     "name": "otel-top-level",
-    "service": "",
+    "service": null,
     "resource": "otel-top-level",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -24,61 +22,51 @@
   },
      {
        "name": "ddtrace-top-level",
-       "service": "",
+       "service": null,
        "resource": "ddtrace-top-level",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 101975430,
        "start": 1691164174283377785
      },
         {
           "name": "ddtrace-child",
-          "service": "",
+          "service": null,
           "resource": "ddtrace-child",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 40291630,
           "start": 1691164174303607026
         },
         {
           "name": "otel-child",
-          "service": "",
+          "service": null,
           "resource": "otel-child",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 41164537,
           "start": 1691164174344146455
         },
            {
              "name": "ddtrace-grandchild",
-             "service": "",
+             "service": null,
              "resource": "ddtrace-grandchild",
              "trace_id": 0,
              "span_id": 5,
              "parent_id": 4,
-             "type": "",
-             "error": 0,
              "duration": 20721650,
              "start": 1691164174364534600
            },
               {
                 "name": "otel-grandchild",
-                "service": "",
+                "service": null,
                 "resource": "otel-grandchild",
                 "trace_id": 0,
                 "span_id": 6,
                 "parent_id": 5,
-                "type": "",
-                "error": 0,
                 "duration": 20354052,
                 "start": 1691164174364742772
               }]]

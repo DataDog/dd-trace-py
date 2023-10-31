@@ -33,6 +33,9 @@ echo `pwd`
 
 cp ../lib-injection/sitecustomize.py dd-trace.dir/lib/
 
+chmod -R o-w dd-trace.dir/lib
+chmod -R g-w dd-trace.dir/lib
+
 cp auto_inject-python.version dd-trace.dir/lib/version
 
 fpm_wrapper "datadog-apm-library-python" "$PYTHON_PACKAGE_VERSION" \

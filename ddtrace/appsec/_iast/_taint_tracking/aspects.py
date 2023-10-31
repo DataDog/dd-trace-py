@@ -313,7 +313,7 @@ def format_value_aspect(
     else:
         new_text = element
     if not isinstance(new_text, TEXT_TYPES):
-        return new_text
+        return format(new_text)
 
     try:
         if format_spec:

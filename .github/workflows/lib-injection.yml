@@ -88,8 +88,10 @@ jobs:
            cd lib-injection
            # Ensure /datadog-lib/ddtrace_pkgs is a valid directory that is not empty
            docker-compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
-           # Ensure non-datadog users have read and write permissions to files stored in /datadog-lib/ddtrace_pkgs
-           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm -a=rw | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure files are not world writeable
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm /o+w | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           # Ensure non-datadog users have read  permissions to files stored in /datadog-lib/ddtrace_pkgs
+           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm -a=r | wc -l && if [ $? -ne 0 ]; then exit 1; fi
       - name: Test the app
         run: |
           curl http://localhost:18080

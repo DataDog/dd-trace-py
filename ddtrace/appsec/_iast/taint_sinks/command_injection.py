@@ -172,6 +172,7 @@ class CommandInjection(VulnerabilityBase):
 def _iast_report_cmdi(shell_args):
     # type: (Union[str, List[str]]) -> None
     report_cmdi = ""
+    from .._metrics import _set_metric_iast_executed_sink
     from .._taint_tracking import get_tainted_ranges
     from .._taint_tracking.aspects import join_aspect
 
@@ -184,4 +185,5 @@ def _iast_report_cmdi(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:
+        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)

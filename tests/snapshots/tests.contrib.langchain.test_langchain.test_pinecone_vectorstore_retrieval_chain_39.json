@@ -1,13 +1,11 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": null,
     "resource": "langchain.chains.qa_with_sources.retrieval.RetrievalQAWithSourcesChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.question": "Who was Alan Turing?",
@@ -35,13 +33,11 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.vectorstores.pinecone.Pinecone",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "langchain.request.api_key": "...key>",
          "langchain.request.pinecone.environment": "<not-a-real-env>",
@@ -81,13 +77,11 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.embeddings.openai.OpenAIEmbeddings",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
             "langchain.request.inputs.0.text": "Who was Alan Turing?",
@@ -106,13 +100,11 @@
         },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.combine_documents.stuff.StuffDocumentsChain",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
          "langchain.request.inputs.question": "Who was Alan Turing?",
@@ -134,13 +126,11 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.chains.llm.LLMChain",
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "",
-          "error": 0,
           "meta": {
             "langchain.request.inputs.question": "Who was Alan Turing?",
             "langchain.request.inputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
@@ -163,13 +153,11 @@
         },
            {
              "name": "langchain.request",
-             "service": "",
+             "service": null,
              "resource": "langchain.llms.openai.OpenAI",
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 5,
-             "type": "",
-             "error": 0,
              "meta": {
                "langchain.request.api_key": "...key>",
                "langchain.request.model": "text-davinci-003",

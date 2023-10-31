@@ -5,8 +5,6 @@ import logging
 import os
 import sys
 import threading
-from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -28,6 +26,8 @@ from ...internal.telemetry import telemetry_writer
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
+from ...sampler import BasePrioritySampler
+from ...sampler import BaseSampler
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
@@ -35,8 +35,6 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
-from ..serverless import in_azure_function_consumption_plan
-from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
@@ -105,8 +103,10 @@ class LogWriter(TraceWriter):
     def __init__(
         self,
         out=sys.stdout,  # type: TextIO
+        sampler=None,  # type: Optional[BaseSampler]
     ):
         # type: (...) -> None
+        self._sampler = sampler
         self.encoder = JSONEncoderV2()
         self.out = out
 
@@ -117,7 +117,7 @@ class LogWriter(TraceWriter):
         :rtype: :class:`LogWriter`
         :returns: A new :class:`LogWriter` instance
         """
-        writer = self.__class__(out=self.out)
+        writer = self.__class__(out=self.out, sampler=self._sampler)
         return writer
 
     def stop(self, timeout=None):
@@ -149,6 +149,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self,
         intake_url,  # type: str
         clients,  # type: List[WriterClientBase]
+        sampler=None,  # type: Optional[BaseSampler]
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -170,6 +171,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self.intake_url = intake_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
+        self._sampler = sampler
         self._headers = headers or {}
         self._timeout = timeout
 
@@ -297,7 +299,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return headers
 
     def _send_payload(self, payload, count, client):
-        # type: (...) -> Response
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
@@ -315,15 +316,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )  # type: Tuple[Any, Any, Any]
+            )
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, six.binary_type):
-                    log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
+                    log_args += (binascii.hexlify(payload).decode(),)
                 else:
-                    log_args += (payload,)  # type: ignore
+                    log_args += (payload,)
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
@@ -449,12 +450,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._reset_connection()
 
 
-class AgentResponse(object):
-    def __init__(self, rate_by_service):
-        # type: (Dict[str, float]) -> None
-        self.rate_by_service = rate_by_service
-
-
 class AgentWriter(HTTPWriter):
     """
     The Datadog Agent supports (at the time of writing this) receiving trace
@@ -470,6 +465,7 @@ class AgentWriter(HTTPWriter):
     def __init__(
         self,
         agent_url,  # type: str
+        sampler=None,  # type: Optional[BaseSampler]
         priority_sampling=False,  # type: bool
         processing_interval=None,  # type: Optional[float]
         # Match the payload size since there is no functionality
@@ -483,7 +479,6 @@ class AgentWriter(HTTPWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
-        response_callback=None,  # type: Optional[Callable[[AgentResponse], None]]
     ):
         # type: (...) -> None
         if processing_interval is None:
@@ -500,11 +495,8 @@ class AgentWriter(HTTPWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-        default_api_version = (
-            "v0.4" if (is_windows or in_gcp_function() or in_azure_function_consumption_plan()) else "v0.5"
-        )
 
-        self._api_version = api_version or config._trace_api or (default_api_version if priority_sampling else "v0.3")
+        self._api_version = api_version or config._trace_api or ("v0.4" if priority_sampling else "v0.3")
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
@@ -542,10 +534,10 @@ class AgentWriter(HTTPWriter):
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
-        self._response_cb = response_callback
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             clients=[client],
+            sampler=sampler,
             processing_interval=processing_interval,
             buffer_size=buffer_size,
             max_payload_size=max_payload_size,
@@ -560,6 +552,7 @@ class AgentWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             agent_url=self.agent_url,
+            sampler=self._sampler,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -597,7 +590,6 @@ class AgentWriter(HTTPWriter):
         raise ValueError()
 
     def _send_payload(self, payload, count, client):
-        # type: (...) -> Response
         response = super(AgentWriter, self)._send_payload(payload, count, client)
         if response.status in [404, 415]:
             log.debug("calling endpoint '%s' but received %s; downgrading API", client.ENDPOINT, response.status)
@@ -613,22 +605,24 @@ class AgentWriter(HTTPWriter):
             else:
                 if payload is not None:
                     self._send_payload(payload, count, client)
-        elif response.status < 400:
-            if self._response_cb:
-                raw_resp = response.get_json()
-                if raw_resp and "rate_by_service" in raw_resp:
-                    self._response_cb(
-                        AgentResponse(
-                            rate_by_service=raw_resp["rate_by_service"],
+        elif response.status < 400 and isinstance(self._sampler, BasePrioritySampler):
+            result_traces_json = response.get_json()
+            if result_traces_json and "rate_by_service" in result_traces_json:
+                try:
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
                         )
-                    )
+                except ValueError:
+                    log.error("sample_rate is negative, cannot update the rate samplers")
         return response
 
     def start(self):
         super(AgentWriter, self).start()
         try:
-            telemetry_writer._app_started_event()
-            telemetry_writer._app_dependencies_loaded_event()
+            if not telemetry_writer.started:
+                telemetry_writer._app_started_event()
+                telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

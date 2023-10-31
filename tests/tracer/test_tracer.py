@@ -35,7 +35,6 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
-from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -1130,6 +1129,18 @@ def test_enable():
         assert not t2.enabled
 
 
+@pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
+def test_threaded_import():
+    import threading
+
+    def thread_target():
+        import ddtrace  # noqa: F401
+
+    t = threading.Thread(target=thread_target)
+    t.start()
+    t.join()
+
+
 def test_runtime_id_parent_only():
     tracer = ddtrace.Tracer()
 
@@ -1865,7 +1876,7 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.3")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)

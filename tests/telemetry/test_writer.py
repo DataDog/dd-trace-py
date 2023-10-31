@@ -106,7 +106,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 500},
+            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
             {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
@@ -117,9 +117,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
             {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
-            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
             {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
@@ -143,13 +143,6 @@ import logging
 logging.basicConfig()
 
 import ddtrace.auto
-
-from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.enable()
-telemetry_writer.reset_queues()
-telemetry_writer._app_started_event()
-telemetry_writer.periodic(force_flush=True)
-telemetry_writer.disable()
     """
 
     env = os.environ.copy()
@@ -204,10 +197,11 @@ telemetry_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
 
-    assert len(events) == 1
-    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert events[0]["payload"]["configuration"] == [
+    app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+    assert app_started_events[0]["payload"]["configuration"] == [
         {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
         {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},

@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
-    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -33,7 +32,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "graphql",
@@ -50,7 +48,6 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "graphql",
@@ -67,7 +64,6 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "graphql",
@@ -89,7 +85,6 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "component": "graphql"

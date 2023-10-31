@@ -137,6 +137,7 @@ metadata
 microservices
 middleware
 middlewares
+misencoded
 moderations
 mongoengine
 multiline
@@ -166,10 +167,12 @@ plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -209,6 +212,7 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
 subclass
@@ -265,3 +269,4 @@ Gitlab
 Enablement
 hotspot
 CMake
+libdatadog

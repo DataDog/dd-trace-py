@@ -4,6 +4,9 @@ set -ex
 
 if [[ "${CIRCLECI}" = "true" ]]; then
     echo "Skipping install"
+elif [[ "${READTHEDOCS}" = "True" ]]; then
+    # We skip here because we do not check spelling in RTD
+    echo "Skipping install"
 else
     export DEBIAN_FRONTEND="noninteractive"
     export DEBCONF_NOWARNINGS="yes"

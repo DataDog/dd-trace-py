@@ -61,7 +61,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"
+version_scheme = "guess-next-dev"
 write_to = "ddtrace/_version.py"
 
 [tool.isort]
@@ -152,6 +152,8 @@ exclude-modules = '''
   | ddtrace.appsec._iast._ast.aspects
   | ddtrace.appsec._iast._taint_utils
   | ddtrace.appsec._iast.taint_sinks.sql_injection
+  # DSM specific contribs
+  | ddtrace.internal.datastreams.kafka
 )
 '''
 
@@ -170,7 +172,6 @@ exclude_dirs = [
   "ddtrace/internal/rate_limiter.py",
   "ddtrace/internal/serverless/mini_agent.py",
   "ddtrace/internal/uwsgi.py",
-  "ddtrace/internal/wrapping.py",
   "ddtrace/sourcecode/_utils.py",
 ]
 

@@ -1,13 +1,11 @@
 [[
   {
     "name": "langchain.request",
-    "service": "",
+    "service": null,
     "resource": "langchain.chains.llm_math.base.LLMMathChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
@@ -31,13 +29,11 @@
   },
      {
        "name": "langchain.request",
-       "service": "",
+       "service": null,
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
          "langchain.request.inputs.stop": "['```output']",
@@ -56,13 +52,11 @@
      },
         {
           "name": "langchain.request",
-          "service": "",
+          "service": null,
           "resource": "langchain.llms.cohere.Cohere",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
             "langchain.request.cohere.parameters.frequency_penalty": "0.0",

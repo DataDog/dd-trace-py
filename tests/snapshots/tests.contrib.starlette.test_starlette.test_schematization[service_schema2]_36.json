@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.peer.service.source": "out.host",
@@ -40,7 +39,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
-       "error": 0,
        "meta": {
          "component": "starlette",
          "http.method": "GET",
@@ -61,7 +59,6 @@
           "span_id": 3,
           "parent_id": 2,
           "type": "web",
-          "error": 0,
           "meta": {
             "component": "starlette",
             "http.method": "GET",
