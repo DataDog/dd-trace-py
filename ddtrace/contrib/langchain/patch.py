@@ -7,6 +7,7 @@ from typing import Optional
 
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+from pydantic import SecretStr
 import wrapt
 
 from ddtrace import config
@@ -140,7 +141,7 @@ def _extract_model_name(instance):
 
 
 def _format_api_key(api_key):
-    # type: (str | pydantic.SecretStr) -> str
+    # type: (str | SecretStr) -> str
     """Obfuscate a given LLM provider API key by returning the last four characters."""
     if hasattr(api_key, "get_secret_value"):
         api_key = api_key.get_secret_value()
@@ -698,7 +699,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
             api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, "...%s" % api_key[-4:])  # override api_key for Pinecone
+            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
