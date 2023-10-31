@@ -154,6 +154,7 @@ def override_global_config(values):
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -173,6 +174,7 @@ def override_config(integration, values):
         yield
     finally:
         options.update(original)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
