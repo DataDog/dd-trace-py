@@ -10,6 +10,7 @@ from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .settings import _config as config
+from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -78,6 +79,7 @@ PATCH_MODULES = {
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "loguru": config.logs_injection,
     "structlog": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
@@ -214,7 +216,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if config._iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()

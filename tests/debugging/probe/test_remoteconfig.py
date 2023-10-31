@@ -525,6 +525,23 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
+def test_parse_metric_probe_with_probeid_tags():
+    probeId = "3d338829-21c4-4a8a-8a1a-71fbce995efa"
+    probe = build_probe(
+        {
+            "id": probeId,
+            "version": 0,
+            "type": ProbeType.METRIC_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "metricName": "test.counter",
+            "kind": "COUNTER",
+        }
+    )
+
+    assert probe.tags["debugger.probeid"] == probeId
+
+
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 

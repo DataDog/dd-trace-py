@@ -6,13 +6,13 @@ from wrapt import wrap_function_wrapper as _w
 import ddtrace
 from ddtrace import config
 
+from ...internal.utils.formats import asbool
+from ...internal.utils.wrappers import unwrap as _u
 from . import application
 from . import context_provider
 from . import decorators
 from . import handlers
 from . import template
-from ...internal.utils.formats import asbool
-from ...internal.utils.wrappers import unwrap as _u
 
 
 config._add(
