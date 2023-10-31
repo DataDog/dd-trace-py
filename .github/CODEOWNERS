@@ -51,6 +51,7 @@ tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-p
 
 # ASM
 ddtrace/appsec/                     @DataDog/asm-python
+ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
