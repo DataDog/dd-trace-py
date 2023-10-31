@@ -231,7 +231,7 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
     """
     path = origin(module)
     if path is None:
-        # We are not able to determine what this module actual exports.
+        # We are not able to determine what this module actually exports.
         return {}
 
     containers = deque([ContainerIterator(module)])
