@@ -1,5 +1,6 @@
 import flask
 import werkzeug
+from flask import request
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
@@ -103,7 +104,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_call_name = "flask.response"
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers)
+        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers, _HAS_JSON_MIXIN)
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
             results, exceptions = core.dispatch("flask.start_response", "Flask")
@@ -442,6 +443,8 @@ def patched_endpoint(wrapped, instance, args, kwargs):
 
 def patched_flask_hook(wrapped, instance, args, kwargs):
     func = get_argument_value(args, kwargs, 0, "f")
+    JJJdata = request.data
+    print("JJJdata: %s" % JJJdata)
     return wrapped(wrap_function(instance, func))
 
 

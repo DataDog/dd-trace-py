@@ -209,7 +209,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
             query = dict(core.get_item("http.request.body", span=root_span))
-
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
@@ -226,8 +225,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_body_xml(self):
         @self.app.route("/body", methods=["GET", "POST", "DELETE"])
         def body():
-            data = request.data
-            return data, 200
+            return request.data, 200
 
         with override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
