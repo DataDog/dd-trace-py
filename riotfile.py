@@ -252,7 +252,7 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={"msgpack": [latest], "coverage": latest},
+            pkgs={"msgpack": [latest], "coverage": latest, "python-json-logger": "==2.0.7"},
             venvs=[
                 Venv(
                     name="integration-latest",

@@ -28,6 +28,7 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ..internal.utils.http import normalize_header_name
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -191,27 +192,47 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-ConfigSource = Literal["default", "env", "code"]
+_ConfigSource = Literal["default", "env", "code", "remote_config"]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
+        # type: (str, Any, List[Tuple[str, Callable[[], Any]]]) -> None
         self._name = name
         self._default_value = default
         self._env_value = None
         self._code_value = None
+        self._rc_value = None
         self._envs = envs
         for (env_var, parser) in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
 
+    def set_value_source(self, value, source):
+        if source == "code":
+            self._code_value = value
+        elif source == "remote_config":
+            self._rc_value = value
+
     def set_code(self, value):
+        # type: (Any) -> None
         self._code_value = value
 
+    def unset_rc(self):
+        # type: () -> None
+        self._rc_value = None
+
+    def set_rc(self, value):
+        # type: (Any) -> None
+        self._rc_value = value
+
     def value(self):
+        # type: () -> Any
+        if self._rc_value is not None:
+            return self._rc_value
         if self._code_value is not None:
             return self._code_value
         if self._env_value is not None:
@@ -219,7 +240,9 @@ class _ConfigItem:
         return self._default_value
 
     def source(self):
-        # type: () -> ConfigSource
+        # type: () -> _ConfigSource
+        if self._rc_value is not None:
+            return "remote_config"
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
@@ -227,12 +250,13 @@ class _ConfigItem:
         return "default"
 
     def __repr__(self):
-        return "<{} name={} default={} env_value={} user_value={}>".format(
+        return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
             self.__class__.__name__,
             self._name,
             self._default_value,
             self._env_value,
             self._code_value,
+            self._rc_value,
         )
 
 
@@ -607,11 +631,32 @@ class Config(object):
         if key == "_config":
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._config[key].set_code(value)
-            self._notify_subscribers([key])
+            self._set_config_items([(key, value, "code")])
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
+
+    def _set_config_items(self, items):
+        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
+        for (key, value, origin) in items:
+            self._config[key].set_value_source(value, origin)
+
+        from ..internal.telemetry import telemetry_writer
+
+        telemetry_writer.add_event(
+            {
+                "configuration": [
+                    {
+                        "name": k,
+                        "value": self._config[k].value(),
+                        "origin": self._get_source(k),
+                    }
+                    for k, _, _ in items
+                ],
+            },
+            "app-client-configuration-change",
+        )
+        self._notify_subscribers([i[0] for i in items])
 
     def _reset(self):
         # type: () -> None
@@ -620,3 +665,29 @@ class Config(object):
     def _get_source(self, item):
         # type: (str) -> str
         return self._config[item].source()
+
+    def _handle_remoteconfig(self, data, test_tracer=None):
+        # type: (Any, Any) -> None
+        if not data:
+            for item in self._config.values():
+                item.unset_rc()
+            return
+
+        config = data["config"][0]
+        if "lib_config" not in config:
+            log.warning("unexpected RC payload")
+            return
+
+        lib_config = config["lib_config"]
+        updated_items = []  # type: List[Tuple[str, Any]]
+
+        if "tracing_sampling_rate" in lib_config:
+            updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+        if "tracing_header_tags" in lib_config:
+            rc_tags = lib_config["tracing_header_tags"]
+            tags = None if rc_tags is None else {normalize_header_name(e["header"]): e["tag_name"] for e in rc_tags}
+            updated_items.append(("trace_http_header_tags", tags))
+        if "log_injection_enabled" in lib_config:
+            updated_items.append(("logs_injection", lib_config["log_injection_enabled"]))
+
+        self._set_config_items([(k, v, "remote_config") for k, v in updated_items])

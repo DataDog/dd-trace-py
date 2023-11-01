@@ -58,6 +58,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def _online(self):
         # type: () -> None
+
         with StopWatch() as sw:
             if not self._client.request():
                 # An error occurred, so we transition back to the agent check
