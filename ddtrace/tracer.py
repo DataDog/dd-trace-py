@@ -22,6 +22,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -223,6 +224,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
+        self._user_sampler: Optional[BaseSampler] = None
         self._sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -276,6 +278,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+        config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -407,6 +410,7 @@ class Tracer(object):
 
         if sampler is not None:
             self._sampler = sampler
+            self._user_sampler = sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -1048,3 +1052,18 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+    def _on_global_config_update(self, cfg, items):
+        # type: (Config, List) -> None
+        if "_trace_sample_rate" in items:
+            # Reset the user sampler if one exists
+            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
+                self.configure(sampler=self._user_sampler)
+                return
+
+            sample_rate = None
+            if cfg._get_source("_trace_sample_rate") != "default":
+                sample_rate = cfg._trace_sample_rate
+            sampler = DatadogSampler(default_sample_rate=sample_rate)
+            self._sampler = sampler
+            self.configure()

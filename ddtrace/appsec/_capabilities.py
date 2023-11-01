@@ -29,6 +29,7 @@ class Flags(enum.IntFlag):
     ASM_CUSTOM_BLOCKING_RESPONSE = 1 << 9
     ASM_TRUSTED_IPS = 1 << 10
     ASM_API_SECURITY_SAMPLE_RATE = 1 << 11
+    APM_TRACING_SAMPLE_RATE = 1 << 12
 
 
 _ALL_ASM_BLOCKING = (
@@ -54,6 +55,7 @@ def _appsec_rc_flags(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
             value |= _ALL_ASM_BLOCKING
         if asm_config._api_security_enabled:
             value |= Flags.ASM_API_SECURITY_SAMPLE_RATE
+    value |= Flags.APM_TRACING_SAMPLE_RATE
     return value
 
 
