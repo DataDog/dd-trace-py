@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    redis: Updates the resource name of redis spans the only include the command (ex: SET/GET/PUSH/....).
+    redis: Updates the resource name of redis spans to only include the command (ex: SET/GET/PUSH/....).
     To revert to the previous behavior set ``DD_REDIS_RESOURCE_ONLY_COMMAND`` to ``FALSE``.
