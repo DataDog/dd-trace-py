@@ -421,7 +421,6 @@ def test_span_link_v04_encoding():
             )
         ],
     )
-
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
     span._links[0]._drop_attribute("drop_me")
@@ -437,7 +436,6 @@ def test_span_link_v04_encoding():
 
     decoded_span = decoded_trace[0][0]
     assert b"span_links" in decoded_span
-
     assert decoded_span[b"span_links"] == [
         {
             b"trace_id": 456,
