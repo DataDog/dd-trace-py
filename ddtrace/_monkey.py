@@ -3,13 +3,14 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from wrapt.importer import when_imported
+from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .settings import _config as config
+from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -215,7 +216,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if config._iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()

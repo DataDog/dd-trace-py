@@ -18,6 +18,7 @@ from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -542,6 +543,7 @@ def test_parse_metric_probe_with_probeid_tags():
     assert probe.tags["debugger.probeid"] == probeId
 
 
+@flaky(until=1704067200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 

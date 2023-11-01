@@ -15,6 +15,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
 from . import _hooks
@@ -130,7 +131,7 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
-        if config._api_security_enabled:
+        if asm_config._api_security_enabled:
             from ddtrace.appsec._api_security.api_manager import APIManager
 
             APIManager.enable()
@@ -139,7 +140,7 @@ def _default_span_processors_factory(
         if appsec_processor:
             span_processors.append(appsec_processor)
     else:
-        if config._api_security_enabled:
+        if asm_config._api_security_enabled:
             from ddtrace.appsec._api_security.api_manager import APIManager
 
             APIManager.disable()
@@ -248,17 +249,17 @@ class Tracer(object):
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = config._partial_flush_enabled
         self._partial_flush_min_spans = config._partial_flush_min_spans
-        self._appsec_enabled = config._appsec_enabled
+        self._asm_enabled = asm_config._asm_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
-        self._iast_enabled = config._iast_enabled
+        self._iast_enabled = asm_config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._appsec_enabled,
+            self._asm_enabled,
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
@@ -410,10 +411,10 @@ class Tracer(object):
             self._partial_flush_min_spans = partial_flush_min_spans
 
         if appsec_enabled is not None:
-            self._appsec_enabled = config._appsec_enabled = appsec_enabled
+            self._asm_enabled = asm_config._asm_enabled = appsec_enabled
 
         if iast_enabled is not None:
-            self._iast_enabled = config._iast_enabled = iast_enabled
+            self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
         if sampler is not None:
             self._sampler = sampler
@@ -494,7 +495,7 @@ class Tracer(object):
                 self._writer,
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
-                self._appsec_enabled,
+                self._asm_enabled,
                 self._iast_enabled,
                 self._compute_stats,
                 self._single_span_sampling_rules,
@@ -545,7 +546,7 @@ class Tracer(object):
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._appsec_enabled,
+            self._asm_enabled,
             self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,

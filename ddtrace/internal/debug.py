@@ -14,6 +14,7 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
 
@@ -153,9 +154,9 @@ def collect(tracer):
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
-        asm_enabled=ddtrace.config._appsec_enabled,
-        iast_enabled=ddtrace.config._iast_enabled,
-        waf_timeout=ddtrace.config._waf_timeout,
+        asm_enabled=asm_config._asm_enabled,
+        iast_enabled=asm_config._iast_enabled,
+        waf_timeout=asm_config._waf_timeout,
         remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 
