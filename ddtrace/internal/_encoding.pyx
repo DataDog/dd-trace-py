@@ -589,7 +589,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                         if ret != 0:
                             return ret
                 else:
-                    raise ValueError(f"span link field ({k}) has a value ({v}) with an unsupported type, type={type(v)}")
+                    raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
                 if ret != 0:
                     return ret
         return 0
