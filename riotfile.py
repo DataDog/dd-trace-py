@@ -2175,11 +2175,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="logbook",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/logbook",
+            pkgs={
+                "logbook": [latest],
+            },
+        ),
+        Venv(
             name="loguru",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/loguru",
             pkgs={
-                "loguru": ["~=0.4.0", latest],
+                "logbook": ["~=0.4.0", latest],
             },
         ),
         Venv(

@@ -241,6 +241,9 @@
         "asynctest": [
             "ddtrace/contrib/asynctest/*"
         ],
+        "logbook": [
+            "ddtrace/contrib/logbook/*"
+        ],
         "logging": [
             "ddtrace/contrib/logging/*"
         ],
@@ -479,6 +482,10 @@
             "@contrib",
             "@tracing",
             "@logging"
+        ],
+        "logbook": [
+            "@logbook",
+            "tests/contrib/logbook/*"
         ],
         "loguru": [
             "@loguru",
