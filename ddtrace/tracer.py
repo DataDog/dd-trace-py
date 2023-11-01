@@ -24,6 +24,7 @@ from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import VERSION_KEY
 from .context import Context
+from .filters import FilterOutAll
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -125,6 +126,8 @@ def _default_span_processors_factory(
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    if config.trace_filter_out_all:
+        trace_filters += FilterOutAll()
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]

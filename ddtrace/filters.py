@@ -69,3 +69,9 @@ class FilterRequestsOnUrl(TraceFilter):
                     if regexp.match(url):
                         return None
         return trace
+
+
+class FilterOutAll(TraceFilter):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        return None

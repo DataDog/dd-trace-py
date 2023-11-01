@@ -346,6 +346,8 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
+        self.trace_filter_out_all = os.getenv("DD_TRACE_FILTER_OUT_ALL", default=False)
+
         self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
         self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
         self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
