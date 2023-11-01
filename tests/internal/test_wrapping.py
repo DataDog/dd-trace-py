@@ -202,3 +202,27 @@ def test_wrap_stack():
     wrap(f, wrapper)
 
     assert [frame.f_code.co_name for frame in f()[:4]] == ["f", "wrapper", "f", "test_wrap_stack"]
+
+
+def test_wrap_closure():
+    channel = []
+
+    def wrapper(f, args, kwargs):
+        channel.append((args, kwargs))
+        retval = f(*args, **kwargs)
+        channel.append(retval)
+        return retval
+
+    def outer(answer=42):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    wrap(outer, wrapper)
+
+    closure = outer()
+    wrap(closure, wrapper)
+
+    assert closure(1, 2, 3) == (1, 2, 3, 42)
+    assert channel == [((42,), {}), closure, ((1, 2, 3), {}), (1, 2, 3, 42)]

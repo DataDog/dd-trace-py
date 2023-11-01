@@ -100,3 +100,17 @@ class TestOperatorsReplacement(BaseReplacement):
         result = mod_py3.do_repr_fstring_with_format_twice(obj)  # pylint: disable=no-member
         assert result == "foo a      foo a      "
         assert as_formatted_evidence(result) == ":+-foo-+: a      :+-foo-+: a      "
+
+    @pytest.mark.parametrize(
+        "function",
+        [
+            mod_py3.do_repr_fstring_with_expression1,
+            mod_py3.do_repr_fstring_with_expression2,
+            mod_py3.do_repr_fstring_with_expression3,
+            mod_py3.do_repr_fstring_with_expression4,
+            mod_py3.do_repr_fstring_with_expression5,
+        ],
+    )
+    def test_string_fstring_non_string(self, function):  # type: () -> None
+        result = function()  # pylint: disable=no-member
+        assert result == "Hello world, True!"
