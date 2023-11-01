@@ -409,9 +409,8 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
-        # This method sets a numeric tag value for the given key.
-
-        # Enforce a specific connstant for `_dd.measured`
+        """This method sets a numeric tag value for the given key."""
+        # Enforce a specific constant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
@@ -440,6 +439,9 @@ class Span(object):
         self._metrics[key] = value
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
+        """Set a dictionary of metrics on the given span. Keys must be
+        must be strings (or stringable). Values must be numeric.
+        """
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
