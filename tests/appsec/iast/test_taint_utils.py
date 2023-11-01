@@ -265,3 +265,31 @@ def test_json_encode_list():
     )
 
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
+
+
+def test_simplejson_encode_dict():
+    import simplejson as json
+
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_dict) == (
+        '{"tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", '
+        '{"tr_key_005": "tr_val_004"}], "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}}}'
+    )
+
+
+def test_simplejson_encode_list():
+    import simplejson as json
+
+    tainted_list = LazyTaintList(
+        ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
