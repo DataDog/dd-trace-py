@@ -6,8 +6,8 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
-from PIL import Image
 import mock
+from PIL import Image
 import pytest
 import vcr
 

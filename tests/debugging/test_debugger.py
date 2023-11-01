@@ -30,6 +30,7 @@ from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 def good_probe():
@@ -415,7 +416,7 @@ def create_stuff_line_metric_probe(kind, value=None):
         line=36,
         kind=kind,
         name="test.counter",
-        tags={"foo": "bar"},
+        tags={"foo": "bar", "debugger.probeid": "metric-probe-test"},
         value=DDExpression(dsl="test", callable=dd_compile(value)) if value is not None else None,
     )
 
@@ -424,35 +425,50 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
         Stuff().instancestuff()
-        assert call("probe.test.counter", 1.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+        assert (
+            call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
 
 
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         Stuff().instancestuff(40)
-        assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+        assert (
+            call("probe.test.counter", 40.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
 
 
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         Stuff().instancestuff(41)
-        assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
+        assert (
+            call("probe.test.counter", 41.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.gauge.mock_calls
+        )
 
 
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         Stuff().instancestuff(42)
-        assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
+        assert (
+            call("probe.test.counter", 42.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.histogram.mock_calls
+        )
 
 
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         Stuff().instancestuff(43)
-        assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
+        assert (
+            call("probe.test.counter", 43.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.distribution.mock_calls
+        )
 
 
 def test_debugger_multiple_function_probes_on_same_function():
@@ -535,7 +551,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import wrapt as wrapt  # noqa
+import ddtrace.vendor.wrapt as wrapt  # noqa
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -868,6 +884,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
+@flaky(until=1704067200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 

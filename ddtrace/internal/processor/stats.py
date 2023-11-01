@@ -12,7 +12,6 @@ from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.span import _is_top_level
 
-from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
 from .._encoding import packb
 from ..agent import get_connection
@@ -22,6 +21,7 @@ from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
+from . import SpanProcessor
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover

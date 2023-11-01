@@ -1,5 +1,4 @@
 import structlog
-from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
@@ -12,6 +11,7 @@ from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
 from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
+from ..trace_utils import wrap as _w
 
 
 config._add(

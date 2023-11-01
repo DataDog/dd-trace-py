@@ -3,7 +3,8 @@
 set -eu
 
 PREFIX=${1}
-AUSTIN_VERSION="3.4.1"
+AUSTIN_VERSION="3.6"
+K6_VERSION="0.26.2"
 
 export DJANGO_SETTINGS_MODULE="config.settings.production"
 export DJANGO_ALLOWED_HOSTS="127.0.0.1"
@@ -34,24 +35,22 @@ pushd ${PREFIX}/trace-examples/
     popd
 popd
 
-# Install k6 and austin
+# Install k6
 pushd ${PREFIX}
     if [[ "$OSTYPE" == "linux-gnu"* ]]
     then
-        curl -s https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-gnu-linux-amd64.tar.xz -L | tar xJv
-        curl -s https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz
+        curl -s https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux64.tar.gz -L | tar xvz
     elif [[ "$OSTYPE" == "darwin"* ]]
     then
-        curl -s https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-mac64.zip -L -o ${PREFIX}/austin.zip
-        unzip austin.zip
-        rm -f austin.zip
-
-        curl -s https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-mac.zip -L -o ${PREFIX}/k6.zip
+        curl -s https://github.com/loadimpact/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-mac.zip -L -o ${PREFIX}/k6.zip
         unzip k6.zip
         rm -f k6.zip
     fi
-    chmod +x austin
+    
 popd
+
+# Install austin
+pip install "austin-dist~=$AUSTIN_VERSION"
 
 # Install ddtrace
 pip install -e .
