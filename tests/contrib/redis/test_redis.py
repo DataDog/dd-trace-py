@@ -639,8 +639,16 @@ class TestRedisPatchSnapshot(TracerTestCase):
     @snapshot()
     def test_full_command_in_resource_env(self):
         self.r.get("put_key_in_resource")
+        p = self.r.pipeline(transaction=False)
+        p.set("pipeline-cmd1", 1)
+        p.set("pipeline-cmd2", 2)
+        p.execute()
 
     @snapshot()
     def test_full_command_in_resource_config(self):
         with self.override_config("redis", dict(resource_only_command=False)):
             self.r.get("put_key_in_resource")
+            p = self.r.pipeline(transaction=False)
+            p.set("pipeline-cmd1", 1)
+            p.set("pipeline-cmd2", 2)
+            p.execute()

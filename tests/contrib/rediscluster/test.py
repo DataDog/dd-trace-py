@@ -271,6 +271,11 @@ def test_full_command_in_resource_env():
     with ddtrace.tracer.trace("web-request", service="test"):
         redis_client = _get_test_client()
         redis_client.get("put_key_in_resource")
+        p = redis_client.pipeline(transaction=False)
+        p.set("pipeline-cmd1", 1)
+        p.set("pipeline-cmd2", 2)
+        p.execute()
+
 
 
 @pytest.mark.snapshot
@@ -279,3 +284,7 @@ def test_full_command_in_resource_config(tracer, redis_client):
     with override_config("rediscluster", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):
             redis_client.get("put_key_in_resource")
+            p = redis_client.pipeline(transaction=False)
+            p.set("pipeline-cmd1", 1)
+            p.set("pipeline-cmd2", 2)
+            p.execute()

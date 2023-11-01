@@ -14,7 +14,7 @@
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "5d81dae7c4bc42b4a4cea05a33080352",
+      "runtime-id": "1e05369c917e47d6a0c31264f74a62b3",
       "span.kind": "client"
     },
     "metrics": {
@@ -22,11 +22,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9249,
+      "process_id": 61993,
       "redis.args_length": 1
     },
-    "duration": 9334000,
-    "start": 1698790187976100000
+    "duration": 13147000,
+    "start": 1698858518266514000
   }],
 [
   {
@@ -40,16 +40,16 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "5d81dae7c4bc42b4a4cea05a33080352"
+      "runtime-id": "1e05369c917e47d6a0c31264f74a62b3"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9249
+      "process_id": 61993
     },
-    "duration": 1071000,
-    "start": 1698790188001422000
+    "duration": 2068000,
+    "start": 1698858518296245000
   },
      {
        "name": "redis.command",
@@ -72,6 +72,29 @@
          "db.row_count": 0,
          "redis.args_length": 2
        },
-       "duration": 962000,
-       "start": 1698790188001506000
+       "duration": 972000,
+       "start": 1698858518296339000
+     },
+     {
+       "name": "redis.command",
+       "service": "rediscluster",
+       "resource": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "_dd.base_service": "",
+         "component": "rediscluster",
+         "db.system": "redis",
+         "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "redis.pipeline_length": 2
+       },
+       "duration": 854000,
+       "start": 1698858518297431000
      }]]

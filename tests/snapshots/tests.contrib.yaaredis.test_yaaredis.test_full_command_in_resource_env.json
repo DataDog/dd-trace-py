@@ -10,16 +10,16 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "21961bb25b5e45639f21c86a74d03f4b"
+      "runtime-id": "3c2060b13ff1469387b2c823d7d43f18"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91290
+      "process_id": 78507
     },
-    "duration": 5114000,
-    "start": 1698788430565036000
+    "duration": 14945000,
+    "start": 1698860084269055000
   },
      {
        "name": "redis.command",
@@ -45,6 +45,32 @@
          "out.redis_db": 0,
          "redis.args_length": 2
        },
-       "duration": 4983000,
-       "start": 1698788430565150000
+       "duration": 12481000,
+       "start": 1698860084269179000
+     },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "_dd.base_service": "",
+         "component": "yaaredis",
+         "db.system": "redis",
+         "out.host": "localhost",
+         "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "network.destination.port": 6379,
+         "out.redis_db": 0,
+         "redis.pipeline_length": 2
+       },
+       "duration": 2254000,
+       "start": 1698860084281737000
      }]]

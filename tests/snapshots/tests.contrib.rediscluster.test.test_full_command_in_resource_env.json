@@ -10,16 +10,16 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "464ff28bde8c4ef58736c456aee2df0d"
+      "runtime-id": "f771a3107ab24471ad9b83b6ca492fba"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9885
+      "process_id": 62002
     },
-    "duration": 24660000,
-    "start": 1698790223122227000
+    "duration": 41534000,
+    "start": 1698858518117628000
   },
      {
        "name": "redis.command",
@@ -42,6 +42,29 @@
          "db.row_count": 0,
          "redis.args_length": 2
        },
-       "duration": 2637000,
-       "start": 1698790223144234000
+       "duration": 2997000,
+       "start": 1698858518138810000
+     },
+     {
+       "name": "redis.command",
+       "service": "rediscluster",
+       "resource": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "_dd.base_service": "",
+         "component": "rediscluster",
+         "db.system": "redis",
+         "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "redis.pipeline_length": 2
+       },
+       "duration": 17249000,
+       "start": 1698858518141893000
      }]]

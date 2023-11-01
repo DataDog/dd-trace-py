@@ -232,6 +232,10 @@ def test_full_command_in_resource_env():
         with ddtrace.tracer.trace("web-request", service="test"):
             redis_client = yaaredis.StrictRedis(port=REDIS_CONFIG["port"])
             await redis_client.get("put_key_in_resource")
+            p = await redis_client.pipeline(transaction=False)
+            await p.set("pipeline-cmd1", 1)
+            await p.set("pipeline-cmd2", 2)
+            await p.execute()
 
     ddtrace.patch(yaaredis=True)
     asyncio.run(traced_client())
@@ -244,3 +248,7 @@ async def test_full_command_in_resource_config(tracer, traced_yaaredis):
     with override_config("yaaredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):
             await traced_yaaredis.get("put_key_in_resource")
+            p = await traced_yaaredis.pipeline(transaction=False)
+            await p.set("pipeline-cmd1", 1)
+            await p.set("pipeline-cmd2", 2)
+            await p.execute()
