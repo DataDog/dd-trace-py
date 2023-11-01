@@ -4,7 +4,8 @@ from functools import partial
 from pathlib import Path
 
 from six import PY2
-from wrapt.wrappers import FunctionWrapper
+
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 try:

@@ -11,7 +11,6 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -30,6 +29,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -112,20 +112,11 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
-        "_appsec_enabled",
-        "_api_security_enabled",
-        "_api_security_sample_rate",
-        "_waf_timeout",
-        "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
-        "_automatic_login_events_mode",
-        "_user_model_login_field",
-        "_user_model_email_field",
-        "_user_model_name_field",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
         "_sampling_rules",
@@ -141,19 +132,37 @@ def override_global_config(values):
         "_trace_writer_log_err_payload",
     ]
 
+    asm_config_keys = [
+        "_asm_enabled",
+        "_api_security_enabled",
+        "_api_security_sample_rate",
+        "_waf_timeout",
+        "_iast_enabled",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
+    ]
+
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
+    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+        elif key in asm_config_keys:
+            setattr(ddtrace.settings.asm.config, key, value)
     try:
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        for key, value in asm_originals.items():
+            setattr(ddtrace.settings.asm.config, key, value)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -173,6 +182,7 @@ def override_config(integration, values):
         yield
     finally:
         options.update(original)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -1097,6 +1107,11 @@ def snapshot(
 class AnyStr(object):
     def __eq__(self, other):
         return isinstance(other, str)
+
+
+class AnyStringWithText(str):
+    def __eq__(self, other):
+        return self in other
 
 
 class AnyInt(object):
