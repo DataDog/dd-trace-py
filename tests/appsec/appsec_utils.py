@@ -106,4 +106,5 @@ def appsec_application_server(
             )
     finally:
         os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+        server_process.terminate()
         server_process.wait()
