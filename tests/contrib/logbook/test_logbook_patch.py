@@ -6,7 +6,6 @@
 from ddtrace.contrib.logbook import get_version
 from ddtrace.contrib.logbook.patch import patch
 
-
 try:
     from ddtrace.contrib.logbook.patch import unpatch
 except ImportError:

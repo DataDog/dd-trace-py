@@ -1,12 +1,10 @@
 import attr
 import logbook
-from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
-from ...internal.utils import set_argument_value
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
 from ..logging.constants import RECORD_ATTR_SPAN_ID
@@ -14,6 +12,7 @@ from ..logging.constants import RECORD_ATTR_TRACE_ID
 from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
 from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
+from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
 
 
@@ -78,7 +77,7 @@ def _w_process_record(func, instance, args, kwargs):
 def patch():
     """
     Patch ``logbook`` module for injection of tracer information
-    by editing a log record created via ``logbook.process_record``
+    by editing a log record created via ``logbook.base.RecordDispatcher.process_record``
     """
     if getattr(logbook, "_datadog_patch", False):
         return
