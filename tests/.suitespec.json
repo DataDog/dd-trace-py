@@ -499,7 +499,8 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@logging"
+            "@logging",
+            "tests/contrib/logging/*"
         ],
         "loguru": [
             "@loguru",
