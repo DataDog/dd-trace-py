@@ -402,7 +402,8 @@ class TelemetryTestSession(object):
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
-        return httplib.HTTPConnection(parsed.hostname, parsed.port)
+        # A timeout of 5 seconds will hopefully prevent http.client.RemoteDisconnected errors
+        return httplib.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
 
     def _request(self, method, url):
         # type: (str, str) -> Tuple[int, bytes]
