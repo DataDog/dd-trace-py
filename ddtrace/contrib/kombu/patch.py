@@ -2,13 +2,13 @@ import os
 
 # 3p
 import kombu
-import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
 
 # project
 from .. import trace_utils
