@@ -83,6 +83,13 @@ class IAST(metaclass=Constant_Class):
     SEP_MODULES = ","
 
 
+class IAST_SPAN_TAGS(metaclass=Constant_Class):
+    """Specific constants for IAST span tags"""
+
+    TELEMETRY_REQUEST_TAINTED = "_dd.iast.telemetry.request.tainted"
+    TELEMETRY_EXECUTED_SINK = "_dd.iast.telemetry.executed.sink"
+
+
 class WAF_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the waf library for requesting data from requests"""
 

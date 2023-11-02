@@ -2,8 +2,6 @@ import functools
 import io
 import json
 
-from wrapt import wrap_function_wrapper as _w
-from wrapt.importer import when_imported
 import xmltodict
 
 from ddtrace import config
@@ -15,6 +13,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)
