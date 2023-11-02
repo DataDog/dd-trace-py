@@ -108,7 +108,8 @@ test = [
 extra-dependencies = [
     "pytest",
     "pytest-cov",
-    "hypothesis<6.45.1"
+    "hypothesis<6.45.1",
+    "mock"
 ]
 [envs.meta-testing.scripts]
 meta-testing = [

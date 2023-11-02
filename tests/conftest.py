@@ -18,6 +18,7 @@ from typing import Tuple
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import attr
+import mock
 import pytest
 
 import ddtrace
@@ -389,7 +390,9 @@ def remote_config_worker():
 def telemetry_writer():
     telemetry_writer = TelemetryWriter(is_periodic=False)
     telemetry_writer.enable()
-    yield telemetry_writer
+
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
+        yield telemetry_writer
 
 
 @attr.s
@@ -451,13 +454,6 @@ def test_agent_session(telemetry_writer, request):
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-    existing_headers = parse_tags_str(os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS", ""))
-    existing_headers.update({"X-Datadog-Test-Session-Token": token})
-    os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"] = ",".join(
-        ["%s:%s" % (k, v) for k, v in existing_headers.items()]
-    )
-
     requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_writer)
 
     conn = requests.create_connection()
@@ -471,5 +467,3 @@ def test_agent_session(telemetry_writer, request):
         yield requests
     finally:
         telemetry_writer.reset_queues()
-        del telemetry_writer._client._headers["X-Datadog-Test-Session-Token"]
-        del os.environ["_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS"]
