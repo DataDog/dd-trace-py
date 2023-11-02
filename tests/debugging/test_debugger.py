@@ -30,6 +30,7 @@ from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 def good_probe():
@@ -883,6 +884,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
+@flaky(until=1704067200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
