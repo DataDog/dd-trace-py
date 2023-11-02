@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import datetime as dt
 import inspect
 import json
 import os
@@ -11,7 +12,6 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -30,6 +30,7 @@ from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1109,6 +1110,11 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
+class AnyStringWithText(str):
+    def __eq__(self, other):
+        return self in other
+
+
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
@@ -1234,3 +1240,47 @@ def add_dd_env_variables_to_headers(headers):
         headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
 
     return headers
+
+
+def _get_skipped_item(item, skip_reason):
+
+    if not inspect.isfunction(item) and not inspect.isclass(item):
+        raise ValueError(f"Unexpected skipped object: {item}")
+
+    if not hasattr(item, "pytestmark"):
+        item.pytestmark = []
+
+    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+
+    return item
+
+
+def _should_skip(condition=None, until: int = None):
+    if until is None:
+        until = dt.datetime(3000, 1, 1)
+    else:
+        until = dt.datetime.fromtimestamp(until)
+    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+        return True
+    if condition is not None and not condition:
+        return False
+    return True
+
+
+def flaky(until: int = None, condition: bool = None, reason: str = None):
+    return skip_if_until(until, condition=condition, reason=reason)
+
+
+def skip_if_until(until: int, condition=None, reason=None):
+    """Conditionally skip the test until the given epoch timestamp"""
+    skip = _should_skip(condition=condition, until=until)
+
+    def decorator(function_or_class):
+
+        if not skip:
+            return function_or_class
+
+        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
+        return _get_skipped_item(function_or_class, full_reason)
+
+    return decorator
