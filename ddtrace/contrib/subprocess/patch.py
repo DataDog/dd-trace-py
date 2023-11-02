@@ -24,6 +24,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -42,7 +43,7 @@ def get_version():
 def patch():
     # type: () -> List[str]
     patched = []  # type: List[str]
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return patched
 
     import os
@@ -182,10 +183,6 @@ class SubprocessCmdLine(object):
             self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
                 cache_key, self.env_vars, self.binary, self.arguments, self.truncated
             )
-        if config._iast_enabled:
-            from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
-
-            _iast_report_cmdi(shell_args)
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):

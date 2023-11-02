@@ -3,14 +3,13 @@ import os
 import sys
 
 import aioredis
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -23,6 +22,7 @@ from ...internal.schema import schematize_cache_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
+from .. import trace_utils
 from ..redis.asyncio_patch import _run_redis_command_async
 from ..trace_utils_redis import ROW_RETURNING_COMMANDS
 from ..trace_utils_redis import _trace_redis_cmd

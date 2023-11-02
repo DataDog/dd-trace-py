@@ -6,10 +6,10 @@ import sys
 
 import pytest
 
-from ddtrace import config
 from ddtrace.appsec import _constants
-from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.test_processor import RULES_SRB
+from ddtrace.settings.asm import config as asm_config
+from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
+from tests.appsec.appsec.test_processor import RULES_SRB
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -26,8 +26,8 @@ def _aux_appsec_get_root_span(
 ):
     if cookies is None:
         cookies = {}
-    tracer._appsec_enabled = config._appsec_enabled
-    tracer._iast_enabled = config._iast_enabled
+    tracer._asm_enabled = asm_config._asm_enabled
+    tracer._iast_enabled = asm_config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     # Set cookies
@@ -49,9 +49,7 @@ def _aux_appsec_get_root_span(
 def test_api_security(client, test_spans, tracer):
     import django
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0"}
-    ):
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -64,7 +62,8 @@ def test_api_security(client, test_spans, tracer):
         )
         assert response.status_code == 200
 
-        assert config._api_security_enabled
+        assert asm_config._api_security_enabled
+        assert asm_config._api_security_sample_rate == 1.0
 
         headers_schema = {
             "1": [
@@ -124,9 +123,9 @@ def test_api_security(client, test_spans, tracer):
 def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
-    ):
+    with override_global_config(
+        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+    ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -141,7 +140,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
         loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
 
-        assert config._api_security_enabled
+        assert asm_config._api_security_enabled
 
         for name, expected_value in [
             ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -165,7 +164,7 @@ def test_api_security_with_srb(client, test_spans, tracer):
 def test_api_security_deactivated(client, test_spans, tracer):
     """Test if blocking is still working as expected with api security deactivated"""
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=False)), override_env(
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)), override_env(
         {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
@@ -182,7 +181,7 @@ def test_api_security_deactivated(client, test_spans, tracer):
         loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
 
-        assert not config._api_security_enabled
+        assert not asm_config._api_security_enabled
 
         for name in [
             "_dd.appsec.s.req.body",

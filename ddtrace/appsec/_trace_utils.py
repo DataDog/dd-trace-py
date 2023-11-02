@@ -14,6 +14,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -55,7 +56,7 @@ def _track_user_login_common(
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
         auto_tag_mode = (
-            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else config._automatic_login_events_mode
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else asm_config._automatic_login_events_mode
         )
         span.set_tag_str(mode_tag, auto_tag_mode)
 
@@ -116,7 +117,7 @@ def track_user_login_success_event(
 
     if (
         user_id and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-        and not config._user_model_login_field
+        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -140,7 +141,7 @@ def track_user_login_failure_event(
 
     if (
             user_id and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-            and not config._user_model_login_field
+            and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -221,7 +222,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
     :param userid: the ID of the user as registered by `set_user`
     """
 
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning(
             "One click blocking of user ids is disabled. To use this feature please enable "
             "Application Security Monitoring"
@@ -253,7 +254,7 @@ def block_request() -> None:
     could be different among frameworks, but it usually involves raising some kind of internal Exception,
     meaning that if you capture the exception the request blocking could not work.
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
         return
 
@@ -268,7 +269,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
         return
 
@@ -286,7 +287,7 @@ def _on_django_login(
     mode,
     info_retriever,
 ):
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return
 
     if user:
@@ -316,7 +317,7 @@ def _on_django_login(
 
 
 def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return True, result_user
 
     extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields

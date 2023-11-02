@@ -2,7 +2,6 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -11,6 +10,7 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import stringify
 from ...internal.schema import schematize_url_operation
+from .. import trace_utils
 from ..asyncio import context_provider
 
 

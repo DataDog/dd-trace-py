@@ -55,3 +55,7 @@ class REQUESTS_MODE(IntEnum):
     AGENTLESS_EVENTS = 0
     EVP_PROXY_EVENTS = 1
     TRACES = 2
+
+
+# Miscellaneous constants
+CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"

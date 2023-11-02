@@ -32,8 +32,7 @@ DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
 @cached()
-def _resolve_source_file(path):
-    # type: (str) -> Optional[str]
+def _resolve_source_file(path: str) -> Optional[str]:
     """Resolve the source path for the given path.
 
     This recursively strips parent directories until it finds a file that
@@ -61,10 +60,10 @@ MAXFIELDS = 20
 
 @attr.s
 class CaptureLimits(object):
-    max_level = attr.ib(type=int, default=MAXLEVEL)  # type: int
-    max_size = attr.ib(type=int, default=MAXSIZE)  # type: int
-    max_len = attr.ib(type=int, default=MAXLEN)  # type: int
-    max_fields = attr.ib(type=int, default=MAXFIELDS)  # type: int
+    max_level = attr.ib(type=int, default=MAXLEVEL)
+    max_size = attr.ib(type=int, default=MAXSIZE)
+    max_len = attr.ib(type=int, default=MAXLEN)
+    max_fields = attr.ib(type=int, default=MAXFIELDS)
 
 
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
@@ -76,8 +75,7 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
     version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
 
-    def update(self, other):
-        # type: (Probe) -> None
+    def update(self, other: "Probe") -> None:
         """Update the mutable fields from another probe."""
         if self.probe_id != other.probe_id:
             log.error("Probe ID mismatch when updating mutable fields")
@@ -96,7 +94,7 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 @attr.s
 class RateLimitMixin(six.with_metaclass(abc.ABCMeta)):
     rate = attr.ib(type=float, eq=False)
-    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
+    limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
 
     @limiter.default
     def _(self):
@@ -117,9 +115,9 @@ class ProbeConditionMixin(object):
     probe.
     """
 
-    condition = attr.ib(type=Optional[DDExpression])  # type: Optional[DDExpression]
+    condition = attr.ib(type=Optional[DDExpression])
     condition_error_rate = attr.ib(type=float, eq=False)
-    condition_error_limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)  # type: RateLimiter
+    condition_error_limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
 
     @condition_error_limiter.default
     def _(self):
@@ -134,8 +132,7 @@ class ProbeConditionMixin(object):
 
 @attr.s
 class ProbeLocationMixin(object):
-    def location(self):
-        # type: () -> Tuple[str,str]
+    def location(self) -> Tuple[str, str]:
         """return a turple of (location,sublocation) for the probe.
         For example, line probe returns the (file,line) and method probe return (module,method)
         """
@@ -196,8 +193,7 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeC
 @attr.s
 class TemplateSegment(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
-    def eval(self, _locals):
-        # type: (Dict[str,Any]) -> str
+    def eval(self, _locals: Dict[str, Any]) -> str:
         pass
 
 
@@ -205,17 +201,15 @@ class TemplateSegment(six.with_metaclass(abc.ABCMeta)):
 class LiteralTemplateSegment(TemplateSegment):
     str_value = attr.ib(type=str, default=None)
 
-    def eval(self, _locals):
-        # type: (Dict[str,Any]) -> Any
+    def eval(self, _locals: Dict[str, Any]) -> Any:
         return self.str_value
 
 
 @attr.s
 class ExpressionTemplateSegment(TemplateSegment):
-    expr = attr.ib(type=DDExpression, default=None)  # type: DDExpression
+    expr = attr.ib(type=DDExpression, default=None)
 
-    def eval(self, _locals):
-        # type: (Dict[str,Any]) -> Any
+    def eval(self, _locals: Dict[str, Any]) -> Any:
         return self.expr.eval(_locals)
 
 
@@ -224,8 +218,7 @@ class StringTemplate(object):
     template = attr.ib(type=str)
     segments = attr.ib(type=List[TemplateSegment])
 
-    def render(self, _locals, serializer):
-        # type: (Dict[str,Any], Callable[[Any], str]) -> str
+    def render(self, _locals: Dict[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
             return value if _isinstance(value, six.string_types) else serializer(value)
 
@@ -237,7 +230,7 @@ class LogProbeMixin(object):
     template = attr.ib(type=str)
     segments = attr.ib(type=List[TemplateSegment])
     take_snapshot = attr.ib(type=bool)
-    limits = attr.ib(type=CaptureLimits, eq=False)  # type: CaptureLimits
+    limits = attr.ib(type=CaptureLimits, eq=False)
 
 
 @attr.s
