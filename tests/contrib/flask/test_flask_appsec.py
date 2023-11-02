@@ -1,24 +1,31 @@
 import json
 import logging
 
+from flask import Response
+from flask import request
 import pytest
-from flask import Response, request
 
-from ddtrace.appsec._constants import APPSEC, SPAN_DATA_NAMES
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import constants, core
+from ddtrace.internal import constants
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
-from tests.appsec.appsec.test_processor import (_IP, RESPONSE_CUSTOM_HTML,
-                                                RESPONSE_CUSTOM_JSON,
-                                                RULES_BAD_VERSION,
-                                                RULES_GOOD_PATH, RULES_SRB,
-                                                RULES_SRB_METHOD,
-                                                RULES_SRB_RESPONSE,
-                                                RULES_SRBCA)
+from tests.appsec.appsec.test_processor import _IP
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_HTML
+from tests.appsec.appsec.test_processor import RESPONSE_CUSTOM_JSON
+from tests.appsec.appsec.test_processor import RULES_BAD_VERSION
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import RULES_SRB
+from tests.appsec.appsec.test_processor import RULES_SRB_METHOD
+from tests.appsec.appsec.test_processor import RULES_SRB_RESPONSE
+from tests.appsec.appsec.test_processor import RULES_SRBCA
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env, override_global_config
+from tests.utils import override_env
+from tests.utils import override_global_config
+
 
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"

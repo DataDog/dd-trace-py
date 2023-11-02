@@ -1,17 +1,18 @@
 import functools
 import json
 
-import xmltodict
 from wrapt.importer import when_imported
+import xmltodict
 
-from ddtrace.appsec._iast._patch import (if_iast_taint_returned_object_for,
-                                         if_iast_taint_yield_tuple_for)
+from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
+from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -21,10 +22,9 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec._iast._metrics import \
-                _set_metric_iast_instrumented_source
-            from ddtrace.appsec._iast._taint_tracking import (OriginType,
-                                                              taint_pyobject)
+            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+            from ddtrace.appsec._iast._taint_tracking import OriginType
+            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -48,8 +48,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 def _on_flask_patch(flask_version):
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec._iast._metrics import \
-                _set_metric_iast_instrumented_source
+            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
 
             _w(
@@ -101,10 +100,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
-        from ddtrace.appsec._iast._taint_tracking import \
-            OriginType  # noqa: F401
-        from ddtrace.appsec._iast._taint_tracking import (is_pyobject_tainted,
-                                                          taint_pyobject)
+        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 
         http_req = fn_args[0]
@@ -157,10 +155,8 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
-        from ddtrace.appsec._iast._metrics import \
-            _set_metric_iast_instrumented_source
-        from ddtrace.appsec._iast._taint_tracking import \
-            OriginType  # noqa: F401
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
@@ -183,8 +179,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
 def _on_django_patch():
     try:
-        from ddtrace.appsec._iast._taint_tracking import \
-            OriginType  # noqa: F401
+        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
 
         when_imported("django.http.request")(
             lambda m: trace_utils.wrap(

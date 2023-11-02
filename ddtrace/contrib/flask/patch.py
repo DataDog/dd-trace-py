@@ -1,16 +1,19 @@
 import flask
-import werkzeug
 from flask import request
-from werkzeug.exceptions import BadRequest, NotFound, abort
+import werkzeug
+from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import abort
 
-from ddtrace.internal.constants import (HTTP_REQUEST_BLOCKED,
-                                        STATUS_403_TYPE_AUTO)
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
-from ...internal.schema import (schematize_service_name,
-                                schematize_url_operation)
+from ...internal.schema import schematize_service_name
+from ...internal.schema import schematize_url_operation
 from ...internal.utils import http as http_utils
+
 
 # Not all versions of flask/werkzeug have this mixin
 try:
@@ -20,7 +23,8 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
@@ -29,9 +33,13 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
-from .wrappers import (_wrap_call_with_pin_check, get_current_app,
-                       simple_call_wrapper, with_instance_pin, wrap_function,
-                       wrap_view)
+from .wrappers import _wrap_call_with_pin_check
+from .wrappers import get_current_app
+from .wrappers import simple_call_wrapper
+from .wrappers import with_instance_pin
+from .wrappers import wrap_function
+from .wrappers import wrap_view
+
 
 try:
     from json import JSONDecodeError

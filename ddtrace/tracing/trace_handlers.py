@@ -1,20 +1,28 @@
 import functools
 import sys
 
-from ddtrace.constants import (ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND,
-                               SPAN_MEASURED_KEY)
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import (_get_request_header_user_agent,
-                                         _set_url_tag)
-from ddtrace.ext import SpanKind, SpanTypes, http
+from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.trace_utils import _set_url_tag
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.compat import maybe_stringify, nullcontext
-from ddtrace.internal.constants import (COMPONENT, FLASK_ENDPOINT,
-                                        FLASK_URL_RULE, FLASK_VIEW_ARGS,
-                                        HTTP_REQUEST_BLOCKED, RESPONSE_HEADERS)
+from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.compat import nullcontext
+from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_URL_RULE
+from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
+from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 
