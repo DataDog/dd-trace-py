@@ -26,8 +26,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
-from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.ci_visibility.utils import add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -571,20 +570,6 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
     test_name = _extract_test_method_name(instance)
     test_method_object = _extract_test_method_object(instance)
-
-    source_file_path = None
-    start_line = None
-    end_line = None
-
-    if test_method_object:
-        source_file_path = get_source_file_path_for_test_method(test_method_object)
-        if not source_file_path:
-            log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
-        start_line, end_line = get_source_lines_for_test_method(test_method_object)
-        if not start_line or not end_line:
-            log.debug(
-                "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
-            )
     test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
@@ -615,14 +600,9 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     span.set_tag_str(test.STATUS, test.Status.FAIL.value)
     span.set_tag_str(test.CLASS_HIERARCHY, test_suite_name)
 
-    if source_file_path:
-        span.set_tag_str(test.SOURCE_FILE, source_file_path)
-        if start_line:
-            span.set_tag(test.SOURCE_START, start_line)
-        if end_line:
-            span.set_tag(test.SOURCE_END, end_line)
-
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
+
+    add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
     _store_test_span(instance, span)
     return span

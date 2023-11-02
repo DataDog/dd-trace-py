@@ -46,8 +46,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import get_source_file_path_for_test_method
-from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.ci_visibility.utils import add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -639,30 +638,11 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
 
-        source_file_path = None
-        start_line = None
-        end_line = None
-
-        if hasattr(item, "_obj"):
-            test_method_object = item._obj
-            source_file_path = get_source_file_path_for_test_method(test_method_object)
-            if not source_file_path:
-                log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
-            start_line, end_line = get_source_lines_for_test_method(test_method_object)
-            if not start_line or not end_line:
-                log.debug(
-                    "Tried to collect source start/end lines for test method %s but an exception was raised", test_name
-                )
-
-        if source_file_path:
-            span.set_tag_str(test.SOURCE_FILE, source_file_path)
-            if start_line:
-                span.set_tag(test.SOURCE_START, start_line)
-            if end_line:
-                span.set_tag(test.SOURCE_END, end_line)
-
         if item.location and item.location[0]:
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
+        if hasattr(item, "_obj"):
+            test_method_object = item._obj
+            add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
