@@ -10,17 +10,13 @@ from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants, core
 from ddtrace.internal.compat import urlencode
-from tests.appsec.appsec.test_processor import (
-    _IP,
-    RESPONSE_CUSTOM_HTML,
-    RESPONSE_CUSTOM_JSON,
-    RULES_BAD_VERSION,
-    RULES_GOOD_PATH,
-    RULES_SRB,
-    RULES_SRB_METHOD,
-    RULES_SRB_RESPONSE,
-    RULES_SRBCA,
-)
+from tests.appsec.appsec.test_processor import (_IP, RESPONSE_CUSTOM_HTML,
+                                                RESPONSE_CUSTOM_JSON,
+                                                RULES_BAD_VERSION,
+                                                RULES_GOOD_PATH, RULES_SRB,
+                                                RULES_SRB_METHOD,
+                                                RULES_SRB_RESPONSE,
+                                                RULES_SRBCA)
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env, override_global_config
 

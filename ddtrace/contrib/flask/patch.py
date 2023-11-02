@@ -3,11 +3,13 @@ import werkzeug
 from flask import request
 from werkzeug.exceptions import BadRequest, NotFound, abort
 
-from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO
+from ddtrace.internal.constants import (HTTP_REQUEST_BLOCKED,
+                                        STATUS_403_TYPE_AUTO)
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
-from ...internal.schema import schematize_service_name, schematize_url_operation
+from ...internal.schema import (schematize_service_name,
+                                schematize_url_operation)
 from ...internal.utils import http as http_utils
 
 # Not all versions of flask/werkzeug have this mixin
@@ -27,14 +29,9 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
-from .wrappers import (
-    _wrap_call_with_pin_check,
-    get_current_app,
-    simple_call_wrapper,
-    with_instance_pin,
-    wrap_function,
-    wrap_view,
-)
+from .wrappers import (_wrap_call_with_pin_check, get_current_app,
+                       simple_call_wrapper, with_instance_pin, wrap_function,
+                       wrap_view)
 
 try:
     from json import JSONDecodeError
