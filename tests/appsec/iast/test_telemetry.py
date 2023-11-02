@@ -13,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -79,6 +80,7 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_metric_instrumented_propagation(mock_telemetry_lifecycle_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
