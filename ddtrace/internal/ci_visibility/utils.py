@@ -2,6 +2,7 @@ import inspect
 import os
 import typing
 
+import ddtrace
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
 
@@ -29,7 +30,7 @@ def get_source_lines_for_test_method(
     return start_line, end_line
 
 
-def add_start_end_source_file_path_data_to_span(span, test_method_object, test_name):
+def add_start_end_source_file_path_data_to_span(span: ddtrace.Span, test_method_object, test_name: str):
     if not test_method_object:
         log.debug(
             "Tried to collect source start/end lines for test method %s but test method object could not be found",
