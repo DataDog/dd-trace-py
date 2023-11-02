@@ -39,7 +39,7 @@ def setup():
 
 
 def test_ossystem(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -78,7 +78,7 @@ def test_ossystem(tracer, iast_span_defaults):
 
 
 def test_communicate(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -118,7 +118,7 @@ def test_communicate(tracer, iast_span_defaults):
 
 
 def test_run(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -156,7 +156,7 @@ def test_run(tracer, iast_span_defaults):
 
 
 def test_popen_wait(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -195,7 +195,7 @@ def test_popen_wait(tracer, iast_span_defaults):
 
 
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -248,7 +248,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
     ],
 )
 def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments, tag):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -296,7 +296,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_multiple_cmdi(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         patch()
         _BAD_DIR = taint_pyobject(
             pyobject="forbidden_dir/",

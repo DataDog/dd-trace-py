@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import attr
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config as config
+from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ def _is_python_version_supported():  # type: () -> bool
 
 
 def _is_iast_enabled():
-    if not config._iast_enabled:
+    if not asm_config._iast_enabled:
         return False
 
     if not _is_python_version_supported():
@@ -44,8 +44,8 @@ def _has_to_scrub(s):  # type: (str) -> bool
     global _SOURCE_VALUE_SCRUB
 
     if _SOURCE_NAME_SCRUB is None:
-        _SOURCE_NAME_SCRUB = re.compile(config._iast_redaction_name_pattern)
-        _SOURCE_VALUE_SCRUB = re.compile(config._iast_redaction_value_pattern)
+        _SOURCE_NAME_SCRUB = re.compile(asm_config._iast_redaction_name_pattern)
+        _SOURCE_VALUE_SCRUB = re.compile(asm_config._iast_redaction_value_pattern)
 
     return _SOURCE_NAME_SCRUB.match(s) is not None or _SOURCE_VALUE_SCRUB.match(s) is not None
 

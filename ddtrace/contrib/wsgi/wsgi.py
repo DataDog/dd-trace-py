@@ -17,7 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.settings import Config
 
 from six.moves.urllib.parse import quote
-import wrapt
 
 import ddtrace
 from ddtrace import config
@@ -27,6 +26,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.tracing import trace_handlers
+from ddtrace.vendor import wrapt
 
 from ...internal import core
 
