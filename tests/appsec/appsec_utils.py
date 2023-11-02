@@ -4,9 +4,8 @@ import signal
 import subprocess
 import sys
 
-import psutil
-
 from ddtrace.internal.utils.retry import RetryError
+from ddtrace.vendor import psutil
 from tests.webclient import Client
 
 
@@ -83,7 +82,7 @@ def appsec_application_server(
 
         try:
             print("Waiting for server to start")
-            client.wait(max_tries=100, delay=0.1)
+            client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
             print("Server started")
         except RetryError:
             raise AssertionError(
