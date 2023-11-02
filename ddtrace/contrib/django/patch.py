@@ -643,7 +643,6 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
     def django_asgi_modifier(span, scope):
-        # xxx emmett
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
