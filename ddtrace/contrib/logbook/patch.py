@@ -1,6 +1,5 @@
-import logbook
-
 import attr
+import logbook
 
 import ddtrace
 from ddtrace import config
