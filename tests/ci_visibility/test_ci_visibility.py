@@ -1,5 +1,7 @@
+from collections import defaultdict
 import json
 import os
+import textwrap
 import time
 
 import mock
@@ -10,6 +12,8 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
+from ddtrace.internal.ci_visibility.constants import SUITE
+from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
@@ -1028,3 +1032,331 @@ def test_encoder_py2_payload_force_unicode_strings():
     assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
         {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
     ) == {u"string_key": [1, {u"unicode_key": u"string_value"}, u"unicode_value", {u"string_key": u"unicode_value"}]}
+
+
+class TestFetchTestsToSkip:
+    @pytest.fixture(scope="function")
+    def mock_civisibility(self):
+        with mock.patch.object(CIVisibility, "__init__", return_value=None):
+            _civisibility = CIVisibility()
+            _civisibility._api_key = "notanapikey"
+            _civisibility._dd_site = "notdatadog.notcom"
+            _civisibility._service = "test-service"
+            _civisibility._git_client = None
+            _civisibility._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+            _civisibility._tags = {
+                ci.git.REPOSITORY_URL: "test_repo_url",
+                ci.git.COMMIT_SHA: "testcommitsssshhhaaaa1234",
+            }
+
+            yield _civisibility
+            CIVisibility._test_suites_to_skip = None
+            CIVisibility._tests_to_skip = defaultdict(list)
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _test_context_manager(self):
+        with mock.patch("ddtrace.ext.ci._get_runtime_and_os_metadata"), mock.patch("json.dumps", return_value=""):
+            yield
+
+    def test_fetch_tests_to_skip_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                        "data": [
+                            {
+                                "id": "123456789",
+                                "type": "test",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testbundle"
+                                    },
+                                    "name": "test_name_1",
+                                    "suite": "test_suite_1.py"
+                                }
+                            },
+                            {
+                                "id": "987654321",
+                                "type": "test",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testpackage/testbundle"
+                                    },
+                                    "name": "test_name_2",
+                                    "suite": "test_suite_2.py"
+                                }
+                            }
+                        ]
+                    }"""
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {
+                "testbundle/test_suite_1.py": ["test_name_1"],
+                "testpackage/testbundle/test_suite_2.py": ["test_name_2"],
+            }
+
+    def test_fetch_tests_to_skip_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                        "data": [
+                            {
+                                "id": "34640cc7ce80c01e",
+                                "type": "suite",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testbundle"
+                                    },
+                                    "suite": "test_module_1.py"
+                                }
+                            },
+                            {
+                                "id": "239fa7de754db779",
+                                "type": "suite",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testpackage/testbundle"
+                                    },
+                                    "suite": "test_suite_2.py"
+                                }
+                            }
+                        ]
+                    }"""
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == [
+                "testbundle/test_module_1.py",
+                "testpackage/testbundle/test_suite_2.py",
+            ]
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_no_data_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{}",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_no_data_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{}",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_data_is_none_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": null}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_data_is_none_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": null}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_bad_json(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{ this is not valid JSON { ",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_bad_response(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=500,
+                body="Internal server error",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_missing_key(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": [{"somekey": "someval"}]}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_type_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": "2"
+                            },
+                            "suite": 1
+                        }
+                    }]}""",
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_attribute_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": 2
+                            },
+                            "suite": "1"
+                        }
+                    }]}""",
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+
+def test_fetch_tests_to_skip_custom_configurations():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
+            DD_SERVICE="test-service",
+            DD_ENV="test-env",
+        )
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+    ), mock.patch.multiple(
+        CIVisibilityGitClient,
+        _get_repository_url=mock.DEFAULT,
+        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+        _get_filtered_revisions=mock.DEFAULT,
+        _build_packfiles=mock.DEFAULT,
+        _upload_packfiles=mock.DEFAULT,
+    ), mock.patch(
+        "ddtrace.ext.ci._get_runtime_and_os_metadata",
+        return_value={
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        },
+    ), mock.patch(
+        "ddtrace.ext.ci.tags",
+        return_value={
+            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+            "git.commit.sha": "mytestcommitsha1234",
+        },
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder._do_request",
+        return_value=Response(
+            status=200,
+            body='{"data": []}',
+        ),
+    ) as mock_do_request:
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+
+        expected_data_arg = json.dumps(
+            {
+                "data": {
+                    "type": "test_params",
+                    "attributes": {
+                        "service": "test-service",
+                        "env": "test-env",
+                        "repository_url": "git@github.com:TestDog/dd-test-py.git",
+                        "sha": "mytestcommitsha1234",
+                        "configurations": {
+                            "os.architecture": "testarch64",
+                            "os.platform": "Not Actually Linux",
+                            "os.version": "1.2.3-test",
+                            "runtime.name": "CPythonTest",
+                            "runtime.version": "1.2.3",
+                            "custom": {"disk": "slow", "memory": "low"},
+                        },
+                        "test_level": "test",
+                    },
+                }
+            }
+        )
+
+        mock_do_request.assert_called_once_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+            expected_data_arg,
+            {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
+        )
+        CIVisibility.disable()
