@@ -2,7 +2,6 @@ import logging
 
 import pytest
 import six
-import wrapt
 
 import ddtrace
 from ddtrace.constants import ENV_KEY
@@ -13,7 +12,9 @@ from ddtrace.contrib.logging.constants import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
+from tests.utils import flaky
 
 
 logger = logging.getLogger()
@@ -197,7 +198,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @pytest.mark.skip(reason="Reliable failure on trunk")
+    @flaky(until=1704067200)
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
         def create_span():
