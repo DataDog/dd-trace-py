@@ -8,6 +8,7 @@ from debugger import ModuleCollector
 from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_function_probe
+from output import log
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
@@ -48,21 +49,21 @@ class DeterministicProfiler(ExplorationDebugger):
     def report_func_calls(cls) -> None:
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, FunctionLocationMixin)):
             _tracked_funcs[".".join([probe.module, probe.func_qname])] += 1
-        print(("{:=^%ds}" % COLS).format(" Function coverage "))
-        print("")
+        log(("{:=^%ds}" % COLS).format(" Function coverage "))
+        log("")
         calls = sorted([(v, k) for k, v in _tracked_funcs.items()], reverse=True)
         if not calls:
-            print("No functions called")
+            log("No functions called")
             return
         w = max(len(f) for _, f in calls)
         called = sum(v > 0 for v in _tracked_funcs.values())
-        print("Functions called: %d/%d" % (called, len(_tracked_funcs)))
-        print("")
-        print(("{:<%d} {:>5}" % w).format("Function", "Calls"))
-        print("=" * (w + 6))
+        log("Functions called: %d/%d" % (called, len(_tracked_funcs)))
+        log("")
+        log(("{:<%d} {:>5}" % w).format("Function", "Calls"))
+        log("=" * (w + 6))
         for ncalls, func in calls:
-            print(("{:<%d} {:>5}" % w).format(func, ncalls))
-        print("")
+            log(("{:<%d} {:>5}" % w).format(func, ncalls))
+        log("")
 
     @classmethod
     def on_disable(cls) -> None:
