@@ -2,7 +2,8 @@ from collections import defaultdict
 from collections import deque
 
 from six import PY2
-from wrapt.wrappers import FunctionWrapper
+
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 try:

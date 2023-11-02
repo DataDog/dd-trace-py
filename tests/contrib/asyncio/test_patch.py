@@ -2,10 +2,10 @@ import asyncio
 import sys
 
 import pytest
-import wrapt
 
 from ddtrace.contrib.asyncio.patch import patch
 from ddtrace.contrib.asyncio.patch import unpatch
+from ddtrace.vendor import wrapt
 
 from .utils import AsyncioTestCase
 

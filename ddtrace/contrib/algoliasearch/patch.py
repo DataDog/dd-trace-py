@@ -1,5 +1,3 @@
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -8,6 +6,7 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import SPAN_KIND
