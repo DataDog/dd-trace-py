@@ -130,11 +130,12 @@ class JSONTree:
         children: List["JSONTree.Node"]
 
         pruned: int = 0
+        not_captured_depth: bool = False
         not_captured: bool = False
 
         @property
         def key(self):
-            return self.level, self.not_captured, len(self)
+            return self.not_captured_depth, self.level, self.not_captured, len(self)
 
         def __len__(self):
             return self.end - self.start
@@ -149,41 +150,58 @@ class JSONTree:
             if not self.children:
                 yield self
             else:
-                for child in self.children:
+                for child in self.children[::-1]:
                     yield from child.leaves
 
     def __init__(self, data):
         self._iter = enumerate(data)
-        self._stack = []  # TODO: deque
+        self._stack: List["JSONTree.Node"] = []  # TODO: deque
         self.root = None
         self.level = 0
 
-        self._not_captured_iter = None
+        self._string_iter = None
 
         self._state = self._object
+        self._on_string_match = self._not_captured
 
         self._parse()
+
+    def _depth_string(self):
+        self._stack[-1].not_captured_depth = True
+        return self._object
+
+    def _not_captured(self, i, c):
+        if c == '"':
+            self._string_iter = iter("depth")
+            self._on_string_match = self._depth_string
+            self._state = self._string
+
+        elif c not in " :\n\t\r":
+            self._state = self._object
+
+    def _not_captured_string(self):
+        self._stack[-1].not_captured = True
+        return self._not_captured
 
     def _escape(self, i, c):
         self._state = self._string
 
     def _string(self, i, c):
         if c == '"':
-            if self._not_captured_iter is not None and next(self._not_captured_iter, None) is None:
-                # We have successfully consumed all the characters of the
-                # "notCapturedReason" string
-                self._stack[-1].not_captured = True
-
-            self._state = self._object
+            self._state = (
+                self._on_string_match()
+                if self._string_iter is not None and next(self._string_iter, None) is None
+                else self._object
+            )
 
         elif c == "\\":
             # If we are escaping a character, we are not parsing the
             # "notCapturedReason" string.
-            self._not_captured_iter = None
+            self._string_iter = None
             self._state = self._escape
 
-        if self._not_captured_iter is not None and c != next(self._not_captured_iter, None):
-            self._not_captured_iter = None
+        if self._string_iter is not None and c != next(self._string_iter, None):
+            self._string_iter = None
 
     def _object(self, i, c):
         if c == "}":
@@ -194,7 +212,8 @@ class JSONTree:
                 self.root = o
 
         elif c == '"':
-            self._not_captured_iter = iter("notCapturedReason")
+            self._string_iter = iter("notCapturedReason")
+            self._on_string_match = self._not_captured_string
             self._state = self._string
 
         elif c == "{":
@@ -250,6 +269,7 @@ class LogSignalJsonEncoder(Encoder):
             if parent.pruned >= len(parent.children):
                 # We have pruned all the children of this parent node so we can
                 # treat it as a leaf now.
+                parent.not_captured_depth = parent.not_captured = True
                 heappush(leaves, parent)
                 for c in parent.children:
                     del nodes[c.start]

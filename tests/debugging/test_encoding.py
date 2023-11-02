@@ -513,3 +513,67 @@ def test_json_pruning(size, expected):
         MIN_LEVEL = 0
 
     assert TestEncoder(None).pruned(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}') == expected
+
+
+@pytest.mark.parametrize(
+    "size, expected",
+    [
+        (
+            400,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
+                "prune": {"type": "list", "size":2, "elements": [{"type": "Custom", "notCapturedReason": "depth"},{"type": "Custom", "notCapturedReason": "depth"}]}  # noqa
+            }""",
+        ),
+        (
+            300,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},   # noqa
+                "prune": {"type": "list", "size":2, "elements": [{},{}]}
+            }""",
+        ),
+        (
+            250,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
+                "prune": {}
+            }""",
+        ),
+        (
+            200,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{}]},  # noqa
+                "prune": {}
+            }""",
+        ),
+        (
+            150,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{},{}]},
+                "prune": {}
+            }""",
+        ),
+        (
+            100,
+            r"""{
+                "keep": {},
+                "prune": {}
+            }""",
+        ),
+        (10, r"{}"),
+    ],
+)
+def test_json_pruning_not_capture_depth(size, expected):
+    class TestEncoder(LogSignalJsonEncoder):
+        MAX_SIGNAL_SIZE = size
+        MIN_LEVEL = 0
+
+    assert (
+        TestEncoder(None).pruned(
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
+                "prune": {"type": "list", "size":2, "elements": [{"type": "Custom", "notCapturedReason": "depth"},{"type": "Custom", "notCapturedReason": "depth"}]}  # noqa
+            }""",
+        )
+        == expected
+    )
