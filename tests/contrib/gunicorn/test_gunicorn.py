@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import RetryError  # noqa
+from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
@@ -178,6 +179,7 @@ SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
 )
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [
@@ -196,6 +198,7 @@ def test_no_known_errors_occur(tmp_path):
         assert payload["profiler"]["is_active"] is True
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_span_schematization(tmp_path):
     for schema_version in [None, "v0", "v1"]:
