@@ -1,20 +1,16 @@
 import functools
-import io
 import json
 
-from wrapt import wrap_function_wrapper as _w
-from wrapt.importer import when_imported
 import xmltodict
+from wrapt.importer import when_imported
 
-from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
-from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
+from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for, if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-
 
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -25,8 +21,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
     if _is_iast_enabled():
         try:
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from ddtrace.appsec._iast._taint_tracking import OriginType, taint_pyobject
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -103,8 +98,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted, taint_pyobject
         from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 
         http_req = fn_args[0]
@@ -209,14 +203,14 @@ def _on_trace_handlers_start_response_pre(request, has_json_mixin, exception_typ
         elif hasattr(request, "form"):
             req_body = request.form.to_dict()
     except (
-            exception_type,
-            AttributeError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            json.JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
+        exception_type,
+        AttributeError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        xmltodict.expat.ExpatError,
+        xmltodict.ParsingInterrupted,
     ):
         log.warning("Failed to parse request body", exc_info=True)
     return req_body
