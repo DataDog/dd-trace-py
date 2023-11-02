@@ -14,11 +14,11 @@ import time
 from typing import Any
 from typing import Generator
 from typing import Tuple
+from unittest import mock
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import attr
-import mock
 import pytest
 
 import ddtrace
