@@ -43,9 +43,11 @@ def check_output_file(o):
 
     output_file = Path("expl.txt")
     try:
-        return output_file.read_text() == OUT
+        assert output_file.read_text() == OUT
+        return True
     finally:
-        output_file.unlink(missing_ok=True)
+        if output_file.exists():
+            output_file.unlink()
 
 
 @pytest.mark.subprocess(
