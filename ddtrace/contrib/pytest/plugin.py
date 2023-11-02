@@ -46,7 +46,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -642,7 +642,7 @@ def pytest_runtest_protocol(item, nextitem):
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
         if hasattr(item, "_obj"):
             test_method_object = item._obj
-            add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+            _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error

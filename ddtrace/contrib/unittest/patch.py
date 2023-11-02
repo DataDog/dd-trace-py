@@ -24,7 +24,7 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
-from ddtrace.internal.ci_visibility.utils import add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -601,7 +601,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
-    add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
     _store_test_span(instance, span)
     return span
