@@ -56,44 +56,44 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
             pytest.fail("Unexpected distributions_metrics {}".format(metric.name))
 
 
-def test_metrics_when_appsec_doesnt_runs(mock_telemetry_lifecycle_writer, tracer):
+def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
     with override_global_config(dict(_asm_enabled=False)):
         tracer.configure(api_version="v0.4", appsec_enabled=False)
-        mock_telemetry_lifecycle_writer._namespace.flush()
+        telemetry_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
                 Config(),
             )
-    metrics_data = mock_telemetry_lifecycle_writer._namespace._metrics_data
+    metrics_data = telemetry_writer._namespace._metrics_data
     assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
     assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
 
 
-def test_metrics_when_appsec_runs(mock_telemetry_lifecycle_writer, tracer):
+def test_metrics_when_appsec_runs(telemetry_writer, tracer):
     with override_global_config(dict(_asm_enabled=True)):
-        mock_telemetry_lifecycle_writer._namespace.flush()
+        telemetry_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
                 Config(),
             )
-    _assert_generate_metrics(mock_telemetry_lifecycle_writer._namespace._metrics_data)
+    _assert_generate_metrics(telemetry_writer._namespace._metrics_data)
 
 
-def test_metrics_when_appsec_attack(mock_telemetry_lifecycle_writer, tracer):
+def test_metrics_when_appsec_attack(telemetry_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
-        mock_telemetry_lifecycle_writer._namespace.flush()
+        telemetry_writer._namespace.flush()
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, Config(), request_cookies={"attack": "1' or '1' = '1'"})
-    _assert_generate_metrics(mock_telemetry_lifecycle_writer._namespace._metrics_data, is_rule_triggered=True)
+    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True)
 
 
-def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
+def test_metrics_when_appsec_block(telemetry_writer, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
-        mock_telemetry_lifecycle_writer._namespace.flush()
+        telemetry_writer._namespace.flush()
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -102,12 +102,10 @@ def test_metrics_when_appsec_block(mock_telemetry_lifecycle_writer, tracer):
                     Config(),
                 )
 
-    _assert_generate_metrics(
-        mock_telemetry_lifecycle_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True
-    )
+    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True)
 
 
-def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
+def test_log_metric_error_ddwaf_init(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True)), override_env(
         dict(
             _DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json")
@@ -115,14 +113,14 @@ def test_log_metric_error_ddwaf_init(mock_logs_telemetry_lifecycle_writer):
     ):
         AppSecSpanProcessor()
 
-        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == "WAF init error. Invalid rules"
         assert list_metrics_logs[0]["stack_trace"].startswith("DDWAF.__init__: invalid rules")
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
-def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tracer):
+def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     with override_env(
         dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=RULES_GOOD_PATH)
     ), override_global_config(dict(_asm_enabled=True, _waf_timeout=0.0)):
@@ -134,7 +132,7 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
                     Config(),
                 )
 
-        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == "WAF run. Timeout errors"
         assert list_metrics_logs[0].get("stack_trace") is None
@@ -142,12 +140,12 @@ def test_log_metric_error_ddwaf_timeout(mock_logs_telemetry_lifecycle_writer, tr
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
+def test_log_metric_error_ddwaf_update(telemetry_writer):
     with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
 
-        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == "Error updating ASM rules. Invalid rules"
         assert list_metrics_logs[0].get("stack_trace") is None
@@ -155,22 +153,20 @@ def test_log_metric_error_ddwaf_update(mock_logs_telemetry_lifecycle_writer):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
-def test_log_metric_error_ddwaf_update_deduplication(mock_logs_telemetry_lifecycle_writer):
+def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
-        mock_logs_telemetry_lifecycle_writer.reset_queues()
+        telemetry_writer.reset_queues()
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
-        list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+        list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 @mock.patch.object(deduplication, "get_last_time_reported")
-def test_log_metric_error_ddwaf_update_deduplication_timelapse(
-    mock_last_time_reported, mock_logs_telemetry_lifecycle_writer
-):
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_last_time_reported, telemetry_writer):
     old_value = deduplication._time_lapse
     deduplication._time_lapse = 0.3
     mock_last_time_reported.return_value = 1592357416.0
@@ -178,11 +174,11 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(
         with override_global_config(dict(_asm_enabled=True)):
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
-            mock_logs_telemetry_lifecycle_writer.reset_queues()
+            telemetry_writer.reset_queues()
             sleep(0.4)
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
-            list_metrics_logs = list(mock_logs_telemetry_lifecycle_writer._logs)
+            list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
     finally:
         deduplication._time_lapse = old_value
