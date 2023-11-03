@@ -23,6 +23,8 @@ def unpatch_iast():
     # type: () -> None
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)
     try_unwrap("json", "loads")
+    try_unwrap("json.encoder", "JSONEncoder.default")
+    try_unwrap("simplejson.encoder", "JSONEncoder.default")
 
 
 def patch():
@@ -32,6 +34,7 @@ def patch():
         return
     try_wrap_function_wrapper("json", "loads", wrapped_loads)
     try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
 
 
 def wrapped_loads(wrapped, instance, args, kwargs):
