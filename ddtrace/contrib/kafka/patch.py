@@ -155,16 +155,13 @@ def traced_poll(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    message = func(*args, **kwargs)
-    parent = None
-    if message is not None:
-        parent = extract_parent_context(message.headers())
-    with pin.tracer.start_span(
-        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+    
+    with pin.tracer.trace(
+        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
-        span_type=SpanTypes.WORKER,
-        child_of=parent,
+        span_type=SpanTypes.WORKER
     ) as span:
+        message = func(*args, **kwargs)
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -181,6 +178,9 @@ def traced_poll(func, instance, args, kwargs):
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+            ctx = extract_parent_context(message.headers())
+            if ctx.trace_id and ctx.span_id:
+                span._set_span_link(trace_id=ctx.trace_id, span_id=ctx.span_id)
         span.set_tag(SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
