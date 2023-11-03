@@ -1,9 +1,9 @@
 from dataclasses import asdict
 from dataclasses import dataclass
-from dataclasses import field
 import dis
 from enum import Enum
 from functools import singledispatchmethod
+import http
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from itertools import chain
@@ -391,7 +391,7 @@ class ScopeContext:
             "scopes": [_.to_json() for _ in self._scopes],
         }
 
-    def upload(self) -> None:
+    def upload(self) -> http.client.HTTPResponse:
         import json
 
         boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
