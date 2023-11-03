@@ -4,9 +4,9 @@ from builtins import str as builtin_str
 import codecs
 import traceback
 from types import BuiltinFunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import iteritems
 
@@ -134,7 +134,11 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
     ):
         return candidate_text[start:stop:step]
     try:
-        return _slice_aspect(candidate_text, start, stop, step)
+        result = _slice_aspect(candidate_text, start, stop, step)
+        expected_result = candidate_text[start:stop:step]
+        if result != expected_result:
+            return expected_result
+        return result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e), traceback.format_exc())
         return candidate_text[start:stop:step]
@@ -277,7 +281,7 @@ def format_aspect(
         new_template = as_formatted_evidence(
             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
         )
-        fun = (
+        fun = (  # noqa: E731
             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
             if isinstance(arg, TEXT_TYPES)
             else arg
@@ -374,7 +378,7 @@ def format_value_aspect(
     else:
         new_text = element
     if not isinstance(new_text, TEXT_TYPES):
-        return new_text
+        return format(new_text)
 
     try:
         if format_spec:

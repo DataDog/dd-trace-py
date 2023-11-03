@@ -132,6 +132,9 @@
         "starlette": [
             "ddtrace/contrib/starlette/*"
         ],
+        "structlog": [
+            "ddtrace/contrib/structlog/*"
+        ],
         "asgi": [
             "ddtrace/contrib/asgi/*"
         ],
@@ -241,6 +244,9 @@
         "logging": [
             "ddtrace/contrib/logging/*"
         ],
+        "loguru": [
+            "ddtrace/contrib/logging/*"
+        ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
         ],
@@ -307,6 +313,9 @@
         ],
         "appsec": [
             "ddtrace/appsec/*"
+        ],
+        "appsec_iast": [
+            "ddtrace/appsec/iast/*"
         ]
     },
     "suites": {
@@ -384,7 +393,25 @@
             "@core",
             "@tracing",
             "@appsec",
+            "@appsec_iast",
+            "tests/appsec/*"
+        ],
+        "appsec_iast": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*"
+        ],
+        "appsec_integrations": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
             "tests/appsec/*",
+            "tests/appsec/iast_integrations/*",
             "tests/snapshots/tests.appsec.*"
         ],
         "aws_lambda": [
@@ -472,7 +499,12 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@logging"
+            "@logging",
+            "tests/contrib/logging/*"
+        ],
+        "loguru": [
+            "@loguru",
+            "tests/contrib/loguru/*"
         ],
         "asyncio": [
             "@bootstrap",
@@ -613,6 +645,7 @@
             "@tracing",
             "@contrib",
             "@appsec",
+            "@appsec_iast",
             "@asgi",
             "@wsgi",
             "@django",
@@ -662,6 +695,8 @@
             "@tracing",
             "@flask",
             "@appsec",
+            "@appsec_iast",
+            "@appsec_integrations",
             "@wsgi",
             "tests/appsec/*",
             "tests/contrib/flask/*",
@@ -910,6 +945,10 @@
             "@starlette",
             "@asgi",
             "tests/contrib/starlette/*"
+        ],
+        "structlog": [
+            "@structlog",
+            "tests/contrib/structlog/*"
         ],
         "sqlalchemy": [
             "@bootstrap",

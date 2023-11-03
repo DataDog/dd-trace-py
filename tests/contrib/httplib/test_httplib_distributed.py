@@ -1,16 +1,15 @@
 # Standard library
 import contextlib
 
-import wrapt
-
 # Project
 from ddtrace import config
 from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 
-from .test_httplib import HTTPLibBaseMixin
 from .test_httplib import SOCKET
+from .test_httplib import HTTPLibBaseMixin
 
 
 class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):

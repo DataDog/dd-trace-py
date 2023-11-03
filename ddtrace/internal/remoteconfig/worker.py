@@ -124,7 +124,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         forksafe.unregister(self.start_subscribers)
         atexit.unregister(self.disable)
 
-        self.stop()
+        self.stop(join=join)
 
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
@@ -174,6 +174,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def __exit__(self, *args):
         # type: (...) -> None
+        self.stop_subscribers(True)
         self.disable()
 
 

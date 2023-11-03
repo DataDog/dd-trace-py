@@ -40,6 +40,13 @@ if python_supported_by_iast():
         ("abcde", 1, 5, 3, "be", True),
         ("abcde", 0, 1, 1, "a", True),
         ("abcde", 1, 2, 1, "b", True),
+        ("abcde", 0, -1, 1, "abcd", True),
+        ("abcde", 1, -2, 1, "bc", True),
+        ("abcdef", 2, 3, 1, "c", True),
+        ("abcde", 0, -2, 1, "abc", True),
+        ("abcde", 0, -3, 1, "ab", True),
+        ("abcde", 1, -3, 1, "b", True),
+        ("abcdefg", 1, -3, 2, "bd", True),
         (b"abc", 2, 3, 1, b"c", True),
         (b"abcde", 0, 2, 1, b"ab", True),
         (b"abcde", 0, 3, 1, b"abc", True),
@@ -62,7 +69,7 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
 
         tainted_input = taint_pyobject(
             pyobject=input_str,
-            source_name="test_add_aspect_tainting_left_hand",
+            source_name="input_str",
             source_value="foo",
             source_origin=OriginType.PARAMETER,
         )
@@ -72,6 +79,165 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == len(expected_result)
+
+
+@pytest.mark.skipif(
+    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
+)
+@pytest.mark.parametrize(
+    "input_str_not_tainted",
+    [
+        ("abcde"),
+        ("fghij"),
+        ("áéíóú"),
+        ("😆😁😄😃😀"),
+    ],
+)
+@pytest.mark.parametrize(
+    "input_str_tainted, start_pos, end_pos, step, expected_result",
+    [
+        ("abcde", 0, 1, 1, "a"),
+        ("abcde", 1, 2, 1, "b"),
+        ("abc", 2, 3, 1, "c"),
+        ("abcde", 0, 2, 1, "ab"),
+        ("abcde", 0, 3, 1, "abc"),
+        ("abcde", 1, 3, 1, "bc"),
+        ("abcde", 1, 4, 1, "bcd"),
+        ("abcde", 0, 4, 2, "ac"),
+        ("abcde", 0, 4, 3, "ad"),
+        ("abcde", 1, 5, 2, "bd"),
+        ("abcde", 1, 5, 3, "be"),
+        ("abcde", 0, 1, 1, "a"),
+        ("abcde", 1, 2, 1, "b"),
+    ],
+)
+def test_string_slice_2_and_two_strings(
+    input_str_not_tainted, input_str_tainted, start_pos, end_pos, step, expected_result
+):
+    result = mod.do_slice_2_and_two_strings(
+        input_str_not_tainted, input_str_tainted, start_pos + 5, end_pos + 5, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+
+    tainted_input = taint_pyobject(
+        pyobject=input_str_tainted,
+        source_name="input_str_tainted",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_slice_2_and_two_strings(
+        input_str_not_tainted, tainted_input, start_pos + 5, end_pos + 5, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+    assert tainted_ranges[0].start == 0
+    assert tainted_ranges[0].length == len(expected_result)
+
+
+@pytest.mark.skipif(
+    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
+)
+@pytest.mark.parametrize(
+    "input_str_tainted1",
+    [
+        ("abcde"),
+        ("fghij"),
+        ("áéíóú"),
+        ("😆😁😄😃😀"),
+    ],
+)
+@pytest.mark.parametrize(
+    "input_str_tainted2, start_pos, end_pos, step, expected_result",
+    [
+        ("abcde", 0, 1, 1, "a"),
+        ("abcde", 1, 2, 1, "b"),
+        ("abc", 2, 3, 1, "c"),
+        ("abcde", 0, 2, 1, "ab"),
+        ("abcde", 0, 3, 1, "abc"),
+        ("abcde", 1, 3, 1, "bc"),
+        ("abcde", 1, 4, 1, "bcd"),
+        ("abcde", 0, 4, 2, "ac"),
+        ("abcde", 0, 4, 3, "ad"),
+        ("abcde", 1, 5, 2, "bd"),
+        ("abcde", 1, 5, 3, "be"),
+        ("abcde", 0, 1, 1, "a"),
+        ("abcde", 1, 2, 1, "b"),
+    ],
+)
+def test_string_slice_2_and_two_strings_two_tainted(
+    input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result
+):
+    result = mod.do_slice_2_and_two_strings(
+        input_str_tainted1, input_str_tainted2, start_pos + 5, end_pos + 5, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+
+    tainted_input1 = taint_pyobject(
+        pyobject=input_str_tainted1,
+        source_name="input_str_tainted1",
+        source_value=input_str_tainted1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    tainted_input2 = taint_pyobject(
+        pyobject=input_str_tainted2,
+        source_name="input_str_tainted2",
+        source_value=input_str_tainted2,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = mod.do_slice_2_and_two_strings(
+        tainted_input1, tainted_input2, start_pos + 5, end_pos + 5, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+    assert tainted_ranges[0].start == 0
+    assert tainted_ranges[0].length == len(expected_result)
+
+
+@pytest.mark.skipif(
+    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
+)
+@pytest.mark.parametrize(
+    "input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result",
+    [
+        ("fghij", "abcde", 4, 8, 1, "jabc"),
+    ],
+)
+def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
+    input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result
+):
+    result = mod.do_slice_2_and_two_strings(
+        input_str_tainted1, input_str_tainted2, start_pos, end_pos, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+
+    tainted_input1 = taint_pyobject(
+        pyobject=input_str_tainted1,
+        source_name="input_str_tainted1",
+        source_value=input_str_tainted1,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    tainted_input2 = taint_pyobject(
+        pyobject=input_str_tainted2,
+        source_name="input_str_tainted2",
+        source_value=input_str_tainted2,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    result = mod.do_slice_2_and_two_strings(
+        tainted_input1, tainted_input2, start_pos, end_pos, step
+    )  # pylint: disable=no-member
+    assert result == expected_result
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 2
+    assert tainted_ranges[0].start == 0
+    assert tainted_ranges[0].length == 1
+    assert tainted_ranges[1].start == 1
+    assert tainted_ranges[1].length == 3
 
 
 @pytest.mark.skipif(
@@ -90,13 +256,13 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
         ("abcde", 1, 4, 2, "bd", True),
     ],
 )
-def test_string_slice(input_str, start_pos, end_pos, step, expected_result, tainted):
+def test_string_slice_with_none_params(input_str, start_pos, end_pos, step, expected_result, tainted):
     result = mod.do_slice(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
     assert result == expected_result
 
     tainted_input = taint_pyobject(
         pyobject=input_str,
-        source_name="test_add_aspect_tainting_left_hand",
+        source_name="input_str",
         source_value="foo",
         source_origin=OriginType.PARAMETER,
     )

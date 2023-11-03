@@ -1,7 +1,7 @@
 import json
 import re
-from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Optional
 
 
 # TypedDict was added to typing in python 3.8
@@ -10,18 +10,18 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
-from ddtrace.constants import SAMPLING_RULE_DECISION
-from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.constants import SAMPLING_AGENT_DECISION
+from ddtrace.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.constants import SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampling_rule import SamplingRule

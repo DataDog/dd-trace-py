@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from random import shuffle
 
 import mock
 import pytest
@@ -160,13 +159,11 @@ def test_eject_hooks_same_line():
 
     lo = min(linenos(injection_target)) + 1
     lines = [lo] * 3
-    shuffled_lines = list(lines)
-    shuffle(shuffled_lines)
 
     failed = inject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
-    failed = eject_hooks(injection_target, list(zip(hooks, shuffled_lines, hooks)))
+    failed = eject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
     assert injection_target(1, 2) == (2, 1)

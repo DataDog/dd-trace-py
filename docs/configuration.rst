@@ -178,9 +178,9 @@ The following environment variables for the tracer are supported:
          ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
          Domain Socket.
 
-         Example for UDP url: ``DD_TRACE_AGENT_URL=udp://localhost:8125``
+         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
 
-         Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
+         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
 
    DD_TRACE_AGENT_TIMEOUT_SECONDS:
      type: Float
@@ -211,8 +211,12 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_SAMPLE_RATE:
      type: Float
-     default: 1.0
-     description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+     description: |
+        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
+        and sampling is controlled by other configuration options and/or the Datadog Agent. See
+        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
+        for more details about Agent-based sampling.
+
 
    DD_TRACE_RATE_LIMIT:
      type: int
@@ -275,7 +279,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.5`` if priority sampling is enabled, else ``v0.3``
+         ``v0.4``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
@@ -283,6 +287,7 @@ The following environment variables for the tracer are supported:
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
+       v1.19.1: default reverted to ``v0.4``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |

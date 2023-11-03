@@ -12,6 +12,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
 from ...settings import _config as config
+from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
 
@@ -88,7 +89,7 @@ def get_application(service, version, env):
 def _get_products():
     # type: () -> Dict
     return {
-        "appsec": {"version": get_version(), "enabled": config._appsec_enabled},
+        "appsec": {"version": get_version(), "enabled": asm_config._asm_enabled},
     }
 
 

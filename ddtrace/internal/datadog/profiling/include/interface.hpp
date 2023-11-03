@@ -5,9 +5,12 @@
 
 #pragma once
 
-#include "exporter.hpp"
+#include <stddef.h>
+#include <stdint.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 void ddup_config_env(const char *env);
 void ddup_config_service(const char *service);
 void ddup_config_version(const char *version);
@@ -45,4 +48,8 @@ void ddup_push_frame(const char *_name, const char *_filename, uint64_t address,
 void ddup_flush_sample();
 void ddup_set_runtime_id(const char *id, size_t sz);
 void ddup_upload();
+
+
+#ifdef __cplusplus
 } // extern "C"
+#endif

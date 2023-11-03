@@ -261,6 +261,12 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.langchain
 
+.. _loguru:
+
+Loguru
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.loguru
+
 
 .. _mako:
 
@@ -381,7 +387,7 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib.pytest_bdd
 
-.. _psycopg2:
+.. _psycopg:
 
 psycopg
 ^^^^^^^
@@ -435,6 +441,13 @@ Snowflake
 Starlette
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.starlette
+
+
+.. _structlog:
+
+Structlog
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.structlog
 
 
 .. _sqlalchemy:

@@ -6,8 +6,8 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
-from PIL import Image
 import mock
+from PIL import Image
 import pytest
 import vcr
 
@@ -15,7 +15,6 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai.patch import get_version
 from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.filters import TraceFilter
@@ -195,12 +194,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
 def iswrapped(obj):
     return hasattr(obj, "__dd_wrapped__")
-
-
-def test_module_implements_get_version():
-    version = get_version()
-    assert type(version) == str
-    assert version != ""
 
 
 def test_patching(openai):

@@ -101,6 +101,16 @@ class Tracer(OtelTracer):
             )
         # Create a new Datadog span (not activated), then return a valid OTel span
         dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
+
+        if links:
+            for link in links:
+                dd_span._set_span_link(
+                    link.context.trace_id,
+                    link.context.span_id,
+                    link.context.trace_state.to_header(),
+                    link.context.trace_flags,
+                    link.attributes,
+                )
         return Span(
             dd_span,
             kind=kind,

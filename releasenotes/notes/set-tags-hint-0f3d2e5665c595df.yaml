@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where type-checking would fail on valid application code due to a type hint on ``Span.set_tags``
+    that was too restrictive.

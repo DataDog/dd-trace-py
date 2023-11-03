@@ -23,11 +23,12 @@ W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
-DEFAULT_SERVICE_NAME = "unnamed_python_service"
+DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
+SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
