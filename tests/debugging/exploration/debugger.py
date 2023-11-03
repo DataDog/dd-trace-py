@@ -4,6 +4,7 @@ from types import ModuleType
 import typing as t
 
 from _config import config
+from output import log
 
 from ddtrace.debugging._config import di_config
 import ddtrace.debugging._debugger as _debugger
@@ -170,7 +171,7 @@ class ExplorationSignalCollector(SignalCollector):
         encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
-        self._snapshots = []
+        self._snapshots: t.List[bytes] = []
         self._probes = []
         self._failed_encoding = []
         self.on_snapshot = None
@@ -187,11 +188,11 @@ class ExplorationSignalCollector(SignalCollector):
             self.on_snapshot(snapshot)
 
     @property
-    def snapshots(self) -> t.List[Snapshot]:
+    def snapshots(self) -> t.List[t.Optional[bytes]]:
         return self._snapshots or [None]
 
     @property
-    def probes(self) -> t.List[Probe]:
+    def probes(self) -> t.List[t.Optional[Probe]]:
         return self._probes or [None]
 
 
@@ -228,22 +229,25 @@ class ExplorationDebugger(Debugger):
         nprobes = len(registry)
         nokprobes = sum(_.installed for _ in registry.values())
 
-        print(("{:=^%ds}" % COLS).format(" %s: probes stats " % cls.__name__))
-        print("")
+        log(("{:=^%ds}" % COLS).format(" %s: probes stats " % cls.__name__))
+        log("")
 
-        print("Installed probes: %d/%d" % (nokprobes, nprobes))
-        print("")
+        log("Installed probes: %d/%d" % (nokprobes, nprobes))
+        log("")
 
         cls.on_disable()
 
         snapshots = cls.get_snapshots()
-        if snapshots and snapshots[-1]:
-            print(snapshots[-1].decode())
+        if snapshots and snapshots[-1] is not None:
+            import json
+            from pprint import pprint
+
+            pprint(json.loads(snapshots[-1].decode()), stream=config.output_stream)
 
         super(ExplorationDebugger, cls).disable(join=join)
 
     @classmethod
-    def get_snapshots(cls) -> t.List[Snapshot]:
+    def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
         if cls._instance is None:
             return None
         return cls._instance._collector.snapshots
@@ -270,7 +274,7 @@ class ExplorationDebugger(Debugger):
 if config.status_messages:
 
     def status(msg: str) -> None:
-        print(("{:%d}" % COLS).format(msg))
+        log(("{:%d}" % COLS).format(msg))
 
 
 else:
