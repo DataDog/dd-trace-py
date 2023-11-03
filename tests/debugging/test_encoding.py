@@ -16,8 +16,6 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
 from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -58,7 +56,7 @@ tree = Tree("root", Node("0", Node("0l", Node("0ll"), Node("0lr")), Node("0r", N
         (0.2, "0.2"),
         (True, "True"),
         (None, "None"),
-        (b"Hello", "b'Hello'"[PY2:]),
+        (b"Hello", "b'Hello'"),
         # Container
         ({"Hello": "World"}, "{'Hello': 'World'}"),
         ({"Hello": 42}, "{'Hello': 42}"),
@@ -72,9 +70,7 @@ tree = Tree("root", Node("0", Node("0l", Node("0ll"), Node("0lr")), Node("0r", N
         ({0.1}, "{0.1}"),
         (
             ({"Hello": [None, 42, True, None, {b"World"}, 0.07]},),
-            "({'Hello': [None, 42, True, None, {b'World'}, 0.07]})"
-            if PY3
-            else "({'Hello': [None, 42, True, None, {'World'}, 0.07]})",
+            "({'Hello': [None, 42, True, None, {b'World'}, 0.07]})",
         ),
     ],
 )
@@ -83,18 +79,14 @@ def test_serialize(value, serialized):
 
 
 def test_serialize_custom_object():
-
     assert utils.serialize(Custom(), level=-1) == (
         "Custom(some_arg=({'Hello': [None, 42, True, None, {b'World'}, 0.07]}))"
-        if PY3
-        else "Custom(some_arg=({'Hello': [None, 42, True, None, {'World'}, 0.07]}))"
     )
 
-    q = "class" if PY3 else "type"
-    assert utils.serialize(Custom(), 1) == "Custom(some_arg=<%s 'tuple'>)" % q
-    assert utils.serialize(Custom(), 2) == "Custom(some_arg=(<%s 'dict'>))" % q
-    assert utils.serialize(Custom(), 3) == "Custom(some_arg=({'Hello': <%s 'list'>}))" % q
-    assert utils.serialize(Custom(), 4) == "Custom(some_arg=({'Hello': [None, 42, True, None, <%s 'set'>, 0.07]}))" % q
+    assert utils.serialize(Custom(), 1) == "Custom(some_arg=<class 'tuple'>)"
+    assert utils.serialize(Custom(), 2) == "Custom(some_arg=(<class 'dict'>))"
+    assert utils.serialize(Custom(), 3) == "Custom(some_arg=({'Hello': <class 'list'>}))"
+    assert utils.serialize(Custom(), 4) == "Custom(some_arg=({'Hello': [None, 42, True, None, <class 'set'>, 0.07]}))"
 
     assert utils.serialize(Custom) == repr(Custom)
 
@@ -372,7 +364,7 @@ def test_encoding_stopping_cond_fields(count, nfields):
 
     result = utils.capture_value(a, stopping_cond=CountBudget(count))
 
-    assert result["type"] == "Obj" if PY2 else "test_encoding_stopping_cond_fields.<locals>.Obj"
+    assert result["type"] == "test_encoding_stopping_cond_fields.<locals>.Obj"
     assert result["notCapturedReason"] == "CountBudget"
     # We cannot assert fields because the order is not guaranteed
     assert len(result["fields"]) == nfields

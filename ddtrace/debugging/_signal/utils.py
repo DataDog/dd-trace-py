@@ -32,8 +32,6 @@ def qualname(_type: Type) -> str:
     try:
         return stringify(_type.__qualname__)
     except AttributeError:
-        # The logic for implementing qualname in Python 2 is complex, so if we
-        # don't have it, we just return the name of the type.
         try:
             return _type.__name__
         except AttributeError:
@@ -94,7 +92,8 @@ def serialize(
     elif type(value) is set:
         return _serialize_collection(value, r"{}", level, maxsize, maxlen, maxfields) if value else "set()"
 
-    raise TypeError("Unhandled type: %s", type(value))
+    msg = f"Unhandled type: {type(value)}"
+    raise TypeError(msg)
 
 
 def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:

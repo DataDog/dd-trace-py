@@ -1,7 +1,6 @@
 import abc
 import json
 import os
-import sys
 from threading import Thread
 from types import FrameType
 from typing import Any
@@ -10,8 +9,6 @@ from typing import Dict
 from typing import Optional
 from typing import Type
 from typing import Union
-
-import six
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.model import LogSignal
@@ -58,13 +55,13 @@ class JsonBuffer(object):
             self._flushed = True
 
 
-class Encoder(six.with_metaclass(abc.ABCMeta)):
+class Encoder(abc.ABC):
     @abc.abstractmethod
     def encode(self, item: Any) -> bytes:
         """Encode the given snapshot."""
 
 
-class BufferedEncoder(six.with_metaclass(abc.ABCMeta)):
+class BufferedEncoder(abc.ABC):
     count = 0
 
     @abc.abstractmethod
@@ -161,7 +158,7 @@ class BatchJsonEncoder(BufferedEncoder):
         except BufferFull:
             if self._on_full is not None:
                 self._on_full(item, encoded)
-            six.reraise(*sys.exc_info())
+            raise
 
     def encode(self) -> Optional[bytes]:
         with self._lock:
