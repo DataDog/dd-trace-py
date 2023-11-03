@@ -1,6 +1,8 @@
 from pathlib import Path
 import sys
 
+from output import log
+
 
 # Make the tests/debugging folder available as a module. We don't want to
 # go as further back as tests/ because we are likely to override a folder with
@@ -17,4 +19,4 @@ import _coverage  # noqa
 import _profiler  # noqa
 
 
-print("Enabling debugging exploration testing")
+log("Enabling debugging exploration testing")

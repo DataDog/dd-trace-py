@@ -1,4 +1,6 @@
+from io import TextIOWrapper
 from pathlib import Path
+import sys
 import typing as t
 from warnings import warn
 
@@ -59,6 +61,18 @@ class ExplorationConfig(En):
         "dd.debugger.expl.conservative",
         default=False,
         help="Use extremely low capture limits to reduce overhead",
+    )
+
+    output_file = En.v(
+        t.Optional[Path],
+        "dd.debugger.expl.output_file",
+        default=None,
+        help="Path to the output file. The standard output is used otherwise",
+    )
+
+    output_stream = En.d(
+        TextIOWrapper,
+        lambda c: c.output_file.open("a") if c.output_file is not None else sys.__stdout__,
     )
 
     limits = En.d(

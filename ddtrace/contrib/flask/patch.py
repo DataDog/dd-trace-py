@@ -4,6 +4,9 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -122,7 +125,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         ctype = "text/" + block_config["type"]
                     response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
+                core.dispatch("flask.start_response.blocked", ctx, config.flask, response_headers, status)
             else:
                 result = start_response(status_code, headers)
         else:
@@ -460,7 +463,13 @@ def _build_render_template_wrapper(name):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with core.context_with_data(
-            "flask.render_template", name=name, pin=pin, flask_config=config.flask
+            "flask.render_template",
+            span_name=name,
+            pin=pin,
+            flask_config=config.flask,
+            tags={COMPONENT: config.flask.integration_name},
+            span_type=SpanTypes.TEMPLATE,
+            call_key=[name + ".call", "current_span"],
         ) as ctx, ctx.get_item(name + ".call"):
             return wrapped(*args, **kwargs)
 
@@ -506,13 +515,17 @@ def request_patcher(name):
     def _patched_request(pin, wrapped, instance, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
-            name=".".join(("flask", name)),
+            span_name=".".join(("flask", name)),
             pin=pin,
+            service=trace_utils.int_service(pin, config.flask, pin),
             flask_config=config.flask,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
+            call_key="flask_request_call",
+            tags={COMPONENT: config.flask.integration_name},
         ) as ctx, ctx.get_item("flask_request_call"):
+            core.dispatch("flask._patched_request", ctx)
             return wrapped(*args, **kwargs)
 
     return _patched_request
@@ -537,6 +550,11 @@ def patched_jsonify(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with core.context_with_data(
-        "flask.jsonify", name="flask.jsonify", flask_config=config.flask, pin=pin
+        "flask.jsonify",
+        span_name="flask.jsonify",
+        flask_config=config.flask,
+        tags={COMPONENT: config.flask.integration_name},
+        pin=pin,
+        call_key="flask_jsonify_call",
     ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)
