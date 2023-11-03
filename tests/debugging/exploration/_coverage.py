@@ -12,6 +12,7 @@ from debugger import ModuleCollector
 from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_line_probe
+from output import log
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -56,11 +57,11 @@ class LineCoverage(ExplorationDebugger):
             w = max(len(os.path.relpath(o, CWD)) for o in _tracked_modules)
         except ValueError:
             w = int(COLS * 0.75)
-        print(("{:=^%ds}" % COLS).format(" Line coverage "))
-        print("")
+        log(("{:=^%ds}" % COLS).format(" Line coverage "))
+        log("")
         head = ("{:<%d} {:>5} {:>6}" % w).format("Source", "Lines", "Covered")
-        print(head)
-        print("=" * len(head))
+        log(head)
+        log("=" * len(head))
 
         total_lines = 0
         total_covered = 0
@@ -68,7 +69,7 @@ class LineCoverage(ExplorationDebugger):
             total_lines += len(lines)
             seen_lines = seen_lines_map[o]
             total_covered += len(seen_lines)
-            print(
+            log(
                 ("{:<%d} {:>5} {: 6.0f}%%" % w).format(
                     os.path.relpath(o, CWD),
                     len(lines),
@@ -76,11 +77,11 @@ class LineCoverage(ExplorationDebugger):
                 )
             )
         if not total_lines:
-            print("No lines found")
+            log("No lines found")
             return
-        print("-" * len(head))
-        print(("{:<%d} {:>5} {: 6.0f}%%" % w).format("TOTAL", total_lines, total_covered * 100.0 / total_lines))
-        print("")
+        log("-" * len(head))
+        log(("{:<%d} {:>5} {: 6.0f}%%" % w).format("TOTAL", total_lines, total_covered * 100.0 / total_lines))
+        log("")
 
     @classmethod
     def on_disable(cls) -> None:
