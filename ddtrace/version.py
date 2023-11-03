@@ -8,13 +8,13 @@ def get_version():
         try:
             # something went wrong while creating _version.py, let's fallback to importlib
             from importlib.metadata import PackageNotFoundError
-            from importlib.metadata import version
+            from importlib.metadata import version as ilm_version
         except ImportError:
             # required for python3.7
-            from importlib_metadata import PackageNotFoundError  # noqa
-            from importlib_metadata import version  # type: ignore[no-redef]
+            from importlib_metadata import PackageNotFoundError  # type: ignore[no-redef]  # noqa
+            from importlib_metadata import version as ilm_version  # type: ignore[no-redef]
         try:
-            version(__name__)
+            return ilm_version(__name__)
         except PackageNotFoundError:
             # package is not installed
             return "dev"
