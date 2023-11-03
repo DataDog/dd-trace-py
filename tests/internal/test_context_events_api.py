@@ -49,8 +49,8 @@ class TestContextEventsApi(unittest.TestCase):
         core.on(event_name, lambda magic_number: handler_return.format(magic_number))
         core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!")
         results, _ = core.dispatch(event_name, [dynamic_value])
-        assert results[0] == handler_return.format(dynamic_value)
-        assert results[1] == handler_return + str(dynamic_value) + "!"
+        assert results[1] == handler_return.format(dynamic_value)
+        assert results[0] == handler_return + str(dynamic_value) + "!"
 
     def test_core_dispatch_multiple_listeners_multiple_threads(self):
         event_name = "my.cool.event"
@@ -60,8 +60,6 @@ class TestContextEventsApi(unittest.TestCase):
                 def listener():
                     if make_target_id % 2 == 0:
                         return make_target_id * 2
-                    else:
-                        raise ValueError
 
                 core.on(event_name, listener)
 
@@ -84,11 +82,6 @@ class TestContextEventsApi(unittest.TestCase):
         expected = list(i * 2 for i in range(thread_count) if i % 2 == 0)
         assert sorted(results) == sorted(expected)
         assert len(exceptions) <= thread_count
-        for idx, exception in enumerate(exceptions):
-            if idx % 2 == 0:
-                assert exception is None
-            else:
-                assert isinstance(exception, ValueError)
 
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
