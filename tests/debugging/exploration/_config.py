@@ -1,5 +1,4 @@
 from io import TextIOWrapper
-import os
 from pathlib import Path
 import sys
 import typing as t
@@ -10,9 +9,9 @@ from envier import En
 from ddtrace.debugging._probe.model import CaptureLimits
 
 
-def parse_venv(value: str) -> t.Optional[str]:
+def parse_venv(value: str) -> t.Optional[Path]:
     try:
-        return os.path.abspath(value) if value is not None else None
+        return Path(value).resolve() if value is not None else None
     except TypeError:
         warn(
             "No virtual environment detected. Running without a virtual environment active might "
@@ -22,7 +21,7 @@ def parse_venv(value: str) -> t.Optional[str]:
 
 class ExplorationConfig(En):
     venv = En.v(
-        t.Optional[str],
+        t.Optional[Path],
         "virtual_env",
         parser=parse_venv,
         default=None,
