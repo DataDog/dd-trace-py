@@ -80,7 +80,10 @@ def _inject_hook(code, hook, lineno, arg):
             if instr.lineno == last_lineno:
                 continue
             last_lineno = instr.lineno
-            if instr.lineno == lineno:
+            # Some lines might be implemented across multiple instruction
+            # offsets, and sometimes a NOP is used as a placeholder. We skip
+            # those to avoid duplicate injections.
+            if instr.lineno == lineno and instr.name != "NOP":
                 locs.appendleft(i)
         except AttributeError:
             # pseudo-instruction (e.g. label)
