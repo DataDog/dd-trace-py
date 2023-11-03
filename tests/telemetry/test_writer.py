@@ -445,3 +445,9 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "payload": payload,
         "request_type": payload_type,
     }
+
+
+def test_failing(mock_time, telemetry_writer, test_agent_session):
+    # This will cause the telemetry suite to consistently fail. This is useful re-running tests in circleci
+    # to reproduce flakiness.
+    assert False
