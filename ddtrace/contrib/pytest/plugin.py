@@ -46,6 +46,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -615,7 +616,8 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(SPAN_KIND, KIND)
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
-        span.set_tag_str(test.NAME, item.config.hook.pytest_ddtrace_get_item_test_name(item=item))
+        test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+        span.set_tag_str(test.NAME, test_name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
             span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
@@ -638,6 +640,9 @@ def pytest_runtest_protocol(item, nextitem):
 
         if item.location and item.location[0]:
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
+        if hasattr(item, "_obj"):
+            test_method_object = item._obj
+            _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error

@@ -403,6 +403,60 @@ def test_span_types(encoding, span, tags):
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
 
+def test_span_link_v04_encoding():
+    encoder = MSGPACK_ENCODERS["v0.4"](1 << 20, 1 << 20)
+
+    span = Span(
+        "s1",
+        links=[
+            SpanLink(
+                trace_id=(123 << 64) + 456,
+                span_id=2,
+                tracestate="congo=t61rcWkgMzE",
+                flags=1,
+                attributes={
+                    "moon": "ears",
+                    "link.name": "link_name",
+                    "link.kind": "link_kind",
+                    "someval": 1,
+                    "drop_me": "bye",
+                },
+            )
+        ],
+    )
+    assert span._links
+    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
+    span._links[0]._drop_attribute("drop_me")
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    encoder.put([span])
+    decoded_trace = decode(encoder.encode())
+    # ensure one trace was decoded
+    assert len(decoded_trace) == 1
+    # ensure trace has one span
+    assert len(decoded_trace[0]) == 1
+
+    decoded_span = decoded_trace[0][0]
+    assert b"span_links" in decoded_span
+    assert decoded_span[b"span_links"] == [
+        {
+            b"trace_id": 456,
+            b"span_id": 2,
+            b"attributes": {
+                b"moon": b"ears",
+                b"link.name": b"link_name",
+                b"link.kind": b"link_kind",
+                b"someval": b"1",
+            },
+            b"dropped_attributes_count": 1,
+            b"tracestate": b"congo=t61rcWkgMzE",
+            b"flags": 1,
+            b"trace_id_high": 123,
+        }
+    ]
+
+
 def test_span_link_v05_encoding():
     encoder = MSGPACK_ENCODERS["v0.5"](1 << 20, 1 << 20)
 
