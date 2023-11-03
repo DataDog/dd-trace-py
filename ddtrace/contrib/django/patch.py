@@ -15,12 +15,10 @@ import os
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
@@ -44,7 +42,6 @@ from ...appsec._utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
 from .. import trace_utils
 from ..trace_utils import _get_request_header_user_agent
-from ..trace_utils import _set_url_tag
 
 
 log = get_logger(__name__)
@@ -174,28 +171,26 @@ def traced_cache(django, pin, func, instance, args, kwargs):
     if not config.django.instrument_caches:
         return func(*args, **kwargs)
 
-    # get the original function method
-    with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
+    tags = {COMPONENT: config.django.integration_name, "django.cache.backend": cache_backend}
+    if args:
+        keys = utils.quantize_key_values(args[0])
+        tags["django.cache.key"] = keys
 
-        # update the resource name and tag the cache backend
-        span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
-        cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-        span.set_tag_str("django.cache.backend", cache_backend)
-
-        if args:
-            # Key can be a list of strings, an individual string, or a dict
-            # Quantize will ensure we have a space separated list of keys
-            keys = utils.quantize_key_values(args[0])
-            span.set_tag_str("django.cache.key", keys)
-
+    with core.context_with_data(
+        "django.cache",
+        span_name="django.cache",
+        span_type=SpanTypes.CACHE,
+        service=config.django.cache_service_name,
+        resource=utils.resource_from_cache_prefix(func_name(func), instance),
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx["call"]:
         result = func(*args, **kwargs)
-        command_name = func.__name__
-        if command_name == "get_many":
-            span.set_metric(
-                db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-            )
-        elif command_name == "get":
+        rowcount = 0
+        if func.__name__ == "get_many":
+            rowcount = sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
+        elif func.__name__ == "get":
             try:
                 # check also for special case for Django~3.2 that returns an empty Sentinel
                 # object for empty results
@@ -204,11 +199,12 @@ def traced_cache(django, pin, func, instance, args, kwargs):
                 if result is None or (
                     not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
                 ):
-                    span.set_metric(db.ROWCOUNT, 0)
+                    rowcount = 0
                 else:
-                    span.set_metric(db.ROWCOUNT, 1)
+                    rowcount = 1
             except (AttributeError, NotImplementedError, ValueError):
-                span.set_metric(db.ROWCOUNT, 0)
+                pass
+        core.dispatch("django.cache", ctx, rowcount)
         return result
 
 
@@ -285,20 +281,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 
 def traced_func(django, name, resource=None, ignored_excs=None):
-    """Returns a function to trace Django functions."""
-
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource) as s:
-            s.set_tag_str(COMPONENT, config.django.integration_name)
-
-            if ignored_excs:
-                for exc in ignored_excs:
-                    s._ignore_exception(exc)
+        tags = {COMPONENT: config.django.integration_name}
+        with core.context_with_data(
+            "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+        ) as ctx, ctx["call"]:
             core.dispatch(
                 "django.func.wrapped",
                 args,
                 kwargs,
                 django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                ctx,
+                ignored_excs,
             )
             return func(*args, **kwargs)
 
@@ -307,15 +301,14 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource) as span:
-            span.set_tag_str(COMPONENT, config.django.integration_name)
-
+        tags = {COMPONENT: config.django.integration_name}
+        with core.context_with_data(
+            "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
+        ) as ctx, ctx["call"]:
             resp = func(*args, **kwargs)
-
-            # If the response code is erroneous then grab the traceback
-            # and set an error.
-            if hasattr(resp, "status_code") and 500 <= resp.status_code < 600:
-                span.set_traceback()
+            core.dispatch(
+                "django.process_exception", ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600
+            )
             return resp
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -394,31 +387,30 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def _set_block_tags(request, request_headers, span):
+def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     from . import utils
 
     try:
-        span.set_tag_str(http.STATUS_CODE, "403")
-        span.set_tag_str(http.METHOD, request.method)
+        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        _set_url_tag(config.django, span, url, query)
         if query and config.django.trace_query_string:
-            span.set_tag_str(http.QUERY_STRING, query)
+            metadata[http.QUERY_STRING] = query
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
-            span.set_tag_str(http.USER_AGENT, user_agent)
+            metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+    core.dispatch("django.block_request_callback", ctx, metadata, config.django, url, query)
 
 
-def _block_request_callable(request, request_headers, span):
+def _block_request_callable(request, request_headers, ctx: core.ExecutionContext):
     # This is used by user-id blocking to block responses. It could be called
     # at any point so it's a callable stored in the ASM context.
     from django.core.exceptions import PermissionDenied
 
-    core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
-    _set_block_tags(request, request_headers, span)
+    core.root.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
+    _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
 
 
@@ -439,7 +431,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     if request is None:
         return func(*args, **kwargs)
 
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
     request_headers = utils._get_request_headers(request)
 
     with core.context_with_data(
@@ -447,108 +438,89 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         remote_addr=request.META.get("REMOTE_ADDR"),
         headers=request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
-    ):
-        with pin.tracer.trace(
-            schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-            resource=utils.REQUEST_DEFAULT_RESOURCE,
-            service=trace_utils.int_service(pin, config.django),
-            span_type=SpanTypes.WEB,
-        ) as span:
-            core.dispatch(
-                "django.traced_get_response.pre",
-                functools.partial(_block_request_callable, request, request_headers, span),
-            )
-            span.set_tag_str(COMPONENT, config.django.integration_name)
+        span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
+        resource=utils.REQUEST_DEFAULT_RESOURCE,
+        service=trace_utils.int_service(pin, config.django),
+        span_type=SpanTypes.WEB,
+        tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        distributed_headers_config=config.django,
+        distributed_headers=request_headers,
+        pin=pin,
+    ) as ctx, ctx.get_item("call"):
+        core.dispatch(
+            "django.traced_get_response.pre",
+            functools.partial(_block_request_callable, request, request_headers, ctx),
+            ctx,
+            request,
+            utils._before_request_tags,
+        )
 
-            # set span.kind to the type of request being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        response = None
 
-            utils._before_request_tags(pin, span, request)
-            span._metrics[SPAN_MEASURED_KEY] = 1
+        def blocked_response():
+            from django.http import HttpResponse
 
-            response = None
-
-            def blocked_response():
-                from django.http import HttpResponse
-
-                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
-                desired_type = block_config.get("type", "auto")
-                status = block_config.get("status_code", 403)
-                if desired_type == "none":
-                    response = HttpResponse("", status=status)
-                    location = block_config.get("location", "")
-                    if location:
-                        response["location"] = location
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            desired_type = block_config.get("type", "auto")
+            status = block_config.get("status_code", 403)
+            if desired_type == "none":
+                response = HttpResponse("", status=status)
+                location = block_config.get("location", "")
+                if location:
+                    response["location"] = location
+            else:
+                if desired_type == "auto":
+                    ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
                 else:
-                    if desired_type == "auto":
-                        ctype = "text/html" if "text/html" in request_headers.get("Accept", "").lower() else "text/json"
-                    else:
-                        ctype = "text/" + desired_type
-                    content = http_utils._get_blocked_template(ctype)
-                    response = HttpResponse(content, content_type=ctype, status=status)
-                    response.content = content
-                utils._after_request_tags(pin, span, request, response)
+                    ctype = "text/" + desired_type
+                content = http_utils._get_blocked_template(ctype)
+                response = HttpResponse(content, content_type=ctype, status=status)
+                response.content = content
+            utils._after_request_tags(pin, ctx["call"], request, response)
+            return response
+
+        try:
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
                 return response
 
-            try:
-                # [IP Blocking]
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
+            query = request.META.get("QUERY_STRING", "")
+            uri = utils.get_request_uri(request)
+            if uri is not None and query:
+                uri += "?" + query
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver:
+                try:
+                    path = resolver.resolve(request.path_info).kwargs
+                    log.debug("resolver.pattern %s", path)
+                except Exception:
+                    path = None
 
-                # set context information for [Suspicious Request Blocking]
-                query = request.META.get("QUERY_STRING", "")
-                uri = utils.get_request_uri(request)
-                if uri is not None and query:
-                    uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
-                parsed_query = request.GET
-                body = utils._extract_body(request)
-                trace_utils.set_http_meta(
-                    span,
-                    config.django,
-                    method=request.method,
-                    query=query,
-                    raw_uri=uri,
-                    request_path_params=path,
-                    parsed_query=parsed_query,
-                    request_body=body,
-                    request_cookies=request.COOKIES,
-                )
-                core.dispatch("django.start_response", "Django")
+            core.dispatch("django.start_response", ctx, request, utils._extract_body, query, uri, path)
+            core.dispatch("django.start_response.post", "Django")
 
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
-
-                response = func(*args, **kwargs)
-
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    response = blocked_response()
-                    return response
-
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
                 return response
-            finally:
-                # DEV: Always set these tags, this is where `span.resource` is set
-                utils._after_request_tags(pin, span, request, response)
-                trace_utils.set_http_meta(span, config.django, route=span.get_tag("http.route"))
-                # if not blocked yet, try blocking rules on response
-                if not core.get_item(HTTP_REQUEST_BLOCKED):
-                    core.dispatch("django.finalize_response", "Django")
-                    if core.get_item(HTTP_REQUEST_BLOCKED):
-                        response = blocked_response()
-                        return response  # noqa: B012
+
+            response = func(*args, **kwargs)
+
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                response = blocked_response()
+                return response
+
+            return response
+        finally:
+            core.dispatch("django.finalize_response.pre", ctx, utils._after_request_tags, request, response)
+            if not core.get_item(HTTP_REQUEST_BLOCKED):
+                core.dispatch("django.finalize_response", "Django")
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    response = blocked_response()
+                    return response  # noqa: B012
 
 
 @trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
-    """Instrument django.template.base.Template.render for tracing template rendering."""
     # DEV: Check here in case this setting is configured after a template has been instrumented
     if not config.django.instrument_templates:
         return wrapped(*args, **kwargs)
@@ -559,15 +531,21 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     else:
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
-    with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+    tags = {COMPONENT: config.django.integration_name}
+    if template_name:
+        tags["django.template.name"] = template_name
+    engine = getattr(instance, "engine", None)
+    if engine:
+        tags["django.template.engine.class"] = func_name(engine)
 
-        if template_name:
-            span.set_tag_str("django.template.name", template_name)
-        engine = getattr(instance, "engine", None)
-        if engine:
-            span.set_tag_str("django.template.engine.class", func_name(engine))
-
+    with core.context_with_data(
+        "django.template.render",
+        span_name="django.template.render",
+        resource=resource,
+        span_type=http.TEMPLATE,
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx["call"]:
         return wrapped(*args, **kwargs)
 
 
