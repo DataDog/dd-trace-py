@@ -137,12 +137,10 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -151,6 +149,37 @@ venv = Venv(
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
+                # Flask 2.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                # Flask 3.x.x
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",
@@ -1211,15 +1240,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    # pynamodb dropped support for Python 2.7/3.5 in 4.4
-                    pys=select_pys(max_version="3.5"),
-                    pkgs={
-                        "pynamodb": ["~=4.3.0"],
-                        "moto": ">=0.0,<1.0",
-                        "rsa": "<4.7.1",
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
@@ -1378,26 +1398,12 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="boto",
-            command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
-        ),
-        Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={"moto[all]": latest, "botocore": latest},
-                ),
-                Venv(
-                    pys=["2.7"],
-                    pkgs={
-                        "moto": "~=1.0",
-                        "botocore": "~=1.20.0",
-                        "python-jose[cryptography]": "==3.1.0",
-                        "rsa": "<4.7.1",
-                    },
                 ),
                 Venv(
                     pkgs={
@@ -1407,12 +1413,6 @@ venv = Venv(
                         "python-jose[cryptography]": "==3.1.0",
                     },
                     venvs=[
-                        Venv(
-                            pys=["3.5"],
-                            pkgs={
-                                "moto[all]": "~=1.0",
-                            },
-                        ),
                         Venv(
                             pys=["3.6"],
                             pkgs={
