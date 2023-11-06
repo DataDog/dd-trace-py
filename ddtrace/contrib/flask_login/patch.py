@@ -62,7 +62,7 @@ def traced_login_user(func, instance, args, kwargs):
                 track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
             return ret
         if not user_id:
-            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)  # JJJ added
+            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)
             log.debug(
                 "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
                 "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or implement the "
