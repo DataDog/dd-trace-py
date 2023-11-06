@@ -145,6 +145,6 @@ PyInit__stacktrace(void)
 {
     PyObject* m = PyModule_Create(&stacktrace);
     if (m == NULL)
-        goto exit_0;
+        return NULL;
     return m;
 }
