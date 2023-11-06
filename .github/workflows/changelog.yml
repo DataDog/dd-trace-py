@@ -23,7 +23,7 @@ jobs:
       #   or add `changelog/no-changelog` label if no release note is needed.
       - name: Ensure release note added
         # Only run this on pull requests
-        if: github.event_name == 'pull_request' && (startsWith(github.event.head_commit.message, 'fix') || startsWith(github.event.head_commit.message, 'feat'))
+        if: github.event_name == 'pull_request' && (startsWith(github.event.pull_request.title, 'fix') || startsWith(github.event.pull_request.title, 'feat'))
         run: scripts/check-releasenotes
 
       - uses: actions/setup-python@v4
