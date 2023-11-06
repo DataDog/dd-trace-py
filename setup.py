@@ -207,7 +207,7 @@ class LibraryDownload:
 
     @classmethod
     def get_archive_name(cls, arch, os):
-        return cls.get_package_name(cls, arch, os) + '.tar.gz'
+        return cls.get_package_name(arch, os) + ".tar.gz"
 
 
 class LibDDWafDownload(LibraryDownload):
