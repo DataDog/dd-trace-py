@@ -25,8 +25,8 @@ dependencies = [
 
 [envs.lint.scripts]
 style = [
-    "black -q {args:.}",
-    "ruff {args:.}",
+    "black --check -q {args:.}",
+    "ruff check {args:.}",
     "cython-lint {args:.}",
 ]
 fmt = [
