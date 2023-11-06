@@ -52,8 +52,8 @@ def add_aspect(op1, op2):
     return _add_aspect(op1, op2)
 
 
-def str_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> str
+def str_aspect(orig_function, _, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> str
     if orig_function != builtin_str:
         return orig_function(*args, **kwargs)
 
@@ -73,8 +73,8 @@ def str_aspect(orig_function, *args, **kwargs):
     return result
 
 
-def bytes_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> bytes
+def bytes_aspect(orig_function, _, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> bytes
     if orig_function != builtin_bytes:
         return orig_function(*args, **kwargs)
 
@@ -87,8 +87,8 @@ def bytes_aspect(orig_function, *args, **kwargs):
     return result
 
 
-def bytearray_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> bytearray
+def bytearray_aspect(orig_function, _, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> bytearray
     if orig_function != builtin_bytearray:
         return orig_function(*args, **kwargs)
 
@@ -144,11 +144,13 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
         return candidate_text[start:stop:step]
 
 
-def bytearray_extend_aspect(orig_function, op1, op2):
-    # type: (Callable, Any, Any) -> Any
-    if not isinstance(orig_function, BuiltinFunctionType):
-        return orig_function(op1, op2)
+def bytearray_extend_aspect(orig_function, _, *args, **kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    if not isinstance(orig_function, BuiltinFunctionType) or len(args) != 2:
+        return orig_function(*args, **kwargs)
 
+    op1 = args[0]
+    op2 = args[1]
     if not isinstance(op1, bytearray) or not isinstance(op2, (bytearray, bytes)):
         return op1.extend(op2)
     try:
@@ -265,7 +267,7 @@ def format_aspect(
     orig_function,  # type: Callable
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
@@ -367,9 +369,8 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
-        new_text = str_aspect(element)
+        new_text = str_aspect(element, None)
     elif options == 114:
         # TODO: use our repr once we have implemented it
         new_text = repr_aspect(None, element)
