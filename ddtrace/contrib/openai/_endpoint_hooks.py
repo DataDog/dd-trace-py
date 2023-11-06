@@ -281,10 +281,22 @@ class _ChatCompletionHook(_BaseCompletionHook):
         span.set_tag_str("openai.response.model", resp.get("model", ""))
         for choice in choices:
             idx = choice["index"]
+            message = choice.message
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-            if integration.is_pc_sampled_span(span) and choice.get("message"):
-                content = choice.get("message", {}).get("content", "") or ""
-                span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
+            if integration.is_pc_sampled_span(span) and message:
+                if message.content is not None:
+                    span.set_tag_str(
+                        "openai.response.choices.%d.message.content" % idx, integration.trunc(message.content)
+                    )
+                else:
+                    tool_call = getattr(message, "function_call", getattr(message, "tool_calls", {}))
+                    if isinstance(tool_call, list):
+                        tool_call = tool_call[0].function
+                    if tool_call and hasattr(tool_call, "arguments") and hasattr(tool_call, "name"):
+                        span.set_tag_str(
+                            "openai.response.choices.%d.message.content" % idx, integration.trunc(tool_call.arguments)
+                        )
+                        span.set_tag_str("openai.response.choices.%d.message.function" % idx, tool_call.name)
                 span.set_tag_str(
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message", {}).get("role", "")),

@@ -33,6 +33,7 @@ TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
+
 # To (re)-generate the cassettes: pass a real OpenAI API key with
 # OPENAI_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
@@ -609,6 +610,49 @@ def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
             messages=[{"role": "user", "content": student_description}],
             functions=student_custom_functions,
             function_call="auto",
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
+    ignores=["meta.http.useragent", "meta.openai.response.choices.0.finish_reason"],
+)
+def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    student_description = """
+    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
+    David is an active member of the university's Chess Club and the South Asian Student Association.
+    He hopes to pursue a career in software engineering after graduating.
+    """
+    student_custom_functions = [
+        {
+            "name": "extract_student_info",
+            "description": "Get the student information from the body of the input text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the person"},
+                    "major": {"type": "string", "description": "Major subject."},
+                    "school": {"type": "string", "description": "The university name."},
+                    "grades": {"type": "integer", "description": "GPA of the student."},
+                    "clubs": {
+                        "type": "array",
+                        "description": "School clubs for extracurricular activities. ",
+                        "items": {"type": "string", "description": "Name of School Club"},
+                    },
+                },
+            },
+        },
+    ]
+
+    with openai_vcr.use_cassette("chat_completion_tool_call.yaml"):
+        openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": student_description}],
+            tools=[{"type": "function", "function": student_custom_functions[0]}],
+            tool_choice="auto",
             user="ddtrace-test",
         )
 
