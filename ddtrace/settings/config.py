@@ -423,11 +423,11 @@ class Config(object):
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
-        if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
+        if x_datadog_tags_max_length < 0:
             raise ValueError(
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values less than or equal to 512 allowed"
+                    "only non-negative values allowed"
                 ).format(x_datadog_tags_max_length)
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
