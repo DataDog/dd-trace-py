@@ -2,7 +2,6 @@ import flask
 import flask_login
 
 from ddtrace import Pin
-from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal.logger import get_logger
@@ -88,6 +87,9 @@ def traced_login_user(func, instance, args, kwargs):
 
 
 def patch():
+    if not asm_config._asm_enabled:
+        return
+
     if getattr(flask_login, "_datadog_patch", False):
         return
 
