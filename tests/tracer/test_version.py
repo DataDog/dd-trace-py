@@ -1,7 +1,6 @@
 import sys
 
 import mock
-import pkg_resources
 
 from ddtrace.version import get_version
 from tests.tracer import _version  # noqa: F401 -> we need to import it so that it can be swapped with the test module
@@ -12,19 +11,22 @@ def test_get_version_from_version_file():
         assert get_version() == "my_test_version_from_generated_file"
 
 
-def test_get_version_from_pkg_resources():
+def test_get_version_from_importlib_metadata():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
-        with mock.patch("pkg_resources.get_distribution") as mock_get_distribution:
-            mock_get_distribution.return_value = FakeDistribution()
-            assert get_version() == "my_test_version_from_pkg_resources"
-            mock_get_distribution.assert_called_with("ddtrace.version")
+        version_str = "importlib.metadata.version"
+        if sys.version_info < (3, 8):
+            version_str = "importlib_metadata.version"
+        with mock.patch(version_str, return_value="my_test_version_from_import_lib") as mock_get_version:
+            assert get_version() == "my_test_version_from_import_lib"
+            mock_get_version.assert_called_with("ddtrace")
 
 
 def test_get_version_dev_fallback():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
-        expected_error = pkg_resources.DistributionNotFound()
-        with mock.patch("pkg_resources.get_distribution") as mock_get_distribution:
-            mock_get_distribution.side_effect = expected_error
+        version_str = "importlib.metadata.version"
+        if sys.version_info < (3, 8):
+            version_str = "importlib_metadata.version"
+        with mock.patch(version_str, side_effect=ModuleNotFoundError):
             assert get_version() == "dev"
 
 
