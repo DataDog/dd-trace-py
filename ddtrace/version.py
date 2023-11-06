@@ -5,12 +5,13 @@ def get_version():
 
         return version
     except ImportError:
-        import pkg_resources
-
         try:
-            # something went wrong while creating _version.py, let's fallback to pkg_resources
-
-            return pkg_resources.get_distribution(__name__).version
-        except pkg_resources.DistributionNotFound:
+            from importlib.metadata import version as ilm_version
+        except ImportError:
+            # required for python3.7
+            from importlib_metadata import version as ilm_version  # type: ignore[no-redef]
+        try:
+            return ilm_version("ddtrace")
+        except ModuleNotFoundError:
             # package is not installed
             return "dev"
