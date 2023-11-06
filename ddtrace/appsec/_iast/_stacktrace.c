@@ -118,13 +118,13 @@ exit:
     assert(result != NULL);
     return result;
 
-exit_0: ; // fix: "a label can only be part of a statement and a declaration is not a statement" error
+exit_0: ;
     // Return "", 0
     PyObject* line_obj = Py_BuildValue("i", 0);
     filename_o = PyUnicode_FromString("");
     result = PyTuple_Pack(2, filename_o, line_obj);
     FILENAME_XDECREF(filename_o);
-    // decref line_obj also?
+    Py_DECREF(line_obj);
     assert(result != NULL);
     return result;
 
