@@ -128,6 +128,7 @@ exit_0:
     result = PyTuple_Pack(2, filename_o, line_obj);
     FILENAME_XDECREF(filename_o);
     // decref line_obj also?
+    assert(result != NULL);
     return result;
 
 }
