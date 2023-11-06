@@ -73,29 +73,6 @@ def test_log_no_trace():
     _test_logging(output, None, config.env, config.service, config.version)
 
 
-def test_no_processors():
-    """
-    Ensure no trace values are being injected when there is no pre-existing processor chain to avoid errors.
-    """
-
-    structlog.configure(processors=[], logger_factory=cf)
-    logger = structlog.get_logger()
-
-    tracer.trace("test.logging")
-    logger.info("Hello!")
-
-    output = cf.logger.calls
-
-    assert output[0].kwargs["event"] == "Hello!"
-    assert "dd.trace_id" not in output[0].kwargs
-    assert "dd.span_id" not in output[0].kwargs
-    assert "dd.env" not in output[0].kwargs
-    assert "dd.service" not in output[0].kwargs
-    assert "dd.version" not in output[0].kwargs
-
-    cf.logger.calls.clear()
-
-
 @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
 def test_log_trace():
     """

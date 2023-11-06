@@ -17,16 +17,20 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.settings import Config
 
 from six.moves.urllib.parse import quote
-import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.tracing import trace_handlers
+from ddtrace.vendor import wrapt
 
 from ...internal import core
 
@@ -34,8 +38,6 @@ from ...internal import core
 log = get_logger(__name__)
 
 propagator = HTTPPropagator
-
-trace_handlers.listen()
 
 config._add(
     "wsgi",
@@ -97,8 +99,15 @@ class _DDWSGIMiddlewareBase(object):
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
+            service=trace_utils.int_service(self._pin, self._config),
+            span_type=SpanTypes.WEB,
+            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
+            middleware_config=self._config,
+            distributed_headers_config=self._config,
+            distributed_headers=environ,
             environ=environ,
             middleware=self,
+            call_key="req_span",
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
@@ -134,10 +143,14 @@ class _DDWSGIMiddlewareBase(object):
             "wsgi.response",
             middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            service=trace_utils.int_service(None, self._config),
             start_span=False,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
 
@@ -224,10 +237,15 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             "wsgi.response",
             middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            span_name="wsgi.start_response",
+            service=trace_utils.int_service(None, self._config),
             start_span=True,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            call_key="response_span",
         ) as ctx, ctx.get_item("response_span"):
             return start_response(status, environ, exc_info)
 

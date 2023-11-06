@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
+from math import ceil
 import os
 import threading
 import typing
@@ -170,7 +171,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
-                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count)  # Roundup to help float precision
+                ddup.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )

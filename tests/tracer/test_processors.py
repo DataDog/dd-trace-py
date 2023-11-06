@@ -6,15 +6,15 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
@@ -352,7 +352,7 @@ def test_span_creation_metrics():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
-    with mock.patch("ddtrace.internal.processor.trace.telemetry_writer.add_count_metric") as mock_tm:
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)

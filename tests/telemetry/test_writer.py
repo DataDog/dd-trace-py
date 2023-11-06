@@ -113,7 +113,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
             {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 1.0},
             {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
@@ -241,7 +241,7 @@ import ddtrace.auto
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
         {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 0.5},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "unknown",

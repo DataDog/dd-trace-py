@@ -10,8 +10,15 @@ on:
       - build_deploy*
   pull_request:
     paths:
+      - ".github/workflows/build_deploy.yml"
+      - ".github/workflows/build_python_3.yml"
       - "setup.py"
+      - "setup.cfg"
+      - "pyproject.toml"
       - "**.c"
+      - "**.h"
+      - "**.cpp"
+      - "**.hpp"
       - "**.pyx"
       - "ddtrace/vendor/**"
   release:

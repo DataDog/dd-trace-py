@@ -40,8 +40,8 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.pin import Pin
 
-from .. import trace_utils
 from ...ext import SpanTypes
+from .. import trace_utils
 
 
 _graphql_version_str = graphql.__version__

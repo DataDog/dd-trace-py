@@ -198,7 +198,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 
 
 def test_ossystem(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
@@ -219,7 +219,7 @@ def test_ossystem(tracer):
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_fork(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
@@ -239,7 +239,7 @@ def test_fork(tracer):
 
 
 def test_unpatch(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("os.system"):
@@ -253,7 +253,7 @@ def test_unpatch(tracer):
         assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
 
     unpatch()
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
@@ -273,7 +273,7 @@ def test_unpatch(tracer):
 
 
 def test_ossystem_noappsec(tracer):
-    with override_global_config(dict(_appsec_enabled=False)):
+    with override_global_config(dict(_asm_enabled=False)):
         patch()
         assert not hasattr(os.system, "__wrapped__")
         assert not hasattr(os._spawnvef, "__wrapped__")
@@ -282,7 +282,7 @@ def test_ossystem_noappsec(tracer):
 
 @pytest.mark.skipif(PY2, reason="Python3 specific test (pins into subprocess)")
 def test_py3ospopen(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("os.popen"):
@@ -304,7 +304,7 @@ def test_py3ospopen(tracer):
 
 @pytest.mark.skipif(PY3, reason="Python2 specific tests")
 def test_py2ospopen(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
         for func in [os.popen, os.popen2, os.popen3]:
@@ -352,7 +352,7 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
     ],
 )
 def test_osspawn_variants(tracer, function, mode, arguments):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os).clone(tracer=tracer).onto(os)
 
@@ -391,7 +391,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
 
 
 def test_subprocess_init_shell_true(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
@@ -411,7 +411,7 @@ def test_subprocess_init_shell_true(tracer):
 
 
 def test_subprocess_init_shell_false(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
@@ -428,7 +428,7 @@ def test_subprocess_init_shell_false(tracer):
 
 def test_subprocess_wait_shell_false(tracer):
     args = ["dir", "-li", "/"]
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
@@ -441,7 +441,7 @@ def test_subprocess_wait_shell_false(tracer):
 
 
 def test_subprocess_wait_shell_true(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
@@ -453,7 +453,7 @@ def test_subprocess_wait_shell_true(tracer):
 
 @pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
 def test_subprocess_run(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
@@ -474,7 +474,7 @@ def test_subprocess_run(tracer):
 
 
 def test_subprocess_communicate(tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):

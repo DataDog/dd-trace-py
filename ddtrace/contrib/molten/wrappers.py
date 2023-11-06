@@ -1,14 +1,14 @@
 import molten
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
-from .. import trace_utils
 from ... import Pin
 from ...ext import SpanKind
 from ...internal.utils.importlib import func_name
+from .. import trace_utils
 
 
 MOLTEN_ROUTE = "molten.route"
