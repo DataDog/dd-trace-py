@@ -118,7 +118,7 @@ exit:
     assert(result != NULL);
     return result;
 
-exit_0:
+exit_0: ; // fix: "a label can only be part of a statement and a declaration is not a statement" error
     // Return "", 0
     PyObject* line_obj = Py_BuildValue("i", 0);
     filename_o = PyUnicode_FromString("");
