@@ -1,5 +1,6 @@
 import inspect
 import os
+from copy import copy
 from typing import Union
 import unittest
 
@@ -591,10 +592,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):
-                filtered_dict = {k: v for k, v in unittest._coverage._collector.data.items() if v}
-                print(f"Test name is {fqn_test} and data is {filtered_dict}")
-
-                pass
+                filtered_dict = {k: copy(v) for k, v in unittest._coverage._collector.data.items() if v}
 
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
