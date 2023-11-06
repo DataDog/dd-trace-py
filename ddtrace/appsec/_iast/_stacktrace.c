@@ -26,7 +26,7 @@ GET_FILENAME(PyFrameObject* frame)
 {
     PyCodeObject* code = PyFrame_GetCode(frame);
     if (!code) {
-        goto exit_0;
+        return NULL;
     }
     return PyObject_GetAttrString((PyObject*)code, "co_filename");
 }
