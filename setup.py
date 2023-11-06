@@ -222,8 +222,9 @@ class LibDDWafDownload(LibraryDownload):
     def get_package_name(cls, arch, os):
         os_name = os.lower()
         if os_name == "linux":
-            os_name = "linux-musl"
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os_name, arch)
+            archive_dir = "lib%s-%s-%s-linux-musl" % (cls.name, cls.version, arch)
+        else:
+            archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os_name, arch)
         return archive_dir
 
 
