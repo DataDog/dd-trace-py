@@ -131,13 +131,30 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            command="pytest {cmdargs} tests/appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/appsec/",
+        ),
+        Venv(
+            name="appsec_iast",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
-                "gunicorn": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+            },
+        ),
+        Venv(
+            name="appsec_integrations",
+            command="pytest {cmdargs} tests/appsec/integrations/",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -160,7 +177,7 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
                         "flask": "~=2.2",
                     },
@@ -1363,7 +1380,10 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_PATCH_MODULES": "unittest:true"},
+            env={
+                "DD_PATCH_MODULES": "unittest:true",
+                "DD_AGENT_PORT": "9126",
+            },
             pys=select_pys(),
         ),
         Venv(

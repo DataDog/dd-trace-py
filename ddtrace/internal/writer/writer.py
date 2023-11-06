@@ -16,10 +16,11 @@ import six
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_writer
+from ...internal import telemetry
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -30,6 +31,7 @@ from .. import periodic
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
+from .._encoding import EncodingValidationError
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
@@ -388,6 +390,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             encoded = client.encoder.encode()
             if encoded is None:
                 return
+        except EncodingValidationError as e:
+            log.error("Encoding Error (or span was modified after finish): %s", str(e))
+            if hasattr(e, "_debug_message"):
+                log.debug(e._debug_message)
+            return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
@@ -601,14 +608,14 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if not telemetry_writer.started:
-                telemetry_writer._app_started_event()
-                telemetry_writer._app_dependencies_loaded_event()
+            if not telemetry.telemetry_writer.started:
+                telemetry.telemetry_writer._app_started_event()
+                telemetry.telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
             if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                config._appsec_enabled or config._remote_config_enabled
+                asm_config._asm_enabled or config._remote_config_enabled
             ):
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 

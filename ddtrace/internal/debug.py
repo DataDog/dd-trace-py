@@ -10,10 +10,12 @@ from typing import Dict
 from typing import Union
 
 import ddtrace
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
 
@@ -50,8 +52,6 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    import pkg_resources
-
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
     if isinstance(tracer._writer, LogWriter):
@@ -77,7 +77,7 @@ def collect(tracer):
 
     is_venv = in_venv()
 
-    packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
+    packages_available = {p.name: p.version for p in get_distributions()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
@@ -153,9 +153,9 @@ def collect(tracer):
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
-        asm_enabled=ddtrace.config._appsec_enabled,
-        iast_enabled=ddtrace.config._iast_enabled,
-        waf_timeout=ddtrace.config._waf_timeout,
+        asm_enabled=asm_config._asm_enabled,
+        iast_enabled=asm_config._iast_enabled,
+        waf_timeout=asm_config._waf_timeout,
         remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 
