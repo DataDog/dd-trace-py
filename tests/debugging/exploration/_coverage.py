@@ -1,5 +1,5 @@
 from collections import defaultdict
-import os
+from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
@@ -49,12 +49,12 @@ class LineCoverage(ExplorationDebugger):
 
     @classmethod
     def report_coverage(cls) -> None:
-        seen_lines_map = defaultdict(set)
+        seen_lines_map: t.Dict[Path, set] = defaultdict(set)
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
-            seen_lines_map[probe.source_file].add(probe.line)
+            seen_lines_map[t.cast(LogLineProbe, probe).source_file].add(probe.line)
 
         try:
-            w = max(len(os.path.relpath(o, CWD)) for o in _tracked_modules)
+            w = max(len(str(o.relative_to(CWD))) for o in _tracked_modules)
         except ValueError:
             w = int(COLS * 0.75)
         log(("{:=^%ds}" % COLS).format(" Line coverage "))
@@ -71,7 +71,7 @@ class LineCoverage(ExplorationDebugger):
             total_covered += len(seen_lines)
             log(
                 ("{:<%d} {:>5} {: 6.0f}%%" % w).format(
-                    os.path.relpath(o, CWD),
+                    str(o.relative_to(CWD)),
                     len(lines),
                     len(seen_lines) * 100.0 / len(lines) if lines else 0,
                 )
