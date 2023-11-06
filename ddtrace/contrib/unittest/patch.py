@@ -579,6 +579,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             if _is_test_coverage_enabled(instance):
                 if not hasattr(unittest, "_coverage"):
                     unittest._coverage = _start_coverage(root_directory)
+                unittest._coverage._collector.data.clear()
                 unittest._coverage.switch_context(fqn_test)
             if _is_skipped_by_itr(instance):
                 result = args[0]
@@ -592,7 +593,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):
-                filtered_dict = {k: copy(v) for k, v in unittest._coverage._collector.data.items() if v}
+                _report_coverage(unittest._coverage, span, root_directory)
+                unittest._coverage._collector.data.clear()
 
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span

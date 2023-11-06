@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
 
 log = get_logger(__name__)
+_global_relative_file_paths_for_cov = {}
 
 try:
     from coverage import Coverage
@@ -96,18 +97,17 @@ def build_payload(coverage, root_dir, test_id=None):
     :param test_id: a unique identifier for the current test run
     """
     root_dir_str = str(root_dir)
-    return json.dumps(
-        {
-            "files": [
-                {
-                    "filename": os.path.relpath(filename, root_dir_str),
-                    "segments": lines,
-                }
-                if lines
-                else {
-                    "filename": os.path.relpath(filename, root_dir_str),
-                }
-                for filename, lines in _lines(coverage, test_id).items()
-            ]
-        }
-    )
+    if root_dir_str not in _global_relative_file_paths_for_cov:
+        _global_relative_file_paths_for_cov[root_dir_str] = {}
+    files_data = []
+    for filename, lines in _lines(coverage, test_id).items():
+        if filename not in _global_relative_file_paths_for_cov[root_dir_str]:
+            _global_relative_file_paths_for_cov[root_dir_str][filename] = os.path.relpath(filename, root_dir_str)
+        if lines:
+            files_data.append(
+                {"filename": _global_relative_file_paths_for_cov[root_dir_str][filename], "segments": lines}
+            )
+        else:
+            files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
+
+    return json.dumps({"files": files_data})
