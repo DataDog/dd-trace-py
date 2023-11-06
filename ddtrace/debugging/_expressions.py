@@ -52,7 +52,6 @@ if PY < (3, 0):
     def _is_identifier(name: str) -> bool:
         return isinstance(name, str) and IDENT_RE.match(name) is not None
 
-
 else:
 
     def _is_identifier(name: str) -> bool:

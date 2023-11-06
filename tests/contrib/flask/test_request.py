@@ -177,11 +177,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             return "Hello Flask", 200
 
         with self.override_http_config("flask", dict(trace_query_string=True)):
-            self.client.get(u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+            self.client.get("/?foo=bar&baz=정상처리".encode("euc-kr"))
         spans = self.get_spans()
 
         # Request tags
-        assert spans[0].get_tag(http.QUERY_STRING) == u"foo=bar&baz=����ó��"
+        assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=����ó��"
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -444,11 +444,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 We create the expected spans
         """
 
-        @self.app.route(u"/üŋïĉóđē")
+        @self.app.route("/üŋïĉóđē")
         def unicode():
             return "üŋïĉóđē", 200
 
-        res = self.client.get(u"/üŋïĉóđē")
+        res = self.client.get("/üŋïĉóđē")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data, b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93")
 
@@ -493,23 +493,23 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         req_span = spans[0]
         self.assertEqual(req_span.service, "flask")
         self.assertEqual(req_span.name, "flask.request")
-        self.assertEqual(req_span.resource, u"GET /üŋïĉóđē")
+        self.assertEqual(req_span.resource, "GET /üŋïĉóđē")
         self.assertEqual(req_span.span_type, "web")
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
         self.assertEqual(req_span.get_tag("flask.endpoint"), "unicode")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), u"/üŋïĉóđē")
+        self.assertEqual(req_span.get_tag("flask.url_rule"), "/üŋïĉóđē")
         self.assertEqual(req_span.get_tag("http.method"), "GET")
-        self.assertEqual(req_span.get_tag(http.URL), u"http://localhost/üŋïĉóđē")
+        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/üŋïĉóđē")
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
         handler_span = spans[5 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.unicode")
-        self.assertEqual(handler_span.resource, u"/üŋïĉóđē")
+        self.assertEqual(handler_span.resource, "/üŋïĉóđē")
         self.assertEqual(req_span.error, 0)
 
     def test_request_404(self):

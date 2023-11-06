@@ -25,7 +25,6 @@ def _setup(wrapped, instance, args, kwargs):
 
 
 def _patch():
-
     if distutils_core and setuptools:
         _w(distutils_core, "setup", _setup)
         _w(setuptools, "setup", _setup)
