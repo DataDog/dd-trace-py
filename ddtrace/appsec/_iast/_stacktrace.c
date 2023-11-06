@@ -109,7 +109,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
         result = PyTuple_Pack(2, filename_o, line_obj);
         break;
     }
-    goto exit_0;
 
 exit:
     Py_DECREF(cwd_bytes);
