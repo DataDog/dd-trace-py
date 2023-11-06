@@ -1,7 +1,7 @@
 import os
 import sys
-from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Optional
 
 from openai import version
 
@@ -15,8 +15,8 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.wrapping import wrap
 
-from . import _endpoint_hooks
 from ...pin import Pin
+from . import _endpoint_hooks
 from .utils import _format_openai_api_key
 
 

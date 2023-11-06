@@ -3,13 +3,14 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from wrapt.importer import when_imported
+from ddtrace.vendor.wrapt.importer import when_imported
 
+from .internal import telemetry
 from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .settings import _config as config
+from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -78,6 +79,7 @@ PATCH_MODULES = {
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "loguru": config.logs_injection,
     "structlog": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
@@ -164,8 +166,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
-            telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
-            telemetry_writer.add_count_metric(
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+            telemetry.telemetry_writer.add_count_metric(
                 "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
             )
         else:
@@ -173,10 +175,14 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
-                    telemetry_writer.add_integration(name, True, PATCH_MODULES.get(module) is True, "", version=v)
+                    telemetry.telemetry_writer.add_integration(
+                        name, True, PATCH_MODULES.get(module) is True, "", version=v
+                    )
             else:
                 version = imported_module.get_version()
-                telemetry_writer.add_integration(module, True, PATCH_MODULES.get(module) is True, "", version=version)
+                telemetry.telemetry_writer.add_integration(
+                    module, True, PATCH_MODULES.get(module) is True, "", version=version
+                )
 
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -214,7 +220,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if config._iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()

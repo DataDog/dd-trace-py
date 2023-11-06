@@ -1,14 +1,16 @@
 import os
+from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
 
 from _config import config
+from output import log
 
 from ddtrace.debugging._config import di_config
-import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
@@ -32,13 +34,28 @@ try:
     COLS, _ = os.get_terminal_size()
 except Exception:
     COLS = 80
-CWD = os.path.abspath(os.getcwd())
-TESTS = os.path.join(CWD, "test")
+CWD = Path.cwd()
+
+
+# Taken from Python 3.9. This is not implemented in older versions of Python
+def is_relative_to(self, other):
+    """Return True if the path is relative to another path or False."""
+    try:
+        self.relative_to(other)
+        return True
+    except ValueError:
+        return False
 
 
 def from_editable_install(module: ModuleType) -> bool:
     o = origin(module)
-    return o.startswith(CWD) and not o.startswith(TESTS) and (config.venv is None or not o.startswith(config.venv))
+    if o is None:
+        return False
+    return (
+        is_relative_to(o, CWD)
+        and not any(_.stem.startswith("test") for _ in o.parents)
+        and (config.venv is None or not is_relative_to(o, config.venv))
+    )
 
 
 def is_included(module: ModuleType) -> bool:
@@ -170,7 +187,7 @@ class ExplorationSignalCollector(SignalCollector):
         encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
-        self._snapshots = []
+        self._snapshots: t.List[bytes] = []
         self._probes = []
         self._failed_encoding = []
         self.on_snapshot = None
@@ -187,11 +204,11 @@ class ExplorationSignalCollector(SignalCollector):
             self.on_snapshot(snapshot)
 
     @property
-    def snapshots(self) -> t.List[Snapshot]:
+    def snapshots(self) -> t.List[t.Optional[bytes]]:
         return self._snapshots or [None]
 
     @property
-    def probes(self) -> t.List[Probe]:
+    def probes(self) -> t.List[t.Optional[Probe]]:
         return self._probes or [None]
 
 
@@ -228,22 +245,25 @@ class ExplorationDebugger(Debugger):
         nprobes = len(registry)
         nokprobes = sum(_.installed for _ in registry.values())
 
-        print(("{:=^%ds}" % COLS).format(" %s: probes stats " % cls.__name__))
-        print("")
+        log(("{:=^%ds}" % COLS).format(" %s: probes stats " % cls.__name__))
+        log("")
 
-        print("Installed probes: %d/%d" % (nokprobes, nprobes))
-        print("")
+        log("Installed probes: %d/%d" % (nokprobes, nprobes))
+        log("")
 
         cls.on_disable()
 
         snapshots = cls.get_snapshots()
-        if snapshots and snapshots[-1]:
-            print(snapshots[-1].decode())
+        if snapshots and snapshots[-1] is not None:
+            import json
+            from pprint import pprint
+
+            pprint(json.loads(snapshots[-1].decode()), stream=config.output_stream)
 
         super(ExplorationDebugger, cls).disable(join=join)
 
     @classmethod
-    def get_snapshots(cls) -> t.List[Snapshot]:
+    def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
         if cls._instance is None:
             return None
         return cls._instance._collector.snapshots
@@ -270,7 +290,7 @@ class ExplorationDebugger(Debugger):
 if config.status_messages:
 
     def status(msg: str) -> None:
-        print(("{:%d}" % COLS).format(msg))
+        log(("{:%d}" % COLS).format(msg))
 
 
 else:

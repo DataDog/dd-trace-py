@@ -1,0 +1,3 @@
+fixes:
+  - |
+    data_streams: This fix resolves an issue where tracing would crash if a kafka client produced a message with no key or value.

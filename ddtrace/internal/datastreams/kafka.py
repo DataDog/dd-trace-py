@@ -33,13 +33,15 @@ def _calculate_byte_size(data):
             total += _calculate_byte_size(v)
         return total
 
+    return 0  # Return 0 to avoid breaking calculations if its a type we don't know
 
-def dsm_kafka_message_produce(instance, args, kwargs):
+
+def dsm_kafka_message_produce(instance, args, kwargs, is_serializing):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
-    message = args[MESSAGE_ARG_POSITION]
-    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME)
+    message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
+    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
 
     payload_size = 0
@@ -58,9 +60,10 @@ def dsm_kafka_message_produce(instance, args, kwargs):
     try:
         on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
     except ArgumentError:
-        on_delivery_kwarg = "callback"
-        on_delivery_arg = 4
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+        if not is_serializing:
+            on_delivery_kwarg = "callback"
+            on_delivery_arg = 4
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
 
     def wrapped_callback(err, msg):
         if err is None:

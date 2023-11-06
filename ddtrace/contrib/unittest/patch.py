@@ -3,8 +3,6 @@ import os
 from typing import Union
 import unittest
 
-import wrapt
-
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -26,10 +24,12 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID as _SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE as _SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -51,6 +51,8 @@ def get_version():
 
 
 def _enable_unittest_if_not_started():
+    if not hasattr(_CIVisibility, "_unittest_data"):
+        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     if _CIVisibility.enabled:
         return
     _CIVisibility.enable(config=ddtrace.config.unittest)
@@ -226,6 +228,12 @@ def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
         or hasattr(_CIVisibility, "_datadog_entry")
         and _CIVisibility._datadog_entry == "cli"
     )
+
+
+def _extract_test_method_object(test_object):
+    if hasattr(test_object, "_testMethodName"):
+        return getattr(test_object, test_object._testMethodName, None)
+    return None
 
 
 def _is_invoked_by_text_test_runner() -> bool:
@@ -443,8 +451,6 @@ def collect_text_test_runner_session(func, instance: unittest.TestSuite, args: t
     """
     if not _is_valid_module_suite_call(func):
         return func(*args, **kwargs)
-    if not hasattr(_CIVisibility, "_unittest_data"):
-        _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
     if _is_invoked_by_text_test_runner():
         seen_suites = _CIVisibility._unittest_data["suites"]
         seen_modules = _CIVisibility._unittest_data["modules"]
@@ -561,8 +567,9 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-    test_suite_name = _extract_suite_name_from_test_method(instance)
     test_name = _extract_test_method_name(instance)
+    test_method_object = _extract_test_method_object(instance)
+    test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
         ddtrace.config.unittest.operation_name,
@@ -594,6 +601,8 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
+    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+
     _store_test_span(instance, span)
     return span
 
@@ -618,8 +627,6 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     test_session_span = None
     if _is_invoked_by_cli(instance):
         _enable_unittest_if_not_started()
-        if not hasattr(_CIVisibility, "_unittest_data"):
-            _CIVisibility._unittest_data = {"suites": {}, "modules": {}}
         for parent_module in instance.test._tests:
             for module in parent_module._tests:
                 _populate_suites_and_modules(
@@ -633,7 +640,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
-        if _CIVisibility.enabled and test_session_span:
+        if _CIVisibility.enabled and test_session_span and hasattr(_CIVisibility, "_unittest_data"):
             _finish_remaining_suites_and_modules(
                 _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
             )
