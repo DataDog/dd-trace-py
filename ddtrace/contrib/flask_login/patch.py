@@ -39,7 +39,7 @@ def traced_login_user(func, instance, args, kwargs):
     try:
         mode = asm_config._automatic_login_events_mode
         if not asm_config._asm_enabled or mode == "disabled":
-            return
+            return ret
 
         user = get_argument_value(args, kwargs, 0, "user")
         if not user:
