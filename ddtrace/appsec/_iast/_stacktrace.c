@@ -59,7 +59,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (!tstate) {
-        goto exit_0;
+        return NULL;
     }
 
     int line;
@@ -69,18 +69,18 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     char* cwd = NULL;
 
     if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
-        goto exit_0;
+        return NULL;
     }
     cwd = PyBytes_AsString(cwd_bytes);
     if (!cwd) {
         Py_DECREF(cwd_bytes);
-        goto exit_0;
+        return NULL;
     }
 
     PyFrameObject* frame = GET_FRAME(tstate);
     if (!frame) {
         Py_DECREF(cwd_bytes);
-        goto exit_0;
+        return NULL;
     }
 
     while (NULL != frame) {
@@ -109,25 +109,11 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
         result = PyTuple_Pack(2, filename_o, line_obj);
         break;
     }
-    goto exit_0;
-
 exit:
     Py_DECREF(cwd_bytes);
     FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
-    assert(result != NULL);
     return result;
-
-exit_0: ; // fix: "a label can only be part of a statement and a declaration is not a statement" error
-    // Return "", 0
-    PyObject* line_obj = Py_BuildValue("i", 0);
-    filename_o = PyUnicode_FromString("");
-    result = PyTuple_Pack(2, filename_o, line_obj);
-    FILENAME_XDECREF(filename_o);
-    // decref line_obj also?
-    assert(result != NULL);
-    return result;
-
 }
 
 static PyMethodDef StacktraceMethods[] = {
