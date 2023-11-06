@@ -98,6 +98,7 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env={
+        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
@@ -130,19 +131,49 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
+                # Flask 2.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                # Flask 3.x.x
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",

@@ -2,7 +2,7 @@ from ddtrace.contrib.langchain import get_version
 from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
 from ddtrace.contrib.langchain.constants import text_embedding_models
-from ddtrace.contrib.langchain.constants import vectorstores
+from ddtrace.contrib.langchain.constants import vectorstore_classes
 from tests.contrib.patch import PatchTestCase
 
 
@@ -24,7 +24,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             if embedding_model:
                 self.assert_wrapped(embedding_model.embed_query)
                 self.assert_wrapped(embedding_model.embed_documents)
-        for vectorstore in vectorstores:
+        for vectorstore in vectorstore_classes:
             vectorstore_interface = getattr(langchain.vectorstores, vectorstore, None)
             if vectorstore_interface:
                 self.assert_wrapped(vectorstore_interface.similarity_search)
@@ -41,7 +41,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             if embedding_model:
                 self.assert_not_wrapped(embedding_model.embed_query)
                 self.assert_not_wrapped(embedding_model.embed_documents)
-        for vectorstore in vectorstores:
+        for vectorstore in vectorstore_classes:
             vectorstore_interface = getattr(langchain.vectorstores, vectorstore, None)
             if vectorstore_interface:
                 self.assert_not_wrapped(vectorstore_interface.similarity_search)
@@ -58,7 +58,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             if embedding_model:
                 self.assert_not_double_wrapped(embedding_model.embed_query)
                 self.assert_not_double_wrapped(embedding_model.embed_documents)
-        for vectorstore in vectorstores:
+        for vectorstore in vectorstore_classes:
             vectorstore_interface = getattr(langchain.vectorstores, vectorstore, None)
             if vectorstore_interface:
                 self.assert_not_double_wrapped(vectorstore_interface.similarity_search)

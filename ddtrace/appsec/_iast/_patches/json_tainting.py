@@ -24,6 +24,8 @@ def unpatch_iast():
     # type: () -> None
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)
     try_unwrap("json", "loads")
+    try_unwrap("json.encoder", "JSONEncoder.default")
+    try_unwrap("simplejson.encoder", "JSONEncoder.default")
 
 
 def patch():
@@ -32,6 +34,8 @@ def patch():
     if not set_and_check_module_is_patched("json", default_attr=_DEFAULT_ATTR):
         return
     try_wrap_function_wrapper("json", "loads", wrapped_loads)
+    try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
 
 
 def wrapped_loads(wrapped, instance, args, kwargs):
@@ -60,3 +64,10 @@ def wrapped_loads(wrapped, instance, args, kwargs):
             log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
             raise
     return obj
+
+
+def patched_json_encoder_default(original_func, instance, args, kwargs):
+    if isinstance(args[0], (LazyTaintList, LazyTaintDict)):
+        return args[0]._obj
+
+    return original_func(*args, **kwargs)

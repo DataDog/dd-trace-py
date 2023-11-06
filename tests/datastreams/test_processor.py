@@ -97,3 +97,29 @@ run_test()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
     assert out.decode().strip() == "Fake flush called"
+
+
+def test_threaded_import(ddtrace_run_python_code_in_subprocess):
+    code = """
+import pytest
+import sys
+import time
+import threading
+
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called")
+
+def run_test():
+    processor = DataStreamsProcessor("http://localhost:8126")
+
+t = threading.Thread(target=run_test)
+t.start()
+t.join()
+"""
+
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert err.decode().strip() == ""
