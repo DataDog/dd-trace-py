@@ -22,7 +22,7 @@ dependencies = [
     "packaging",
     "flake8>=3.8,<3.9",
     "flake8-blind-except",
-    "flake8-builtins",
+    "flake8-builtins==2.1.0",
     "flake8-docstrings",
     "flake8-bugbear",
     "flake8-logging-format",
