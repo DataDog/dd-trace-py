@@ -1,6 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 import os
+from pathlib import Path
 import sys
 import threading
 from types import FunctionType
@@ -95,7 +96,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: Set[str] = set()
 
     @classmethod
-    def register_origin_hook(cls, origin: str, hook: ModuleHookType) -> None:
+    def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
         if origin in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
@@ -105,14 +106,14 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
             return
 
-        cls._locations.add(origin)
+        cls._locations.add(str(origin))
 
         super(DebuggerModuleWatchdog, cls).register_origin_hook(origin, hook)
 
     @classmethod
-    def unregister_origin_hook(cls, origin: str, hook: ModuleHookType) -> None:
+    def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
         try:
-            cls._locations.remove(origin)
+            cls._locations.remove(str(origin))
         except KeyError:
             # Nothing to unregister.
             return
@@ -429,7 +430,7 @@ class Debugger(Service):
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
         probes_for_function: Dict[FullyNamedWrappedFunction, List[Probe]] = defaultdict(list)
-        for probe in self._probe_registry.get_pending(origin(module)):
+        for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
@@ -512,7 +513,7 @@ class Debugger(Service):
             (registered_probe,) = self._probe_registry.unregister(probe)
             unregistered_probes.append(cast(LineProbe, registered_probe))
 
-        probes_for_source: Dict[str, List[LineProbe]] = defaultdict(list)
+        probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
             if probe.source_file is None:
                 continue
@@ -543,7 +544,7 @@ class Debugger(Service):
                         else:
                             log.debug("Ejected %r from %r", probe, function)
 
-            if not self._probe_registry.has_probes(resolved_source):
+            if not self._probe_registry.has_probes(str(resolved_source)):
                 try:
                     self.__watchdog__.unregister_origin_hook(resolved_source, self._probe_injection_hook)
                     log.debug("Unregistered injection hook on source '%s'", resolved_source)
@@ -611,7 +612,6 @@ class Debugger(Service):
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
     def _unwrap_functions(self, probes: List[FunctionProbe]) -> None:
-
         # Keep track of all the modules involved to see if there are any import
         # hooks that we can clean up at the end.
         touched_modules: Set[str] = set()
