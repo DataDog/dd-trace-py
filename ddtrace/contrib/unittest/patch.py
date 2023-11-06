@@ -86,15 +86,15 @@ def _start_coverage(root_dir: str):
     return coverage
 
 
-def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
+def _report_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
     span_id = str(span.trace_id)
-    coverage_data.stop()
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
         log.warning("No coverage collector or data found for item")
         return
-    span.set_tag_str(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
-    coverage_data.erase()
-    del coverage_data
+    span.set_tag_str(
+        COVERAGE_TAG_NAME,
+        build_coverage_payload(coverage_data, root_dir, span_id),
+    )
 
 
 def _is_test_coverage_enabled(test_object) -> bool:
@@ -538,6 +538,10 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         with _start_test_span(instance, test_suite_span) as span:
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
+            test_module_suite_path_without_extension = "{}/{}".format(
+                os.path.splitext(test_module_path)[0], test_suite_name
+            )
+            fqn_test = "{}.{}".format(test_module_suite_path_without_extension, test_name)
             if _CIVisibility.test_skipping_enabled():
                 if _is_marked_as_unskippable(instance):
                     span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
@@ -572,8 +576,9 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
 
             if _is_test_coverage_enabled(instance):
-                coverage = _start_coverage(root_directory)
-                instance._coverage = coverage
+                if not hasattr(unittest, "_coverage"):
+                    unittest._coverage = _start_coverage(root_directory)
+                unittest._coverage.switch_context(fqn_test)
             if _is_skipped_by_itr(instance):
                 result = args[0]
                 result.startTest(test=instance)
@@ -585,8 +590,11 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             else:
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-            if hasattr(instance, "_coverage"):
-                _detach_coverage(instance._coverage, span, root_directory)
+            if _is_test_coverage_enabled(instance):
+                filtered_dict = {k: v for k, v in unittest._coverage._collector.data.items() if v}
+                print(f"Test name is {fqn_test} and data is {filtered_dict}")
+
+                pass
 
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span

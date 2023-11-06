@@ -282,7 +282,7 @@ class CIVisibility(Service):
     def test_skipping_enabled(cls):
         if not cls.enabled:
             return False
-        return cls._instance and cls._instance._test_skipping_enabled_by_api
+        return False
 
     def _fetch_tests_to_skip(self, skipping_mode):
         # Make sure git uploading has finished
