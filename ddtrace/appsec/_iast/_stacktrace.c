@@ -114,7 +114,6 @@ exit:
     Py_DECREF(cwd_bytes);
     FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
-    assert(result != NULL);
     return result;
 
 exit_0:; // fix: "a label can only be part of a statement and a declaration is not a statement" error
@@ -124,7 +123,6 @@ exit_0:; // fix: "a label can only be part of a statement and a declaration is n
     result = PyTuple_Pack(2, filename_o, line_obj);
     FILENAME_XDECREF(filename_o);
     Py_DECREF(line_obj);
-    assert(result != NULL);
     return result;
 }
 
