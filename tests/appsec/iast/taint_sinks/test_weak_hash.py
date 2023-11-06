@@ -253,3 +253,29 @@ def test_weak_check_repeated(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == 1
+
+
+def test_weak_check_hmac(iast_span_defaults):
+    import hashlib
+    import hmac
+
+    mac = hmac.new(b"test", digestmod=hashlib.md5)
+
+    mac.digest()
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+    assert len(span_report.vulnerabilities) == 1
+
+
+def test_weak_check_hmac_secure(iast_span_defaults):
+    import hashlib
+    import hmac
+
+    mac = hmac.new(b"test", digestmod=hashlib.sha256)
+
+    mac.digest()
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+    assert span_report is None
