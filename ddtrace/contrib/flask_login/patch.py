@@ -42,34 +42,29 @@ def traced_login_user(func, instance, args, kwargs):
             return
 
         user = get_argument_value(args, kwargs, 0, "user")
-        if not user:
-            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)
-            return ret
-
         if hasattr(user, "is_anonymous") and user.is_anonymous:
-            return ret
+            return
 
         if not isinstance(user, flask_login.UserMixin):
             log.debug(
                 "Automatic Login Events Tracking: flask_login User models not inheriting from UserMixin not supported",
             )
-            return ret
+            return
 
         info_retriever = _FlaskLoginUserInfoRetriever(user)
         user_id, user_extra = info_retriever.get_user_info()
         if user_id == -1:
             with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
                 track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
-            return ret
+            return
         if not user_id:
-            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)  # JJJ added
             log.debug(
                 "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
                 "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or implement the "
                 "get_id method for your model",
                 type(user),
             )
-            return ret
+            return
 
         with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
             session_key = flask.session.get("_id", None)
