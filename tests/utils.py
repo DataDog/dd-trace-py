@@ -501,7 +501,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
             kwargs["agent_url"] = agent.get_trace_url()
-        kwargs["api_version"] = kwargs.get("api_version", "v0.5")
+        kwargs["api_version"] = kwargs.get("api_version", "v0.4")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
         self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
