@@ -171,6 +171,7 @@ protobuf
 proxying
 psycopg
 py
+pydantic
 pyenv
 PyFrameObject
 pylibmc
