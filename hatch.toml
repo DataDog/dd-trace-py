@@ -2,9 +2,8 @@
 detached = true
 python = "3.10"
 dependencies = [
-    "black==21.4b2",
-    # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
-    "click<8.1.0",
+    "black==23.10.1",
+    "click==8.1.7",
     "cython-lint==0.15.0",
     "codespell==2.1.0",
     "bandit==1.7.5",
