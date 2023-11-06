@@ -102,9 +102,18 @@ def test_serialize_custom_object():
 @pytest.mark.parametrize(
     "value,serialized",
     [
-        (list(range(MAXSIZE << 1)), "[" + ", ".join(map(str, range(MAXSIZE))) + ", ...]"),
-        (tuple(range(MAXSIZE << 1)), "(" + ", ".join(map(str, range(MAXSIZE))) + ", ...)"),
-        (set(range(MAXSIZE << 1)), "{" + ", ".join(map(str, range(MAXSIZE))) + ", ...}"),
+        (
+            list(range(MAXSIZE << 1)),
+            "[" + ", ".join(map(str, range(MAXSIZE))) + ", ...]",
+        ),
+        (
+            tuple(range(MAXSIZE << 1)),
+            "(" + ", ".join(map(str, range(MAXSIZE))) + ", ...)",
+        ),
+        (
+            set(range(MAXSIZE << 1)),
+            "{" + ", ".join(map(str, range(MAXSIZE))) + ", ...}",
+        ),
         (list(range(MAXSIZE)), "[" + ", ".join(map(str, range(MAXSIZE))) + "]"),
         (tuple(range(MAXSIZE)), "(" + ", ".join(map(str, range(MAXSIZE))) + ")"),
         (set(range(MAXSIZE)), "{" + ", ".join(map(str, range(MAXSIZE))) + "}"),
@@ -150,7 +159,10 @@ def test_capture_context_one_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=1))
     self = context["arguments"]["self"]
 
-    assert self["fields"]["root"]["fields"]["left"] == {"notCapturedReason": "depth", "type": "Node"}
+    assert self["fields"]["root"]["fields"]["left"] == {
+        "notCapturedReason": "depth",
+        "type": "Node",
+    }
 
     assert self["fields"]["root"]["fields"]["name"]["value"] == "'0'"
     assert "fields" not in self["fields"]["root"]["fields"]["name"]
@@ -159,7 +171,10 @@ def test_capture_context_one_level():
 def test_capture_context_two_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=2))
     self = context["arguments"]["self"]
-    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {
+        "notCapturedReason": "depth",
+        "type": "Node",
+    }
 
 
 def test_capture_context_three_level():
@@ -293,7 +308,15 @@ class CountBudget(object):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (1, {"entries": [], "notCapturedReason": "CountBudget", "size": 1, "type": "dict"}),
+        (
+            1,
+            {
+                "entries": [],
+                "notCapturedReason": "CountBudget",
+                "size": 1,
+                "type": "dict",
+            },
+        ),
         (
             5,
             {
@@ -306,7 +329,11 @@ class CountBudget(object):
                             "entries": [
                                 (
                                     {"type": "str", "notCapturedReason": "CountBudget"},
-                                    {"type": "dict", "notCapturedReason": "CountBudget", "size": 1},
+                                    {
+                                        "type": "dict",
+                                        "notCapturedReason": "CountBudget",
+                                        "size": 1,
+                                    },
                                 )
                             ],
                             "size": 1,
@@ -381,12 +408,23 @@ def test_encoding_stopping_cond_fields(count, nfields):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (1, {"notCapturedReason": "CountBudget", "elements": [], "type": "list", "size": 100}),
+        (
+            1,
+            {
+                "notCapturedReason": "CountBudget",
+                "elements": [],
+                "type": "list",
+                "size": 100,
+            },
+        ),
         (
             5,
             {
                 "notCapturedReason": "CountBudget",
-                "elements": [{"type": "int", "value": "0"}, {"type": "int", "value": "1"}],
+                "elements": [
+                    {"type": "int", "value": "0"},
+                    {"type": "int", "value": "1"},
+                ],
                 "type": "list",
                 "size": 100,
             },
@@ -415,7 +453,15 @@ def test_encoding_stopping_cond_collection_size(count, result):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (1, {"notCapturedReason": "CountBudget", "size": 100, "type": "dict", "entries": []}),
+        (
+            1,
+            {
+                "notCapturedReason": "CountBudget",
+                "size": 100,
+                "type": "dict",
+                "entries": [],
+            },
+        ),
         (
             5,
             {
@@ -500,67 +546,70 @@ def test_json_tree():
 @pytest.mark.parametrize(
     "size, expected",
     [
-        (99, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}'),
-        (60, r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{}], "b": 2}}'),
-        (40, r'{"a": 1, "b": {"a": [{},{}], "b": 2}}'),
-        (30, r'{"a": 1, "b": {}}'),
-        (10, r"{}"),
-    ],
-)
-def test_json_pruning(size, expected):
-    class TestEncoder(LogSignalJsonEncoder):
-        MAX_SIGNAL_SIZE = size
-        MIN_LEVEL = 0
-
-    assert TestEncoder(None).pruned(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2},{"a": 1, "bc": 2}], "b": 2}}') == expected
-
-
-@pytest.mark.parametrize(
-    "size, expected",
-    [
         (
-            400,
+            800,
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
-                "prune": {"type": "list", "size":2, "elements": [{"type": "Custom", "notCapturedReason": "depth"},{"type": "Custom", "notCapturedReason": "depth"}]}  # noqa
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"type": "Custom", "notCapturedReason": "depth"},
+                    {"type": "Custom", "notCapturedReason": "depth"}
+                ]}
             }""",
         ),
         (
-            300,
+            440,
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},   # noqa
-                "prune": {"type": "list", "size":2, "elements": [{},{}]}
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"pruned":true},
+                    {"pruned":true}
+                ]}
             }""",
         ),
         (
-            250,
+            350,
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
-                "prune": {}
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"pruned":true}
             }""",
         ),
         (
-            200,
+            270,
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{}]},  # noqa
-                "prune": {}
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"pruned":true}
+                ]},
+                "prune": {"pruned":true}
             }""",
         ),
         (
-            150,
+            240,
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{},{}]},
-                "prune": {}
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"pruned":true},
+                    {"pruned":true}
+                ]},
+                "prune": {"pruned":true}
             }""",
         ),
         (
-            100,
+            120,
             r"""{
-                "keep": {},
-                "prune": {}
+                "keep": {"pruned":true},
+                "prune": {"pruned":true}
             }""",
         ),
-        (10, r"{}"),
+        (20, r'{"pruned":true}'),
     ],
 )
 def test_json_pruning_not_capture_depth(size, expected):
@@ -571,8 +620,14 @@ def test_json_pruning_not_capture_depth(size, expected):
     assert (
         TestEncoder(None).pruned(
             r"""{
-                "keep": {"type": "list", "size":2, "elements": [{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},  # noqa
-                "prune": {"type": "list", "size":2, "elements": [{"type": "Custom", "notCapturedReason": "depth"},{"type": "Custom", "notCapturedReason": "depth"}]}  # noqa
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"type": "Custom", "notCapturedReason": "depth"},
+                    {"type": "Custom", "notCapturedReason": "depth"}
+                ]}
             }""",
         )
         == expected

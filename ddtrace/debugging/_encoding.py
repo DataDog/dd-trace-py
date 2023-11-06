@@ -250,6 +250,9 @@ class LogSignalJsonEncoder(Encoder):
         if len(log_signal_json) <= self.MAX_SIGNAL_SIZE:
             return log_signal_json
 
+        PRUNED_PROPERTY = '{"pruned":true}'
+        PRUNED_LEN = len(PRUNED_PROPERTY)
+
         tree = JSONTree(log_signal_json)
 
         delta = len(tree.root) - self.MAX_SIGNAL_SIZE
@@ -260,7 +263,7 @@ class LogSignalJsonEncoder(Encoder):
         while leaves:
             leaf = heappop(leaves)
             nodes[leaf.start] = leaf
-            s += len(leaf) - 2  # We are keeping "{" and "}"
+            s += len(leaf) - PRUNED_LEN
             if s > delta:
                 break
 
@@ -273,14 +276,16 @@ class LogSignalJsonEncoder(Encoder):
                 heappush(leaves, parent)
                 for c in parent.children:
                     del nodes[c.start]
-                    s -= len(c) - 2
+                    s -= len(c) - PRUNED_LEN
 
         pruned_nodes = sorted(nodes.values(), key=lambda n: n.start)  # Leaf nodes don't overlap
 
-        segments = [log_signal_json[: pruned_nodes[0].start + 1]]
+        segments = [log_signal_json[: pruned_nodes[0].start]]
         for n, m in zip(pruned_nodes, pruned_nodes[1:]):
-            segments.append(log_signal_json[n.end - 1 : m.start + 1])
-        segments.append(log_signal_json[pruned_nodes[-1].end - 1 :])
+            segments.append(PRUNED_PROPERTY)
+            segments.append(log_signal_json[n.end : m.start])
+        segments.append(PRUNED_PROPERTY)
+        segments.append(log_signal_json[pruned_nodes[-1].end :])
 
         return "".join(segments)
 
