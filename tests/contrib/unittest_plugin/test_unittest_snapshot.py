@@ -27,11 +27,7 @@ SNAPSHOT_IGNORES = [
     "start",
 ]
 
-SNAPSHOT_IGNORES_COVERAGE = [
-    "metrics.test.source.start",
-    "metrics.test.source.end",
-    "meta.test.source.file"
-]
+SNAPSHOT_IGNORES_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
 
 class UnittestSnapshotTestCase(TracerTestCase):
