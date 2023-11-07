@@ -233,7 +233,9 @@ class AstVisitor(ast.NodeTransformer):
 
         return any(allowed in function_name for allowed in self._taint_sink_replace_any)
 
-    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+    def _add_original_function_as_arg(
+        self, call_node, is_function, duplicate=False
+    ):  # type: (ast.Call, bool, bool) -> Any
         """
         Creates the arguments for the original function
         """
@@ -248,7 +250,7 @@ class AstVisitor(ast.NodeTransformer):
         # _add_original_function_as_arg(function_name=my_function, self, *args, **kwargs)
         new_args = [
             function_name_arg,
-        ] * (2 if is_function else 1) + call_node.args
+        ] * (2 if (is_function or duplicate) else 1) + call_node.args
 
         return new_args
 
@@ -457,7 +459,7 @@ class AstVisitor(ast.NodeTransformer):
                 call_node.args.insert(0, new_arg)
 
                 # Insert original method as first parameter (a.b.c.method)
-                call_node.args = self._add_original_function_as_arg(call_node, False)
+                call_node.args = self._add_original_function_as_arg(call_node, False, duplicate=True)
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
@@ -466,7 +468,8 @@ class AstVisitor(ast.NodeTransformer):
             elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
                 aspect = self._aspect_modules.get(method_name, None)
                 if aspect:
-                    # Move the Function to 'args'
+                    # Move the Function to 'args' (twice)
+                    call_node.args.insert(0, call_node.func)
                     call_node.args.insert(0, call_node.func)
 
                     # Create a new Name node for the replacement and set it as node.func
@@ -478,7 +481,7 @@ class AstVisitor(ast.NodeTransformer):
             if isinstance(call_node.func, ast.Name):
                 aspect = self._should_replace_with_taint_sink(call_node, True)
                 if aspect:
-                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node, False, duplicate=True)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 
@@ -487,7 +490,7 @@ class AstVisitor(ast.NodeTransformer):
                 aspect = self._should_replace_with_taint_sink(call_node, False)
                 if aspect:
                     # Create a new Name node for the replacement and set it as node.func
-                    call_node.args = self._add_original_function_as_arg(call_node, False)
+                    call_node.args = self._add_original_function_as_arg(call_node, False, duplicate=True)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
 

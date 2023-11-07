@@ -201,8 +201,8 @@ def build_string_aspect(*args):  # type: (List[Any]) -> str
     return join_aspect("".join, "", args)
 
 
-def ljust_aspect(orig_function, candidate_text, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Union[str, bytes, bytearray]
+def ljust_aspect(orig_function, _, candidate_text, *args, **kwargs):
+    # type: (Callable, Any, Any, Any, Any) -> Union[str, bytes, bytearray]
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -227,8 +227,8 @@ def ljust_aspect(orig_function, candidate_text, *args, **kwargs):
         return candidate_text.ljust(*args, **kwargs)
 
 
-def zfill_aspect(orig_function, candidate_text, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def zfill_aspect(orig_function, _, candidate_text, *args, **kwargs):
+    # type: (Callable, Any, Any, Any, Any) -> Any
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -265,6 +265,7 @@ def zfill_aspect(orig_function, candidate_text, *args, **kwargs):
 
 def format_aspect(
     orig_function,  # type: Callable
+    _,  # type: Any
     candidate_text,  # type: str
     *args,  # type: List[Any]
     **kwargs,  # type: Dict[str, Any]
