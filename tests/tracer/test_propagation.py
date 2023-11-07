@@ -304,7 +304,6 @@ def test_extract_128bit_trace_ids_datadog():
         with tracer.trace("local_root_span") as span:
             assert span.trace_id == trace_id
             assert span.parent_id == span_id
-            assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == trace_id
 

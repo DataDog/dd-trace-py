@@ -190,7 +190,7 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _higher_order_is_valid(upper_64_bits):
-        if len(upper_64_bits) != 16 or not upper_64_bits.islower():
+        if len(upper_64_bits) != 16 or not (upper_64_bits.islower() or upper_64_bits.isdigit()):
             return False
         return True
 
@@ -298,7 +298,7 @@ class _DatadogMultiHeader:
             trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
             if _DatadogMultiHeader._higher_order_is_valid(trace_id_hob_hex):
                 if config._128_bit_trace_id_enabled:
-                    trace_id = _DatadogMultiHeader._put_together_trace_id(meta, trace_id)
+                    trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
             else:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
