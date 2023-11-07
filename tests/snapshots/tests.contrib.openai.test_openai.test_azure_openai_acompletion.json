@@ -22,7 +22,6 @@
       "openai.request.temperature": "0",
       "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
-      "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": "\". The answer is that languages are not just a collection of words, but also a collection of cultural",
       "openai.response.id": "cmpl-80yZYkRumy1r8BkAQwgC4653Rof4V",
       "openai.response.model": "gpt-35-turbo",
