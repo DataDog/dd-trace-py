@@ -18,7 +18,7 @@
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "708d0ebf1ca04eb2bbb309a4aea0b0a8",
+      "runtime-id": "3cd1dcdf1b0043e5a2ccdb0a2e707d8a",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -34,18 +34,18 @@
       "test.itr.unskippable": "true",
       "test.status": "pass",
       "test.type": "test",
-      "test_session_id": "2243582040958331445",
+      "test_session_id": "17149954064031668173",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 628,
+      "process_id": 972,
       "test.itr.tests_skipping.count": 1
     },
-    "duration": 27222583,
-    "start": 1699360991615575097
+    "duration": 27042375,
+    "start": 1699363029115134429
   },
      {
        "name": "unittest.test_module",
@@ -81,15 +81,15 @@
          "test.module_path": "test_my_coverage.py",
          "test.status": "pass",
          "test.type": "test",
-         "test_module_id": "10543201081928626898",
-         "test_session_id": "2243582040958331445",
+         "test_module_id": "12209660980614304421",
+         "test_session_id": "17149954064031668173",
          "type": "test_module_end"
        },
        "metrics": {
          "test.itr.tests_skipping.count": 1
        },
-       "duration": 26787291,
-       "start": 1699360991615933347
+       "duration": 26626500,
+       "start": 1699363029115471804
      },
         {
           "name": "unittest.test_suite",
@@ -119,13 +119,13 @@
             "test.status": "pass",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "10543201081928626898",
-            "test_session_id": "2243582040958331445",
-            "test_suite_id": "7684677382897929549",
+            "test_module_id": "12209660980614304421",
+            "test_session_id": "17149954064031668173",
+            "test_suite_id": "3294379141790163645",
             "type": "test_suite_end"
           },
-          "duration": 26695875,
-          "start": 1699360991616014055
+          "duration": 26529542,
+          "start": 1699363029115558262
         },
            {
              "name": "unittest.test",
@@ -161,17 +161,17 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "10543201081928626898",
-               "test_session_id": "2243582040958331445",
-               "test_suite_id": "7684677382897929549",
+               "test_module_id": "12209660980614304421",
+               "test_session_id": "17149954064031668173",
+               "test_suite_id": "3294379141790163645",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 18,
                "test.source.start": 14
              },
-             "duration": 23674125,
-             "start": 1699360991616048722
+             "duration": 23454750,
+             "start": 1699363029115593054
            },
            {
              "name": "unittest.test",
@@ -205,15 +205,15 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "10543201081928626898",
-               "test_session_id": "2243582040958331445",
-               "test_suite_id": "7684677382897929549",
+               "test_module_id": "12209660980614304421",
+               "test_session_id": "17149954064031668173",
+               "test_suite_id": "3294379141790163645",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 21,
                "test.source.start": 18
              },
-             "duration": 2881792,
-             "start": 1699360991639810513
+             "duration": 2895375,
+             "start": 1699363029139174845
            }]]

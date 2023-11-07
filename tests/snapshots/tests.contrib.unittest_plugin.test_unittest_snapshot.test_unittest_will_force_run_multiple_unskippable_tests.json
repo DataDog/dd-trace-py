@@ -18,7 +18,7 @@
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "ac9a59166553453eb918beb662a3048a",
+      "runtime-id": "ffa57abbd8b041a1bd366e172860d7ca",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -33,18 +33,18 @@
       "test.itr.unskippable": "true",
       "test.status": "pass",
       "test.type": "test",
-      "test_session_id": "12930144373658712185",
+      "test_session_id": "17041019522845619655",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 570,
+      "process_id": 914,
       "test.itr.tests_skipping.count": 2
     },
-    "duration": 29512625,
-    "start": 1699360989605037262
+    "duration": 29447542,
+    "start": 1699363027078660511
   },
      {
        "name": "unittest.test_module",
@@ -79,15 +79,15 @@
          "test.module_path": "test_my_coverage.py",
          "test.status": "pass",
          "test.type": "test",
-         "test_module_id": "9383518171537903932",
-         "test_session_id": "12930144373658712185",
+         "test_module_id": "11744014450039690987",
+         "test_session_id": "17041019522845619655",
          "type": "test_module_end"
        },
        "metrics": {
          "test.itr.tests_skipping.count": 2
        },
-       "duration": 29087792,
-       "start": 1699360989605384304
+       "duration": 29008417,
+       "start": 1699363027079025386
      },
         {
           "name": "unittest.test_suite",
@@ -116,13 +116,13 @@
             "test.status": "pass",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "9383518171537903932",
-            "test_session_id": "12930144373658712185",
-            "test_suite_id": "1109894027944779825",
+            "test_module_id": "11744014450039690987",
+            "test_session_id": "17041019522845619655",
+            "test_suite_id": "1569785379372048214",
             "type": "test_suite_end"
           },
-          "duration": 28992708,
-          "start": 1699360989605468971
+          "duration": 28917542,
+          "start": 1699363027079106386
         },
            {
              "name": "unittest.test",
@@ -157,17 +157,17 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "9383518171537903932",
-               "test_session_id": "12930144373658712185",
-               "test_suite_id": "1109894027944779825",
+               "test_module_id": "11744014450039690987",
+               "test_session_id": "17041019522845619655",
+               "test_suite_id": "1569785379372048214",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 18,
                "test.source.start": 14
              },
-             "duration": 23589000,
-             "start": 1699360989605499554
+             "duration": 23544250,
+             "start": 1699363027079138761
            },
            {
              "name": "unittest.test",
@@ -202,17 +202,17 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "9383518171537903932",
-               "test_session_id": "12930144373658712185",
-               "test_suite_id": "1109894027944779825",
+               "test_module_id": "11744014450039690987",
+               "test_session_id": "17041019522845619655",
+               "test_suite_id": "1569785379372048214",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 22,
                "test.source.start": 18
              },
-             "duration": 2946208,
-             "start": 1699360989629176971
+             "duration": 2922875,
+             "start": 1699363027102776053
            },
            {
              "name": "unittest.test",
@@ -245,15 +245,15 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "9383518171537903932",
-               "test_session_id": "12930144373658712185",
-               "test_suite_id": "1109894027944779825",
+               "test_module_id": "11744014450039690987",
+               "test_session_id": "17041019522845619655",
+               "test_suite_id": "1569785379372048214",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 25,
                "test.source.start": 22
              },
-             "duration": 2264833,
-             "start": 1699360989632180721
+             "duration": 2252666,
+             "start": 1699363027105756053
            }]]
