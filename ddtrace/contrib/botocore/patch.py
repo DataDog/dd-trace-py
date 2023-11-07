@@ -577,6 +577,16 @@ def patched_api_call(original_func, instance, args, kwargs):
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
+                    if endpoint_name == "stepfunctions" and (
+                        operation == "start-execution" or operation == "start-sync-execution"
+                    ):
+                        # TODO: add inject_trace method
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="stepfunctions",
+                            direction=SpanDirection.OUTBOUND,
+                        )
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 

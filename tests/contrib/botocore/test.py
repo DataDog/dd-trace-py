@@ -10,6 +10,7 @@ import botocore.exceptions
 import botocore.session
 import mock
 from moto import mock_dynamodb
+from moto import mock_stepfunctions
 from moto import mock_ec2
 from moto import mock_events
 from moto import mock_kinesis
@@ -884,6 +885,26 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "aws.sqs.send"
         assert spans[2].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[2].name == "aws.sqs.receive"
+
+    @mock_stepfunctions
+    def test_stepfunctions_client(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(stateMachineArn="foo", name="bar", input='{"baz":1}')
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "StartExecution"
+        assert span.get_tag("component") == "botocore"
+        assert span.get_tag("span.kind"), "client"
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.stepfunctions"
+        assert span.resource == "stepfunctions.startexecution"
+        assert span.get_tag("params.input") == '{"baz":1}'
 
     def _test_kinesis_client(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
