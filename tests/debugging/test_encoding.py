@@ -103,18 +103,9 @@ def test_serialize_custom_object():
 @pytest.mark.parametrize(
     "value,serialized",
     [
-        (
-            list(range(MAXSIZE << 1)),
-            "[" + ", ".join(map(str, range(MAXSIZE))) + ", ...]",
-        ),
-        (
-            tuple(range(MAXSIZE << 1)),
-            "(" + ", ".join(map(str, range(MAXSIZE))) + ", ...)",
-        ),
-        (
-            set(range(MAXSIZE << 1)),
-            "{" + ", ".join(map(str, range(MAXSIZE))) + ", ...}",
-        ),
+        (list(range(MAXSIZE << 1)), "[" + ", ".join(map(str, range(MAXSIZE))) + ", ...]"),
+        (tuple(range(MAXSIZE << 1)), "(" + ", ".join(map(str, range(MAXSIZE))) + ", ...)"),
+        (set(range(MAXSIZE << 1)), "{" + ", ".join(map(str, range(MAXSIZE))) + ", ...}"),
         (list(range(MAXSIZE)), "[" + ", ".join(map(str, range(MAXSIZE))) + "]"),
         (tuple(range(MAXSIZE)), "(" + ", ".join(map(str, range(MAXSIZE))) + ")"),
         (set(range(MAXSIZE)), "{" + ", ".join(map(str, range(MAXSIZE))) + "}"),
@@ -160,10 +151,7 @@ def test_capture_context_one_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=1))
     self = context["arguments"]["self"]
 
-    assert self["fields"]["root"]["fields"]["left"] == {
-        "notCapturedReason": "depth",
-        "type": "Node",
-    }
+    assert self["fields"]["root"]["fields"]["left"] == {"notCapturedReason": "depth", "type": "Node"}
 
     assert self["fields"]["root"]["fields"]["name"]["value"] == "'0'"
     assert "fields" not in self["fields"]["root"]["fields"]["name"]
@@ -172,10 +160,7 @@ def test_capture_context_one_level():
 def test_capture_context_two_level():
     context = _capture_context([("self", tree)], [], (None, None, None), CaptureLimits(max_level=2))
     self = context["arguments"]["self"]
-    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {
-        "notCapturedReason": "depth",
-        "type": "Node",
-    }
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
 
 
 def test_capture_context_three_level():
@@ -309,15 +294,7 @@ class CountBudget(object):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (
-            1,
-            {
-                "entries": [],
-                "notCapturedReason": "CountBudget",
-                "size": 1,
-                "type": "dict",
-            },
-        ),
+        (1, {"entries": [], "notCapturedReason": "CountBudget", "size": 1, "type": "dict"}),
         (
             5,
             {
@@ -330,11 +307,7 @@ class CountBudget(object):
                             "entries": [
                                 (
                                     {"type": "str", "notCapturedReason": "CountBudget"},
-                                    {
-                                        "type": "dict",
-                                        "notCapturedReason": "CountBudget",
-                                        "size": 1,
-                                    },
+                                    {"type": "dict", "notCapturedReason": "CountBudget", "size": 1},
                                 )
                             ],
                             "size": 1,
@@ -409,23 +382,12 @@ def test_encoding_stopping_cond_fields(count, nfields):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (
-            1,
-            {
-                "notCapturedReason": "CountBudget",
-                "elements": [],
-                "type": "list",
-                "size": 100,
-            },
-        ),
+        (1, {"notCapturedReason": "CountBudget", "elements": [], "type": "list", "size": 100}),
         (
             5,
             {
                 "notCapturedReason": "CountBudget",
-                "elements": [
-                    {"type": "int", "value": "0"},
-                    {"type": "int", "value": "1"},
-                ],
+                "elements": [{"type": "int", "value": "0"}, {"type": "int", "value": "1"}],
                 "type": "list",
                 "size": 100,
             },
@@ -454,15 +416,7 @@ def test_encoding_stopping_cond_collection_size(count, result):
 @pytest.mark.parametrize(
     "count,result",
     [
-        (
-            1,
-            {
-                "notCapturedReason": "CountBudget",
-                "size": 100,
-                "type": "dict",
-                "entries": [],
-            },
-        ),
+        (1, {"notCapturedReason": "CountBudget", "size": 100, "type": "dict", "entries": []}),
         (
             5,
             {
