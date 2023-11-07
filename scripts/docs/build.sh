@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-export LOCAL_DOCS_BUILD=1
 export DD_TRACE_ENABLED=0
 
 set -eux
