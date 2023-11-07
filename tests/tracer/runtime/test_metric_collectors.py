@@ -118,7 +118,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         _ = [thread.join() for thread in threads]
 
         # Check for RSS
-        wasted_memory = [" "] * 16 * 1024 ** 2  # 16 megs
+        wasted_memory = [" "] * 16 * 1024**2  # 16 megs
         self.assertTrue(check_metrics(*get_metrics()))
         del wasted_memory
 
