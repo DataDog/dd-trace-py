@@ -1,9 +1,8 @@
 """
-ddtrace.auto
-============
+.. _ddtraceauto:
 
-Importing this module installs Datadog instrumentation in the runtime. It should be used
-when :ref:`ddtrace-run<ddtrace-run>` is not an option. Using it with :ref:`ddtrace-run<ddtrace-run>`
+Importing ``ddtrace.auto`` installs Datadog instrumentation in the runtime. It should be used
+when :ref:`ddtrace-run<ddtracerun>` is not an option. Using it with :ref:`ddtrace-run<ddtracerun>`
 is unsupported and may lead to undefined behavior::
 
     # myapp.py
@@ -15,5 +14,8 @@ is unsupported and may lead to undefined behavior::
         print("It's my app!")
 
     main()
+
+If you'd like more granular control over instrumentation setup, you can call the `patch*` functions
+directly.
 """
 import ddtrace.bootstrap.sitecustomize  # noqa

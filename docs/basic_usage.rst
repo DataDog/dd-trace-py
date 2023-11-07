@@ -9,7 +9,7 @@ Tracing
 ``ddtrace.auto``
 ----------------
 
-To set up instrumentation within your application, call ``import ddtrace.auto`` as early as possible
+To set up instrumentation within your application, call :ref:`import ddtrace.auto<ddtraceauto>` as early as possible
 in your application. This will only work if your application is not running under ``ddtrace-run``.
 
 ``patch_all``
