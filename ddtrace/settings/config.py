@@ -201,6 +201,8 @@ class _ConfigItem:
         # type: (str, Any, List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
         self._default_value = default
+        if callable(default):
+            self._default_value = default()
         self._env_value = None
         self._code_value = None
         self._rc_value = None
@@ -256,6 +258,11 @@ class _ConfigItem:
         )
 
 
+def _parse_global_tags(s):
+    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
+    return gitmetadata.clean_tags(parse_tags_str(s))
+
+
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
@@ -271,8 +278,13 @@ def _default_config():
         ),
         "trace_http_header_tags": _ConfigItem(
             name="trace_http_header_tags",
-            default={},
+            default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+        "tags": _ConfigItem(
+            name="tags",
+            default=lambda: {},
+            envs=[("DD_TAGS", _parse_global_tags)],
         ),
     }
 
@@ -383,9 +395,6 @@ class Config(object):
         self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
-
-        # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-        self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
@@ -687,6 +696,12 @@ class Config(object):
 
         if "tracing_sampling_rate" in lib_config:
             updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+
+        if "tracing_tags" in lib_config:
+            tags = lib_config["tracing_tags"]
+            if tags:
+                tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+            updated_items.append(("tags", tags))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 
