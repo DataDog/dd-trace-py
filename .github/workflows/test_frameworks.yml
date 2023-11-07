@@ -74,7 +74,7 @@ jobs:
         # log output and it contains phony error messages.
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
       - name: Debugger exploration result
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
 #   sanic-testsuite-22_12:
@@ -194,7 +194,7 @@ jobs:
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   graphene-testsuite-3_0:
@@ -241,7 +241,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: ddtrace-run pytest graphene
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   fastapi-testsuite-0_92:
@@ -286,7 +286,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   flask-testsuite-1_1_4:
@@ -336,7 +336,7 @@ jobs:
           pip install --upgrade MarkupSafe==2.0.1
           pytest -p no:warnings -k 'not test_exception_propagation and not test_memory_consumption' tests/
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   httpx-testsuite-0_22_0:
@@ -427,7 +427,7 @@ jobs:
           pip install -e .
           pytest -p no:warnings
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   starlette-testsuite-0_17_1:
@@ -473,7 +473,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: pytest -W ignore --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   requests-testsuite-2_26_0:
@@ -515,7 +515,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success' 
         run: cat debugger-expl.txt
 
   asyncpg-testsuite-0_27_0:
@@ -649,5 +649,5 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: ddtrace-run ./tests/gh-deadlocks.sh python39
       - name: Debugger exploration results
-        if: always()
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt

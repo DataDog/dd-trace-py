@@ -401,10 +401,10 @@ ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
     ((1, "handle"),),
 )
 
-ddwaf_required_addresses = ctypes.CFUNCTYPE(
+ddwaf_known_addresses = ctypes.CFUNCTYPE(
     ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
 )(
-    ("ddwaf_required_addresses", ddwaf),
+    ("ddwaf_known_addresses", ddwaf),
     (
         (1, "handle"),
         (1, "size"),
@@ -412,9 +412,9 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_required_addresses(handle: ddwaf_handle_capsule) -> List[str]:
+def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
-    obj = ddwaf_required_addresses(handle.handle, ctypes.byref(size))
+    obj = ddwaf_known_addresses(handle.handle, ctypes.byref(size))
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
@@ -428,9 +428,9 @@ def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule
     return ddwaf_context_capsule(ddwaf_context_init(handle.handle))
 
 
-ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
-    ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
-)
+ddwaf_run = ctypes.CFUNCTYPE(
+    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64
+)(("ddwaf_run", ddwaf), ((1, "context"), (1, "persistent_data"), (1, "ephemeral_data"), (1, "result"), (1, "timeout")))
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ("ddwaf_context_destroy", ddwaf),
