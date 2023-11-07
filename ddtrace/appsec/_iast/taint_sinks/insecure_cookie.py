@@ -52,13 +52,11 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)
             _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
             InsecureCookie.report(evidence_value=evidence)
-            return
 
         if ";httponly" not in lvalue:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoHttpOnlyCookie.vulnerability_type)
             _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
             NoHttpOnlyCookie.report(evidence_value=evidence)
-            return
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
