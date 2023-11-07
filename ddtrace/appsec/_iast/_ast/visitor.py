@@ -24,7 +24,7 @@ CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
 CODE_TYPE_SITE_PACKAGES = "site_packages"
 CODE_TYPE_STDLIB = "stdlib"
-TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_funcion"
+TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
 
 
 class AstVisitor(ast.NodeTransformer):
