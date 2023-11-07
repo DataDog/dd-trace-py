@@ -57,6 +57,8 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
 
     if api_key_in_env:
         openai.api_key = openai_api_key
+    else:
+        os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
     yield openai
     # Since unpatching doesn't work (see the unpatch() function),
