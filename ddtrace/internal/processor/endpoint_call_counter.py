@@ -14,7 +14,6 @@ EndpointCountsType = typing.Dict[str, int]
 
 @attr.s(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
-
     endpoint_counts = attr.ib(init=False, repr=False, type=EndpointCountsType, factory=lambda: {}, eq=False)
     _endpoint_counts_lock = attr.ib(init=False, repr=False, factory=forksafe.Lock, eq=False)
     _enabled = attr.ib(default=False, repr=False, eq=False)
