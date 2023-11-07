@@ -1250,7 +1250,6 @@ def get_128_bit_trace_id_from_headers(headers):
 
 
 def _get_skipped_item(item, skip_reason):
-
     if not inspect.isfunction(item) and not inspect.isclass(item):
         raise ValueError(f"Unexpected skipped object: {item}")
 
@@ -1283,7 +1282,6 @@ def skip_if_until(until: int, condition=None, reason=None):
     skip = _should_skip(condition=condition, until=until)
 
     def decorator(function_or_class):
-
         if not skip:
             return function_or_class
 
