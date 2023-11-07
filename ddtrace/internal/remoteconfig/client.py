@@ -59,6 +59,7 @@ config = RemoteConfigClientConfig()
 
 class Capabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
 
 
 class RemoteConfigError(Exception):
@@ -366,7 +367,9 @@ class RemoteConfigClient(object):
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
-        capabilities = appsec_rc_capabilities() | Capabilities.APM_TRACING_SAMPLE_RATE
+        capabilities = (
+            appsec_rc_capabilities() | Capabilities.APM_TRACING_SAMPLE_RATE | Capabilities.APM_TRACING_CUSTOM_TAGS
+        )
         return dict(
             client=dict(
                 id=self.id,

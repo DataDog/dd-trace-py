@@ -308,6 +308,9 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "trace_http_header_tags":
             name = "trace_header_tags"
             value = ",".join(":".join(x) for x in item.value().items())
+        elif cfg_name == "tags":
+            name = "trace_tags"
+            value = ",".join(":".join(x) for x in item.value().items())
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
