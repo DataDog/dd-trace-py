@@ -6,10 +6,16 @@ Basic Usage
 Tracing
 ~~~~~~~
 
+``ddtrace.auto``
+----------------
+
+To set up instrumentation within your application, call ``import ddtrace.auto`` as early as possible
+in your application. This will only work if your application is not running under ``ddtrace-run``.
+
 ``patch_all``
 -------------
 
-To manually install the instrumentation use ``patch_all`` as early as possible
+For fine-grained control over instrumentation setup, use ``patch_all`` as early as possible
 in the application::
 
   from ddtrace import patch_all
