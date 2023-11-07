@@ -1267,9 +1267,9 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 """,
         env=env,
     )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
+    assert status == 0, (status, err)
+    assert out == b"", out
+    assert err == b"", err
 
 
 @pytest.mark.snapshot(
