@@ -6,7 +6,7 @@ Enabling
 ~~~~~~~~
 
 The unittest integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :mod:`import ddtrace.auto<ddtrace.auto>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Alternately, use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 

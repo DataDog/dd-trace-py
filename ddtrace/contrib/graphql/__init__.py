@@ -5,7 +5,7 @@ Enabling
 ~~~~~~~~
 
 The graphql integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :mod:`import ddtrace.auto<ddtrace.auto>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
