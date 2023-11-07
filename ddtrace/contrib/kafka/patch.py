@@ -179,7 +179,7 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
             core.set_item("kafka_topic", message.topic())
-            core.dispatch("kafka.consume.start", [instance, message])
+            core.dispatch("kafka.consume.start", [instance, message, span])
 
             message_key = message.key() or ""
             message_offset = message.offset() or -1
