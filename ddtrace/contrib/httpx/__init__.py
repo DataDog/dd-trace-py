@@ -6,7 +6,7 @@ Enabling
 ~~~~~~~~
 
 The ``httpx`` integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :mod:`import ddtrace.auto<ddtrace.auto>`.
 
 Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 

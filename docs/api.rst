@@ -11,6 +11,8 @@ Tracing
 
 .. autofunction:: ddtrace.patch
 
+.. automodule:: ddtrace.auto
+
 .. autoclass:: ddtrace.Tracer
     :members:
 

@@ -6,7 +6,7 @@ Enabling
 ~~~~~~~~
 
 The mysql integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :mod:`import ddtrace.auto<ddtrace.auto>`.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
