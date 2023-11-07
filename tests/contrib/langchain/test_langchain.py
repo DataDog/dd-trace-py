@@ -9,6 +9,7 @@ import vcr
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -241,7 +242,7 @@ def test_openai_llm_error(langchain, request_vcr):
 
     llm = langchain.llms.OpenAI()
 
-    if openai.__version__.split(".") >= (1, 0, 0):
+    if parse_version(openai.__version__) >= (1, 0, 0):
         invalid_error = openai.BadRequestError
     else:
         invalid_error = openai.InvalidRequestError

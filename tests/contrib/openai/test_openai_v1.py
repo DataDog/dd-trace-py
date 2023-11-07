@@ -1196,6 +1196,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             resp = client.completions.create(model="ada", prompt="Hello world", stream=True)
+            assert isinstance(resp, openai.Stream)
             chunks = [c for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])

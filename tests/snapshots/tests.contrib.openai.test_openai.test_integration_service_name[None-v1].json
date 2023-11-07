@@ -18,7 +18,6 @@
       "openai.request.model": "ada",
       "openai.request.prompt": "hello world",
       "openai.response.choices.0.finish_reason": "length",
-      "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
       "openai.response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
       "openai.response.model": "ada",
