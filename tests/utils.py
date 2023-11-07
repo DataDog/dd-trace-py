@@ -25,6 +25,7 @@ from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
@@ -1246,7 +1247,9 @@ def add_dd_env_variables_to_headers(headers):
 def get_128_bit_trace_id_from_headers(headers):
     tags_value = _DatadogMultiHeader._get_tags_value(headers)
     meta = _DatadogMultiHeader._extract_meta(tags_value)
-    return _DatadogMultiHeader._put_together_trace_id(meta, int(headers["x-datadog-trace-id"]))
+    return _DatadogMultiHeader._put_together_trace_id(
+        meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
+    )
 
 
 def _get_skipped_item(item, skip_reason):
