@@ -312,7 +312,7 @@ class CleanLibraries(CleanCommand):
 class CMakeBuild(build_ext):
     @staticmethod
     def try_strip_symbols(so_file):
-        if shutil.which("strip") is not None:
+        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
             subprocess.run(["strip", "-g", so_file], check=True)
 
     def build_extension(self, ext):
