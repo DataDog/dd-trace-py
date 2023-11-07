@@ -10,8 +10,6 @@
       "_dd.p.dm": "-0",
       "component": "openai",
       "language": "python",
-      "openai.api_base": "https://api.openai.com/v1",
-      "openai.api_type": "open_ai",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/completions",
@@ -23,7 +21,7 @@
       "openai.response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
       "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "9f89913b88d4495bb89b432395a9cdec"
+      "runtime-id": "6f03f0bc95ac448090f8c53ad6839f51"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -35,22 +33,22 @@
       "openai.organization.ratelimit.tokens.remaining": 249983,
       "openai.response.choices_count": 1,
       "openai.response.created": 1681852801,
-      "process_id": 7695
+      "process_id": 7659
     },
-    "duration": 5089110,
-    "start": 1694032233603821715
+    "duration": 4815329,
+    "start": 1694032218130832219
   },
      {
-       "name": "requests.request",
+       "name": "http.request",
        "service": "openai",
-       "resource": "requests.request",
+       "resource": "http.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
        "meta": {
          "_dd.base_service": "",
-         "component": "requests",
+         "component": "httpx",
          "http.method": "POST",
          "http.status_code": "200",
          "http.url": "https://api.openai.com/v1/completions",
@@ -62,6 +60,6 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 2998763,
-       "start": 1694032233605191358
+       "duration": 2819964,
+       "start": 1694032218132146534
      }]]

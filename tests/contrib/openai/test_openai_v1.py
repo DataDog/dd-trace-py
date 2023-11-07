@@ -1236,10 +1236,10 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
-    """OpenAI uses requests for its synchronous requests.
+    """OpenAI uses httpx for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
-    with both OpenAI and requests spans.
+    with both OpenAI and httpx spans.
     """
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -1267,19 +1267,19 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 """,
         env=env,
     )
-    assert status == 0, (status, err)
-    assert out == b"", out
-    assert err == b"", err
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
 
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_integration_async", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
-    """OpenAI uses requests for its synchronous requests.
+    """OpenAI uses httpx for its asynchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
-    with both OpenAI and requests spans.
+    with both OpenAI and httpx spans.
 
     FIXME: there _should_ be aiohttp spans generated for this test case. There aren't
            because the patching VCR does into aiohttp interferes with the tracing patching.
@@ -1674,7 +1674,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         env["DD_SERVICE"] = service_name
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]" % (service_name, schema_version),
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
     ):
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(

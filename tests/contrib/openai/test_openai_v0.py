@@ -2239,7 +2239,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         env["DD_SERVICE"] = service_name
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_integration_service_name[%s-%s]" % (service_name, schema_version),
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
         async_mode=False,
     ):
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(
