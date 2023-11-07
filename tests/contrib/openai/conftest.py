@@ -1,8 +1,8 @@
 import os
 import sys
+from typing import TYPE_CHECKING
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 
 import mock
 import pytest

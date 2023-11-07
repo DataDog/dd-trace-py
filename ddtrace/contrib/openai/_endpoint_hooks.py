@@ -208,10 +208,8 @@ class _CompletionHook(_BaseCompletionHook):
             span.set_tag_str("openai.response.model", resp.model or "")
             for choice in choices:
                 idx = choice.index
-                finish_reason = choice.finish_reason
-                if finish_reason is not None:
-                    span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
-                if hasattr(choice, "logprobs"):
+                span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice.finish_reason))
+                if choice.logprobs is not None:
                     span.set_tag_str("openai.response.choices.%d.logprobs" % idx, "returned")
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.text))
@@ -367,7 +365,6 @@ class _ListHook(_EndpointHook):
         if not resp:
             return
         span.set_metric("openai.response.count", len(resp.data or []))
-        # span.set_metric("openai.response.count", len(resp.get("data", [])))
         return resp
 
 
@@ -389,7 +386,7 @@ class _FileListHook(_ListHook):
 
 class _FineTuneListHook(_ListHook):
     """
-    Hook for openai.resources.files.Files.list
+    Hook for openai.resources.fine_tunes.FineTunes.list
     """
 
     ENDPOINT_NAME = "fine-tunes"

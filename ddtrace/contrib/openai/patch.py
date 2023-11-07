@@ -1,9 +1,9 @@
 import os
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from openai import version
 
@@ -239,7 +239,6 @@ class _OpenAIIntegration(BaseLLMIntegration):
         tags.append("openai.estimated:false")
         for token_type in ("prompt", "completion", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
-            # num_tokens = usage.get(token_type + "_tokens")
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
