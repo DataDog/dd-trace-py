@@ -67,7 +67,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
             subprocess.run(
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
-            
+
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_unittest_generates_coverage_correctly(self):
         ret_false = """
