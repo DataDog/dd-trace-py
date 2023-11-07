@@ -19,7 +19,6 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(AsyncioTestCase):
-
     # default service
     TEST_SERVICE = "postgres"
 

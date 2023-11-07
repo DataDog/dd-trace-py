@@ -10,6 +10,7 @@ from typing import Dict
 from typing import Union
 
 import ddtrace
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -51,8 +52,6 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    import pkg_resources
-
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
     if isinstance(tracer._writer, LogWriter):
@@ -78,7 +77,7 @@ def collect(tracer):
 
     is_venv = in_venv()
 
-    packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
+    packages_available = {p.name: p.version for p in get_distributions()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
@@ -123,7 +122,7 @@ def collect(tracer):
         os_name=platform.system(),
         # eg. 12.5.0
         os_version=platform.release(),
-        is_64_bit=sys.maxsize > 2 ** 32,
+        is_64_bit=sys.maxsize > 2**32,
         architecture=architecture()[0],
         vm=platform.python_implementation(),
         version=ddtrace.__version__,

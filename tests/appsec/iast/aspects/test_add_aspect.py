@@ -13,8 +13,8 @@ try:
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
@@ -72,7 +72,6 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-
     if should_be_tainted:
         obj1 = taint_pyobject(
             pyobject=obj1,
