@@ -18,7 +18,7 @@
         "os.architecture": "aarch64",
         "os.platform": "Linux",
         "os.version": "5.15.49-linuxkit-pr",
-        "runtime-id": "067c17dafc9347f6baee859d1b05c7c6",
+        "runtime-id": "182143ecb35f413591a74b10645a6d02",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -29,17 +29,17 @@
         "test.itr.tests_skipping.enabled": "false",
         "test.status": "fail",
         "test.type": "test",
-        "test_session_id": "3739269885729393792",
+        "test_session_id": "284055226606325876",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 209
+        "process_id": 541
       },
-      "duration": 6376875,
-      "start": 1699360403694390921
+      "duration": 6426709,
+      "start": 1699360988568692178
     },
     {
       "name": "unittest.test_module",
@@ -69,12 +69,12 @@
         "test.module_path": "test_source_file.py",
         "test.status": "fail",
         "test.type": "test",
-        "test_module_id": "15613947411365997719",
-        "test_session_id": "3739269885729393792",
+        "test_module_id": "5679467563811115276",
+        "test_session_id": "284055226606325876",
         "type": "test_module_end"
       },
-      "duration": 5935417,
-      "start": 1699360403694739671
+      "duration": 5987167,
+      "start": 1699360988569040970
     },
     {
       "name": "unittest.test_suite",
@@ -103,13 +103,13 @@
         "test.status": "fail",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "15613947411365997719",
-        "test_session_id": "3739269885729393792",
-        "test_suite_id": "13471937772663642535",
+        "test_module_id": "5679467563811115276",
+        "test_session_id": "284055226606325876",
+        "test_suite_id": "5344335552253095395",
         "type": "test_suite_end"
       },
-      "duration": 5850458,
-      "start": 1699360403694814880
+      "duration": 5891000,
+      "start": 1699360988569127387
     },
     {
       "name": "unittest.test",
@@ -141,17 +141,17 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "15613947411365997719",
-        "test_session_id": "3739269885729393792",
-        "test_suite_id": "13471937772663642535",
+        "test_module_id": "5679467563811115276",
+        "test_session_id": "284055226606325876",
+        "test_suite_id": "5344335552253095395",
         "type": "test"
       },
       "metrics": {
         "test.source.end": 7,
         "test.source.start": 4
       },
-      "duration": 4681583,
-      "start": 1699360403694848588
+      "duration": 4689250,
+      "start": 1699360988569158762
     },
     {
       "name": "unittest.test",
@@ -183,17 +183,17 @@
         "test.status": "pass",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "15613947411365997719",
-        "test_session_id": "3739269885729393792",
-        "test_suite_id": "13471937772663642535",
+        "test_module_id": "5679467563811115276",
+        "test_session_id": "284055226606325876",
+        "test_suite_id": "5344335552253095395",
         "type": "test"
       },
       "metrics": {
         "test.source.end": 10,
         "test.source.start": 7
       },
-      "duration": 495583,
-      "start": 1699360403699607130
+      "duration": 506917,
+      "start": 1699360988573927303
     },
     {
       "name": "unittest.test",
@@ -209,7 +209,7 @@
         "_dd.origin": "ciapp-test",
         "component": "unittest",
         "error.message": "",
-        "error.stack": 'Traceback (most recent call last):\n  File "/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py", line 59, in testPartExecutor\n    yield\n  File "/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py", line 591, in run\n    self._callTestMethod(testMethod)\n  File "/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py", line 549, in _callTestMethod\n    method()\n  File "/tmp/pytest-of-root/pytest-0/test_unittest_generates_source_file_data0/test_source_file.py", line 12, in test_third\n    assert ret_false()\nAssertionError\n',
+        "error.stack": "Traceback (most recent call last):\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/tmp/pytest-of-root/pytest-1/test_unittest_generates_source_file_data0/test_source_file.py\", line 12, in test_third\n    assert ret_false()\nAssertionError\n",
         "error.type": "builtins.AssertionError",
         "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
         "os.architecture": "aarch64",
@@ -229,17 +229,17 @@
         "test.status": "fail",
         "test.suite": "CoverageTestCase",
         "test.type": "test",
-        "test_module_id": "15613947411365997719",
-        "test_session_id": "3739269885729393792",
-        "test_suite_id": "13471937772663642535",
+        "test_module_id": "5679467563811115276",
+        "test_session_id": "284055226606325876",
+        "test_suite_id": "5344335552253095395",
         "type": "test"
       },
       "metrics": {
         "test.source.end": 13,
         "test.source.start": 10
       },
-      "duration": 482458,
-      "start": 1699360403700167880
+      "duration": 511125,
+      "start": 1699360988574493178
     }
   ]
 ]
