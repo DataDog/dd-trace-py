@@ -41,7 +41,9 @@ import yaml
 
 # from setuptools-scm
 # https://github.com/pypa/setuptools_scm/blob/69b88a20c5cd4632ef0c97b3ddd2bd0d3f8f7df8/src/setuptools_scm/config.py#L9
-VERSION_TAG_REGEX_STRING = r"^(?:[\w-]+-)?(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+]*)(?:\+.*)?$"
+VERSION_TAG_REGEX_STRING = (
+    r"^(?:[\w-]+-)?(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+]*)(?:\+.*)?$"
+)
 VERSION_TAG_REGEX = re.compile(VERSION_TAG_REGEX_STRING)
 
 
@@ -55,7 +57,6 @@ class VersionTagFilter(Filter):
 # append the ddtrace path to syspath
 # this is required when building the docs manually
 sys.path.insert(0, os.path.abspath(".."))
-import ddtrace
 
 
 # -- General configuration ------------------------------------------------
@@ -518,12 +519,19 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         tag_versions = sorted(tag_versions, key=lambda e: e[0], reverse=True)
 
         # Determine if there are only prereleases for this version
-        is_prerelease = all([version.is_prerelease or version.is_devrelease for version, _ in tag_versions])
+        is_prerelease = all(
+            [
+                version.is_prerelease or version.is_devrelease
+                for version, _ in tag_versions
+            ]
+        )
 
         # There are official versions here, filter out the pre/dev releases
         if not is_prerelease:
             tag_versions = [
-                (version, tag) for version, tag in tag_versions if not (version.is_prerelease or version.is_devrelease)
+                (version, tag)
+                for version, tag in tag_versions
+                if not (version.is_prerelease or version.is_devrelease)
             ]
 
         # Return the oldest version
@@ -534,7 +542,9 @@ class DDTraceReleaseNotesDirective(rst.Directive):
     def _get_commit_refs(self, commit_sha):
         # type: (bytes) -> list[bytes]
         """Return a list of refs for the given commit sha"""
-        return [ref for ref in self._repo.refs.keys() if self._repo.refs[ref] == commit_sha]
+        return [
+            ref for ref in self._repo.refs.keys() if self._repo.refs[ref] == commit_sha
+        ]
 
     def _get_report_max_version(self, max_commits=50):
         # type: (int) -> Optional[Version]
@@ -552,8 +562,16 @@ class DDTraceReleaseNotesDirective(rst.Directive):
             if not refs:
                 continue
 
-            origins = [ref[20:].decode() for ref in refs if ref.startswith(b"refs/remotes/origin/")]  # type: list[str]
-            tags = [Version(ref[10:].decode()) for ref in refs if ref.startswith(b"refs/tags/v")]  # type: list[Version]
+            origins = [
+                ref[20:].decode()
+                for ref in refs
+                if ref.startswith(b"refs/remotes/origin/")
+            ]  # type: list[str]
+            tags = [
+                Version(ref[10:].decode())
+                for ref in refs
+                if ref.startswith(b"refs/tags/v")
+            ]  # type: list[Version]
 
             versions = set()  # set[Version]
 
@@ -621,7 +639,9 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         if self.has_content:
             options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
             if options:
-                version_options = {Version(version): data for version, data in options.items()}
+                version_options = {
+                    Version(version): data for version, data in options.items()
+                }
 
         result = statemachine.ViewList()
 
@@ -732,9 +752,15 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
             if var_version_added:
                 for version, note in var_version_added.items():
                     if note:
-                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                        results.append(
+                            "    *Changed in version {}*: {}".format(version, note),
+                            "",
+                            0,
+                        )
                     else:
-                        results.append("    *New in version {}.*".format(version), "", 0)
+                        results.append(
+                            "    *New in version {}.*".format(version), "", 0
+                        )
                     results.append("", "", 0)
 
         # Generate the RST nodes to return for rendering
@@ -765,13 +791,19 @@ class DDEnvierConfigurationDirective(rst.Directive):
         for part in config_class.split("."):
             config_spec = getattr(module, part)
         if config_spec is None:
-            raise ValueError("Could not find configuration spec class {} from {}".format(config_class, module_name))
+            raise ValueError(
+                "Could not find configuration spec class {} from {}".format(
+                    config_class, module_name
+                )
+            )
 
         recursive = self.options.get("recursive", False)
 
         results = statemachine.ViewList()
 
-        for var_name, var_type, var_default, var_description in config_spec.help_info(recursive=recursive):
+        for var_name, var_type, var_default, var_description in config_spec.help_info(
+            recursive=recursive
+        ):
             var_name = var_name.replace("``", "")
 
             var_label = var_name.lower().replace("_", "-")
@@ -799,7 +831,9 @@ class DDEnvierConfigurationDirective(rst.Directive):
 
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
-    app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
+    app.add_directive(
+        "ddtrace-configuration-options", DDTraceConfigurationOptionsDirective
+    )
     app.add_directive("ddtrace-envier-configuration", DDEnvierConfigurationDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
     return metadata_dict
