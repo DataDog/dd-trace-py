@@ -19,6 +19,7 @@ from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
+from tests.debugging.test_config import debugger_config
 from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -632,3 +633,49 @@ def test_json_pruning_not_capture_depth(size, expected):
         )
         == expected
     )
+
+
+def test_capture_value_redacted_type():
+    class Foo:
+        def __init__(self):
+            self.secret_foo = 42
+
+    class Bar:
+        def __init__(self):
+            self.secret_bar = "deadbeef"
+
+    class Baz:
+        def __init__(self):
+            self.secret_baz = "hello"
+
+    class SecretHolder:
+        def __init__(self):
+            self.token = "secret"
+
+    with debugger_config(
+        DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES=",".join(
+            (
+                utils.qualname(Foo),
+                utils.qualname(Bar),
+                "*.Secret*",
+            )
+        )
+    ):
+        assert utils.capture_value([Foo(), Bar(), Baz(), SecretHolder()]) == {
+            "type": "list",
+            "elements": [
+                utils.redacted_type(Foo),
+                utils.redacted_type(Bar),
+                {
+                    "type": "test_capture_value_redacted_type.<locals>.Baz",
+                    "fields": {
+                        "secret_baz": {
+                            "type": "str",
+                            "value": "'hello'",
+                        }
+                    },
+                },
+                utils.redacted_type(SecretHolder),
+            ],
+            "size": 4,
+        }
