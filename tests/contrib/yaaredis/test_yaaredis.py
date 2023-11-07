@@ -90,7 +90,7 @@ async def test_basics(snapshot_context, traced_yaaredis):
 @pytest.mark.asyncio
 async def test_unicode(snapshot_context, traced_yaaredis):
     with snapshot_context():
-        await traced_yaaredis.get(u"😐")
+        await traced_yaaredis.get("😐")
 
 
 @pytest.mark.asyncio
@@ -112,7 +112,7 @@ async def test_pipeline_traced(snapshot_context, traced_yaaredis):
     with snapshot_context():
         p = await traced_yaaredis.pipeline(transaction=False)
         await p.set("blah", 32)
-        await p.rpush("foo", u"éé")
+        await p.rpush("foo", "éé")
         await p.hgetall("xxx")
         await p.execute()
 

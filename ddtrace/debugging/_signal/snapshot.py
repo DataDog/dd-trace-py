@@ -20,6 +20,8 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.model import TemplateSegment
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
+from ddtrace.debugging._redaction import DDRedactedExpressionError
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import LogSignal
@@ -45,16 +47,14 @@ def _capture_context(
             return not hg.trickling()
 
         return {
-            "arguments": {
-                n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout)
-                for n, v in arguments
-            }
+            "arguments": utils.capture_pairs(
+                arguments, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+            )
             if arguments is not None
             else {},
-            "locals": {
-                n: utils.capture_value(v, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout)
-                for n, v in _locals
-            }
+            "locals": utils.capture_pairs(
+                _locals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+            )
             if _locals is not None
             else {},
             "throwable": utils.capture_exc_info(throwable),
@@ -127,7 +127,7 @@ class Snapshot(LogSignal):
             )
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            return "ERROR"
+            return REDACTED_PLACEHOLDER if isinstance(e.__cause__, DDRedactedExpressionError) else "ERROR"
 
     def _eval_message(self, _locals: Dict[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)

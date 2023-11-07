@@ -35,7 +35,6 @@ try:
     def stream(*args, **kwargs):
         return ResponseStream(*args, **kwargs)
 
-
 except ImportError:
     # stream was removed in sanic v22.6.0
     from sanic.response import stream
@@ -142,7 +141,6 @@ if sanic_version >= (21, 9, 0):
                 return response
 
         return TestClient(app)
-
 
 else:
 
