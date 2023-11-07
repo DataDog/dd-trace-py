@@ -58,6 +58,6 @@ def retry(after, until=lambda result: result is None, initial_wait=0):
 def fibonacci_backoff_with_jitter(attempts, initial_wait=1.0, until=lambda result: result is None):
     # type: (int, float, t.Callable[[t.Any], bool]) -> t.Callable
     return retry(
-        after=[random.uniform(0, initial_wait * (1.618 ** i)) for i in range(attempts - 1)],  # nosec
+        after=[random.uniform(0, initial_wait * (1.618**i)) for i in range(attempts - 1)],  # nosec
         until=until,
     )
