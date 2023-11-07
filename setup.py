@@ -397,7 +397,6 @@ class CMakeExtension(Extension):
         cmake_args=[],
         build_args=[],
         install_args=[],
-        extra_compile_args=[],
         build_type=None,
     ):
         super().__init__(name, sources=[])
@@ -405,7 +404,6 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.extra_compile_args = extra_compile_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
 
 
@@ -503,7 +501,6 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.appsec._iast._taint_tracking._native",
                 source_dir=IAST_DIR,
-                extra_compile_args=debug_compile_args,
             )
         )
 else:

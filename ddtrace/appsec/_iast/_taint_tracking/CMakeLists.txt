@@ -3,7 +3,6 @@ include(FetchContent)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
-option(EXTRA_COMPILE_ARGS "Additional compile arguments" "")
 
 project(${APP_NAME})
 
@@ -13,11 +12,6 @@ set(CMAKE_CXX_STANDARD 17)
 # https://github.com/pybind/pybind11/issues/1650
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
 add_compile_options(-fPIC -fexceptions -fvisibility=hidden -fpermissive -pthread -Wall -Wno-unknown-pragmas -U_FORTIFY_SOURCE)
-
-if(EXTRA_COMPILE_ARGS)
-    separate_arguments(EXTRA_COMPILE_ARGS_LIST UNIX_COMMAND "${EXTRA_COMPILE_ARGS}")
-    add_compile_options(${EXTRA_COMPILE_ARGS_LIST})
-endif()
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
