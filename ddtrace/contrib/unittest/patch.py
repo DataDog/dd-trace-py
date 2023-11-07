@@ -399,6 +399,7 @@ def patch():
     """
     if getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
         return
+    _initialize_unittest_data()
 
     unittest._datadog_patch = True
 
@@ -509,7 +510,6 @@ def _mark_test_as_unskippable(obj):
     test_suite_name = str(obj).split(".")[0].split()[1]
     test_module_path = os.path.relpath(obj.__code__.co_filename)
     test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
-    _initialize_unittest_data()
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
@@ -577,9 +577,6 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
 
-            if _is_test_coverage_enabled(instance):
-                coverage = _start_coverage(root_directory)
-                instance._coverage = coverage
             if _is_skipped_by_itr(instance):
                 result = args[0]
                 result.startTest(test=instance)
@@ -589,6 +586,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 )
                 result.stopTest(test=instance)
             else:
+                coverage = _start_coverage(root_directory)
+                instance._coverage = coverage
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if hasattr(instance, "_coverage"):
