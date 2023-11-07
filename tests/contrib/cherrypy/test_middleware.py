@@ -17,6 +17,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.ext import http
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import snapshot
@@ -52,6 +53,15 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
             service="test.cherrypy.service",
             distributed_tracing=True,
         )
+
+    def test_and_emit_get_version(self):
+        from ddtrace.contrib.cherrypy import get_version
+
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
+        emit_integration_and_version_to_test_agent("cherrypy", version)
 
     def test_double_instrumentation(self):
         # ensure CherryPy is never instrumented twice when `ddtrace-run`
@@ -215,7 +225,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # Encoded utf8 query strings MUST be parsed correctly.
         # Here, the URL is encoded in utf8 and then %HEX
         # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html for more
-        self.getPage(url_quote(u"/üŋïĉóđē".encode("utf-8")))
+        self.getPage(url_quote("/üŋïĉóđē".encode("utf-8")))
         time.sleep(0.1)
         self.assertStatus("200 OK")
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
@@ -227,16 +237,16 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == u"GET /üŋïĉóđē"
+        assert s.resource == "GET /üŋïĉóđē"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/üŋïĉóđē"
+        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/üŋïĉóđē"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
 
     def test_404(self):
-        self.getPage(u"/404/test")
+        self.getPage("/404/test")
         time.sleep(0.1)
         self.assertStatus("404 Not Found")
 
@@ -246,11 +256,11 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == u"GET /404/test"
+        assert s.resource == "GET /404/test"
         assert s.error == 0
         assert_span_http_status_code(s, 404)
         assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/404/test"
+        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/404/test"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
 
@@ -337,7 +347,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 
     def test_custom_span(self):
-        self.getPage(u"/custom_span")
+        self.getPage("/custom_span")
         time.sleep(0.1)
         self.assertStatus("200 OK")
         self.assertBody("hiya")
@@ -574,7 +584,7 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
@@ -633,4 +643,4 @@ if __name__ == "__main__":
     env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert b"2 passed" in out

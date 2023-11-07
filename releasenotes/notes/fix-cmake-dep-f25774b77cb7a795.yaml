@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    core: This fix moves ``cmake`` from ``install_requires`` to ``setup_requires``.

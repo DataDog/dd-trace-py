@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: add support for AWS Codepipeline to CI env var gathering

@@ -7,27 +7,26 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "e41622646bfc48a8aa5272861dd0bce0",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 90727
+      "process_id": 83553
     },
-    "duration": 22191000,
-    "start": 1667243749433378000
+    "duration": 39547333,
+    "start": 1692712724983737220
   },
      {
        "name": "random_sleep",
@@ -36,10 +35,11 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "duration": 82299000,
-       "start": 1643465607624605000
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 39386375,
+       "start": 1692712724983815803
      }],
 [
   {
@@ -50,27 +50,26 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
-      "http.useragent": "python-requests/2.28.1",
+      "http.useragent": "python-requests/2.28.2",
       "language": "python",
-      "runtime-id": "e41622646bfc48a8aa5272861dd0bce0",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 90727
+      "process_id": 83553
     },
-    "duration": 59408000,
-    "start": 1667243749495106000
+    "duration": 39160708,
+    "start": 1692712725078800220
   },
      {
        "name": "random_sleep",
@@ -79,8 +78,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "duration": 81372000,
-       "start": 1643465607721297000
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 38914250,
+       "start": 1692712725078909886
      }]]

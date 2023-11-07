@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pytest: This change introduces an option to the pytest plugin to disable ddtrace: ``--no-ddtrace``

@@ -1,13 +1,12 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": null,
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aiohttp_client",
@@ -17,31 +16,28 @@
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b",
+      "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32687
+      "process_id": 2189
     },
-    "duration": 17099000,
-    "start": 1667240261339983000
+    "duration": 3943217,
+    "start": 1691160518131287373
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": null,
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "component": "aiohttp"
        },
-       "duration": 7026000,
-       "start": 1646414759575827000
+       "duration": 2305283,
+       "start": 1691160518131963432
      }]]

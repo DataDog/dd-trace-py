@@ -39,11 +39,16 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(rediscluster, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(rediscluster, "_datadog_patch", False):
         return
-    setattr(rediscluster, "_datadog_patch", True)
+    rediscluster._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
@@ -60,7 +65,7 @@ def patch():
 
 def unpatch():
     if getattr(rediscluster, "_datadog_patch", False):
-        setattr(rediscluster, "_datadog_patch", False)
+        rediscluster._datadog_patch = False
 
         if REDISCLUSTER_VERSION >= (2, 0, 0):
             unwrap(rediscluster.client.RedisCluster, "execute_command")

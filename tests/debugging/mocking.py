@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import json
 from time import sleep
 from typing import Any
+from typing import Generator
 
 from envier import En
 
@@ -71,10 +72,22 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         super(MockProbeStatusLogger, self).__init__(service, encoder)
         self.queue = []
 
+    def clear(self):
+        self.queue[:] = []
+
+    def wait(self, cond, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() < end:
+            if cond(self.queue):
+                return True
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
+
 
 class TestSignalCollector(SignalCollector):
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super(TestSignalCollector, self).__init__(*args, **kwargs)
         self.test_queue = []
         self.signal_state_counter = Counter()
@@ -87,22 +100,33 @@ class TestSignalCollector(SignalCollector):
         self.test_queue.append(snapshot)
         return super(TestSignalCollector, self)._enqueue(snapshot)
 
+    @property
+    def queue(self):
+        return self.test_queue
+
+    def wait(self, cond=lambda q: q, timeout=1.0):
+        end = monotonic() + timeout
+
+        while monotonic() <= end:
+            if cond(self.test_queue):
+                return self.test_queue
+            sleep(0.01)
+
+        raise PayloadWaitTimeout()
+
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
     __uploader__ = MockLogsIntakeUploaderV1
     __collector__ = TestSignalCollector
 
-    def add_probes(self, *probes):
-        # type: (Probe) -> None
+    def add_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
 
-    def remove_probes(self, *probes):
-        # type: (Probe) -> None
+    def remove_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
 
-    def modify_probes(self, *probes):
-        # type: (Probe) -> None
+    def modify_probes(self, *probes: Probe) -> None:
         self._on_configuration(ProbePollerEvent.MODIFIED_PROBES, probes)
 
     @property
@@ -118,8 +142,15 @@ class TestDebugger(Debugger):
         return self._uploader
 
     @property
+    def collector(self):
+        return self._collector
+
+    @property
     def probe_status_logger(self):
         return self._probe_registry.logger
+
+    def log_probe_status(self):
+        self._probe_registry.log_probes_status()
 
     def assert_no_snapshots(self):
         assert len(self.test_queue) == 0
@@ -131,8 +162,7 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def _debugger(config_to_override, config_overrides):
-    # type: (En, Any) -> None
+def _debugger(config_to_override: En, config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:
@@ -157,8 +187,7 @@ def _debugger(config_to_override, config_overrides):
 
 
 @contextmanager
-def debugger(**config_overrides):
-    # type: (Any) -> None
+def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     with _debugger(di_config, config_overrides) as debugger:
         yield debugger
@@ -166,6 +195,7 @@ def debugger(**config_overrides):
 
 @contextmanager
 def exception_debugging(**config_overrides):
+    # type: (Any) -> Generator[TestDebugger, None, None]
     config_overrides.setdefault("enabled", True)
 
     with _debugger(ed_config, config_overrides) as ed:

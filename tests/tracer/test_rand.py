@@ -20,9 +20,9 @@ from ddtrace.internal.compat import Queue
 
 def test_random():
     m = set()
-    for i in range(0, 2 ** 16):
+    for _ in range(0, 2**16):
         n = _rand.rand64bits()
-        assert 0 <= n <= 2 ** 64 - 1
+        assert 0 <= n <= 2**64 - 1
         assert n not in m
         m.add(n)
 
@@ -49,8 +49,8 @@ def test_rand128bit():
     unix_time2 = int(val2_as_binary[:-96], 2)
 
     # Assert that 64 lowest order bits of the 128 bit integers are random
-    assert 0 <= rand_64bit1 <= 2 ** 64 - 1
-    assert 0 <= rand_64bit2 <= 2 ** 64 - 1
+    assert 0 <= rand_64bit1 <= 2**64 - 1
+    assert 0 <= rand_64bit2 <= 2**64 - 1
     assert rand_64bit1 != rand_64bit2
 
     # Assert that bits 64 to 96 are zeros (from least significant to most)

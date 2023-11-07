@@ -17,16 +17,24 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.vendor import wrapt
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
+from tests.utils import override_config
 
 from .test_client_mixin import PYMEMCACHE_VERSION
-from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .test_client_mixin import TEST_HOST
 from .test_client_mixin import TEST_PORT
+from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .utils import MockSocket
 from .utils import _str
 
 
 _Client = pymemcache.client.base.Client
+
+
+# Manually configure pymemcached to collect command
+@pytest.fixture(scope="module", autouse=True)
+def command_enabled():
+    with override_config("pymemcache", dict(command_enabled=True)):
+        yield
 
 
 class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):

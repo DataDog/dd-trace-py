@@ -24,6 +24,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -34,10 +35,15 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return ""
+
+
 def patch():
     # type: () -> List[str]
     patched = []  # type: List[str]
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return patched
 
     import os
@@ -66,8 +72,8 @@ def patch():
         trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
         trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
 
-        setattr(os, "_datadog_patch", True)
-        setattr(subprocess, "_datadog_patch", True)
+        os._datadog_patch = True
+        subprocess._datadog_patch = True
         patched.append("subprocess")
 
     return patched
@@ -143,7 +149,6 @@ class SubprocessCmdLine(object):
 
     def __init__(self, shell_args, shell=False):
         # type: (Union[str, List[str]], bool) -> None
-
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -151,34 +156,33 @@ class SubprocessCmdLine(object):
             self.binary = self._cache_entry.binary
             self.arguments = self._cache_entry.arguments
             self.truncated = self._cache_entry.truncated
-            return
-
-        self.env_vars = []
-        self.binary = ""
-        self.arguments = []
-        self.truncated = False
-
-        if isinstance(shell_args, six.string_types):
-            tokens = shlex.split(shell_args)
         else:
-            tokens = cast(List[str], shell_args)
+            self.env_vars = []
+            self.binary = ""
+            self.arguments = []
+            self.truncated = False
 
-        # Extract previous environment variables, scrubbing all the ones not
-        # in ENV_VARS_ALLOWLIST
-        if shell:
-            self.scrub_env_vars(tokens)
-        else:
-            self.binary = tokens[0]
-            self.arguments = tokens[1:]
+            if isinstance(shell_args, six.string_types):
+                tokens = shlex.split(shell_args)
+            else:
+                tokens = cast(List[str], shell_args)
 
-        self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
-        self.scrub_arguments()
+            # Extract previous environment variables, scrubbing all the ones not
+            # in ENV_VARS_ALLOWLIST
+            if shell:
+                self.scrub_env_vars(tokens)
+            else:
+                self.binary = tokens[0]
+                self.arguments = tokens[1:]
 
-        # Create a new cache entry to store the computed values except as_list
-        # and as_string that are computed and stored lazily
-        self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
-            cache_key, self.env_vars, self.binary, self.arguments, self.truncated
-        )
+            self.arguments = list(self.arguments) if isinstance(self.arguments, tuple) else self.arguments
+            self.scrub_arguments()
+
+            # Create a new cache entry to store the computed values except as_list
+            # and as_string that are computed and stored lazily
+            self._cache_entry = SubprocessCmdLine._add_new_cache_entry(
+                cache_key, self.env_vars, self.binary, self.arguments, self.truncated
+            )
 
     def scrub_env_vars(self, tokens):
         for idx, token in enumerate(tokens):
@@ -310,8 +314,8 @@ def unpatch():
 
     SubprocessCmdLine._clear_cache()
 
-    setattr(os, "_datadog_patch", False)
-    setattr(subprocess, "_datadog_patch", False)
+    os._datadog_patch = False
+    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module

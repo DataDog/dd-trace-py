@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    appsec: Fixes an issue where ddtrace.appsec is imported and assumed to be available in all deployments of ddtrace

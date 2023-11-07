@@ -38,8 +38,9 @@ Configuration
 For additional configuration refer to
 `Instrumenting Python Serverless Applications by Datadog <https://docs.datadoghq.com/serverless/installation/python>`_.
 """
+from .patch import get_version
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch"]
+__all__ = ["patch", "unpatch", "get_version"]

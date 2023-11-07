@@ -5,12 +5,12 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from .. import trace_utils
 from .signals import trace_after_publish
 from .signals import trace_before_publish
 from .signals import trace_failure
@@ -25,7 +25,7 @@ def patch_app(app, pin=None):
     """
     if getattr(app, "__datadog_patch", False):
         return
-    setattr(app, "__datadog_patch", True)
+    app.__datadog_patch = True
 
     # attach the PIN object
     pin = pin or Pin(
@@ -58,7 +58,7 @@ def unpatch_app(app):
     """
     if not getattr(app, "__datadog_patch", False):
         return
-    setattr(app, "__datadog_patch", False)
+    app.__datadog_patch = False
 
     pin = Pin.get_from(app)
     if pin is not None:

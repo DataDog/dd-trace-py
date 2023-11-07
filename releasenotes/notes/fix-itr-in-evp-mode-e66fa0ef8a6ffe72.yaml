@@ -1,0 +1,4 @@
+fixes:
+  - |
+    CI Visibility: fixes an issue where the Intelligent Test Runner would not work
+    when in EVP proxy mode due to missing ``X-Datadog-NeedsAppKey`` header.

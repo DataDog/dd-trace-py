@@ -6,16 +6,15 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
-from ddtrace.sampler import SamplingRule
+from tests.integration.utils import mark_snapshot
+from tests.integration.utils import parametrize_with_all_encodings
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
@@ -63,7 +62,7 @@ def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
-            priority_sampler=tracer._priority_sampler,
+            priority_sampling=config._priority_sampling,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
@@ -95,83 +94,13 @@ def test_filters(writer, tracer):
     tracer.shutdown()
 
 
-@pytest.mark.parametrize(
-    "writer",
-    ("default", "sync"),
-)
-@snapshot(include_tracer=True)
-def test_sampling(writer, tracer):
-    if writer == "sync":
-        writer = AgentWriter(
-            tracer.agent_trace_url,
-            priority_sampler=tracer._priority_sampler,
-            sync_mode=True,
-        )
-        # Need to copy the headers which contain the test token to associate
-        # traces with this test case.
-        writer._headers = tracer._writer._headers
-    else:
-        writer = tracer._writer
-
-    tracer.configure(writer=writer)
-
-    with tracer.trace("trace1"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1.0)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace2"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=0.000001)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace3"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace4"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5"):
-        with tracer.trace("child"):
-            pass
-
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace6"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_DROP_KEY)
-
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace7"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_KEEP_KEY)
-
-    sampler = RateSampler(0.0000000001)
-    tracer.configure(sampler=sampler, writer=writer)
-    # This trace should not appear in the snapshot
-    with tracer.trace("trace8"):
-        with tracer.trace("child"):
-            pass
-
-    tracer.shutdown()
-
-
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
 @snapshot(async_mode=False)
 def test_synchronous_writer():
     tracer = Tracer()
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampler=tracer._priority_sampler)
+    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampling=config._priority_sampling)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
@@ -245,22 +174,22 @@ def test_wrong_span_name_type_not_sent():
     [
         ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
         ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
+        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    tracer = Tracer()
-    with mock.patch("ddtrace.span.log") as log:
-        with tracer.trace("root") as root:
-            root._meta = meta
-            for _ in range(499):
-                with tracer.trace("child") as child:
-                    child._meta = meta
-        log.exception.assert_called_once_with("error closing trace")
+    with override_global_config(dict(_trace_api=encoding)):
+        tracer = Tracer()
+        with mock.patch("ddtrace.span.log") as log:
+            with tracer.trace("root") as root:
+                root._meta = meta
+                for _ in range(299):
+                    with tracer.trace("child") as child:
+                        child._meta = meta
+            log.exception.assert_called_once_with("error closing trace")
 
 
 @pytest.mark.parametrize(
@@ -268,22 +197,22 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     [
         ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}),
         ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}),
-        ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
+        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    tracer = Tracer()
-    with mock.patch("ddtrace.span.log") as log:
-        with tracer.trace("root") as root:
-            root._metrics = metrics
-            for _ in range(499):
-                with tracer.trace("child") as child:
-                    child._metrics = metrics
-        log.exception.assert_called_once_with("error closing trace")
+    with override_global_config(dict(_trace_api=encoding)):
+        tracer = Tracer()
+        with mock.patch("ddtrace.span.log") as log:
+            with tracer.trace("root") as root:
+                root._metrics = metrics
+                for _ in range(299):
+                    with tracer.trace("child") as child:
+                        child._metrics = metrics
+            log.exception.assert_called_once_with("error closing trace")
 
 
 @snapshot()
@@ -330,3 +259,16 @@ def test_snapshot_skip():
     pytest.skip("Test that snapshot tests can be skipped")
     with tracer.trace("test"):
         pass
+
+
+@parametrize_with_all_encodings
+@mark_snapshot
+def test_setting_span_tags_and_metrics_generates_no_error_logs():
+    import ddtrace
+
+    s = ddtrace.tracer.trace("operation", service="my-svc")
+    s.set_tag("env", "my-env")
+    s.set_metric("number1", 123)
+    s.set_metric("number2", 12.0)
+    s.set_metric("number3", "1")
+    s.finish()

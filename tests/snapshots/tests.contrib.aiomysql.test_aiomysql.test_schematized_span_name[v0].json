@@ -1,13 +1,12 @@
 [[
   {
     "name": "mysql.query",
-    "service": "",
+    "service": null,
     "resource": "select 'dba4x4'",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aiomysql",
@@ -17,11 +16,9 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "10185724725e43958ae66f62b7c6216d",
-      "span.kind": "client",
-      "sql.query": "select 'dba4x4'"
+      "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

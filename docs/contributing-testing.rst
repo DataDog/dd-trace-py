@@ -1,3 +1,5 @@
+.. _testing_guidelines:
+
 Testing
 =======
 
@@ -27,13 +29,37 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
-With `docker <https://www.docker.com/products/docker>`_ installed, run this.
+We assume you have `docker <https://www.docker.com/products/docker>`_ installed.
+
+In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ and `hatch <https://hatch.pypa.io/latest/>`_.
+
+.. code-block:: bash
+
+    $ pip install riot==0.19.0
+    $ pip install hatch==1.7.0
+
+Some of our test environments are managed with Riot, others with Hatch.
+
+For riot environments, you can run:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
 
 This command runs the entire test suite, which is probably not what you want to do.
+
+For hatch environments, you can run:
+
+.. code-block:: bash
+
+    $ hatch run lint:style
+
+If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
+
+.. code-block:: bash
+
+    $ hatch env remove <ENV> # or hatch env prune
+
 
 How do I run only the tests I care about?
 -----------------------------------------
@@ -93,3 +119,54 @@ when the riotfile changes. Thus, if you make changes to the riotfile, you need t
 
 You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
 changes you made to ``riotfile.py``.
+
+How do I add a new test suite?
+------------------------------
+
+We use `riot <https://ddriot.readthedocs.io/en/latest/>`_, a Python virtual environment constructor, to run the test suites.
+It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does not exist already. It can look like this:
+
+.. code-block:: python
+
+    Venv(
+        name="asyncio",
+        command="pytest {cmdargs} tests/contrib/asyncio",
+        pys=select_pys(),
+        pkgs={
+            "pytest-asyncio": latest,
+        },
+        env={
+            "DD_ENV_VARIABLE": "1",  # if needed
+        },
+    )
+
+Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
+Next, we will need to add a new CircleCI job to run the newly added test suite at ``.circleci/config.templ.yml`` just like:
+
+.. code-block:: python
+
+    asyncio:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'asyncio'
+
+
+After this, a new component must be added to ``tests/.suitespec.json`` under ``"components":`` like:
+
+.. code-block:: JSON
+
+    "asyncio": [
+        "ddtrace/contrib/asyncio/*"
+    ],
+
+Lastly, we will register it as a suite in the same file under ``"suites":``:
+
+.. code-block:: JSON
+
+    "asyncio": [
+        "@asyncio",
+        "tests/contrib/asyncio/*"
+    ],
+
+Once you've completed these steps, CircleCI will run the new test suite.

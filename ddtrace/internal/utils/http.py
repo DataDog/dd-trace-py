@@ -6,25 +6,27 @@ import re
 from typing import Any
 from typing import Callable
 from typing import ContextManager
+from typing import Dict
 from typing import Generator
+from typing import List
 from typing import Optional
 from typing import Pattern
 from typing import Tuple
 from typing import Union
-
-import six
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 
@@ -33,8 +35,6 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
-
-DEFAULT_TIMEOUT = 2.0
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
@@ -173,13 +173,8 @@ def w3c_get_dd_list_member(context):
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
     current_tags_len = sum(len(i) for i in tags)
-    for k, v in context._meta.items():
-        if (
-            isinstance(k, six.string_types)
-            and k.startswith("_dd.p.")
-            # we've already added sampling decision and user id
-            and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
-        ):
+    for k, v in _get_metas_to_propagate(context):
+        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             k = k.replace("_dd.p.", "t.")
@@ -352,7 +347,7 @@ def _get_blocked_template(accept_header_value):
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return content
-        except (OSError, IOError) as e:
+        except (OSError, IOError) as e:  # noqa: B014
             log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
 
     # No user-defined template at this point
@@ -362,3 +357,55 @@ def _get_blocked_template(accept_header_value):
 
     _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
     return BLOCKED_RESPONSE_JSON
+
+
+def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
+    """Return a dict of form data after HTTP form parsing"""
+    body_params = body.replace("+", " ")
+    req_body: Dict[str, Union[str, List[str]]] = dict()
+    for item in body_params.split("&"):
+        key, equal, val = item.partition("=")
+        if equal:
+            key = parse.unquote(key)
+            val = parse.unquote(val)
+            prev_value = req_body.get(key, None)
+            if prev_value is None:
+                req_body[key] = val
+            elif isinstance(prev_value, list):
+                prev_value.append(val)
+            else:
+                req_body[key] = [prev_value, val]
+    return req_body
+
+
+def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str, Any]:
+    """Return a dict of form data after HTTP form parsing"""
+    import email
+    import json
+
+    import xmltodict
+
+    def parse_message(msg):
+        if msg.is_multipart():
+            res = {
+                part.get_param("name", failobj=part.get_filename(), header="content-disposition"): parse_message(part)
+                for part in msg.get_payload()
+            }
+        else:
+            content_type = msg.get("Content-Type")
+            if content_type in ("application/json", "text/json"):
+                res = json.loads(msg.get_payload())
+            elif content_type in ("application/xml", "text/xml"):
+                res = xmltodict.parse(msg.get_payload())
+            elif content_type in ("text/plain", None):
+                res = msg.get_payload()
+            else:
+                res = ""
+
+        return res
+
+    if headers is not None:
+        content_type = headers.get("Content-Type")
+        msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
+        return parse_message(msg)
+    return {}

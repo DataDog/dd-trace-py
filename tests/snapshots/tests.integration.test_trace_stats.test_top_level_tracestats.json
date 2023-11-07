@@ -6,12 +6,13 @@
       {
         "Name": "child",
         "Resource": "child",
+        "Service": "svc-two",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 100,
         "TopLevelHits": 100,
-        "Duration": 266000,
+        "Duration": 99999999900,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -19,12 +20,13 @@
       {
         "Name": "parent",
         "Resource": "parent",
+        "Service": "svc-one",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 100,
         "TopLevelHits": 100,
-        "Duration": 1572000,
+        "Duration": 99999999900,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15

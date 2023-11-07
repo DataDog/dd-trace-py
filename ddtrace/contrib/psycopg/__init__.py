@@ -60,7 +60,9 @@ To configure the psycopg integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
+from .patch import get_version
+from .patch import get_versions
 from .patch import patch
 
 
-__all__ = ["patch"]
+__all__ = ["patch", "get_version", "get_versions"]

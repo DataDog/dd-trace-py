@@ -1,0 +1,67 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "mysvc",
+    "resource": "createCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "openai",
+      "language": "python",
+      "openai.api_base": "https://api.openai.com/v1",
+      "openai.api_type": "open_ai",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "ada",
+      "openai.request.prompt": "hello world",
+      "openai.response.choices.0.finish_reason": "length",
+      "openai.response.choices.0.logprobs": "returned",
+      "openai.response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
+      "openai.response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
+      "openai.response.model": "ada",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "afc82566d5da44e9bc818040d5a65f24"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.remaining": 2999,
+      "openai.organization.ratelimit.tokens.remaining": 249983,
+      "openai.response.choices_count": 1,
+      "openai.response.created": 1681852801,
+      "process_id": 7743
+    },
+    "duration": 5044243,
+    "start": 1694032237250799291
+  },
+     {
+       "name": "http.client.request",
+       "service": "mysvc",
+       "resource": "http.client.request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.peer.service.source": "out.host",
+         "component": "requests",
+         "http.method": "POST",
+         "http.status_code": "200",
+         "http.url": "https://api.openai.com/v1/completions",
+         "http.useragent": "OpenAI/v1 PythonBindings/0.26.5",
+         "out.host": "api.openai.com",
+         "peer.service": "api.openai.com",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 2955221,
+       "start": 1694032237252174491
+     }]]

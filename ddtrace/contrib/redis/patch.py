@@ -11,6 +11,7 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
+from ..trace_utils_redis import _run_redis_command
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
@@ -24,6 +25,11 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(redis, "__version__", "")
+
+
 def patch():
     """Patch the instrumented methods
 
@@ -32,7 +38,7 @@ def patch():
     """
     if getattr(redis, "_datadog_patch", False):
         return
-    setattr(redis, "_datadog_patch", True)
+    redis._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -83,7 +89,7 @@ def patch():
 
 def unpatch():
     if getattr(redis, "_datadog_patch", False):
-        setattr(redis, "_datadog_patch", False)
+        redis._datadog_patch = False
 
         if redis.VERSION < (3, 0, 0):
             unwrap(redis.StrictRedis, "execute_command")
@@ -121,8 +127,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args):
-            return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
+            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command
 

@@ -68,7 +68,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
                     # Check that we have all the tags for each snapshot
                     assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
                     assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
@@ -121,7 +121,6 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             assert len(d.test_queue) == 3
 
             snapshots = {str(s.uuid): s for s in d.test_queue}
-            print(snapshots.keys())
 
             if PY < (3, 0):
                 stacks = [["c", "b_chain"], ["b_chain"], ["a"]]
@@ -137,14 +136,12 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
                 info = {k: v for k, v in enumerate(stacks[n], start=1)}
 
-                print(span._meta["error.stack"], info)
-
                 for i in range(1, len(info) + 1):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
                     assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__, span.get_tag(
+                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
                     assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (

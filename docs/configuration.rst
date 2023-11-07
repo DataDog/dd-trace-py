@@ -87,7 +87,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: |
-         Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist.
+         Enables debug logging in the tracer.
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
      version_added:
@@ -136,11 +136,6 @@ The following environment variables for the tracer are supported:
      default: False
      description: Enables :ref:`Logs Injection`.
 
-   DD_CALL_BASIC_CONFIG:
-     type: Boolean
-     default: False
-     description: Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
-
    DD_AGENT_HOST:
      type: String
      default: |
@@ -183,9 +178,9 @@ The following environment variables for the tracer are supported:
          ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
          Domain Socket.
 
-         Example for UDP url: ``DD_TRACE_AGENT_URL=udp://localhost:8125``
+         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
 
-         Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
+         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
 
    DD_TRACE_AGENT_TIMEOUT_SECONDS:
      type: Float
@@ -216,8 +211,12 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_SAMPLE_RATE:
      type: Float
-     default: 1.0
-     description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+     description: |
+        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
+        and sampling is controlled by other configuration options and/or the Datadog Agent. See
+        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
+        for more details about Agent-based sampling.
+
 
    DD_TRACE_RATE_LIMIT:
      type: int
@@ -231,11 +230,14 @@ The following environment variables for the tracer are supported:
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
+         **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+     version_added:
+       v1.19.0: added support for "resource"
+       v1.20.0: added support for "tags"
 
    DD_SPAN_SAMPLING_RULES:
      type: string
@@ -277,7 +279,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.5`` if priority sampling is enabled, else ``v0.3``
+         ``v0.4``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
@@ -285,15 +287,20 @@ The following environment variables for the tracer are supported:
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
+       v1.19.1: default reverted to ``v0.4``.
 
-   DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
+   DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}.``
+         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
+     version_added:
+       v1.19.0: |
+           ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
+           and will be deleted in 2.0.0
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -308,8 +315,6 @@ The following environment variables for the tracer are supported:
 
          All provided styles are injected into the headers of outbound requests.
 
-         The default value is ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
-
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
@@ -320,7 +325,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -339,7 +344,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
-         ``datadog``
+         ``tracecontext,datadog``
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
@@ -412,6 +417,23 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
+    
+   DD_TRACE_SPAN_AGGREGATOR_RLOCK:
+     type: Boolean
+     default: True
+     description: Whether the ``SpanAggregator`` should use an RLock or a Lock.
+     version_added:
+       v1.16.2: added with default of False
+       v1.19.0: default changed to True
+
+   DD_TRACE_METHODS:
+     type: String
+     default: ""
+     description: |
+        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Note that this setting is only compatible with ``ddtrace-run``.
+     version_added:
+       v2.1.0:
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -437,6 +459,35 @@ The following environment variables for the tracer are supported:
      type: String
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
+
+   DD_IAST_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+        Replace potentially sensitive information in the vulnerability report, like passwords with ``*`` for non tainted strings and ``abcde...``
+        for tainted ones. This will use the regular expressions of the two next settings to decide what to scrub.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_NAME_PATTERN:
+     type: String
+     default: |
+       ``(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)``
+     description: |
+        Regular expression containing key or name style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
+
+   DD_IAST_REDACTION_VALUE_PATTERN:
+     type: String
+     default: |
+       ``(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     description: |
+        Regular expression containing value style strings matched against vulnerability origin and evidence texts.
+        If it matches, the scrubbing of the report will be enabled.
+     version_added:
+        v1.17.0:
 
    DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE:
      type: String
@@ -485,9 +536,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.  
+         set to ``true`` to work.
       version_added:
-         v1.15.0:
+         v1.17.0: Added support to the Django integration. No other integrations support this configuration.
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String

@@ -1,6 +1,7 @@
 baseline: &baseline
   tracer_enabled: false
   profiler_enabled: false
+  debugger_enabled: false
   appsec_enabled: false
   iast_enabled: false
   post_request: false
@@ -11,6 +12,9 @@ tracer:
 profiler:
   <<: *baseline
   profiler_enabled: true
+debugger:
+  <<: *baseline
+  debugger_enabled: true
 iast-get:
   <<: *baseline
   iast_enabled: true

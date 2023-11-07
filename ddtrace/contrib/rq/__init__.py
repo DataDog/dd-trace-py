@@ -86,18 +86,15 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 
 
-__all__ = [
-    "patch",
-    "unpatch",
-]
+__all__ = ["patch", "unpatch", "get_version"]
 
 
 config._add(
@@ -115,6 +112,13 @@ config._add(
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    import rq
+
+    return str(getattr(rq, "__version__", ""))
 
 
 @trace_utils.with_traced_module
@@ -251,7 +255,7 @@ def patch():
     Pin().onto(rq.worker.Worker)
     trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
-    setattr(rq, "_datadog_patch", True)
+    rq._datadog_patch = True
 
 
 def unpatch():
@@ -275,4 +279,4 @@ def unpatch():
     Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
-    setattr(rq, "_datadog_patch", False)
+    rq._datadog_patch = False

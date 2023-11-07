@@ -1,0 +1,4 @@
+fixes:
+  - |
+    django: This fix resolves an issue where 'span.resource' would not include the endpoint when a Handler was interrupted, such as in the case
+    of gunicorn worker timeouts.  

@@ -17,6 +17,7 @@ def var_bool(*args, **kwargs):
 
 def _register(scenario_cls):
     """Registers a scenario for benchmarking."""
+
     # This extends pyperf's runner by registering arguments for the scenario config
     def add_cmdline_args(cmd, args):
         for field in attr.fields(scenario_cls):
@@ -80,4 +81,4 @@ class Scenario(six.with_metaclass(ScenarioMeta)):
         except StopIteration:
             pass
         finally:
-            return dt
+            return dt  # noqa: B012

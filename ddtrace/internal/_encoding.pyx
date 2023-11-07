@@ -3,7 +3,10 @@ from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
 
+from json import dumps as json_dumps
 import threading
+from json import dumps as json_dumps
+from numbers import Number
 
 from ._utils cimport PyBytesLike_Check
 
@@ -18,6 +21,8 @@ from ._utils cimport PyBytesLike_Check
 #   in both `ddtrace` and `ddtrace.internal`
 
 from ..constants import ORIGIN_KEY
+from .constants import SPAN_LINKS_KEY
+from .constants import MAX_UINT_64BITS
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -64,6 +69,10 @@ class BufferFull(Exception):
 
 
 class BufferItemTooLarge(Exception):
+    pass
+
+
+class EncodingValidationError(Exception):
     pass
 
 
@@ -220,6 +229,7 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
+    cdef int _max_string_length
     cdef int _sp_len
     cdef stdint.uint32_t _sp_id
     cdef object _lock
@@ -231,6 +241,7 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
+        self._max_string_length = int(0.1*max_size)
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
         self._lock = threading.RLock()
@@ -246,9 +257,9 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
-        if len(string) > self.max_size:
+        if len(string) > self._max_string_length:
             string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
-                len(string), self.max_size
+                len(string), self._max_string_length
             )
 
         if self.pk.length + len(string) > self.max_size:
@@ -265,6 +276,12 @@ cdef class MsgpackStringTable(StringTable):
     cdef savepoint(self):
         self._sp_len = self.pk.length
         self._sp_id = self._next_id
+
+    @property
+    def table_values(self):
+        return "_sp_len:{}\n_sp_id:{}\npk_buf:{}\npk_buff_size:{}\nmax_size:{}\ntable:{}".format(
+            self._sp_len, self._sp_id, self.get_bytes(), self.pk.buf_size, self.max_size, self._table
+        )
 
     cdef rollback(self):
         if self._sp_len > 0:
@@ -543,6 +560,50 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
+    cdef inline int _pack_links(self, object span_links):
+        ret = msgpack_pack_array(&self.pk, len(span_links))
+        if ret != 0:
+            return ret
+
+        for link in span_links:
+            # SpanLink.to_dict() returns all serializable span link fields
+            d = link.to_dict()
+            # Encode 128 bit trace ids usings two 64bit integers
+            d["trace_id_high"] = d["trace_id"] >> 64
+            d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
+
+            ret = msgpack_pack_map(&self.pk, len(d))
+            if ret != 0:
+                return ret
+
+            for k, v in d.items():
+                # pack the name of a span link field (ex: trace_id, span_id, flags, ...)
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    return ret
+                # pack the value of a span link field (values can be number, string or dict)
+                if isinstance(v, Number):
+                    ret = pack_number(&self.pk, v)
+                elif isinstance(v, str):
+                    ret = pack_text(&self.pk, v)
+                elif k == "attributes":
+                    # span links can contain attributes, this is analougous to span tags
+                    # attributes are serialized as a nested dict with string keys and values
+                    attributes = v.items()
+                    ret = msgpack_pack_map(&self.pk, len(attributes))
+                    for attr_k, attr_v in attributes:
+                        ret = pack_text(&self.pk, attr_k)
+                        if ret != 0:
+                            return ret
+                        ret = pack_text(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                else:
+                    raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
+                if ret != 0:
+                    return ret
+        return 0
+
     cdef inline int _pack_meta(self, object meta, char *dd_origin) except? -1:
         cdef Py_ssize_t L
         cdef int ret
@@ -609,8 +670,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
+        has_links = <bint> (len(span._links) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -688,10 +750,19 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
+            if has_links:
+                ret = pack_bytes(&self.pk, <char *> b"span_links", 10)
+                if ret != 0:
+                    return ret
+                ret = self._pack_links(span._links)
+                if ret != 0:
+                    return ret
+
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
+
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0:
                     return ret
@@ -709,9 +780,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
+    cdef dict _encoded_spans
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         self._st = MsgpackStringTable(max_size)
+        self._encoded_spans = {}
 
     cpdef flush(self):
         with self._lock:
@@ -720,9 +793,16 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                     PyLong_FromLong(<long> self.get_buffer()),
                     <Py_ssize_t> super(MsgpackEncoderV05, self).size,
                 )
-                return self._st.flush()
+                v05bytes = self._st.flush()
+                self._verify_encoding(v05bytes)
+                return v05bytes
             finally:
                 self._reset_buffer()
+                self._encoded_spans = {}
+
+    @property
+    def stable(self):
+        return self._st
 
     @property
     def size(self):
@@ -735,6 +815,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             try:
                 self._st.savepoint()
                 super(MsgpackEncoderV05, self).put(trace)
+                for span in trace:
+                    self._encoded_spans[span.span_id] = span
             except Exception:
                 self._st.rollback()
                 raise
@@ -792,7 +874,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
+        span_links = ""
+        if span._links:
+            span_links = json_dumps([link.to_dict() for link in span._links])
+
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:
             return ret
         if span._meta:
@@ -808,6 +894,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
+            if ret != 0:
+                return ret
+        if span_links:
+            ret = self._pack_string(SPAN_LINKS_KEY)
+            if ret != 0:
+                return ret
+            ret = self._pack_string(span_links)
             if ret != 0:
                 return ret
 
@@ -829,6 +922,75 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         return 0
 
+    cpdef _verify_encoding(self, encoded_bytes):
+        import msgpack
+
+        from ddtrace import config
+
+        if not config._trace_writer_log_err_payload:
+            return
+
+        unpacked = msgpack.unpackb(encoded_bytes, raw=True, strict_map_key=False)
+        if not unpacked or not unpacked[0]:
+            return unpacked
+
+        table, packed_traces = unpacked
+        for trace in packed_traces:
+            for span in trace:
+                og_span = self._encoded_spans.get(span[4])  # correlate encoded span to a span in span_dict
+                # structure of v0.5 encoded spans
+                # 		 0: Service   (uint32)
+                # 		 1: Name      (uint32)
+                # 		 2: Resource  (uint32)
+                # 		 3: TraceID   (uint64)
+                # 		 4: SpanID    (uint64)
+                # 		 5: ParentID  (uint64)
+                # 		 6: Start     (int64)
+                # 		 7: Duration  (int64)
+                # 		 8: Error     (int32)
+                # 		 9: Meta      (map[uint32]uint32)
+                # 		10: Metrics   (map[uint32]float64)
+                # 		11: Type      (uint32)
+                try:
+                    assert og_span.service == (table[span[0]].decode() or None), f"misencoded service: {table[span[0]]}"
+                    assert og_span.name == (table[span[1]].decode() or None), f"misencoded name: {table[span[1]]}"
+                    assert og_span.resource == (
+                        table[span[2]].decode() or None
+                    ), f"misencoded resource: {table[span[2]]}"
+                    assert og_span._trace_id_64bits == (span[3] or None), f"misencoded trace id: {span[3]}"
+                    assert og_span.span_id == (span[4] or None), f"misencoded span id: {span[4]}"
+                    assert og_span.parent_id == (span[5] or None), f"misencoded parent id: {span[5]}"
+                    assert og_span.start_ns == span[6], f"misencoded start: {span[6]}"
+                    assert og_span.duration_ns == (span[7] or None), f"misencoded duration: {span[7]}"
+                    assert og_span.error == span[8], f"misencoded error type: {span[8]}"
+
+                    for k, v in span[9].items():
+                        k = table[k].decode()
+                        v = table[v].decode()
+                        if "dropped string of length" in k or "dropped string of length" in v:
+                            continue
+                        assert og_span._meta[k] == v,  f"misencoded tag: k={k} v={v}"
+
+                    for k, v in span[10].items():
+                        k = table[k].decode()
+                        if "dropped string of length" in k:
+                            continue
+                        assert og_span._metrics[k] == v, f"misencoded metric: k={k} v={v}"
+
+                    assert og_span.span_type == (
+                        table[span[11]].decode() or None
+                    ), f"misencoded span type: {table[span[11]]}"
+                except Exception as e:
+                    eve = EncodingValidationError(
+                        f"{str(e)}\nDecoded Span does not match encoded span: {og_span._pprint()}"
+                    )
+                    setattr(
+                        eve,
+                        "_debug_message",
+                        f"Malformed String table values\ntable:{table}\ntraces:{packed_traces}"
+                        f"\nencoded_bytes:{encoded_bytes}\nspans:{self._encoded_spans}"
+                    )
+                    raise eve
 
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer

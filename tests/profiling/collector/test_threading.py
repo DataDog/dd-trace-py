@@ -347,6 +347,6 @@ def test_user_threads_have_native_id():
         else:
             break
     else:
-        assert False, "Thread.native_id not set"
+        raise AssertionError("Thread.native_id not set")
 
     t.join()

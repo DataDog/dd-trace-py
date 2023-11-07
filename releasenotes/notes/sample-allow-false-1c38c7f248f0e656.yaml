@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: This change introduces the ``allow_false`` keyword argument to ``BaseSampler.sample()``,
+    which defaults to ``True``. ``allow_false`` controls the function's return value. If ``allow_false`` is ``False``,
+    the function will always return ``True`` regardless of the sampling decision it made. This is useful
+    when ``sample`` is called only for its side effects, which can include setting span tags.

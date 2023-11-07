@@ -101,9 +101,9 @@ master_doc = "index"
 
 # General information about the project.
 year = datetime.now().year
-project = u"ddtrace"
-copyright = u"2016-{}, Datadog, Inc.".format(year)  # noqa: A001
-author = u"Datadog, Inc."
+project = "ddtrace"
+copyright = "2016-{}, Datadog, Inc.".format(year)  # noqa: A001
+author = "Datadog, Inc."
 
 # document in order of source
 autodoc_member_order = "bysource"
@@ -326,7 +326,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "ddtrace.tex", u"ddtrace Documentation", u"Datadog, Inc", "manual"),
+    (master_doc, "ddtrace.tex", "ddtrace Documentation", "Datadog, Inc", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -360,7 +360,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "ddtrace", u"ddtrace Documentation", [author], 1)]
+man_pages = [(master_doc, "ddtrace", "ddtrace Documentation", [author], 1)]
 
 # If true, show URL addresses after external links.
 #
@@ -376,7 +376,7 @@ texinfo_documents = [
     (
         master_doc,
         "ddtrace",
-        u"ddtrace Documentation",
+        "ddtrace Documentation",
         author,
         "ddtrace",
         "One line description of project.",
@@ -557,7 +557,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
             versions = set()  # set[Version]
 
             # For release branches we want to set the max to the next minor, e.g. 1.2 -> 1.3.0
-            # For dev branches we want to set the max to the next major, e.g. 1.x -> 2.0.0
+            # For dev branches we want to set the max to the next major, e.g. 2.x -> 3.0.0
             for origin in origins:
                 if self._release_branch_pattern.match(origin):
                     v = Version(origin)

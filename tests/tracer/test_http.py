@@ -65,19 +65,16 @@ def test_redact_url_not_redacts_without_param(url):
 @pytest.mark.parametrize("url", _url_fixtures())
 def test_redact_url_not_redacts_with_param(url):
     parsed_url = parse.urlparse(url)
-    assert (
-        redact_url(url, re.compile(b"\\*"), "query_string")
-        == parse.urlunparse(
-            (
-                parsed_url.scheme,
-                parsed_url.netloc,
-                parsed_url.path,
-                parsed_url.params,
-                "query_string",
-                parsed_url.fragment,
-            )
-        ).encode("utf-8")
-    )
+    assert redact_url(url, re.compile(b"\\*"), "query_string") == parse.urlunparse(
+        (
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            parsed_url.params,
+            "query_string",
+            parsed_url.fragment,
+        )
+    ).encode("utf-8")
 
 
 @pytest.mark.parametrize(

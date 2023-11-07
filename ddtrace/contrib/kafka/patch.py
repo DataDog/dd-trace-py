@@ -8,20 +8,25 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
+from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
 
 
 _Producer = confluent_kafka.Producer
 _Consumer = confluent_kafka.Consumer
+_SerializingProducer = confluent_kafka.SerializingProducer if hasattr(confluent_kafka, "SerializingProducer") else None
+_DeserializingConsumer = (
+    confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
+)
 
 
 config._add(
@@ -32,17 +37,19 @@ config._add(
 )
 
 
-class TracedProducer(confluent_kafka.Producer):
+def get_version():
+    # type: () -> str
+    return getattr(confluent_kafka, "__version__", "")
+
+
+class TracedProducerMixin:
     def __init__(self, config, *args, **kwargs):
-        super(TracedProducer, self).__init__(config, *args, **kwargs)
+        super(TracedProducerMixin, self).__init__(config, *args, **kwargs)
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
             else config.get("metadata.broker.list")
         )
-
-    def produce(self, topic, value=None, *args, **kwargs):
-        super(TracedProducer, self).produce(topic, value, *args, **kwargs)
 
     # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
     # which makes the Pin functionality ignore it.
@@ -52,40 +59,71 @@ class TracedProducer(confluent_kafka.Producer):
     __nonzero__ = __bool__
 
 
-class TracedConsumer(confluent_kafka.Consumer):
+class TracedConsumerMixin:
     def __init__(self, config, *args, **kwargs):
-        super(TracedConsumer, self).__init__(config, *args, **kwargs)
+        super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
+        self._auto_commit = asbool(config.get("enable.auto.commit", True))
 
-    def poll(self, timeout=1):
-        return super(TracedConsumer, self).poll(timeout)
+
+class TracedConsumer(TracedConsumerMixin, confluent_kafka.Consumer):
+    pass
+
+
+class TracedProducer(TracedProducerMixin, confluent_kafka.Producer):
+    pass
+
+
+class TracedDeserializingConsumer(TracedConsumerMixin, confluent_kafka.DeserializingConsumer):
+    pass
+
+
+class TracedSerializingProducer(TracedProducerMixin, confluent_kafka.SerializingProducer):
+    pass
 
 
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
-    setattr(confluent_kafka, "_datadog_patch", True)
+    confluent_kafka._datadog_patch = True
 
     confluent_kafka.Producer = TracedProducer
     confluent_kafka.Consumer = TracedConsumer
+    if _SerializingProducer is not None:
+        confluent_kafka.SerializingProducer = TracedSerializingProducer
+    if _DeserializingConsumer is not None:
+        confluent_kafka.DeserializingConsumer = TracedDeserializingConsumer
 
-    trace_utils.wrap(TracedProducer, "produce", traced_produce)
-    trace_utils.wrap(TracedConsumer, "poll", traced_poll)
+    for producer in (TracedProducer, TracedSerializingProducer):
+        trace_utils.wrap(producer, "produce", traced_produce)
+    for consumer in (TracedConsumer, TracedDeserializingConsumer):
+        trace_utils.wrap(consumer, "poll", traced_poll)
+        trace_utils.wrap(consumer, "commit", traced_commit)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
+    Pin().onto(confluent_kafka.SerializingProducer)
+    Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
-        setattr(confluent_kafka, "_datadog_patch", False)
+        confluent_kafka._datadog_patch = False
 
-    if trace_utils.iswrapped(TracedProducer.produce):
-        trace_utils.unwrap(TracedProducer, "produce")
-    if trace_utils.iswrapped(TracedConsumer.poll):
-        trace_utils.unwrap(TracedConsumer, "poll")
+    for producer in (TracedProducer, TracedSerializingProducer):
+        if trace_utils.iswrapped(producer.produce):
+            trace_utils.unwrap(producer, "produce")
+    for consumer in (TracedConsumer, TracedDeserializingConsumer):
+        if trace_utils.iswrapped(consumer.poll):
+            trace_utils.unwrap(consumer, "poll")
+        if trace_utils.iswrapped(consumer.commit):
+            trace_utils.unwrap(consumer, "commit")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
+    if _SerializingProducer is not None:
+        confluent_kafka.SerializingProducer = _SerializingProducer
+    if _DeserializingConsumer is not None:
+        confluent_kafka.DeserializingConsumer = _DeserializingConsumer
 
 
 def traced_produce(func, instance, args, kwargs):
@@ -94,18 +132,14 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
+    core.set_item("kafka_topic", topic)
     try:
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
         value = None
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
-    if config._data_streams_enabled:
-        # inject data streams context
-        headers = kwargs.get("headers", {})
-        pathway = pin.tracer.data_streams_processor.set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"])
-        headers[PROPAGATION_KEY] = pathway.encode()
-        kwargs["headers"] = headers
+    core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer)])
 
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
@@ -116,7 +150,7 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+        span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(SPAN_MEASURED_KEY)
@@ -145,16 +179,13 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
-            if config._data_streams_enabled:
-                headers = {header[0]: header[1] for header in (message.headers() or [])}
-                ctx = pin.tracer.data_streams_processor.decode_pathway(headers.get(PROPAGATION_KEY, None))
-                ctx.set_checkpoint(
-                    ["direction:in", "group:" + instance._group_id, "topic:" + message.topic(), "type:kafka"]
-                )
+            core.set_item("kafka_topic", message.topic())
+            core.dispatch("kafka.consume.start", [instance, message])
+
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
-            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key))
+            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
@@ -163,3 +194,13 @@ def traced_poll(func, instance, args, kwargs):
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
         return message
+
+
+def traced_commit(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    core.dispatch("kafka.commit.start", [instance, args, kwargs])
+
+    return func(*args, **kwargs)

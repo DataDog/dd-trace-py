@@ -17,7 +17,7 @@ def trace_rendering():
     # patch only once
     if getattr(pylons.templating, "__datadog_patch", False):
         return
-    setattr(pylons.templating, "__datadog_patch", True)
+    pylons.templating.__datadog_patch = True
 
     if legacy_pylons:
         # Pylons <= 0.9.7

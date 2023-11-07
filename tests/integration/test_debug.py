@@ -94,7 +94,7 @@ def test_standard_tags():
     assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
-    assert f.get("priority_sampler_type") == "RateByServiceSampler"
+    assert f.get("priority_sampler_type") == "N/A"
     assert f.get("service") == ""
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
@@ -352,7 +352,9 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
     sampler = ddtrace.sampler.DatadogSampler(
         rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
@@ -360,15 +362,15 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='xyz', name='abc')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
 
 def test_error_output_ddtracerun_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -380,9 +382,7 @@ def test_error_output_ddtracerun_debug_mode():
     # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -424,9 +424,7 @@ def test_error_output_ddtracerun():
 def test_debug_span_log():
     p = subprocess.Popen(
         ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

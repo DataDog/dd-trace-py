@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    mariadb: This fix resolves an issue where MariaDB connection information objects not including the user
+    or port caused exceptions to be raised.

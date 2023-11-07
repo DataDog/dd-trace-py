@@ -17,8 +17,8 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...internal.logger import get_logger
+from .. import trace_utils
 
 
 log = get_logger(__name__)
@@ -26,6 +26,11 @@ log = get_logger(__name__)
 config._add("sanic", dict(_default_service=schematize_service_name("sanic"), distributed_tracing=True))
 
 SANIC_VERSION = (0, 0, 0)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(sanic, "__version__", "")
 
 
 def _get_current_span(request):
@@ -120,7 +125,7 @@ def patch():
 
     if getattr(sanic, "__datadog_patch", False):
         return
-    setattr(sanic, "__datadog_patch", True)
+    sanic.__datadog_patch = True
 
     SANIC_VERSION = tuple(map(int, sanic.__version__.split(".")))
 
@@ -148,7 +153,7 @@ def unpatch():
             _u(sanic.Sanic, "_run_request_middleware")
             _u(sanic.request.Request, "respond")
 
-    setattr(sanic, "__datadog_patch", False)
+    sanic.__datadog_patch = False
 
 
 def patch_sanic_init(wrapped, instance, args, kwargs):
