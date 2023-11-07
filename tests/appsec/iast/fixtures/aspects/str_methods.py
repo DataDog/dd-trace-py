@@ -697,8 +697,8 @@ def no_effect_using_wraps(func):
     return wrapper
 
 
-def do_upper(s):  # type: (str) -> str
-    return s.upper()
+def do_upper(sss):  # type: (str) -> str
+    return sss.upper()
 
 
 def do_lower(s):  # type: (str) -> str

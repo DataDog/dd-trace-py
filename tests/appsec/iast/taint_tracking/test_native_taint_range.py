@@ -127,10 +127,10 @@ def test_collisions_str():
         t4 = random.choice(tainted)
         mixed_tainted_ids.append(id(t4))
 
-        t5 = format_aspect(n1.format, n1, t4)
+        t5 = format_aspect(n1.format, n1.format, n1, t4)
         mixed_tainted_ids.append(id(t5))
 
-        t6 = join_aspect(t5.join, t5, [t2, n3])
+        t6 = join_aspect(t5.join, t5.join, t5, [t2, n3])
         mixed_tainted_ids.append(id(t6))
 
     for t in mixed_tainted_and_nottainted:
@@ -146,9 +146,9 @@ def test_collisions_str():
 
         n4 = random.choice(not_tainted)
 
-        n5 = format_aspect(n1.format, n1, [n4])
+        n5 = format_aspect(n1.format, n1.format, n1, [n4])
 
-        n6 = join_aspect(n5.join, n5, [n2, n3])
+        n6 = join_aspect(n5.join, n5.join, n5, [n2, n3])
 
         mixed_nottainted.append(n6)
 
@@ -196,10 +196,10 @@ def test_collisions_bytes():
         t4 = random.choice(tainted)
         mixed_tainted_ids.append(id(t4))
 
-        t5 = join_aspect(n1.join, t2, [n1, t4])
+        t5 = join_aspect(n1.join, n1.join, t2, [n1, t4])
         mixed_tainted_ids.append(id(t5))
 
-        t6 = join_aspect(t5.join, t5, [t2, n3])
+        t6 = join_aspect(t5.join, t5.join, t5, [t2, n3])
         mixed_tainted_ids.append(id(t6))
 
     for t in mixed_tainted_and_nottainted:
@@ -215,9 +215,9 @@ def test_collisions_bytes():
 
         n4 = random.choice(not_tainted)
 
-        n5 = join_aspect(n1.join, n1, [n2, n4])
+        n5 = join_aspect(n1.join, n1.join, n1, [n2, n4])
 
-        n6 = join_aspect(n5.join, n5, [n2, n3])
+        n6 = join_aspect(n5.join, n5.join, n5, [n2, n3])
 
         mixed_nottainted.append(n6)
 

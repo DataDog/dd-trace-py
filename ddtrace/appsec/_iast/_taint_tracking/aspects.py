@@ -101,8 +101,8 @@ def bytearray_aspect(orig_function, _, *args, **kwargs):
     return result
 
 
-def join_aspect(orig_function, joiner, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def join_aspect(orig_function, _, joiner, *args, **kwargs):
+    # type: (Callable, Any, Any, Any, Any) -> Any
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -198,7 +198,7 @@ def modulo_aspect(candidate_text, candidate_tuple):
 
 
 def build_string_aspect(*args):  # type: (List[Any]) -> str
-    return join_aspect("".join, "", args)
+    return join_aspect("".join, None, "", args)
 
 
 def ljust_aspect(orig_function, _, candidate_text, *args, **kwargs):
@@ -308,7 +308,7 @@ def format_aspect(
         return candidate_text.format(*args, **kwargs)
 
 
-def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, str, Any, Any) -> str
+def format_map_aspect(orig_function, _, candidate_text, *args, **kwargs):  # type: (Callable, Any, str, Any, Any) -> str
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -446,7 +446,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     return result
 
 
-def decode_aspect(orig_function, self, *args, **kwargs):
+def decode_aspect(orig_function, _, self, *args, **kwargs):
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
         return self.decode(*args, **kwargs)
     try:
@@ -458,7 +458,7 @@ def decode_aspect(orig_function, self, *args, **kwargs):
         return self.decode(*args, **kwargs)
 
 
-def encode_aspect(orig_function, self, *args, **kwargs):
+def encode_aspect(orig_function, _, self, *args, **kwargs):
     if not is_pyobject_tainted(self) or not isinstance(self, str):
         return self.encode(*args, **kwargs)
     try:
@@ -470,7 +470,9 @@ def encode_aspect(orig_function, self, *args, **kwargs):
         return self.encode(*args, **kwargs)
 
 
-def upper_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def upper_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -484,7 +486,9 @@ def upper_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Call
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def lower_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -498,7 +502,9 @@ def lower_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Call
         return candidate_text.lower(*args, **kwargs)
 
 
-def swapcase_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def swapcase_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -511,7 +517,9 @@ def swapcase_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (C
         return candidate_text.swapcase(*args, **kwargs)
 
 
-def title_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def title_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -524,7 +532,9 @@ def title_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Call
         return candidate_text.title(*args, **kwargs)
 
 
-def capitalize_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def capitalize_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -538,7 +548,9 @@ def capitalize_aspect(orig_function, candidate_text, *args, **kwargs):  # type: 
         return candidate_text.capitalize(*args, **kwargs)
 
 
-def casefold_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def casefold_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
@@ -554,7 +566,9 @@ def casefold_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (C
         return candidate_text.casefold(*args, **kwargs)  # type: ignore[union-attr]
 
 
-def translate_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
+def translate_aspect(
+    orig_function, _, candidate_text, *args, **kwargs
+):  # type: (Callable, Any, Any, Any, Any) -> TEXT_TYPE
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
 
