@@ -1258,7 +1258,7 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v0 import get_openai_vcr
+from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -1302,11 +1302,11 @@ import asyncio
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v0 import get_openai_vcr
+from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 async def task():
-    with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_async.yaml"):
+    with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_async.yaml"):
         client = openai.AsyncOpenAI()
         resp = await client.completions.create(model="ada", prompt="hello world")
 
@@ -1682,10 +1682,10 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
-from tests.contrib.openai.test_openai_v0 import get_openai_vcr
+from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
+with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")
     """,
