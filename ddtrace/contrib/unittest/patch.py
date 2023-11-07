@@ -558,21 +558,21 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                     and _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name)
                     and not _is_skipped_test(instance)
                 ):
-                    global _global_skipped_elements
-                    _global_skipped_elements += 1
-
-                    test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
-                    test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
-                    test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
                     if _is_marked_as_unskippable(instance):
                         span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                     else:
+                        global _global_skipped_elements
+                        _global_skipped_elements += 1
+
+                        test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+                        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+                        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
                         instance._dd_itr_skip = True
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
