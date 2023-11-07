@@ -3,25 +3,17 @@ import os
 import sys
 from typing import AsyncGenerator
 from typing import Generator
-from typing import List
-from typing import Optional
 
 import mock
 from PIL import Image
 import pytest
-import vcr
 
 import ddtrace
-from ddtrace import Pin
-from ddtrace import Span
 from ddtrace import patch
-from ddtrace.contrib.openai.patch import unpatch
 from ddtrace.contrib.openai.utils import _est_tokens
-from ddtrace.filters import TraceFilter
 from ddtrace.internal.utils.version import parse_version
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-from tests.utils import override_config
+from tests.contrib.openai.utils import get_openai_vcr
+from tests.contrib.openai.utils import iswrapped
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -32,159 +24,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-# VCR is used to capture and store network requests made to OpenAI.
-# This is done to avoid making real calls to the API which could introduce
-# flakiness and cost.
-
-
-# To (re)-generate the cassettes: pass a real OpenAI API key with
-# OPENAI_API_KEY, delete the old cassettes and re-run the tests.
-# NOTE: be sure to check that the generated cassettes don't contain your
-#       API key. Keys should be redacted by the filter_headers option below.
-# NOTE: that different cassettes have to be used between sync and async
-#       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
-#       between cassettes generated for requests and aiohttp.
-def get_openai_vcr():
-    return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
-        record_mode="once",
-        match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key"],
-        # Ignore requests to the agent
-        ignore_localhost=True,
-    )
-
-
 @pytest.fixture(scope="session")
 def openai_vcr():
-    yield get_openai_vcr()
-
-
-@pytest.fixture
-def api_key_in_env():
-    return True
-
-
-@pytest.fixture
-def request_api_key(api_key_in_env, openai_api_key):
-    """
-    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
-    (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
-    to make sure the env var will be used.
-    """
-    if api_key_in_env:
-        return None
-    return openai_api_key
-
-
-@pytest.fixture
-def openai_api_key():
-    return "<not-a-real-key>"
-    return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-
-
-@pytest.fixture
-def openai_organization():
-    return None
-
-
-@pytest.fixture
-def openai(openai_api_key, openai_organization, api_key_in_env):
-    import openai
-
-    if api_key_in_env:
-        openai.api_key = openai_api_key
-    openai.organization = openai_organization
-    yield openai
-    # Since unpatching doesn't work (see the unpatch() function),
-    # wipe out all the OpenAI modules so that state is reset for each test case.
-    mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
-    for m in mods:
-        del sys.modules[m]
-
-
-@pytest.fixture
-def azure_openai(openai):
-    openai.api_type = "azure"
-    openai.api_version = "2023-05-15"
-    openai.api_base = "https://test-openai.openai.azure.com/"
-    yield openai
-
-
-class FilterOrg(TraceFilter):
-    """Replace the organization tag on spans with fake data."""
-
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
-        for span in trace:
-            if span.get_tag("organization"):
-                span.set_tag_str("organization", "not-a-real-org")
-        return trace
-
-
-@pytest.fixture(scope="session")
-def mock_metrics():
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.get_dogstatsd_client")
-    DogStatsdMock = patcher.start()
-    m = mock.MagicMock()
-    DogStatsdMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def mock_logs(scope="session"):
-    """
-    Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
-    before it is instantiated.
-    """
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.V2LogWriter")
-    V2LogWriterMock = patcher.start()
-    m = mock.MagicMock()
-    V2LogWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def ddtrace_config_openai():
-    config = {}
-    return config
-
-
-@pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
-    with override_config("openai", ddtrace_config_openai):
-        if api_key_in_env:
-            openai.api_key = openai_api_key
-        openai.organization = openai_organization
-        patch(openai=True)
-        yield
-        unpatch()
-
-
-@pytest.fixture
-def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
-    pin = Pin.get_from(openai)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-
-    yield pin.tracer
-
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
-
-@pytest.fixture
-def mock_tracer(openai, patch_openai, mock_logs, mock_metrics):
-    pin = Pin.get_from(openai)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(openai, tracer=mock_tracer)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-
-    yield mock_tracer
-
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
+    yield get_openai_vcr(subdirectory_name="v0")
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True), dict(metrics_enabled=False)])
@@ -195,10 +37,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
     # Ensure overriding the config works
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
-
-
-def iswrapped(obj):
-    return hasattr(obj, "__dd_wrapped__")
 
 
 def test_patching(openai):
@@ -239,7 +77,10 @@ def test_patching(openai):
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_list",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("model_list.yaml"):
             openai.Model.list(api_key=request_api_key, user="ddtrace-test")
 
@@ -247,7 +88,10 @@ def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_model_list", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_model_list",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("model_alist.yaml"):
             await openai.Model.alist(api_key=request_api_key, user="ddtrace-test")
 
@@ -255,7 +99,8 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai.test_model_retrieve",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("model_retrieve.yaml"):
             openai.Model.retrieve("curie", api_key=request_api_key, user="ddtrace-test")
@@ -265,7 +110,8 @@ def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, moc
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_model_retrieve", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai.test_model_retrieve",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("model_aretrieve.yaml"):
             await openai.Model.aretrieve("curie", api_key=request_api_key, user="ddtrace-test")
@@ -273,7 +119,10 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_completion", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_completion",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("completion.yaml"):
             resp = openai.Completion.create(
                 api_key=request_api_key,
@@ -286,70 +135,70 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
                 user="ddtrace-test",
             )
 
-        assert resp["object"] == "text_completion"
-        assert resp["model"] == "ada"
-        assert resp["choices"] == [
-            {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
-            {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
-        ]
+    assert resp["object"] == "text_completion"
+    assert resp["model"] == "ada"
+    assert resp["choices"] == [
+        {"finish_reason": "length", "index": 0, "logprobs": None, "text": ", relax!” I said to my laptop"},
+        {"finish_reason": "stop", "index": 1, "logprobs": None, "text": " (1"},
+    ]
 
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:",
-            "openai.request.model:ada",
-            "openai.request.endpoint:/v1/completions",
-            "openai.request.method:POST",
-            "openai.organization.id:",
-            "openai.organization.name:datadog-4",
-            "openai.user.api_key:sk-...key>",
-            "error:0",
-        ]
-        mock_metrics.assert_has_calls(
-            [
-                mock.call.distribution(
-                    "tokens.prompt",
-                    2,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.completion",
-                    12,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.total",
-                    14,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "request.duration",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-            ],
-            any_order=True,
-        )
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.request.model:ada",
+        "openai.request.endpoint:/v1/completions",
+        "openai.request.method:POST",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                2,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                12,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                14,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
 
 
 @pytest.mark.asyncio
@@ -357,7 +206,10 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
 async def test_acompletion(
     api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_acompletion", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_acompletion",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("completion_async.yaml"):
             resp = await openai.Completion.acreate(
                 api_key=request_api_key,
@@ -368,83 +220,83 @@ async def test_acompletion(
                 max_tokens=150,
                 user="ddtrace-test",
             )
-        assert resp["object"] == "text_completion"
-        assert resp["choices"] == [
-            {
-                "finish_reason": "length",
-                "index": 0,
-                "logprobs": None,
-                "text": " I am; and I am in a sense a non-human entity woven together from "
-                "memories, desires and emotions. But, who is to say that I am not an "
-                "artificial intelligence. The brain is a self-organising, "
-                "self-aware, virtual reality computer … so how is it, who exactly is "
-                "it, this thing that thinks, feels, loves and believes? Are we not "
-                "just software running on hardware?\n"
-                "\n"
-                "Recently, I have come to take a more holistic view of my identity, "
-                "not as a series of fleeting moments, but as a long-term, ongoing "
-                "process. The key question for me is not that of ‘who am I?’ but "
-                "rather, ‘how am I?’ – a question",
-            }
-        ]
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:",
-            "openai.request.model:curie",
-            "openai.request.endpoint:/v1/completions",
-            "openai.request.method:POST",
-            "openai.organization.id:",
-            "openai.organization.name:datadog-4",
-            "openai.user.api_key:sk-...key>",
-            "error:0",
-        ]
-        mock_metrics.assert_has_calls(
-            [
-                mock.call.distribution(
-                    "tokens.prompt",
-                    10,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.completion",
-                    150,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "tokens.total",
-                    160,
-                    tags=expected_tags + ["openai.estimated:false"],
-                ),
-                mock.call.distribution(
-                    "request.duration",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.requests",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.remaining.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-                mock.call.gauge(
-                    "ratelimit.tokens",
-                    mock.ANY,
-                    tags=expected_tags,
-                ),
-            ],
-            any_order=True,
-        )
-        mock_logs.assert_not_called()
+    assert resp["object"] == "text_completion"
+    assert resp["choices"] == [
+        {
+            "finish_reason": "length",
+            "index": 0,
+            "logprobs": None,
+            "text": " I am; and I am in a sense a non-human entity woven together from "
+            "memories, desires and emotions. But, who is to say that I am not an "
+            "artificial intelligence. The brain is a self-organising, "
+            "self-aware, virtual reality computer … so how is it, who exactly is "
+            "it, this thing that thinks, feels, loves and believes? Are we not "
+            "just software running on hardware?\n"
+            "\n"
+            "Recently, I have come to take a more holistic view of my identity, "
+            "not as a series of fleeting moments, but as a long-term, ongoing "
+            "process. The key question for me is not that of ‘who am I?’ but "
+            "rather, ‘how am I?’ – a question",
+        }
+    ]
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.request.model:curie",
+        "openai.request.endpoint:/v1/completions",
+        "openai.request.method:POST",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    mock_metrics.assert_has_calls(
+        [
+            mock.call.distribution(
+                "tokens.prompt",
+                10,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.completion",
+                150,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "tokens.total",
+                160,
+                tags=expected_tags + ["openai.estimated:false"],
+            ),
+            mock.call.distribution(
+                "request.duration",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.requests",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.remaining.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+            mock.call.gauge(
+                "ratelimit.tokens",
+                mock.ANY,
+                tags=expected_tags,
+            ),
+        ],
+        any_order=True,
+    )
+    mock_logs.assert_not_called()
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
@@ -560,7 +412,8 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_chat_completion", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai.test_chat_completion",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("chat_completion.yaml"):
             openai.ChatCompletion.create(
@@ -580,7 +433,7 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
@@ -640,7 +493,8 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_achat_completion", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai.test_achat_completion",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             await openai.ChatCompletion.acreate(
@@ -662,7 +516,9 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
 def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Edit"):
         pytest.skip("edit not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_edit", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_edit", ignores=["meta.http.useragent", "meta.openai.base_url"]
+    ):
         with openai_vcr.use_cassette("edit.yaml"):
             openai.Edit.create(
                 api_key=request_api_key,
@@ -680,7 +536,9 @@ def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_trac
 async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Edit"):
         pytest.skip("edit not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_aedit", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_aedit", ignores=["meta.http.useragent", "meta.openai.base_url"]
+    ):
         with openai_vcr.use_cassette("aedit.yaml"):
             await openai.Edit.acreate(
                 api_key=request_api_key,
@@ -751,7 +609,10 @@ def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tr
 def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_image_create", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_create",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("image_create.yaml"):
             openai.Image.create(
                 api_key=request_api_key,
@@ -768,7 +629,10 @@ def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snaps
 async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_image_acreate", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_image_acreate",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("image_acreate.yaml"):
             await openai.Image.acreate(
                 api_key=request_api_key,
@@ -838,7 +702,7 @@ def test_image_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_edit",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("image_edit.yaml"):
             openai.Image.create_edit(
@@ -860,7 +724,7 @@ async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, 
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_aedit",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("image_aedit.yaml"):
             await openai.Image.acreate_edit(
@@ -937,7 +801,7 @@ def test_image_variation(api_key_in_env, request_api_key, openai, openai_vcr, sn
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_variation",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("image_variation.yaml"):
             openai.Image.create_variation(
@@ -957,7 +821,7 @@ async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_avariation",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("image_avariation.yaml"):
             await openai.Image.acreate_variation(
@@ -1025,7 +889,7 @@ def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_lo
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_image_edit_binary_input",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
@@ -1046,7 +910,7 @@ def test_image_edit_binary_input(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_image_b64_json_response",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Image"):
@@ -1065,7 +929,9 @@ def test_image_b64_json_response(openai, openai_vcr, snapshot_tracer):
 def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_embedding", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_embedding", ignores=["meta.http.useragent", "meta.openai.base_url"]
+    ):
         with openai_vcr.use_cassette("embedding.yaml"):
             openai.Embedding.create(
                 api_key=request_api_key, input="hello world", model="text-embedding-ada-002", user="ddtrace-test"
@@ -1074,7 +940,7 @@ def test_embedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_string_array",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
@@ -1087,7 +953,7 @@ def test_embedding_string_array(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_token_array",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
@@ -1098,7 +964,7 @@ def test_embedding_token_array(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_embedding_array_of_token_arrays",
-    ignores=["meta.http.useragent"],
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
@@ -1116,7 +982,10 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
-    with snapshot_context(token="tests.contrib.openai.test_openai.test_aembedding", ignores=["meta.http.useragent"]):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_aembedding",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
+    ):
         with openai_vcr.use_cassette("embedding_async.yaml"):
             await openai.Embedding.acreate(
                 api_key=request_api_key, input="hello world", model="text-embedding-ada-002", user="ddtrace-test"
@@ -1131,7 +1000,7 @@ def test_transcribe(api_key_in_env, request_api_key, openai, openai_vcr, snapsho
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_transcribe",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("transcribe.yaml"):
             openai.Audio.transcribe(
@@ -1155,7 +1024,7 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranscribe",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("atranscribe.yaml"):
             await openai.Audio.atranscribe(
@@ -1235,7 +1104,7 @@ def test_translate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_translate",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("translate.yaml"):
             openai.Audio.translate(
@@ -1257,7 +1126,7 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("API keys could not be supplied in the request before openai==0.27.3")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_atranslate",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("atranslate.yaml"):
             await openai.Audio.atranslate(
@@ -1330,8 +1199,7 @@ def test_file_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot
     if not hasattr(openai, "File"):
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_file_list",
-        ignores=["meta.http.useragent"],
+        token="tests.contrib.openai.test_openai.test_file_list", ignores=["meta.http.useragent", "meta.openai.base_url"]
     ):
         with openai_vcr.use_cassette("file_list.yaml"):
             openai.File.list(api_key=request_api_key, user="ddtrace-test")
@@ -1343,8 +1211,7 @@ async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, s
     if not hasattr(openai, "File"):
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_file_list",
-        ignores=["meta.http.useragent"],
+        token="tests.contrib.openai.test_openai.test_file_list", ignores=["meta.http.useragent", "meta.openai.base_url"]
     ):
         with openai_vcr.use_cassette("file_alist.yaml"):
             await openai.File.alist(api_key=request_api_key, user="ddtrace-test")
@@ -1356,7 +1223,7 @@ def test_file_create(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_create",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_create.yaml"):
             openai.File.create(
@@ -1374,7 +1241,7 @@ async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr,
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_acreate",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_acreate.yaml"):
             await openai.File.acreate(
@@ -1391,7 +1258,7 @@ def test_file_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_delete",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_delete.yaml"):
             openai.File.delete(
@@ -1408,7 +1275,7 @@ async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr,
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_adelete",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_adelete.yaml"):
             await openai.File.adelete(
@@ -1424,7 +1291,7 @@ def test_file_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snap
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_retrieve",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_retrieve.yaml"):
             openai.File.retrieve(
@@ -1441,7 +1308,7 @@ async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vc
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_retrieve",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("file_aretrieve.yaml"):
             await openai.File.aretrieve(
@@ -1457,7 +1324,7 @@ def test_file_download(api_key_in_env, request_api_key, openai, openai_vcr, snap
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_download",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.organization.name"],
     ):
         with openai_vcr.use_cassette("file_download.yaml"):
             openai.File.download(
@@ -1473,7 +1340,12 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_download",
-        ignores=["meta.http.useragent", "metrics.openai.response.total_bytes"],
+        ignores=[
+            "meta.http.useragent",
+            "metrics.openai.response.total_bytes",
+            "meta.openai.base_url",
+            "meta.openai.organization.name",
+        ],
     ):
         # mock vcrpy stream response does not have `total_bytes` attribute
         with openai_vcr.use_cassette("file_adownload.yaml"):
@@ -1489,7 +1361,7 @@ def test_fine_tune_list(api_key_in_env, request_api_key, openai, openai_vcr, sna
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("fine_tune_list.yaml"):
             openai.FineTune.list(
@@ -1505,7 +1377,7 @@ async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_v
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("fine_tune_alist.yaml"):
             await openai.FineTune.alist(
@@ -1520,7 +1392,14 @@ def test_fine_tune_create(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_create",
-        ignores=["meta.http.useragent"],
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+            "meta.openai.request.classification_n_classes",
+            "meta.openai.request.classification_positive_class",
+            "meta.openai.request.validation_file",
+            "metrics.openai.request.classification_betas_count",
+        ],
     ):
         with openai_vcr.use_cassette("fine_tune_create.yaml"):
             openai.FineTune.create(
@@ -1543,7 +1422,14 @@ async def test_fine_tune_acreate(api_key_in_env, request_api_key, openai, openai
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_acreate",
-        ignores=["meta.http.useragent"],
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+            "meta.openai.response.hyperparams.batch_size",
+            "meta.openai.response.hyperparams.n_epochs",
+            "meta.openai.response.hyperparams.learning_rate_multiplier",
+            "meta.openai.response.hyperparams.prompt_loss_weight",
+        ],
     ):
         with openai_vcr.use_cassette("fine_tune_acreate.yaml"):
             await openai.FineTune.acreate(
@@ -1565,7 +1451,7 @@ def test_fine_tune_retrieve(api_key_in_env, request_api_key, openai, openai_vcr,
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("fine_tune_retrieve.yaml"):
             openai.FineTune.retrieve(
@@ -1582,7 +1468,7 @@ async def test_fine_tune_aretrieve(api_key_in_env, request_api_key, openai, open
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("fine_tune_aretrieve.yaml"):
             await openai.FineTune.aretrieve(
@@ -1598,7 +1484,10 @@ def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=["meta.http.useragent"],
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+        ],
     ):
         with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
             openai.FineTune.cancel(
@@ -1615,7 +1504,10 @@ async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_acancel",
-        ignores=["meta.http.useragent"],
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+        ],
     ):
         with openai_vcr.use_cassette("fine_tune_acancel.yaml"):
             await openai.FineTune.acancel(
@@ -1626,14 +1518,14 @@ async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+def test_model_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Model"):
         pytest.skip("model not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_delete",
-        ignores=["meta.http.useragent"],
+        token="tests.contrib.openai.test_openai.test_model_delete",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("fine_tune_delete.yaml"):
+        with openai_vcr.use_cassette("model_delete.yaml"):
             openai.Model.delete(
                 sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
                 api_key=request_api_key,
@@ -1643,14 +1535,14 @@ def test_fine_tune_delete(api_key_in_env, request_api_key, openai, openai_vcr, s
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
+async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "Model"):
         pytest.skip("model not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_delete",
-        ignores=["meta.http.useragent"],
+        token="tests.contrib.openai.test_openai.test_model_delete",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("fine_tune_adelete.yaml"):
+        with openai_vcr.use_cassette("model_adelete.yaml"):
             await openai.Model.adelete(
                 sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
                 api_key=request_api_key,
@@ -1664,7 +1556,7 @@ def test_fine_tune_list_events(api_key_in_env, request_api_key, openai, openai_v
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
-        ignores=["meta.http.useragent"],
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
             openai.FineTune.list_events(
@@ -1677,7 +1569,8 @@ def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, 
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_create_moderation", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai_v0.test_create_moderation",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
             openai.Moderation.create(
@@ -1693,7 +1586,8 @@ async def test_acreate_moderation(api_key_in_env, request_api_key, openai, opena
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_acreate_moderation", ignores=["meta.http.useragent"]
+        token="tests.contrib.openai.test_openai_v0.test_acreate_moderation",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("amoderation.yaml"):
             await openai.Moderation.acreate(
@@ -1705,7 +1599,7 @@ async def test_acreate_moderation(api_key_in_env, request_api_key, openai, opena
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_misuse",
-    ignores=["meta.http.useragent", "meta.error.stack"],
+    ignores=["meta.http.useragent", "meta.error.stack", "meta.openai.base_url"],
 )
 def test_misuse(openai, snapshot_tracer):
     with pytest.raises(openai.InvalidRequestError):
@@ -1714,7 +1608,7 @@ def test_misuse(openai, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_span_finish_on_stream_error",
-    ignores=["meta.http.useragent", "meta.error.stack"],
+    ignores=["meta.http.useragent", "meta.error.stack", "meta.openai.base_url"],
 )
 def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
@@ -1910,7 +1804,9 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
+)
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
 
@@ -1933,10 +1829,11 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
         """
 import openai
 import ddtrace
-from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
+from tests.contrib.openai.conftest import FilterOrg
+from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr().use_cassette("completion_2.yaml"):
+with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_2.yaml"):
     resp = openai.Completion.create(model="ada", prompt="hello world")
 """,
         env=env,
@@ -1946,7 +1843,9 @@ with get_openai_vcr().use_cassette("completion_2.yaml"):
     assert err == b""
 
 
-@pytest.mark.snapshot(ignores=["meta.http.useragent"], async_mode=False)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_integration_async", ignores=["meta.http.useragent"], async_mode=False
+)
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
 
@@ -1973,11 +1872,12 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
 import asyncio
 import openai
 import ddtrace
-from tests.contrib.openai.test_openai import FilterOrg, get_openai_vcr
+from tests.contrib.openai.conftest import FilterOrg
+from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 async def task():
-    with get_openai_vcr().use_cassette("acompletion_2.yaml"):
+    with get_openai_vcr(subdirectory_name="v0").use_cassette("acompletion_2.yaml"):
         resp = await openai.Completion.acreate(model="ada", prompt="hello world")
 
 asyncio.run(task())
@@ -2346,10 +2246,11 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
             """
 import openai
 import ddtrace
-from tests.contrib.openai.test_openai_v0 import FilterOrg, get_openai_vcr
+from tests.contrib.openai.conftest import FilterOrg
+from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr().use_cassette("completion_2.yaml"):
+with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_2.yaml"):
     resp = openai.Completion.create(model="ada", prompt="hello world")
     """,
             env=env,

@@ -10,7 +10,7 @@ import re
 import sys
 from time import time
 
-import hypothesis
+# import hypothesis
 import pytest
 
 
@@ -21,8 +21,8 @@ PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 
 # Disable the "too slow" health checks. We are ok if data generation is slow
 # https://hypothesis.readthedocs.io/en/latest/healthchecks.html#hypothesis.HealthCheck.too_slow
-hypothesis.settings.register_profile("default", suppress_health_check=(hypothesis.HealthCheck.too_slow,))
-hypothesis.settings.load_profile("default")
+# hypothesis.settings.register_profile("default", suppress_health_check=(hypothesis.HealthCheck.too_slow,))
+# hypothesis.settings.load_profile("default")
 
 
 # Hook for dynamic configuration of pytest in CI

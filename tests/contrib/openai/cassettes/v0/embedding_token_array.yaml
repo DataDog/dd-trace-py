@@ -156,17 +156,19 @@ interactions:
       alt-svc:
       - h3=":443"; ma=86400, h3-29=":443"; ma=86400
       openai-organization:
-      - user-uyjdlwpstcqhcynk3extjvgk
+      - datadog-4
       openai-processing-ms:
       - '159'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
-      x-ratelimit-limit-requests:
-      - '3000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
       x-ratelimit-remaining-requests:
       - '2999'
+      x-ratelimit-remaining-tokens:
+      - '999997'
       x-ratelimit-reset-requests:
       - 20ms
       x-request-id:

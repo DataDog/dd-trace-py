@@ -54,8 +54,12 @@ interactions:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
       - '3000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
       x-ratelimit-remaining-requests:
       - '2999'
+      x-ratelimit-remaining-tokens:
+      - '999998'
       x-ratelimit-reset-requests:
       - 20ms
       x-request-id:

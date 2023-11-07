@@ -25,7 +25,6 @@
       "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.message.content": "I'm sorry, as an AI language model, I do not have real-time information. Please check",
-      "openai.response.choices.0.message.name": "",
       "openai.response.choices.0.message.role": "assistant",
       "openai.response.id": "chatcmpl-80yfhVr0AhWoPDwYSuk4Sj8YD1Osu",
       "openai.response.model": "gpt-35-turbo",

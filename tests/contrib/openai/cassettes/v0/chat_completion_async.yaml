@@ -6,18 +6,8 @@ interactions:
       World Series in 2020."}, {"role": "user", "content": "Where was it played?"}],
       "top_p": 0.9, "n": 2}'
     headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '335'
       Content-Type:
       - application/json
-      Cookie:
-      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000
       User-Agent:
       - OpenAI/v1 PythonBindings/0.27.2
       X-OpenAI-Client-User-Agent:
@@ -25,22 +15,22 @@ interactions:
         "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
         "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
         PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
-    method: POST
+    method: post
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: !!binary |
-        H4sIAAAAAAAAA6zOsW7CMBSF4b1PYd3ZQQlpAnjrAgtbqVqpqpCxL4lbx9eyL4IK5d0rpJYuDB26
-        /tI5+s7gLCgwvWYzRF/M2tD0mOjppW0t18cVH2PJyyXa9foAEmj3joa/FxNDQ/TIjgJIMAk1owVV
-        tfNq3tTldCFhIIseFHSRi3rSFHxIOyrKuqxAwiHrDkGdISYaIm+ZPjBkUM1Mwu/1Ndf3EphY+2tZ
-        VKME05MzmEG9nmHA/POZyCMo0Dm7zDrwRUiBMVz0mx7FtJyW4pmSt+IRk8MsjjqL6PUnWuGCeEje
-        hY4pSLHBk85Cs1h52qFYuz2KpUNvJzBK2Lvgcr9NqDMFUJCZIkhwweIJVDnKf3TdMNyy/sFVjW/j
-        3RcAAAD//wMAYmTRJv8BAAA=
+      string: '{"id":"chatcmpl-76n5iUWrirIDc8ldhMryJtvsL5wef","object":"chat.completion","created":1681853030,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
+        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
+        2020 World Series was played in Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
+
+        '
     headers:
+      Access-Control-Allow-Origin:
+      - '*'
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7b9ff89aaf7a4350-EWR
+      - 7b9ff8a2a832438d-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -50,16 +40,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 18 Apr 2023 21:23:50 GMT
+      - Tue, 18 Apr 2023 21:23:51 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=rivrQHfY2JgyNPaGS5BuAQSWVT_3vQbN5A2pkVcwXT0-1681853030671-0-604800000;
+      - _cfuvid=P_8pTyk85r7Xtj6D27yDxfaPNVoS0urVVbv01pfRgNs-1681853031895-0-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
-      access-control-allow-origin:
-      - '*'
       alt-svc:
       - h3=":443"; ma=86400, h3-29=":443"; ma=86400
       openai-model:
@@ -67,20 +55,25 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '1070'
+      - '1008'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '3500'
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
       x-ratelimit-remaining-requests:
-      - '3499'
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999929'
       x-ratelimit-reset-requests:
       - 17ms
       x-request-id:
-      - 6eabc80b7d44ae16e36dfd9a4ce83f73
+      - 53dc155a61f84eddf2a862ac7d871b52
     status:
       code: 200
       message: OK
+    url: https://api.openai.com/v1/chat/completions
 version: 1

@@ -2029,7 +2029,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai[embeddings]": ["==0.27.2", "==1.1.1", latest],
                     },
                 ),
                 Venv(
