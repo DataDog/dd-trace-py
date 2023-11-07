@@ -32,6 +32,20 @@ patched_callers = _iast_patched_module("tests.appsec.iast.fixtures.aspects.calle
             {"dry_run": True},
             bytearray("Foo", "utf-8"),
         ),
+        (
+            "bytearray_extend_with_kwargs_imported_directly",
+            bytearray("Foo", "utf-8"),
+            b"Bar",
+            {"dry_run": False},
+            bytearray("FooBar", "utf-8"),
+        ),
+        (
+            "bytearray_extend_with_kwargs_imported_directly",
+            bytearray("Foo", "utf-8"),
+            b"Bar",
+            {"dry_run": True},
+            bytearray("Foo", "utf-8"),
+        ),
     ],
 )
 def test_aspect_patched_result(aspect, arg_a, arg_b, kwargs, expected_result):
