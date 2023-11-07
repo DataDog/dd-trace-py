@@ -32,7 +32,7 @@ class TestCompat(object):
         # Calling `compat.to_unicode` on a unicode encoded string
         res = to_unicode(b"\xc3\xbf")
         assert type(res) == unicode
-        assert res == u"ÿ"
+        assert res == "ÿ"
 
     def test_to_unicode_unicode_double_decode(self):
         # Calling `compat.to_unicode` on a unicode decoded string
@@ -40,19 +40,19 @@ class TestCompat(object):
         #   `'\xc3\xbf'.decode('utf-8').decode('utf-8')`
         res = to_unicode(b"\xc3\xbf".decode("utf-8"))
         assert type(res) == unicode
-        assert res == u"ÿ"
+        assert res == "ÿ"
 
     def test_to_unicode_unicode_string(self):
         # Calling `compat.to_unicode` on a unicode string
-        res = to_unicode(u"ÿ")
+        res = to_unicode("ÿ")
         assert type(res) == unicode
-        assert res == u"ÿ"
+        assert res == "ÿ"
 
     def test_to_unicode_bytearray(self):
         # Calling `compat.to_unicode` with a `bytearray` containing unicode
         res = to_unicode(bytearray(b"\xc3\xbf"))
         assert type(res) == unicode
-        assert res == u"ÿ"
+        assert res == "ÿ"
 
     def test_to_unicode_bytearray_double_decode(self):
         #  Calling `compat.to_unicode` with an already decoded `bytearray`
@@ -60,14 +60,14 @@ class TestCompat(object):
         #   `bytearray('\xc3\xbf').decode('utf-8').decode('utf-8')`
         res = to_unicode(bytearray(b"\xc3\xbf").decode("utf-8"))
         assert type(res) == unicode
-        assert res == u"ÿ"
+        assert res == "ÿ"
 
     def test_to_unicode_non_string(self):
         #  Calling `compat.to_unicode` on non-string types
-        assert to_unicode(1) == u"1"
-        assert to_unicode(True) == u"True"
-        assert to_unicode(None) == u"None"
-        assert to_unicode(dict(key="value")) == u"{'key': 'value'}"
+        assert to_unicode(1) == "1"
+        assert to_unicode(True) == "True"
+        assert to_unicode(None) == "None"
+        assert to_unicode(dict(key="value")) == "{'key': 'value'}"
 
     def test_get_connection_response(self):
         """Ensure that buffering is in kwargs."""

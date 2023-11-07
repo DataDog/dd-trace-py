@@ -19,7 +19,6 @@ from tests.utils import override_global_config
 
 
 try:
-
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 except (ImportError, AttributeError):

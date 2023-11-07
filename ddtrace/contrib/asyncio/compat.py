@@ -9,7 +9,6 @@ if hasattr(asyncio, "current_task"):
         except RuntimeError:
             return None
 
-
 else:
 
     def asyncio_current_task():
