@@ -156,3 +156,9 @@ def finallystuff():
     finally:
         a = 42
     return a
+
+
+def sensitive_stuff(pwd):
+    token, answer = "deadbeef", 42  # noqa
+    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa
+    return pwd
