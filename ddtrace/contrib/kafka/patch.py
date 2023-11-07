@@ -139,13 +139,12 @@ def traced_produce(func, instance, args, kwargs):
         value = None
     message_key = kwargs.get("key", "")
     partition = kwargs.get("partition", -1)
-    core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer)])
-
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer), span])
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)

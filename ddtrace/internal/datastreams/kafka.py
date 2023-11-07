@@ -36,7 +36,7 @@ def _calculate_byte_size(data):
     return 0  # Return 0 to avoid breaking calculations if its a type we don't know
 
 
-def dsm_kafka_message_produce(instance, args, kwargs, is_serializing):
+def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
@@ -49,7 +49,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size)
+    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span)
     encoded_pathway = pathway.encode()
     headers[PROPAGATION_KEY] = encoded_pathway
     kwargs["headers"] = headers
