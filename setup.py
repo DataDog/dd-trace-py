@@ -336,7 +336,6 @@ class CMakeBuild(build_ext):
         os.makedirs(cmake_build_dir, exist_ok=True)
 
         # Which commands are passed to _every_ cmake invocation
-        cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
         cmake_args = ext.cmake_args or []
         cmake_args = [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
@@ -377,9 +376,10 @@ class CMakeBuild(build_ext):
                 ]
 
         try:
-            subprocess.run(["cmake", *cmake_args], cwd=cmake_build_dir, check=True)
-            subprocess.run(["cmake", "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
-            subprocess.run(["cmake", "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
         except subprocess.CalledProcessError as e:
             print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
             raise
