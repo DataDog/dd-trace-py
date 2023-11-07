@@ -13,5 +13,5 @@ else
 
     apt-get -qq update &&
         apt-get -qy install --no-install-recommends \
-            libenchant-2-dev >/dev/null
+            libenchant-dev >/dev/null
 fi

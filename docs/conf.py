@@ -18,6 +18,7 @@
 #
 
 from datetime import datetime
+import os
 import os.path
 import re
 import sys
@@ -53,9 +54,9 @@ class VersionTagFilter(Filter):
 
 # append the ddtrace path to syspath
 # this is required when building the docs manually
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath(".."))
+import ddtrace
+
 
 # -- General configuration ------------------------------------------------
 

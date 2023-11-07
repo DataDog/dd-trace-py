@@ -56,6 +56,7 @@ dev-mode = false
 python = "3.10"
 features = ["opentracing"]
 extra-dependencies = [
+    "six>=1.12.0",
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
     "sphinxcontrib-spelling==7.7.0",
@@ -63,6 +64,19 @@ extra-dependencies = [
     "sphinx-copybutton==0.5.1",
     # Later release of furo breaks formatting for code blocks
     "furo<=2023.05.20",
+        "ddsketch>=2.0.1",
+        "protobuf>=3",
+        "attrs>=20",
+        "cattrs",
+        "six>=1.12.0",
+        "typing_extensions",
+        "importlib_metadata; python_version<'3.8'",
+        "xmltodict>=0.12",
+        "envier",
+        "opentelemetry-api>=1",
+        "setuptools; python_version>='3.12'",
+    "opentracing>=2.0.0",
+    "bytecode",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",
