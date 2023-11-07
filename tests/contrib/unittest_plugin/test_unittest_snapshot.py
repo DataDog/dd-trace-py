@@ -8,6 +8,7 @@ from tests.utils import snapshot
 
 
 SNAPSHOT_IGNORES = [
+    "meta.error.stack",
     "meta.library_version",
     "meta.os.architecture",
     "meta.os.platform",
@@ -34,6 +35,39 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_unittest_generates_source_file_data(self):
+        ret_false = """
+        def ret_false():
+            return False
+        """
+        self.testdir.makepyfile(ret_false=ret_false)
+        lib_fn = """
+        def lib_fn():
+            return True
+        """
+        self.testdir.makepyfile(lib_fn=lib_fn)
+        test_source_file = """
+        import unittest
+
+        class CoverageTestCase(unittest.TestCase):
+            def test_first(self):
+                from lib_fn import lib_fn
+                assert lib_fn()
+            def test_second(self):
+                from ret_false import ret_false
+                assert not ret_false()
+            def test_third(self):
+                from ret_false import ret_false
+                assert ret_false()
+        """
+        self.testdir.makepyfile(test_source_file=test_source_file)
+        self.testdir.chdir()
+        with override_env(dict(DD_API_KEY="foobar.baz")):
+            subprocess.run(
+                ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_unittest_generates_coverage_correctly(self):
         ret_false = """

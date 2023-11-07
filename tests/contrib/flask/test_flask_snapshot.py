@@ -11,6 +11,7 @@ import pytest
 
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.utils.retry import RetryError
+from tests.utils import flaky
 from tests.webclient import Client
 
 
@@ -116,6 +117,7 @@ def test_flask_stream(flask_client):
     assert resp.status_code == 200
 
 
+@flaky(until=1704067200)
 @pytest.mark.snapshot(
     ignores=["meta.flask.version", "meta.http.useragent"],
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},

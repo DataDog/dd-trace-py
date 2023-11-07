@@ -7,6 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -27,7 +28,7 @@ def test_get_application():
         runtime_v = _format_version_info(sys.implementation.version)
 
     expected_application = {
-        "service_name": "unnamed_python_service",
+        "service_name": DEFAULT_SERVICE_NAME,
         "service_version": "",
         "env": "",
         "language_name": "python",

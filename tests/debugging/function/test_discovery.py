@@ -1,5 +1,5 @@
 from functools import wraps
-from os.path import abspath
+from pathlib import Path
 
 import pytest
 
@@ -112,7 +112,7 @@ def test_function_mangled(stuff_discovery):
 
 
 def test_discovery_after_external_wrapping(stuff):
-    import wrapt as wrapt
+    import ddtrace.vendor.wrapt as wrapt
 
     def wrapper(wrapped, inst, args, kwargs):
         pass
@@ -151,7 +151,7 @@ def test_undecorate():
     dddf = d(ddf)
     assert dddf is not ddf
 
-    name, path = f.__code__.co_name, abspath(__file__)
+    name, path = f.__code__.co_name, Path(__file__).resolve()
     assert f is _undecorate(dddf, name, path)
     assert f is _undecorate(ddf, name, path)
     assert f is _undecorate(df, name, path)
@@ -169,9 +169,9 @@ def test_discovery_class_decoration():
     def f():
         pass
 
-    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
-    assert code.co_filename == abspath(__file__)
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()
 
 
 def test_discovery_wrapped_decoration():
@@ -179,6 +179,6 @@ def test_discovery_wrapped_decoration():
     def f():
         pass
 
-    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
-    assert code.co_filename == abspath(__file__)
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()

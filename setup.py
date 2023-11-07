@@ -48,7 +48,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.14.0"
+LIBDDWAF_VERSION = "1.15.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -159,7 +159,7 @@ class LibraryDownload:
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
-            archive_name = archive_dir + ".tar.gz"
+            archive_name = cls.get_archive_name(arch, CURRENT_OS)
 
             download_address = "%s/%s/%s" % (
                 cls.url_root,
@@ -205,6 +205,10 @@ class LibraryDownload:
     def run(cls):
         cls.download_artifacts()
 
+    @classmethod
+    def get_archive_name(cls, arch, os):
+        return cls.get_package_name(arch, os) + ".tar.gz"
+
 
 class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
@@ -221,6 +225,15 @@ class LibDDWafDownload(LibraryDownload):
     @classmethod
     def get_package_name(cls, arch, os):
         archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+        return archive_dir
+
+    @classmethod
+    def get_archive_name(cls, arch, os):
+        os_name = os.lower()
+        if os_name == "linux":
+            archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
+        else:
+            archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
         return archive_dir
 
 
@@ -555,9 +568,7 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
-        "psutil>=5.8.0",
         "setuptools; python_version>='3.12'",
-        "wrapt>=1.15.0",
     ]
     + bytecode,
     extras_require={
@@ -657,5 +668,7 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil")
     + get_ddup_ext(),
 )
