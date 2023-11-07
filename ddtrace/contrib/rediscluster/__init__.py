@@ -1,6 +1,6 @@
 """Instrument rediscluster to report Redis Cluster queries.
 
-``patch_all`` will automatically patch your Redis Cluster client to make it work.
+``import ddtrace.auto`` will automatically patch your Redis Cluster client to make it work.
 ::
 
     from ddtrace import Pin, patch
