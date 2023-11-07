@@ -344,7 +344,6 @@ class CMakeBuild(build_ext):
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
-            "-DEXTRA_COMPILE_ARGS={}".format(";".join(ext.extra_compile_args)),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
         ]
 
