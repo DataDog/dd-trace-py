@@ -9,6 +9,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "language": "python",
       "runtime-id": "29e6e84ccab74080a8993948a3e90692"
     },
@@ -31,6 +32,7 @@
        "type": "redis",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "aioredis",
          "db.system": "redis",
          "out.host": "127.0.0.1",
@@ -57,6 +59,7 @@
        "type": "redis",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "aioredis",
          "db.system": "redis",
          "out.host": "127.0.0.1",

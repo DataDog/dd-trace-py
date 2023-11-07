@@ -11,6 +11,7 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "unittest",
       "language": "python",
       "library_version": "2.3.0.dev46+g15420418c.d20231030",
@@ -49,6 +50,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
+         "_dd.p.tid": "654a694400000000",
          "component": "unittest",
          "library_version": "2.3.0.dev46+g15420418c.d20231030",
          "os.architecture": "aarch64",
@@ -82,6 +84,7 @@
           "meta": {
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
+            "_dd.p.tid": "654a694400000000",
             "component": "unittest",
             "library_version": "2.3.0.dev46+g15420418c.d20231030",
             "os.architecture": "aarch64",
@@ -117,6 +120,7 @@
              "meta": {
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
+               "_dd.p.tid": "654a694400000000",
                "component": "unittest",
                "library_version": "2.3.0.dev46+g15420418c.d20231030",
                "os.architecture": "aarch64",
@@ -159,6 +163,7 @@
              "meta": {
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
+               "_dd.p.tid": "654a694400000000",
                "component": "unittest",
                "library_version": "2.3.0.dev46+g15420418c.d20231030",
                "os.architecture": "aarch64",
@@ -202,6 +207,7 @@
              "meta": {
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
+               "_dd.p.tid": "654a694400000000",
                "component": "unittest",
                "error.message": "",
                "error.stack": "Traceback (most recent call last):\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/tmp/pytest-of-root/pytest-1/test_unittest_generates_source_file_data0/test_source_file.py\", line 12, in test_third\n    assert ret_false()\nAssertionError\n",
