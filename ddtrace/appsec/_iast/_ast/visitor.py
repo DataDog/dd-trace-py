@@ -357,8 +357,8 @@ class AstVisitor(ast.NodeTransformer):
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
-            end_lineno=from_node.end_lineno,
-            end_col_offset=from_node.end_col_offset,
+            end_lineno=getattr(from_node, "end_lineno", from_node.lineno),
+            end_col_offset=from_node.col_offset + 1,
             value=value,
             kind=None,
         )
