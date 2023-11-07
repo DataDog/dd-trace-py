@@ -277,7 +277,6 @@ def test_full_command_in_resource_env():
         p.execute()
 
 
-
 @pytest.mark.snapshot
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_full_command_in_resource_config(tracer, redis_client):
