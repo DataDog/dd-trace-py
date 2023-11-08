@@ -3,7 +3,7 @@ from typing import Callable
 from typing import Optional
 from typing import TypeVar
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 
 F = TypeVar("F", bound=Callable[..., Any])

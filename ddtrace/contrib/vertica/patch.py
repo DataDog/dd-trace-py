@@ -1,10 +1,9 @@
 import importlib
 
-import wrapt
-
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
