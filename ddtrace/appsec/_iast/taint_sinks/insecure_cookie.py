@@ -49,12 +49,10 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
         if ";secure" not in lvalue:
             _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
             InsecureCookie.report(evidence_value=evidence)
-            return
 
         if ";httponly" not in lvalue:
             _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
             NoHttpOnlyCookie.report(evidence_value=evidence)
-            return
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
