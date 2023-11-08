@@ -203,7 +203,7 @@ class _ConfigItem:
         self._env_value = None
         self._code_value = None
         self._envs = envs
-        for (env_var, parser) in envs:
+        for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break

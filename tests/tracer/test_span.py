@@ -41,8 +41,8 @@ class SpanTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_128bit_trace_ids(self):
         s = Span(name="test.span")
-        assert s.trace_id >= 2 ** 64
-        assert s._trace_id_64bits < 2 ** 64
+        assert s.trace_id >= 2**64
+        assert s._trace_id_64bits < 2**64
 
         trace_id_binary = format(s.trace_id, "b")
         trace_id64_binary = format(s._trace_id_64bits, "b")
@@ -62,29 +62,29 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("negative", -1)
         s.set_tag("zero", 0)
         s.set_tag("positive", 1)
-        s.set_tag("large_int", 2 ** 53)
-        s.set_tag("really_large_int", (2 ** 53) + 1)
-        s.set_tag("large_negative_int", -(2 ** 53))
-        s.set_tag("really_large_negative_int", -((2 ** 53) + 1))
+        s.set_tag("large_int", 2**53)
+        s.set_tag("really_large_int", (2**53) + 1)
+        s.set_tag("large_negative_int", -(2**53))
+        s.set_tag("really_large_negative_int", -((2**53) + 1))
         s.set_tag("float", 12.3456789)
         s.set_tag("negative_float", -12.3456789)
-        s.set_tag("large_float", 2.0 ** 53)
-        s.set_tag("really_large_float", (2.0 ** 53) + 1)
+        s.set_tag("large_float", 2.0**53)
+        s.set_tag("really_large_float", (2.0**53) + 1)
 
         assert s.get_tags() == dict(
-            really_large_int=str(((2 ** 53) + 1)),
-            really_large_negative_int=str(-((2 ** 53) + 1)),
+            really_large_int=str(((2**53) + 1)),
+            really_large_negative_int=str(-((2**53) + 1)),
         )
         assert s.get_metrics() == {
             "negative": -1,
             "zero": 0,
             "positive": 1,
-            "large_int": 2 ** 53,
-            "large_negative_int": -(2 ** 53),
+            "large_int": 2**53,
+            "large_negative_int": -(2**53),
             "float": 12.3456789,
             "negative_float": -12.3456789,
-            "large_float": 2.0 ** 53,
-            "really_large_float": (2.0 ** 53) + 1,
+            "large_float": 2.0**53,
+            "really_large_float": (2.0**53) + 1,
         }
 
     def test_set_tag_bool(self):
@@ -444,10 +444,10 @@ def test_spans_finished():
 
 def test_span_unicode_set_tag():
     span = Span(None)
-    span.set_tag("key", u"😌")
-    span.set_tag("😐", u"😌")
-    span.set_tag_str("key", u"😌")
-    span.set_tag_str(u"😐", u"😌")
+    span.set_tag("key", "😌")
+    span.set_tag("😐", "😌")
+    span.set_tag_str("key", "😌")
+    span.set_tag_str("😐", "😌")
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
@@ -459,7 +459,7 @@ def test_span_binary_unicode_set_tag(span_log):
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
-    assert span.get_tag("key_str") == u"🤔"
+    assert span.get_tag("key_str") == "🤔"
 
 
 @pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
@@ -476,9 +476,9 @@ def test_span_bytes_string_set_tag(span_log):
 @mock.patch("ddtrace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
-    span.set_tag_str("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
     span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == u"/?foo=bar&baz=����ó��"
+    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
 
 
 def test_span_nonstring_set_str_tag_exc():
@@ -622,9 +622,9 @@ def test_span_pprint():
     assert "error=1" in actual
 
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    root.set_tag(u"😌", u"😌")
+    root.set_tag("😌", "😌")
     actual = root._pprint()
-    assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+    assert ("tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
 
     root = Span("test.span", service=object())
     actual = root._pprint()
@@ -653,8 +653,8 @@ def test_set_exc_info_with_unicode():
             span.set_exc_info(type_, value_, traceback_)
         return span
 
-    exception_span = get_exception_span(Exception(u"DataDog/水"))
-    assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
+    exception_span = get_exception_span(Exception("DataDog/水"))
+    assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
 
     if six.PY3:
         exception_span = get_exception_span(Exception("DataDog/水"))
