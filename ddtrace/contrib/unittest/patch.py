@@ -657,7 +657,7 @@ def _start_test_session_span(instance) -> ddtrace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
     if _CIVisibility.test_skipping_enabled():
-        _set_test_skipping_tags_to_span(span)
+        _set_test_skipping_tags_to_span(test_session_span)
     else:
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_module_identifier(instance)
@@ -699,6 +699,7 @@ def _start_test_module_span(instance) -> ddtrace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
     if _CIVisibility.test_skipping_enabled():
+        _set_test_skipping_tags_to_span(test_module_span)
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
