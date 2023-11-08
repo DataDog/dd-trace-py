@@ -328,7 +328,9 @@ def _patched_client_init(openai, integration):
         func(*args, **kwargs)
         client = args[0]
         integration._client = client
-        api_key = kwargs.get("api_key", client.api_key)
+        api_key = kwargs.get("api_key")
+        if api_key is None:
+            api_key = client.api_key
         if api_key is not None:
             integration.user_api_key = api_key
         return
