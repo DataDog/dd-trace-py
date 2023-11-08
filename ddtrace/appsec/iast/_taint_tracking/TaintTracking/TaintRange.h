@@ -23,9 +23,13 @@ using TaintedObjectPtr = TaintedObject*;
 using TaintRangeMapType = absl::node_hash_map<uintptr_t, TaintedObjectPtr>;
 
 inline static uintptr_t
-get_unique_id(const PyObject* str)
+get_unique_id(PyObject* str)
 {
-    return uintptr_t(str);
+    if ((((PyASCIIObject*)str)->hash) == -1) {
+        Py_hash_t result = PyObject_Hash(str);
+    }
+    auto res = uintptr_t(str) + ((PyASCIIObject*)str)->hash;
+    return hash<uintptr_t>{}(res);
 }
 
 struct TaintRange

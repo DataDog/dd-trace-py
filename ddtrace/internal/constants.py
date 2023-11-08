@@ -23,7 +23,7 @@ W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
-DEFAULT_SERVICE_NAME = "unnamed_python_service"
+DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"

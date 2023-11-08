@@ -22,6 +22,7 @@ import six
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -128,7 +129,7 @@ class DataStreamsProcessor(PeriodicService):
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
         self._hostname = six.ensure_text(get_hostname())
-        self._service = six.ensure_text(config._get_service("unnamed-python-service"))
+        self._service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
@@ -361,7 +362,7 @@ class DataStreamsCtx:
         self.pathway_start_sec = pathway_start_sec
         self.current_edge_start_sec = current_edge_start_sec
         self.hash = hash_value
-        self.service = six.ensure_text(config._get_service("unnamed-python-service"))
+        self.service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self.env = six.ensure_text(config.env or "none")
         # loop detection logic
         self.previous_direction = ""

@@ -165,12 +165,14 @@ plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
 proxying
 psycopg
 py
+pydantic
 pyenv
 PyFrameObject
 pylibmc

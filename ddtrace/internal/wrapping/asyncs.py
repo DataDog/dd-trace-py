@@ -1,9 +1,7 @@
 import sys
 
-from bytecode import Compare
-from bytecode import CompilerFlags
+import bytecode as bc
 from bytecode import Instr
-from bytecode import Label
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
@@ -33,7 +31,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 if PY >= (3, 11):
 
     def wrap_async(instrs, code, lineno):
-        if CompilerFlags.COROUTINE & code.co_flags:
+        if bc.CompilerFlags.COROUTINE & code.co_flags:
             # DEV: This is just
             # >>> return await wrapper(wrapped, args, kwargs)
             instrs[0:0] = [
@@ -41,8 +39,8 @@ if PY >= (3, 11):
                 Instr("POP_TOP", lineno=lineno),
             ]
 
-            send = Label()
-            send_jb = Label()
+            send = bc.Label()
+            send_jb = bc.Label()
 
             instrs[-1:-1] = [
                 Instr("GET_AWAITABLE", 0, lineno=lineno),
@@ -55,28 +53,25 @@ if PY >= (3, 11):
                 send,
             ]
 
-        elif CompilerFlags.ASYNC_GENERATOR & code.co_flags:
-            from bytecode import TryBegin
-            from bytecode import TryEnd
-
+        elif bc.CompilerFlags.ASYNC_GENERATOR & code.co_flags:
             instrs[0:0] = [
                 Instr("RETURN_GENERATOR", lineno=lineno),
                 Instr("POP_TOP", lineno=lineno),
             ]
 
-            stopiter = Label()
-            loop = Label()
-            genexit = Label()
-            exc = Label()
-            propagate = Label()
-            _yield = Label()
+            stopiter = bc.Label()
+            loop = bc.Label()
+            genexit = bc.Label()
+            exc = bc.Label()
+            propagate = bc.Label()
+            _yield = bc.Label()
 
-            try_stopiter = TryBegin(stopiter, push_lasti=False)
-            try_stopiter_2 = TryBegin(stopiter, push_lasti=False)
-            try_except = TryBegin(genexit, push_lasti=True)
+            try_stopiter = bc.TryBegin(stopiter, push_lasti=False)
+            try_stopiter_2 = bc.TryBegin(stopiter, push_lasti=False)
+            try_except = bc.TryBegin(genexit, push_lasti=True)
 
-            send = [Label() for _ in range(3)]
-            send_jb = [Label() for _ in range(3)]
+            send = [bc.Label() for _ in range(3)]
+            send_jb = [bc.Label() for _ in range(3)]
 
             instrs[-1:] = [
                 try_stopiter,
@@ -93,7 +88,7 @@ if PY >= (3, 11):
                 Instr("LOAD_CONST", None, lineno=lineno),
                 send_jb[0],
                 Instr("SEND", send[0], lineno=lineno),
-                TryEnd(try_stopiter),
+                bc.TryEnd(try_stopiter),
                 try_except,
                 Instr("YIELD_VALUE", lineno=lineno),
                 Instr("RESUME", 3, lineno=lineno),
@@ -110,7 +105,7 @@ if PY >= (3, 11):
                 Instr("PRECALL", 1, lineno=lineno),
                 Instr("CALL", 1, lineno=lineno),
                 Instr("JUMP_BACKWARD", loop, lineno=lineno),
-                TryEnd(try_except),
+                bc.TryEnd(try_except),
                 try_stopiter_2,
                 genexit,  # except GeneratorExit:
                 Instr("PUSH_EXC_INFO", lineno=lineno),
@@ -155,7 +150,7 @@ if PY >= (3, 11):
                 Instr("SWAP", 2, lineno=lineno),
                 Instr("POP_EXCEPT", lineno=lineno),
                 Instr("JUMP_BACKWARD", _yield, lineno=lineno),
-                TryEnd(try_stopiter_2),
+                bc.TryEnd(try_stopiter_2),
                 stopiter,  # except StopAsyncIteration:
                 Instr("PUSH_EXC_INFO", lineno=lineno),
                 Instr("LOAD_CONST", StopAsyncIteration, lineno=lineno),
@@ -175,7 +170,7 @@ else:
     def _compare_exc(label, lineno):
         """Compat helper for comparing exceptions."""
         if PY < (3, 9):
-            return Instr("COMPARE_OP", Compare.EXC_MATCH, lineno=lineno)
+            return Instr("COMPARE_OP", bc.Compare.EXC_MATCH, lineno=lineno)
         return Instr("JUMP_IF_NOT_EXC_MATCH", label, lineno=lineno)
 
     def _jump_if_false(label, lineno):
@@ -198,7 +193,7 @@ else:
         return Instr("SETUP_FINALLY", label, lineno=lineno)
 
     def wrap_async(instrs, code, lineno):
-        if CompilerFlags.COROUTINE & code.co_flags:
+        if bc.CompilerFlags.COROUTINE & code.co_flags:
             # DEV: This is just
             # >>> return await wrapper(wrapped, args, kwargs)
             instrs[-1:-1] = [
@@ -206,13 +201,13 @@ else:
                 Instr("LOAD_CONST", None, lineno=lineno),
                 Instr("YIELD_FROM", lineno=lineno),
             ]
-        elif CompilerFlags.ASYNC_GENERATOR & code.co_flags:
-            stopiter = Label()
-            loop = Label()
-            genexit = Label()
-            exc = Label()
-            propagate = Label()
-            _yield = Label()
+        elif bc.CompilerFlags.ASYNC_GENERATOR & code.co_flags:
+            stopiter = bc.Label()
+            loop = bc.Label()
+            genexit = bc.Label()
+            exc = bc.Label()
+            propagate = bc.Label()
+            _yield = bc.Label()
 
             instrs[-1:] = [
                 _setup_block(stopiter, lineno=lineno),
