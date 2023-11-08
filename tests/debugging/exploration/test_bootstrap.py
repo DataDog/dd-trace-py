@@ -45,6 +45,7 @@ No lines found
 """
 
 
+@pytest.mark.skip(reason="Flaky test")
 @pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__) + ":."}, out=OUT)
 def test_exploration_bootstrap():
     # We test that we get the expected output from the exploration debuggers

@@ -1298,15 +1298,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    # pynamodb dropped support for Python 2.7/3.5 in 4.4
-                    pys=select_pys(max_version="3.5"),
-                    pkgs={
-                        "pynamodb": ["~=4.3.0"],
-                        "moto": ">=0.0,<1.0",
-                        "rsa": "<4.7.1",
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pynamodb": ["~=5.0", "~=5.3", latest],
@@ -1465,24 +1456,10 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="boto",
-            command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
-        ),
-        Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[
                 Venv(pys=select_pys(min_version="3.8"), pkgs={"moto[all]": latest, "botocore": latest}),
-                Venv(
-                    pys=["2.7"],
-                    pkgs={
-                        "moto": "~=1.0",
-                        "botocore": "~=1.20.0",
-                        "python-jose[cryptography]": "==3.1.0",
-                        "rsa": "<4.7.1",
-                    },
-                ),
                 Venv(
                     pkgs={
                         "cffi": "==1.14.0",
@@ -1491,12 +1468,6 @@ venv = Venv(
                         "python-jose[cryptography]": "==3.1.0",
                     },
                     venvs=[
-                        Venv(
-                            pys=["3.5"],
-                            pkgs={
-                                "moto[all]": "~=1.0",
-                            },
-                        ),
                         Venv(
                             pys=["3.6"],
                             pkgs={
