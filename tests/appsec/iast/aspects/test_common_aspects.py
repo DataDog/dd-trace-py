@@ -7,7 +7,13 @@ import shutil
 
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+
+try:
+    from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
+except (ImportError, AttributeError):
+    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+
+
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
 
