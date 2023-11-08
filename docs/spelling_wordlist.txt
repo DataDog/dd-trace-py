@@ -176,6 +176,7 @@ proxying
 psutil
 psycopg
 py
+pydantic
 pyenv
 PyFrameObject
 pylibmc
