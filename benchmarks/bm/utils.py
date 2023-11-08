@@ -95,14 +95,14 @@ def gen_tags(scenario):
 
 def gen_metrics(scenario):
     metric_keys = [rands(size=16) for _ in range(scenario.nmetrics)]
-    metric_values = [random.randint(0, 2 ** 16) for _ in range(scenario.nmetrics)]
+    metric_values = [random.randint(0, 2**16) for _ in range(scenario.nmetrics)]
     tags = {metric_keys[i]: metric_values[i] for i in range(len(metric_keys))}
     return tags
 
 
 def random_w_n_digits(lmetrics):
     range_start = 10 ** (lmetrics - 1)
-    range_end = (10 ** lmetrics) - 1
+    range_end = (10**lmetrics) - 1
     return random.randint(range_start, range_end)
 
 

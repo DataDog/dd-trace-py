@@ -70,7 +70,6 @@ def _get_64_highest_order_bits_as_hex(large_int):
 
 
 class Span(object):
-
     __slots__ = [
         # Public span attributes
         "service",
@@ -326,7 +325,7 @@ class Span(object):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2 ** 53:
+        if value is not None and val_is_an_int and abs(value) <= 2**53:
             self.set_metric(key, value)
             return
 
@@ -510,7 +509,7 @@ class Span(object):
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
+            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
             for (k, v) in data
         )
 
