@@ -1,50 +1,49 @@
+# -*- coding: utf-8 -*-
 """
 Common tests to aspects, like ensuring that they don't break when receiving extra arguments.
 """
+import os
+import shutil
+
 import pytest
 
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+import tests.appsec.iast.fixtures.aspects.callees
+from tests.appsec.iast.fixtures.aspects.utils import generate_callers_from_callees
 
+
+generate_callers_from_callees(
+    callers_file="tests/appsec/iast/fixtures/aspects/callers.py",
+    callees_module=tests.appsec.iast.fixtures.aspects.callees,
+    callees_module_str="tests.appsec.iast.fixtures.aspects.callees",
+)
 
 patched_callers = _iast_patched_module("tests.appsec.iast.fixtures.aspects.callers")
 
+## Contents of file tests/appsec/iast/fixtures/aspects/callers.py is inserted into
+## tests/appsec/iast/fixtures/aspects/unpatched_callers.py to avoid patched import of the module
+
+# Source file path
+SOURCE_FILE = "tests/appsec/iast/fixtures/aspects/callers.py"
+
+# File copy destination path
+DESTINATION_FILE = "tests/appsec/iast/fixtures/aspects/unpatched_callers.py"
+
+# Copy the file to the destination file
+shutil.copy2(SOURCE_FILE, DESTINATION_FILE)
+
+# This import needs to be done after the file is created (previous line)
+from tests.appsec.iast.fixtures.aspects import unpatched_callers  # noqa: E402
+
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.parametrize(
-    "aspect, arg_a, arg_b, kwargs, expected_result",
-    [
-        ("bytearray_extend", bytearray("Foo", "utf-8"), b"Bar", {}, bytearray("FooBar", "utf-8")),
-        ("bytearray_extend_with_kwargs", bytearray("Foo", "utf-8"), b"Bar", {}, bytearray("FooBar", "utf-8")),
-        (
-            "bytearray_extend_with_kwargs",
-            bytearray("Foo", "utf-8"),
-            b"Bar",
-            {"dry_run": False},
-            bytearray("FooBar", "utf-8"),
-        ),
-        (
-            "bytearray_extend_with_kwargs",
-            bytearray("Foo", "utf-8"),
-            b"Bar",
-            {"dry_run": True},
-            bytearray("Foo", "utf-8"),
-        ),
-        (
-            "bytearray_extend_with_kwargs_imported_directly",
-            bytearray("Foo", "utf-8"),
-            b"Bar",
-            {"dry_run": False},
-            bytearray("FooBar", "utf-8"),
-        ),
-        (
-            "bytearray_extend_with_kwargs_imported_directly",
-            bytearray("Foo", "utf-8"),
-            b"Bar",
-            {"dry_run": True},
-            bytearray("Foo", "utf-8"),
-        ),
-    ],
-)
-def test_aspect_patched_result(aspect, arg_a, arg_b, kwargs, expected_result):
-    assert getattr(patched_callers, aspect)(arg_a, arg_b, **kwargs) == expected_result
+@pytest.mark.parametrize("aspect", [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))])
+@pytest.mark.parametrize("args", [(), ("a"), ("a", "b")])
+@pytest.mark.parametrize("kwargs", [{}, {"dry_run": False}, {"dry_run": True}])
+def test_aspect_patched_result(aspect, args, kwargs):
+    assert getattr(patched_callers, aspect)(*args, **kwargs) == getattr(unpatched_callers, aspect)(*args, **kwargs)
+
+
+os.remove(DESTINATION_FILE)
+os.remove(SOURCE_FILE)
