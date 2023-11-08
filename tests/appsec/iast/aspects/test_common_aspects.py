@@ -3,16 +3,14 @@ Common tests to aspects, like ensuring that they don't break when receiving extr
 """
 import pytest
 
+from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-try:
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 patched_callers = _iast_patched_module("tests.appsec.iast.fixtures.aspects.callers")
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "aspect, arg_a, arg_b, kwargs, expected_result",
     [
