@@ -3,8 +3,6 @@ import os
 from typing import Union
 import unittest
 
-import wrapt
-
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
