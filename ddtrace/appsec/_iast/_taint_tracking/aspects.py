@@ -144,18 +144,24 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
         return candidate_text[start:stop:step]
 
 
-def bytearray_extend_aspect(orig_function, op1, op2):
+def bytearray_extend_aspect(orig_function, *args, **kwargs):
     # type: (Callable, Any, Any) -> Any
-    if not isinstance(orig_function, BuiltinFunctionType):
-        return orig_function(op1, op2)
+    if len(args) != 2 or kwargs:
+        return orig_function(*args, **kwargs)
 
-    if not isinstance(op1, bytearray) or not isinstance(op2, (bytearray, bytes)):
-        return op1.extend(op2)
+    if not isinstance(orig_function, BuiltinFunctionType):
+        return orig_function(*args, **kwargs)
+
+    if not isinstance(args[0], bytearray) or not isinstance(args[2], (bytearray, bytes)):
+        return orig_function(*args, **kwargs)
+
     try:
+        op1 = args[0]
+        op2 = args[1]
         return _extend_aspect(op1, op2)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. extend_aspect. {}".format(e))
-        return op1.extend(op2)
+        return orig_function(*args, **kwargs)
 
 
 def modulo_aspect(candidate_text, candidate_tuple):
