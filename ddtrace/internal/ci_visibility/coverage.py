@@ -49,9 +49,11 @@ def _start_coverage(root_dir: str):
     coverage.start()
     return coverage
 
+
 def _switch_coverage_context(coverage: Coverage, unique_test_name: str):
     coverage._collector.data.clear()
     coverage.switch_context(unique_test_name)
+
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
     span_id = str(span.trace_id)
@@ -63,6 +65,7 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
         build_payload(coverage_data, root_dir, span_id),
     )
     coverage_data._collector.data.clear()
+
 
 def segments(lines):
     # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]

@@ -44,8 +44,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span, _start_coverage, \
-    _switch_coverage_context
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span, _start_coverage, _switch_coverage_context
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
 from ddtrace.internal.ci_visibility.utils import (
     _add_start_end_source_file_path_data_to_span,

@@ -49,6 +49,7 @@ def _add_start_end_source_file_path_data_to_span(span: ddtrace.Span, test_method
     if end_line:
         span.set_tag(test.SOURCE_END, end_line)
 
+
 def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:
     return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
 

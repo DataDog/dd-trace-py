@@ -83,6 +83,7 @@ def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
 
+
 def _is_test_coverage_enabled(test_object) -> bool:
     return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
 
