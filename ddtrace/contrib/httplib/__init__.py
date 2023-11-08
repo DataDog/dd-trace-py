@@ -7,7 +7,7 @@ Enabling
 ~~~~~~~~
 
 The httplib integration is disabled by default. It can be enabled when using
-:ref:`ddtrace-run<ddtracerun>` or :mod:`import ddtrace.auto<ddtrace.auto`
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`
 using the ``DD_TRACE_HTTPLIB_ENABLED`` environment variable::
 
     DD_TRACE_HTTPLIB_ENABLED=true ddtrace-run ....
