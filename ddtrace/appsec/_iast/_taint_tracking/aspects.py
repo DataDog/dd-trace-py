@@ -482,8 +482,6 @@ def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
         return orig_function(*args, **kwargs)
 
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
-        if flag_added_args > 0:
-            args = args[flag_added_args:]
         return self.decode(*args, **kwargs)
     try:
         codec = args[0] if args else "utf-8"

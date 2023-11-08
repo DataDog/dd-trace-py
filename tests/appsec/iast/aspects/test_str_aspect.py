@@ -94,7 +94,7 @@ def test_repr_aspect_tainting(obj, expected_result):
         obj, source_name="test_repr_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
     )
 
-    result = ddtrace_aspects.repr_aspect(repr, obj)
+    result = ddtrace_aspects.repr_aspect(repr, 0, obj)
     assert is_pyobject_tainted(result) is True
 
 
