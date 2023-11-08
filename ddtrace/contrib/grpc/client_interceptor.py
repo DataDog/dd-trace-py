@@ -1,7 +1,6 @@
 import collections
 
 import grpc
-import wrapt
 
 from ddtrace import config
 from ddtrace.ext import SpanKind
@@ -10,6 +9,7 @@ from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
 
 from . import constants
 from . import utils
