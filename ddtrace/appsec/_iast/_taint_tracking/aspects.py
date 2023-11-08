@@ -286,7 +286,7 @@ def zfill_aspect(orig_function, flag_added_args, *args, **kwargs):
 def format_aspect(
     orig_function,  # type: Callable
     flag_added_args,  # type: int
-    *args,  # type: List[Any]
+    *args,  # type: Any
     **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(orig_function, BuiltinFunctionType):

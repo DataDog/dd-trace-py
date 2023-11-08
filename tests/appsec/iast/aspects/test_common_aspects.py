@@ -10,7 +10,25 @@ import pytest
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
-from tests.appsec.iast.fixtures.aspects.utils import generate_callers_from_callees
+
+
+def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):
+    module_functions = [x for x in dir(callees_module) if not x.startswith(("_", "@"))]
+
+    with open(callers_file, "w") as callers:
+        callers.write(f"from {callees_module_str} import *\n")
+        callers.write(f"import {callees_module_str} as _original_callees\n")
+
+        for function in module_functions:
+            callers.write(
+                f"""
+def callee_{function}(*args, **kwargs):
+    return _original_callees.{function}(*args, **kwargs)
+
+def callee_{function}_direct(*args, **kwargs):
+    return {function}(*args, **kwargs)\n
+            """
+            )
 
 
 generate_callers_from_callees(
