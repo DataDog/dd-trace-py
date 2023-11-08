@@ -758,8 +758,9 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
     tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
-    test_suite_name = _extract_suite_name_from_test_method(instance)
     test_name = _extract_test_method_name(instance)
+    test_method_object = _extract_test_method_object(instance)
+    test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
     span = tracer._start_span(
         ddtrace.config.unittest.operation_name,
