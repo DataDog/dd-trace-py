@@ -86,12 +86,18 @@ class AwakeablePeriodicThread(PeriodicThread):
             self.request.set()
             self.served.wait()
 
+    def stop(self):
+        super().stop()
+        self.request.set()
+
     def run(self):
         """Run the target function periodically or on demand."""
         while not self.quit.is_set():
             self._target()
 
             if self.request.wait(self.interval):
+                if self.quit.is_set():
+                    break
                 self.request.clear()
                 self.served.set()
 
@@ -115,7 +121,8 @@ class PeriodicService(service.Service):
 
     @interval.setter
     def interval(
-        self, value  # type: float
+        self,
+        value,  # type: float
     ):
         # type: (...) -> None
         self._interval = value
@@ -141,7 +148,8 @@ class PeriodicService(service.Service):
         super(PeriodicService, self)._stop_service(*args, **kwargs)
 
     def join(
-        self, timeout=None  # type: typing.Optional[float]
+        self,
+        timeout=None,  # type: typing.Optional[float]
     ):
         # type: (...) -> None
         if self._worker:

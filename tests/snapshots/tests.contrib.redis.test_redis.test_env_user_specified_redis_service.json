@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "myredis",
-    "resource": "GET cheese",
+    "resource": "GET",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -36,7 +36,7 @@
   {
     "name": "redis.command",
     "service": "cfg-redis",
-    "resource": "GET cheese",
+    "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,

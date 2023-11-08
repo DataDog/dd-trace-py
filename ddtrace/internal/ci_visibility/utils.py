@@ -19,7 +19,7 @@ def get_source_file_path_for_test_method(test_method_object) -> typing.Union[str
 
 
 def get_source_lines_for_test_method(
-        test_method_object,
+    test_method_object,
 ) -> typing.Union[typing.Tuple[int, int], typing.Tuple[None, None]]:
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)

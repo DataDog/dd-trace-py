@@ -576,7 +576,11 @@ def test_civisibilitywriter_agentless_url_envvar():
 
 
 def test_civisibilitywriter_evp_proxy_url():
-    with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -588,7 +592,11 @@ def test_civisibilitywriter_evp_proxy_url():
 
 
 def test_civisibilitywriter_only_traces():
-    with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -1013,7 +1021,7 @@ def test_unshallow_respository_cant_get_remote():
 
 def test_encoder_pack_payload():
     packed_payload = CIVisibilityEncoderV01._pack_payload(
-        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
+        {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
     )
     if PY2:
         assert (
@@ -1030,8 +1038,8 @@ def test_encoder_pack_payload():
 @pytest.mark.skipif(not PY2, reason="py2 payload encoder only tested in Python 2.x")
 def test_encoder_py2_payload_force_unicode_strings():
     assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
-        {"string_key": [1, {u"unicode_key": "string_value"}, u"unicode_value", {"string_key": u"unicode_value"}]}
-    ) == {u"string_key": [1, {u"unicode_key": u"string_value"}, u"unicode_value", {u"string_key": u"unicode_value"}]}
+        {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
+    ) == {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
 
 
 class TestFetchTestsToSkip:

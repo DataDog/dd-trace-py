@@ -103,7 +103,7 @@ class TestTornadoWeb(TornadoTestCase):
         traces = self.pop_traces()
         assert 2 == len(traces)
 
-        for (i, trace) in enumerate(traces, start=1):
+        for i, trace in enumerate(traces, start=1):
             request_span = trace[0]
             assert_span_http_status_code(request_span, 200)
             assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
