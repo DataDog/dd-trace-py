@@ -337,7 +337,7 @@ class CMakeBuild(build_ext):
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
-        cmake_args = [
+        cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
