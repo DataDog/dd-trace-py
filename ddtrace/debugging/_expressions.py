@@ -42,270 +42,269 @@ from bytecode import Instr
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.logger import get_logger
 
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
+
+log = get_logger(__name__)
 
 
 def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
 
 
-def _make_function(ast: DDASTType, args: Tuple[str, ...], name: str) -> FunctionType:
-    compiled = _compile_predicate(ast)
-    if compiled is None:
-        raise ValueError("Invalid predicate: %r" % ast)
+class DDCompiler:
+    @classmethod
+    def __getmember__(cls, o, a):
+        return object.__getattribute__(o, a)
 
-    instrs = compiled + [Instr("RETURN_VALUE")]
-    if sys.version_info >= (3, 11):
-        instrs.insert(0, Instr("RESUME", 0))
+    @classmethod
+    def __index__(cls, o, i):
+        return safe_getitem(o, i)
 
-    abstract_code = Bytecode(instrs)
-    abstract_code.argcount = len(args)
-    abstract_code.argnames = args
-    abstract_code.name = name
+    @classmethod
+    def __ref__(cls, x):
+        return x
 
-    return FunctionType(abstract_code.to_code(), {}, name, (), None)
+    def _make_function(self, ast: DDASTType, args: Tuple[str, ...], name: str) -> FunctionType:
+        compiled = self._compile_predicate(ast)
+        if compiled is None:
+            raise ValueError("Invalid predicate: %r" % ast)
 
+        instrs = compiled + [Instr("RETURN_VALUE")]
+        if sys.version_info >= (3, 11):
+            instrs.insert(0, Instr("RESUME", 0))
 
-def _make_lambda(ast: DDASTType) -> Callable[[Any, Any], Any]:
-    return _make_function(ast, ("_dd_it", "_locals"), "<lambda>")
+        abstract_code = Bytecode(instrs)
+        abstract_code.argcount = len(args)
+        abstract_code.argnames = args
+        abstract_code.name = name
 
+        return FunctionType(abstract_code.to_code(), {}, name, (), None)
 
-def _compile_direct_predicate(ast: DDASTType) -> Optional[List[Instr]]:
-    # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
-    # direct_predicate_type  =>  not | isEmpty | isUndefined
-    if not isinstance(ast, dict):
-        return None
+    def _make_lambda(self, ast: DDASTType) -> Callable[[Any, Any], Any]:
+        return self._make_function(ast, ("_dd_it", "_locals"), "<lambda>")
 
-    _type, arg = next(iter(ast.items()))
+    def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
+        # direct_predicate_type  =>  not | isEmpty | isUndefined
+        if not isinstance(ast, dict):
+            return None
 
-    if _type not in {"not", "isEmpty"}:
-        return None
+        _type, arg = next(iter(ast.items()))
 
-    value = _compile_predicate(arg)
-    if value is None:
-        raise ValueError("Invalid argument: %r" % arg)
+        if _type not in {"not", "isEmpty"}:
+            return None
 
-    value.append(Instr("UNARY_NOT"))
-
-    # TODO: isUndefined will be implemented later
-
-    return value
-
-
-def _compile_arg_predicate(ast: DDASTType) -> Optional[List[Instr]]:
-    # arg_predicate       =>  {"<arg_predicate_type>": [<argument_list>]}
-    # arg_predicate_type  =>  eq | ne | gt | ge | lt | le | any | all | and | or
-    #                            | startsWith | endsWith | contains | matches
-    if not isinstance(ast, dict):
-        return None
-
-    _type, args = next(iter(ast.items()))
-
-    if _type in {"or", "and"}:
-        a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return ca + cb + [Instr("BINARY_%s" % _type.upper())]
-
-    if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
-        a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return ca + cb + [Instr("COMPARE_OP", getattr(Compare, _type.upper()))]
-
-    if _type == "contains":
-        a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return cb + ca + [Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)]
-
-    if _type in {"any", "all"}:
-        a, b = args
-        f = __builtins__[_type]  # type: ignore[index]
-        ca, fb = _compile_predicate(a), _make_lambda(b)
-
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-
-        return _call_function(
-            lambda i, c, _locals: f(c(_, _locals) for _ in i),
-            ca,
-            [Instr("LOAD_CONST", fb)],
-            [Instr("LOAD_FAST", "_locals")],
-        )
-
-    if _type in {"startsWith", "endsWith"}:
-        a, b = args
-        ca, cb = _compile_predicate(a), _compile_predicate(b)
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return _call_function(getattr(str, _type.lower()), ca, cb)
-
-    if _type == "matches":
-        a, b = args
-        string, pattern = _compile_predicate(a), _compile_predicate(b)
-        if string is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if pattern is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return _call_function(lambda p, s: re.match(p, s) is not None, pattern, string)
-
-    return None
-
-
-def _compile_direct_operation(ast: DDASTType) -> Optional[List[Instr]]:
-    # direct_opearation  =>  {"<direct_op_type>": <value_source>}
-    # direct_op_type     =>  len | count | ref
-    if not isinstance(ast, dict):
-        return None
-
-    _type, arg = next(iter(ast.items()))
-
-    if _type in {"len", "count"}:
-        value = _compile_value_source(arg)
+        value = self._compile_predicate(arg)
         if value is None:
             raise ValueError("Invalid argument: %r" % arg)
-        return _call_function(len, value)
 
-    if _type == "ref":
-        if not isinstance(arg, str):
+        value.append(Instr("UNARY_NOT"))
+
+        # TODO: isUndefined will be implemented later
+
+        return value
+
+    def _compile_arg_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # arg_predicate       =>  {"<arg_predicate_type>": [<argument_list>]}
+        # arg_predicate_type  =>  eq | ne | gt | ge | lt | le | any | all | and | or
+        #                            | startsWith | endsWith | contains | matches
+        if not isinstance(ast, dict):
             return None
 
-        if arg == "@it":
-            return [Instr("LOAD_FAST", "_dd_it")]
+        _type, args = next(iter(ast.items()))
 
-        return [
-            Instr("LOAD_FAST", "_locals"),
-            Instr("LOAD_CONST", arg),
-            Instr("BINARY_SUBSCR"),
-        ]
+        if _type in {"or", "and"}:
+            a, b = args
+            ca, cb = self._compile_predicate(a), self._compile_predicate(b)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if cb is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return ca + cb + [Instr("BINARY_%s" % _type.upper())]
 
-    return None
+        if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
+            a, b = args
+            ca, cb = self._compile_predicate(a), self._compile_predicate(b)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if cb is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return ca + cb + [Instr("COMPARE_OP", getattr(Compare, _type.upper()))]
 
+        if _type == "contains":
+            a, b = args
+            ca, cb = self._compile_predicate(a), self._compile_predicate(b)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if cb is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return cb + ca + [Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)]
 
-def _call_function(func: Callable, *args: List[Instr]) -> List[Instr]:
-    if PY >= (3, 12):
-        return [
-            Instr("PUSH_NULL"),
-            Instr("LOAD_CONST", func),
-            *chain(*args),
-            Instr("CALL", len(args)),
-        ]
+        if _type in {"any", "all"}:
+            a, b = args
+            f = __builtins__[_type]  # type: ignore[index]
+            ca, fb = self._compile_predicate(a), self._make_lambda(b)
 
-    elif PY >= (3, 11):
-        return [
-            Instr("PUSH_NULL"),
-            Instr("LOAD_CONST", func),
-            *chain(*args),
-            Instr("PRECALL", len(args)),
-            Instr("CALL", len(args)),
-        ]
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
 
-    return [
-        Instr("LOAD_CONST", func),
-        *chain(*args),
-        Instr("CALL_FUNCTION", len(args)),
-    ]
+            return self._call_function(
+                lambda i, c, _locals: f(c(_, _locals) for _ in i),
+                ca,
+                [Instr("LOAD_CONST", fb)],
+                [Instr("LOAD_FAST", "_locals")],
+            )
 
+        if _type in {"startsWith", "endsWith"}:
+            a, b = args
+            ca, cb = self._compile_predicate(a), self._compile_predicate(b)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if cb is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return self._call_function(getattr(str, _type.lower()), ca, cb)
 
-def _compile_arg_operation(ast: DDASTType) -> Optional[List[Instr]]:
-    # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
-    # arg_op_type    =>  filter | substring
-    if not isinstance(ast, dict):
+        if _type == "matches":
+            a, b = args
+            string, pattern = self._compile_predicate(a), self._compile_predicate(b)
+            if string is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if pattern is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return self._call_function(lambda p, s: re.match(p, s) is not None, pattern, string)
+
         return None
 
-    _type, args = next(iter(ast.items()))
+    def _compile_direct_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # direct_opearation  =>  {"<direct_op_type>": <value_source>}
+        # direct_op_type     =>  len | count | ref
+        if not isinstance(ast, dict):
+            return None
 
-    if _type not in {"filter", "substring", "getmember", "index"}:
+        _type, arg = next(iter(ast.items()))
+
+        if _type in {"len", "count"}:
+            value = self._compile_value_source(arg)
+            if value is None:
+                raise ValueError("Invalid argument: %r" % arg)
+            return self._call_function(len, value)
+
+        if _type == "ref":
+            if not isinstance(arg, str):
+                return None
+
+            if arg == "@it":
+                return [Instr("LOAD_FAST", "_dd_it")]
+
+            return [
+                Instr("LOAD_FAST", "_locals"),
+                Instr("LOAD_CONST", self.__ref__(arg)),
+                Instr("BINARY_SUBSCR"),
+            ]
+
         return None
 
-    if _type == "substring":
-        v, a, b = args
-        cv, ca, cb = _compile_predicate(v), _compile_predicate(a), _compile_predicate(b)
-        if cv is None:
-            raise ValueError("Invalid argument: %r" % v)
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid argument: %r" % b)
-        return cv + ca + cb + [Instr("BUILD_SLICE", 2), Instr("BINARY_SUBSCR")]
+    def _call_function(self, func: Callable, *args: List[Instr]) -> List[Instr]:
+        if PY < (3, 11):
+            return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+        elif PY >= (3, 12):
+            return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
 
-    if _type == "filter":
-        a, b = args
-        ca, fb = _compile_predicate(a), _make_lambda(b)
-
-        if ca is None:
-            raise ValueError("Invalid argument: %r" % a)
-
-        return _call_function(
-            lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)),
-            ca,
-            [Instr("LOAD_CONST", fb)],
-            [Instr("LOAD_FAST", "_locals")],
+        # Python 3.11
+        return (
+            [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
+            + list(chain(*args))
+            + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
         )
 
-    if _type == "getmember":
-        v, attr = args
-        if not _is_identifier(attr):
-            raise ValueError("Invalid identifier: %r" % attr)
-
-        cv = _compile_predicate(v)
-        if not cv:
+    def _compile_arg_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
+        # arg_op_type    =>  filter | substring
+        if not isinstance(ast, dict):
             return None
 
-        return _call_function(object.__getattribute__, cv, [Instr("LOAD_CONST", attr)])
+        _type, args = next(iter(ast.items()))
 
-    if _type == "index":
-        v, i = args
-        cv = _compile_predicate(v)
-        if not cv:
+        if _type not in {"filter", "substring", "getmember", "index"}:
             return None
-        ci = _compile_predicate(i)
-        if not ci:
-            return None
-        return _call_function(safe_getitem, cv, ci)
 
-    return None
+        if _type == "substring":
+            v, a, b = args
+            cv, ca, cb = self._compile_predicate(v), self._compile_predicate(a), self._compile_predicate(b)
+            if cv is None:
+                raise ValueError("Invalid argument: %r" % v)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
+            if cb is None:
+                raise ValueError("Invalid argument: %r" % b)
+            return cv + ca + cb + [Instr("BUILD_SLICE", 2), Instr("BINARY_SUBSCR")]
 
+        if _type == "filter":
+            a, b = args
+            ca, fb = self._compile_predicate(a), self._make_lambda(b)
 
-def _compile_operation(ast: DDASTType) -> Optional[List[Instr]]:
-    # operation  =>  <direct_operation> | <arg_operation>
-    return _compile_direct_operation(ast) or _compile_arg_operation(ast)
+            if ca is None:
+                raise ValueError("Invalid argument: %r" % a)
 
+            return self._call_function(
+                lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)),
+                ca,
+                [Instr("LOAD_CONST", fb)],
+                [Instr("LOAD_FAST", "_locals")],
+            )
 
-def _compile_literal(ast: DDASTType) -> Optional[List[Instr]]:
-    # literal  =>  <number> | true | false | "string" | null
-    if not (isinstance(ast, (str, int, float, bool)) or ast is None):
+        if _type == "getmember":
+            v, attr = args
+            if not _is_identifier(attr):
+                raise ValueError("Invalid identifier: %r" % attr)
+
+            cv = self._compile_predicate(v)
+            if not cv:
+                return None
+
+            return self._call_function(self.__getmember__, cv, [Instr("LOAD_CONST", attr)])
+
+        if _type == "index":
+            v, i = args
+            cv = self._compile_predicate(v)
+            if not cv:
+                return None
+            ci = self._compile_predicate(i)
+            if not ci:
+                return None
+            return self._call_function(self.__index__, cv, ci)
+
         return None
 
-    return [Instr("LOAD_CONST", ast)]
+    def _compile_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # operation  =>  <direct_operation> | <arg_operation>
+        return self._compile_direct_operation(ast) or self._compile_arg_operation(ast)
+
+    def _compile_literal(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # literal  =>  <number> | true | false | "string" | null
+        if not (isinstance(ast, (str, int, float, bool)) or ast is None):
+            return None
+
+        return [Instr("LOAD_CONST", ast)]
+
+    def _compile_value_source(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # value_source  =>  <literal> | <operation>
+        return self._compile_operation(ast) or self._compile_literal(ast)
+
+    def _compile_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+        # predicate  =>  <direct_predicate> | <arg_predicate> | <value_source>
+        return (
+            self._compile_direct_predicate(ast) or self._compile_arg_predicate(ast) or self._compile_value_source(ast)
+        )
+
+    def compile(self, ast: DDASTType) -> Callable[[Dict[str, Any]], Any]:
+        return self._make_function(ast, ("_locals",), "<expr>")
 
 
-def _compile_value_source(ast: DDASTType) -> Optional[List[Instr]]:
-    # value_source  =>  <literal> | <operation>
-    return _compile_operation(ast) or _compile_literal(ast)
-
-
-def _compile_predicate(ast: DDASTType) -> Optional[List[Instr]]:
-    # predicate  =>  <direct_predicate> | <arg_predicate> | <value_source>
-    return _compile_direct_predicate(ast) or _compile_arg_predicate(ast) or _compile_value_source(ast)
-
-
-def dd_compile(ast: DDASTType) -> Callable[[Dict[str, Any]], Any]:
-    return _make_function(ast, ("_locals",), "<expr>")
+dd_compile = DDCompiler().compile
 
 
 class DDExpressionEvaluationError(Exception):
@@ -317,8 +316,19 @@ class DDExpressionEvaluationError(Exception):
         self.error = str(e)
 
 
+def _invalid_expression(_):
+    """Forces probes with invalid expression/conditions to never trigger.
+
+    Any signs of invalid conditions in logs is an indication of a problem with
+    the expression compiler.
+    """
+    return None
+
+
 @attr.s
 class DDExpression(object):
+    __compiler__ = dd_compile
+
     dsl = attr.ib(type=str)
     callable = attr.ib(type=Callable[[Dict[str, Any]], Any])
 
@@ -326,7 +336,24 @@ class DDExpression(object):
         try:
             return self.callable(_locals)
         except Exception as e:
-            raise DDExpressionEvaluationError(self.dsl, e)
+            raise DDExpressionEvaluationError(self.dsl, e) from e
 
     def __call__(self, _locals):
         return self.eval(_locals)
+
+    @classmethod
+    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Dict[str, Any]], Any]:
+        log.error("Cannot compile expression: %s", dsl, exc_info=True)
+        return _invalid_expression
+
+    @classmethod
+    def compile(cls, expr: Dict[str, Any]) -> "DDExpression":
+        ast = expr["json"]
+        dsl = expr["dsl"]
+
+        try:
+            compiled = cls.__compiler__(ast)
+        except Exception as e:
+            compiled = cls.on_compiler_error(dsl, e)
+
+        return cls(dsl=dsl, callable=compiled)

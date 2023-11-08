@@ -10,12 +10,10 @@ from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import CaptureLimits
-from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineProbe
@@ -32,67 +30,29 @@ from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
+from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
-from ddtrace.internal.utils.cache import LFUCache
 
 
 log = get_logger(__name__)
-
-
-_EXPRESSION_CACHE = LFUCache()
 
 
 def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _invalid_expression(_):
-    """Forces probes with invalid expression/conditions to never trigger.
-
-    Any signs of invalid conditions in logs is an indication of a problem with
-    the expression compiler.
-    """
-    return None
-
-
-INVALID_EXPRESSION = _invalid_expression
-
-
-def _compile_expression(expr: Optional[Dict[str, Any]]) -> Optional[DDExpression]:
-    global _EXPRESSION_CACHE, INVALID_EXPRESSION
-
-    if expr is None:
-        return None
-
-    ast = expr["json"]
-
-    def compile_or_invalid(expr: str) -> Callable[[Dict[str, Any]], Any]:
-        try:
-            return dd_compile(ast)
-        except Exception:
-            log.error("Cannot compile expression: %s", expr, exc_info=True)
-            return INVALID_EXPRESSION
-
-    dsl = expr["dsl"]
-
-    compiled: Callable[[Dict[str, Any]], Any] = _EXPRESSION_CACHE.get(dsl, compile_or_invalid)
-
-    if compiled is INVALID_EXPRESSION:
-        log.error("Cannot compile expression: %s", dsl, exc_info=True)
-
-    return DDExpression(dsl=dsl, callable=compiled)
-
-
-def _compile_segment(segment):
-    if segment.get("str", ""):
+def _compile_segment(segment: dict) -> Optional[TemplateSegment]:
+    if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
-    elif segment.get("json", None) is not None:
-        return ExpressionTemplateSegment(expr=_compile_expression(segment))
+
+    if "json" in segment:
+        return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
 
     # what type of error we should show here?
     return None
@@ -160,7 +120,7 @@ class LogProbeFactory(ProbeFactory):
             rate = sampling.get("snapshotsPerSecond", rate)
 
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             rate=rate,
             limits=CaptureLimits(
                 **xlate_keys(
@@ -192,11 +152,11 @@ class MetricProbeFactory(ProbeFactory):
         args["tags"]["debugger.probeid"] = args["probe_id"]
 
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             name=attribs["metricName"],
             kind=attribs["kind"],
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
-            value=_compile_expression(attribs.get("value")),
+            value=DDRedactedExpression.compile(attribs["value"]) if "value" in attribs else None,
         )
 
 
@@ -206,7 +166,7 @@ class SpanProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args, attribs):
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 
@@ -221,7 +181,7 @@ class SpanDecorationProbeFactory(ProbeFactory):
             target_span=attribs["targetSpan"],
             decorations=[
                 SpanDecoration(
-                    when=_compile_expression(d.get("when")),
+                    when=DDRedactedExpression.compile(d["when"]) if "when" in d else None,
                     tags=[
                         SpanDecorationTag(
                             name=t["name"],
