@@ -372,6 +372,7 @@ class CMakeBuild(build_ext):
                 subprocess.run(build_command, cwd=tmp_iast_path, check=True)
             except Exception as e:
                 print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
+                raise
             finally:
                 import shutil
 
