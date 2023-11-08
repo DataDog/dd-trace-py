@@ -6,8 +6,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import openai
-
 from ddtrace.internal.logger import get_logger
 
 
@@ -86,6 +84,8 @@ def _format_openai_api_key(openai_api_key):
 
 def _is_generator(resp):
     # type: (...) -> bool
+    import openai
+
     # In OpenAI v1, the response is type `openai.Stream` instead of Generator.
     if isinstance(resp, Generator):
         return True
@@ -96,6 +96,8 @@ def _is_generator(resp):
 
 def _is_async_generator(resp):
     # type: (...) -> bool
+    import openai
+
     # In OpenAI v1, the response is type `openai.AsyncStream` instead of AsyncGenerator.
     if isinstance(resp, AsyncGenerator):
         return True

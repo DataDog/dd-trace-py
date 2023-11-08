@@ -1233,7 +1233,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
+    token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses httpx for its synchronous requests.
@@ -1273,7 +1273,9 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_integration_async", ignores=["meta.http.useragent"], async_mode=False
+    token="tests.contrib.openai.test_openai_v1.test_integration_async",
+    ignores=["meta.http.useragent"],
+    async_mode=False,
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses httpx for its asynchronous requests.
