@@ -72,7 +72,6 @@ def test_add_aspect_type_error(obj1, obj2):
 )
 @pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
-
     if should_be_tainted:
         obj1 = taint_pyobject(
             pyobject=obj1,

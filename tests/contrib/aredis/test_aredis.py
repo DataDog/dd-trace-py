@@ -3,12 +3,12 @@ import os
 
 import aredis
 import pytest
-from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace.contrib.aredis.patch import patch
 from ddtrace.contrib.aredis.patch import unpatch
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
@@ -93,7 +93,7 @@ async def test_basics(snapshot_context):
 async def test_unicode(snapshot_context):
     with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-        await r.get(u"😐")
+        await r.get("😐")
 
 
 @pytest.mark.asyncio
@@ -118,7 +118,7 @@ async def test_pipeline_traced(snapshot_context):
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         p = await r.pipeline(transaction=False)
         await p.set("blah", 32)
-        await p.rpush("foo", u"éé")
+        await p.rpush("foo", "éé")
         await p.hgetall("xxx")
         await p.execute()
 

@@ -14,11 +14,11 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+      "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "0cd4bc732ac44e50869d49058eb281ce",
+      "runtime-id": "575a1db6631a42f084e7e3b4ac797d14",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -33,18 +33,18 @@
       "test.itr.unskippable": "false",
       "test.status": "skip",
       "test.type": "test",
-      "test_session_id": "6074593619959992307",
+      "test_session_id": "9422712410620545290",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 35241,
+      "process_id": 1352,
       "test.itr.tests_skipping.count": 0
     },
-    "duration": 1144625,
-    "start": 1698323867466862221
+    "duration": 45574084,
+    "start": 1699372372040189877
   },
      {
        "name": "unittest.test_module",
@@ -59,7 +59,7 @@
          "_dd.ci.itr.tests_skipped": "false",
          "_dd.origin": "ciapp-test",
          "component": "unittest",
-         "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+         "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "5.15.49-linuxkit-pr",
@@ -79,15 +79,15 @@
          "test.module_path": "test_my_coverage.py",
          "test.status": "skip",
          "test.type": "test",
-         "test_module_id": "3623849957218680434",
-         "test_session_id": "6074593619959992307",
+         "test_module_id": "3464132646615133795",
+         "test_session_id": "9422712410620545290",
          "type": "test_module_end"
        },
        "metrics": {
          "test.itr.tests_skipping.count": 0
        },
-       "duration": 687209,
-       "start": 1698323867467244471
+       "duration": 44886083,
+       "start": 1699372372040731919
      },
         {
           "name": "unittest.test_suite",
@@ -101,7 +101,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "component": "unittest",
-            "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+            "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "5.15.49-linuxkit-pr",
@@ -116,13 +116,13 @@
             "test.status": "skip",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "3623849957218680434",
-            "test_session_id": "6074593619959992307",
-            "test_suite_id": "3450435712257169925",
+            "test_module_id": "3464132646615133795",
+            "test_session_id": "9422712410620545290",
+            "test_suite_id": "16803799775225635416",
             "type": "test_suite_end"
           },
-          "duration": 590084,
-          "start": 1698323867467331721
+          "duration": 44761958,
+          "start": 1699372372040842961
         },
            {
              "name": "unittest.test",
@@ -136,7 +136,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -151,16 +151,21 @@
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_cov",
                "test.skip_reason": "datadog_itr_unskippable",
+               "test.source.file": "../../../../root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "3623849957218680434",
-               "test_session_id": "6074593619959992307",
-               "test_suite_id": "3450435712257169925",
+               "test_module_id": "3464132646615133795",
+               "test_session_id": "9422712410620545290",
+               "test_suite_id": "16803799775225635416",
                "type": "test"
              },
-             "duration": 116666,
-             "start": 1698323867467364305
+             "metrics": {
+               "test.source.end": 18,
+               "test.source.start": 14
+             },
+             "duration": 35105333,
+             "start": 1699372372040884044
            },
            {
              "name": "unittest.test",
@@ -174,7 +179,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -189,16 +194,21 @@
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_fourth",
                "test.skip_reason": "datadog_itr_unskippable",
+               "test.source.file": "../../../../root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "3623849957218680434",
-               "test_session_id": "6074593619959992307",
-               "test_suite_id": "3450435712257169925",
+               "test_module_id": "3464132646615133795",
+               "test_session_id": "9422712410620545290",
+               "test_suite_id": "16803799775225635416",
                "type": "test"
              },
-             "duration": 93250,
-             "start": 1698323867467542971
+             "metrics": {
+               "test.source.end": 30,
+               "test.source.start": 26
+             },
+             "duration": 3139541,
+             "start": 1699372372076130836
            },
            {
              "name": "unittest.test",
@@ -212,7 +222,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -227,16 +237,21 @@
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_second",
                "test.skip_reason": "datadog_itr_unskippable",
+               "test.source.file": "../../../../root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "3623849957218680434",
-               "test_session_id": "6074593619959992307",
-               "test_suite_id": "3450435712257169925",
+               "test_module_id": "3464132646615133795",
+               "test_session_id": "9422712410620545290",
+               "test_suite_id": "16803799775225635416",
                "type": "test"
              },
-             "duration": 88625,
-             "start": 1698323867467683138
+             "metrics": {
+               "test.source.end": 22,
+               "test.source.start": 18
+             },
+             "duration": 3043625,
+             "start": 1699372372079369794
            },
            {
              "name": "unittest.test",
@@ -250,7 +265,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -265,14 +280,19 @@
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_third",
                "test.skip_reason": "datadog_itr_unskippable",
+               "test.source.file": "../../../../root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "3623849957218680434",
-               "test_session_id": "6074593619959992307",
-               "test_suite_id": "3450435712257169925",
+               "test_module_id": "3464132646615133795",
+               "test_session_id": "9422712410620545290",
+               "test_suite_id": "16803799775225635416",
                "type": "test"
              },
-             "duration": 88666,
-             "start": 1698323867467821180
+             "metrics": {
+               "test.source.end": 26,
+               "test.source.start": 22
+             },
+             "duration": 3064625,
+             "start": 1699372372082511377
            }]]

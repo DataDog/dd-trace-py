@@ -9,16 +9,16 @@
     "type": "test",
     "meta": {
       "_dd.base_service": "",
-      "_dd.ci.itr.tests_skipped": "true",
+      "_dd.ci.itr.tests_skipped": "false",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+      "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1eae2a17dfa247ba9bc3f140f8229e31",
+      "runtime-id": "085fb4adbb67401cbe59beff71d2c2d8",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -28,23 +28,23 @@
       "test.framework_version": "3.10.11",
       "test.itr.forced_run": "true",
       "test.itr.tests_skipping.enabled": "true",
-      "test.itr.tests_skipping.tests_skipped": "true",
+      "test.itr.tests_skipping.tests_skipped": "false",
       "test.itr.tests_skipping.type": "test",
       "test.itr.unskippable": "true",
       "test.status": "pass",
       "test.type": "test",
-      "test_session_id": "9935277194321657038",
+      "test_session_id": "812953060023944445",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 35125,
-      "test.itr.tests_skipping.count": 2
+      "process_id": 1207,
+      "test.itr.tests_skipping.count": 0
     },
-    "duration": 26577292,
-    "start": 1698323864115803636
+    "duration": 44001000,
+    "start": 1699372365468714763
   },
      {
        "name": "unittest.test_module",
@@ -56,10 +56,10 @@
        "type": "test",
        "meta": {
          "_dd.base_service": "",
-         "_dd.ci.itr.tests_skipped": "true",
+         "_dd.ci.itr.tests_skipped": "false",
          "_dd.origin": "ciapp-test",
          "component": "unittest",
-         "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+         "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "5.15.49-linuxkit-pr",
@@ -72,22 +72,22 @@
          "test.framework_version": "3.10.11",
          "test.itr.forced_run": "true",
          "test.itr.tests_skipping.enabled": "true",
-         "test.itr.tests_skipping.tests_skipped": "true",
+         "test.itr.tests_skipping.tests_skipped": "false",
          "test.itr.tests_skipping.type": "test",
          "test.itr.unskippable": "true",
          "test.module": "test_my_coverage",
          "test.module_path": "test_my_coverage.py",
          "test.status": "pass",
          "test.type": "test",
-         "test_module_id": "269823980351260049",
-         "test_session_id": "9935277194321657038",
+         "test_module_id": "11627156906617984273",
+         "test_session_id": "812953060023944445",
          "type": "test_module_end"
        },
        "metrics": {
-         "test.itr.tests_skipping.count": 2
+         "test.itr.tests_skipping.count": 0
        },
-       "duration": 26010250,
-       "start": 1698323864116292678
+       "duration": 43313375,
+       "start": 1699372365469260138
      },
         {
           "name": "unittest.test_suite",
@@ -101,7 +101,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "component": "unittest",
-            "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+            "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "5.15.49-linuxkit-pr",
@@ -116,13 +116,13 @@
             "test.status": "pass",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "269823980351260049",
-            "test_session_id": "9935277194321657038",
-            "test_suite_id": "10669167644696916759",
+            "test_module_id": "11627156906617984273",
+            "test_session_id": "812953060023944445",
+            "test_suite_id": "5335517817259913411",
             "type": "test_suite_end"
           },
-          "duration": 25907000,
-          "start": 1698323864116386511
+          "duration": 43184041,
+          "start": 1699372365469376597
         },
            {
              "name": "unittest.test",
@@ -136,7 +136,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -153,16 +153,21 @@
                "test.module": "test_my_coverage",
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_cov",
+               "test.source.file": "test_my_coverage.py",
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "269823980351260049",
-               "test_session_id": "9935277194321657038",
-               "test_suite_id": "10669167644696916759",
+               "test_module_id": "11627156906617984273",
+               "test_session_id": "812953060023944445",
+               "test_suite_id": "5335517817259913411",
                "type": "test"
              },
-             "duration": 20837292,
-             "start": 1698323864116418886
+             "metrics": {
+               "test.source.end": 18,
+               "test.source.start": 14
+             },
+             "duration": 34981458,
+             "start": 1699372365469424097
            },
            {
              "name": "unittest.test",
@@ -176,7 +181,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -193,16 +198,21 @@
                "test.module": "test_my_coverage",
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_second",
+               "test.source.file": "test_my_coverage.py",
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "269823980351260049",
-               "test_session_id": "9935277194321657038",
-               "test_suite_id": "10669167644696916759",
+               "test_module_id": "11627156906617984273",
+               "test_session_id": "812953060023944445",
+               "test_suite_id": "5335517817259913411",
                "type": "test"
              },
-             "duration": 2728250,
-             "start": 1698323864137346220
+             "metrics": {
+               "test.source.end": 22,
+               "test.source.start": 18
+             },
+             "duration": 4475916,
+             "start": 1699372365504551847
            },
            {
              "name": "unittest.test",
@@ -216,7 +226,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -231,14 +241,19 @@
                "test.module": "test_my_coverage",
                "test.module_path": "test_my_coverage.py",
                "test.name": "test_third",
+               "test.source.file": "test_my_coverage.py",
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "269823980351260049",
-               "test_session_id": "9935277194321657038",
-               "test_suite_id": "10669167644696916759",
+               "test_module_id": "11627156906617984273",
+               "test_session_id": "812953060023944445",
+               "test_suite_id": "5335517817259913411",
                "type": "test"
              },
-             "duration": 2143333,
-             "start": 1698323864140134553
+             "metrics": {
+               "test.source.end": 25,
+               "test.source.start": 22
+             },
+             "duration": 3375625,
+             "start": 1699372365509151930
            }]]

@@ -4,12 +4,12 @@ from unittest import mock
 import pytest
 import redis
 import redis.asyncio
-from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -192,7 +192,6 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
-
     with tracer.trace("web-request", service="test"):
         if redis.VERSION >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)

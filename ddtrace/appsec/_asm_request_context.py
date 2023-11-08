@@ -262,7 +262,7 @@ def get_headers_case_sensitive() -> bool:
     return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
-def set_block_request_callable(_callable: Optional[Callable]) -> None:
+def set_block_request_callable(_callable: Optional[Callable], *_) -> None:
     """
     Sets a callable that could be use to do a best-effort to block the request. If
     the callable need any params, like headers, they should be curried with
@@ -423,16 +423,16 @@ def _on_set_request_tags(request, span, flask_config):
 
 
 def _on_pre_tracedrequest(ctx):
-    _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
+    _on_set_request_tags(ctx.get_item("flask_request"), ctx["current_span"], ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
-    current_span = ctx.get_item("current_span")
+    current_span = ctx["current_span"]
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             block_request()
 
 
-def _set_headers_and_response(response, headers):
+def _set_headers_and_response(response, headers, *_):
     from ddtrace.appsec._utils import _appsec_apisec_features_is_active
 
     if _appsec_apisec_features_is_active():
@@ -443,7 +443,7 @@ def _set_headers_and_response(response, headers):
             set_body_response(response)
 
 
-def _call_waf(integration):
+def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     call_waf_callback()
     return get_headers().get("Accept", "").lower()
@@ -461,12 +461,12 @@ def _get_headers_if_appsec():
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
+    core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf)
-    core.on("django.start_response", _call_waf)
+    core.on("django.start_response.post", _call_waf)
     core.on("django.finalize_response", _call_waf)
     core.on("django.after_request_headers", _get_headers_if_appsec)
     core.on("django.extract_body", _get_headers_if_appsec)
-    core.on("django.after_request_headers.post", _set_headers_and_response)
+    core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)

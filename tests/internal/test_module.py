@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import sys
 from warnings import warn
 
@@ -104,9 +105,10 @@ def test_register_hook_without_install():
         ModuleWatchdog.register_module_hook(__name__, mock.Mock())
 
 
-@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
+@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
+    from pathlib import Path
     import sys
 
     from mock import mock
@@ -114,13 +116,13 @@ def test_import_origin_hook_for_module_not_yet_imported():
     from ddtrace.internal.module import ModuleWatchdog
 
     name = "tests.test_module"
-    path = os.getenv("MODULE_ORIGIN")
+    path = Path(os.getenv("MODULE_ORIGIN"))
     hook = mock.Mock()
 
     ModuleWatchdog.register_origin_hook(path, hook)
 
     hook.assert_not_called()
-    assert path in ModuleWatchdog._instance._hook_map
+    assert str(path) in ModuleWatchdog._instance._hook_map
     assert name not in sys.modules
 
     # Check that we are not triggering hooks on the wrong module
@@ -171,10 +173,11 @@ def test_import_module_hook_for_module_not_yet_imported():
     ModuleWatchdog.uninstall()
 
 
-@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(json)))
+@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(json))))
 def test_module_deleted():
     import gc
     import os
+    from pathlib import Path
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
@@ -184,7 +187,7 @@ def test_module_deleted():
         gc.collect()
 
     name = "json"
-    path = os.getenv("MODULE_ORIGIN")
+    path = Path(os.getenv("MODULE_ORIGIN")).resolve()
 
     class Counter(object):
         count = 0
@@ -201,12 +204,12 @@ def test_module_deleted():
 
     assert hook.count == 2, hook.count
 
-    assert path in ModuleWatchdog._instance._origin_map
+    assert str(path) in ModuleWatchdog._instance._origin_map
 
     del sys.modules[name]
     gc.collect()
 
-    assert path not in ModuleWatchdog._instance._origin_map
+    assert str(path) not in ModuleWatchdog._instance._origin_map
 
     # We are not deleting the registered hooks, so if we re-import the module
     # new hook calls are triggered
@@ -218,29 +221,27 @@ def test_module_deleted():
 
 
 def test_module_unregister_origin_hook(module_watchdog):
-
     hook = mock.Mock()
     path = origin(sys.modules[__name__])
 
     module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[path] == [hook]
+    assert module_watchdog._instance._hook_map[str(path)] == [hook]
 
     module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[path] == [hook, hook]
+    assert module_watchdog._instance._hook_map[str(path)] == [hook, hook]
 
     module_watchdog.unregister_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[path] == [hook]
+    assert module_watchdog._instance._hook_map[str(path)] == [hook]
 
     module_watchdog.unregister_origin_hook(path, hook)
 
-    assert module_watchdog._instance._hook_map[path] == []
+    assert module_watchdog._instance._hook_map[str(path)] == []
 
     with pytest.raises(ValueError):
         module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
-
     hook = mock.Mock()
     module = __name__
     module_watchdog.register_module_hook(module, hook)
@@ -326,7 +327,7 @@ def test_post_run_module_hook():
 
 
 def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(__file__.replace(".pyc", ".py")) is sys.modules[__name__]
+    assert module_watchdog.get_by_origin(Path(__file__.replace(".pyc", ".py"))) is sys.modules[__name__]
 
 
 @pytest.mark.subprocess

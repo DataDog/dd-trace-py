@@ -2,7 +2,6 @@ from contextlib import contextmanager
 import random
 
 import pylibmc
-from wrapt import ObjectProxy
 
 # project
 import ddtrace
@@ -21,6 +20,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.vendor.wrapt import ObjectProxy
 
 
 # Original Client class
@@ -114,7 +114,6 @@ class TracedClient(ObjectProxy):
         """
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
-
             if span and args:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
@@ -135,7 +134,6 @@ class TracedClient(ObjectProxy):
         """trace the execution of the multi command with the given name."""
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
-
             pre = kwargs.get("key_prefix")
             if span and pre:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))

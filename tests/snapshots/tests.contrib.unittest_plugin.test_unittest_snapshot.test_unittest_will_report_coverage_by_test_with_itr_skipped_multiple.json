@@ -14,11 +14,11 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+      "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "17afd0e2cf134100817860354b6e202c",
+      "runtime-id": "8e985fd986f546aaa23abafdce252024",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -33,18 +33,18 @@
       "test.itr.unskippable": "false",
       "test.status": "skip",
       "test.type": "test",
-      "test_session_id": "7758374178207492613",
+      "test_session_id": "6101151933890398829",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 35212,
+      "process_id": 1323,
       "test.itr.tests_skipping.count": 2
     },
-    "duration": 890584,
-    "start": 1698323866623111137
+    "duration": 6772625,
+    "start": 1699372370651075710
   },
      {
        "name": "unittest.test_module",
@@ -59,7 +59,7 @@
          "_dd.ci.itr.tests_skipped": "true",
          "_dd.origin": "ciapp-test",
          "component": "unittest",
-         "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+         "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "5.15.49-linuxkit-pr",
@@ -79,15 +79,15 @@
          "test.module_path": "test_my_coverage.py",
          "test.status": "skip",
          "test.type": "test",
-         "test_module_id": "5147830649997343024",
-         "test_session_id": "7758374178207492613",
+         "test_module_id": "444761110052918722",
+         "test_session_id": "6101151933890398829",
          "type": "test_module_end"
        },
        "metrics": {
          "test.itr.tests_skipping.count": 2
        },
-       "duration": 418625,
-       "start": 1698323866623513679
+       "duration": 6228500,
+       "start": 1699372370651518668
      },
         {
           "name": "unittest.test_suite",
@@ -101,7 +101,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "component": "unittest",
-            "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+            "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "5.15.49-linuxkit-pr",
@@ -116,13 +116,13 @@
             "test.status": "skip",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "5147830649997343024",
-            "test_session_id": "7758374178207492613",
-            "test_suite_id": "17180088000986049944",
+            "test_module_id": "444761110052918722",
+            "test_session_id": "6101151933890398829",
+            "test_suite_id": "12282735770749794442",
             "type": "test_suite_end"
           },
-          "duration": 329667,
-          "start": 1698323866623593762
+          "duration": 6090542,
+          "start": 1699372370651644543
         },
            {
              "name": "unittest.test",
@@ -136,7 +136,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -152,16 +152,21 @@
                "test.name": "test_cov",
                "test.skip_reason": "Skipped by Datadog Intelligent Test Runner",
                "test.skipped_by_itr": "true",
+               "test.source.file": "test_my_coverage.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "5147830649997343024",
-               "test_session_id": "7758374178207492613",
-               "test_suite_id": "17180088000986049944",
+               "test_module_id": "444761110052918722",
+               "test_session_id": "6101151933890398829",
+               "test_suite_id": "12282735770749794442",
                "type": "test"
              },
-             "duration": 126291,
-             "start": 1698323866623623721
+             "metrics": {
+               "test.source.end": 17,
+               "test.source.start": 14
+             },
+             "duration": 5591333,
+             "start": 1699372370651704710
            },
            {
              "name": "unittest.test",
@@ -175,7 +180,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev35+g9d8b27571.d20231024",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -191,14 +196,19 @@
                "test.name": "test_second",
                "test.skip_reason": "Skipped by Datadog Intelligent Test Runner",
                "test.skipped_by_itr": "true",
+               "test.source.file": "test_my_coverage.py",
                "test.status": "skip",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "5147830649997343024",
-               "test_session_id": "7758374178207492613",
-               "test_suite_id": "17180088000986049944",
+               "test_module_id": "444761110052918722",
+               "test_session_id": "6101151933890398829",
+               "test_suite_id": "12282735770749794442",
                "type": "test"
              },
-             "duration": 107375,
-             "start": 1698323866623804429
+             "metrics": {
+               "test.source.end": 20,
+               "test.source.start": 17
+             },
+             "duration": 335375,
+             "start": 1699372370657382835
            }]]

@@ -32,10 +32,12 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -300,6 +302,12 @@ def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     )
 
 
+def _extract_test_method_object(test_object):
+    if hasattr(test_object, "_testMethodName"):
+        return getattr(test_object, test_object._testMethodName, None)
+    return None
+
+
 def _is_invoked_by_text_test_runner() -> bool:
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
 
@@ -393,6 +401,7 @@ def patch():
     """
     if getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
         return
+    _initialize_unittest_data()
 
     unittest._datadog_patch = True
 
@@ -503,7 +512,6 @@ def _mark_test_as_unskippable(obj):
     test_suite_name = str(obj).split(".")[0].split()[1]
     test_module_path = os.path.relpath(obj.__code__.co_filename)
     test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
-    _initialize_unittest_data()
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
@@ -556,30 +564,25 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                     and _CIVisibility._instance._should_skip_path(test_module_suite_path_without_extension, test_name)
                     and not _is_skipped_test(instance)
                 ):
-                    global _global_skipped_elements
-                    _global_skipped_elements += 1
-
-                    test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
-                    test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
-                    test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-
                     if _is_marked_as_unskippable(instance):
                         span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_module_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                         test_session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
                     else:
+                        global _global_skipped_elements
+                        _global_skipped_elements += 1
+
+                        test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
+                        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
+                        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+
                         instance._dd_itr_skip = True
                         span.set_tag_str(test.ITR_SKIPPED, "true")
                         span.set_tag_str(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
 
-            if _is_test_coverage_enabled(instance):
-                if not hasattr(unittest, "_coverage"):
-                    unittest._coverage = _start_coverage(root_directory)
-                unittest._coverage._collector.data.clear()
-                unittest._coverage.switch_context(fqn_test)
             if _is_skipped_by_itr(instance):
                 result = args[0]
                 result.startTest(test=instance)
@@ -589,6 +592,10 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 )
                 result.stopTest(test=instance)
             else:
+                if not hasattr(unittest, "_coverage"):
+                    unittest._coverage = _start_coverage(root_directory)
+                unittest._coverage._collector.data.clear()
+                unittest._coverage.switch_context(fqn_test)
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):
@@ -783,6 +790,8 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
     span.set_tag_str(test.CLASS_HIERARCHY, test_suite_name)
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
+
+    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
 
     _store_test_span(instance, span)
     return span

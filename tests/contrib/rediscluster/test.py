@@ -61,7 +61,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"GET cheese"
+        assert span.get_tag("redis.raw_command") == "GET cheese"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
@@ -69,7 +69,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.resource == "GET cheese"
 
     def test_unicode(self):
-        us = self.r.get(u"😐")
+        us = self.r.get("😐")
         assert us is None
         spans = self.get_spans()
         assert len(spans) == 1
@@ -79,17 +79,17 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"GET 😐"
+        assert span.get_tag("redis.raw_command") == "GET 😐"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == u"GET 😐"
+        assert span.resource == "GET 😐"
 
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)
-            p.rpush("foo", u"éé")
+            p.rpush("foo", "éé")
             p.hgetall("xxx")
             p.execute()
 
@@ -99,10 +99,10 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert_is_measured(span)
         assert span.service == "rediscluster"
         assert span.name == "redis.command"
-        assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.resource == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3

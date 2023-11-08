@@ -1,9 +1,11 @@
 import os
+from typing import Dict
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 
 
@@ -25,6 +27,8 @@ METRICS_REPORT_LVLS = (
     (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
     (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
 )
+
+_IAST_SPAN_METRICS: Dict[str, int] = {}
 
 
 def get_iast_metrics_report_lvl(*args, **kwargs):
@@ -56,7 +60,7 @@ def _set_iast_error_metric(msg, stack_trace):
         tags = {
             "lib_language": "python",
         }
-        telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
+        telemetry.telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
 
@@ -65,19 +69,19 @@ def _set_iast_error_metric(msg, stack_trace):
 def _set_metric_iast_instrumented_source(source_type):
     from ._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
-    telemetry_writer.add_count_metric(
+    telemetry.telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.source", 1, (("source_type", origin_to_str(source_type)),)
     )
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 def _set_metric_iast_instrumented_propagation():
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.propagation", 1)
+    telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.propagation", 1)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 def _set_metric_iast_instrumented_sink(vulnerability_type, counter=1):
-    telemetry_writer.add_count_metric(
+    telemetry.telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.sink", counter, (("vulnerability_type", vulnerability_type),)
     )
 
@@ -86,22 +90,61 @@ def _set_metric_iast_instrumented_sink(vulnerability_type, counter=1):
 def _set_metric_iast_executed_source(source_type):
     from ._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 
-    telemetry_writer.add_count_metric(
+    telemetry.telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_IAST, "executed.source", 1, (("source_type", origin_to_str(source_type)),)
     )
 
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_executed_sink(vulnerability_type):
-    telemetry_writer.add_count_metric(
+    telemetry.telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE_TAG_IAST, "executed.sink", 1, (("vulnerability_type", vulnerability_type),)
     )
 
 
-@metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
-def _set_metric_iast_request_tainted():
+def _request_tainted():
     from ._taint_tracking import num_objects_tainted
 
-    total_objects_tainted = num_objects_tainted()
+    return num_objects_tainted()
+
+
+@metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
+def _set_metric_iast_request_tainted():
+    total_objects_tainted = _request_tainted()
     if total_objects_tainted > 0:
-        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted)
+        telemetry.telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted
+        )
+
+
+def _set_span_tag_iast_request_tainted(span):
+    total_objects_tainted = _request_tainted()
+
+    if total_objects_tainted > 0:
+        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
+
+
+def _set_span_tag_iast_executed_sink(span):
+    data = get_iast_span_metrics()
+
+    if data is not None:
+        for key, value in data.items():
+            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK):
+                span.set_tag(key, value)
+
+    reset_iast_span_metrics()
+
+
+def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
+    data = get_iast_span_metrics()
+    full_key = prefix + "." + metric_key.lower()
+    result = data.get(full_key, 0)
+    data[full_key] = result + counter
+
+
+def get_iast_span_metrics() -> Dict:
+    return _IAST_SPAN_METRICS
+
+
+def reset_iast_span_metrics() -> None:
+    _IAST_SPAN_METRICS.clear()

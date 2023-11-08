@@ -124,7 +124,6 @@ if _USE_STACK_CONTEXT:
                         stack_ctx._context = ctx
             return ctx
 
-
 else:
     # no-op when not using stack_context
     class TracerStackContext(DefaultContextProvider):
