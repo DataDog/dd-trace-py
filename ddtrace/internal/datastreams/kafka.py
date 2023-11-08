@@ -99,7 +99,9 @@ def dsm_kafka_message_consume(instance, message, span):
     payload_size += _calculate_byte_size(headers)
 
     ctx = processor().decode_pathway(headers.get(PROPAGATION_KEY, None))
-    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span)
+    ctx.set_checkpoint(
+        ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+    )
 
     if instance._auto_commit:
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
