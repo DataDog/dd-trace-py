@@ -15,8 +15,6 @@ try:
 # catch async function syntax errors when using Python<3.7 with no async support
 except SyntaxError:
     pass
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
@@ -24,6 +22,7 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name

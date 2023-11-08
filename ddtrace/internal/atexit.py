@@ -7,6 +7,7 @@ from __future__ import absolute_import
 import atexit
 import logging
 import signal
+import threading
 import typing
 
 from ddtrace.internal.utils import signals
@@ -66,5 +67,13 @@ def register_on_exit_signal(f):
     def handle_exit(sig, frame):
         f()
 
-    signals.handle_signal(signal.SIGTERM, handle_exit)
-    signals.handle_signal(signal.SIGINT, handle_exit)
+    if threading.current_thread() is threading.main_thread():
+        try:
+            signals.handle_signal(signal.SIGTERM, handle_exit)
+            signals.handle_signal(signal.SIGINT, handle_exit)
+        except Exception:
+            # We catch a general exception here because we don't know
+            # what might go wrong, but we don't want to stop
+            # normal program execution based upon failing to register
+            # a signal handler.
+            log.debug("Encountered an exception while registering a signal", exc_info=True)
