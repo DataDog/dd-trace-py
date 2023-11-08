@@ -32,8 +32,10 @@ from ddtrace.internal.ci_visibility.coverage import (
     _start_coverage,
     _switch_coverage_context,
 )
-from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span, \
-    _generate_fully_qualified_test_name
+from ddtrace.internal.ci_visibility.utils import (
+    _add_start_end_source_file_path_data_to_span,
+    _generate_fully_qualified_test_name,
+)
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
