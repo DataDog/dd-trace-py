@@ -106,7 +106,7 @@ def _is_skipped_test(test_object) -> bool:
     return (
         (hasattr(test_object.__class__, "__unittest_skip__") and test_object.__class__.__unittest_skip__)
         or (hasattr(testMethod, "__unittest_skip__") and testMethod.__unittest_skip__)
-        or (hasattr(test_object, "_dd_itr_skip") and test_object._dd_itr_skip)
+        or _is_skipped_by_itr(test_object)
     )
 
 
