@@ -49,7 +49,9 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span)
+    pathway = processor().set_checkpoint(
+        ["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+    )
     encoded_pathway = pathway.encode()
     headers[PROPAGATION_KEY] = encoded_pathway
     kwargs["headers"] = headers

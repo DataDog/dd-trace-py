@@ -416,7 +416,13 @@ class DataStreamsCtx:
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
-        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0, span=None
+        self,
+        tags,
+        now_sec=None,
+        edge_start_sec_override=None,
+        pathway_start_sec_override=None,
+        payload_size=0,
+        span=None,
     ):
         """
         type: (List[str], float, float, float) -> None
@@ -457,7 +463,7 @@ class DataStreamsCtx:
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
         if span:
-            span.set_tag_str('pathway.hash', str(hash_value))
+            span.set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = now_sec - self.current_edge_start_sec
         pathway_latency_sec = now_sec - self.pathway_start_sec
         self.hash = hash_value
