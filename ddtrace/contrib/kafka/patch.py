@@ -23,15 +23,9 @@ from ddtrace.pin import Pin
 
 _Producer = confluent_kafka.Producer
 _Consumer = confluent_kafka.Consumer
-_SerializingProducer = (
-    confluent_kafka.SerializingProducer
-    if hasattr(confluent_kafka, "SerializingProducer")
-    else None
-)
+_SerializingProducer = confluent_kafka.SerializingProducer if hasattr(confluent_kafka, "SerializingProducer") else None
 _DeserializingConsumer = (
-    confluent_kafka.DeserializingConsumer
-    if hasattr(confluent_kafka, "DeserializingConsumer")
-    else None
+    confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
 )
 
 
@@ -80,15 +74,11 @@ class TracedProducer(TracedProducerMixin, confluent_kafka.Producer):
     pass
 
 
-class TracedDeserializingConsumer(
-    TracedConsumerMixin, confluent_kafka.DeserializingConsumer
-):
+class TracedDeserializingConsumer(TracedConsumerMixin, confluent_kafka.DeserializingConsumer):
     pass
 
 
-class TracedSerializingProducer(
-    TracedProducerMixin, confluent_kafka.SerializingProducer
-):
+class TracedSerializingProducer(TracedProducerMixin, confluent_kafka.SerializingProducer):
     pass
 
 
@@ -155,9 +145,7 @@ def traced_produce(func, instance, args, kwargs):
     )
 
     with pin.tracer.trace(
-        schematize_messaging_operation(
-            kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND
-        ),
+        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
@@ -183,9 +171,7 @@ def traced_poll(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        schematize_messaging_operation(
-            kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING
-        ),
+        schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
@@ -202,9 +188,7 @@ def traced_poll(func, instance, args, kwargs):
             message_key = message.key() or ""
             message_offset = message.offset() or -1
             span.set_tag_str(kafkax.TOPIC, message.topic())
-            span.set_tag_str(
-                kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace")
-            )
+            span.set_tag_str(kafkax.MESSAGE_KEY, ensure_text(message_key, errors="replace"))
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
