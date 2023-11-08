@@ -23,7 +23,7 @@ try:
     from .ddwaf_types import ddwaf_run
     from .ddwaf_types import py_ddwaf_context_init
     from .ddwaf_types import py_ddwaf_init
-    from .ddwaf_types import py_ddwaf_required_addresses
+    from .ddwaf_types import py_ddwaf_known_addresses
     from .ddwaf_types import py_ddwaf_update
 
     _DDWAF_LOADED = True
@@ -102,7 +102,7 @@ if _DDWAF_LOADED:
 
         @property
         def required_data(self) -> List[str]:
-            return py_ddwaf_required_addresses(self._handle) if self._handle else []
+            return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
         def _set_info(self, diagnostics: ddwaf_object) -> None:
             info_struct = diagnostics.struct
@@ -156,7 +156,7 @@ if _DDWAF_LOADED:
             result = ddwaf_result()
             observator = _observator()
             wrapper = ddwaf_object(data, observator=observator)
-            error = ddwaf_run(ctx.ctx, wrapper, ctypes.byref(result), int(timeout_ms * 1000))
+            error = ddwaf_run(ctx.ctx, wrapper, None, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
@@ -171,7 +171,6 @@ if _DDWAF_LOADED:
 
     def version() -> str:
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
