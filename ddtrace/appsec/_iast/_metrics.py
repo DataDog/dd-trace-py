@@ -1,4 +1,6 @@
 import os
+import sys
+import traceback
 from typing import Dict
 
 from ddtrace.appsec._constants import IAST
@@ -54,9 +56,20 @@ def metric_verbosity(lvl):
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
-def _set_iast_error_metric(msg, stack_trace):
-    # type: (str, str) -> None
+def _set_iast_error_metric(msg):
+    # type: (str) -> None
+    # Due to format_exc and format_exception returns the error and the last frame
     try:
+        exception_type, exception_instance, _traceback_list = sys.exc_info()
+        res = []
+        # first 3 frames are this function, the exception in aspects and the error line
+        res.extend(traceback.format_stack(limit=10)[:-3])
+
+        # get the frame with the error and the error message
+        result = traceback.format_exception(exception_type, exception_instance, _traceback_list)
+        res.extend(result[1:])
+
+        stack_trace = "".join(res)
         tags = {
             "lib_language": "python",
         }
