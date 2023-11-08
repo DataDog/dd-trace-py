@@ -7,6 +7,9 @@ option(BUILD_MACOS "Build for MacOS" OFF)
 project(${APP_NAME})
 
 set(CMAKE_CXX_STANDARD 17)
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version")
+endif()
 
 # -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11
 # https://github.com/pybind/pybind11/issues/1650

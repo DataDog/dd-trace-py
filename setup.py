@@ -367,7 +367,7 @@ class CMakeBuild(build_ext):
         if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures
-            # This is currently specific to IAST and requires cmakefile support, but it may be
+            # This is currently specific to IAST and requires cmakefile support
             archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
             if archs:
                 cmake_args += [
