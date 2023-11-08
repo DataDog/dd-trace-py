@@ -81,7 +81,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         kwargs[on_delivery_kwarg] = wrapped_callback
 
 
-def dsm_kafka_message_consume(instance, message):
+def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1] for header in (message.headers() or [])}
@@ -99,7 +99,7 @@ def dsm_kafka_message_consume(instance, message):
     payload_size += _calculate_byte_size(headers)
 
     ctx = processor().decode_pathway(headers.get(PROPAGATION_KEY, None))
-    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size)
+    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span)
 
     if instance._auto_commit:
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
