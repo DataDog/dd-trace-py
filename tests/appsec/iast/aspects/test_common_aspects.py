@@ -61,7 +61,6 @@ shutil.copy2(SOURCE_FILE, DESTINATION_FILE)
 from tests.appsec.iast.fixtures.aspects import unpatched_callers  # noqa: E402
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("aspect", [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))])
 @pytest.mark.parametrize("args", [(), ("a"), ("a", "b")])
 @pytest.mark.parametrize("kwargs", [{}, {"dry_run": False}, {"dry_run": True}])
