@@ -691,15 +691,15 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
-    assert "pathway.hash" in produce_span.meta
+    assert produce_span.get_tag("pathway.hash") is not None
 
     # None of the kafka.consume spans have parents
     assert consume_span1.name == "kafka.consume"
     assert consume_span1.parent_id is None
     assert consume_span2.name == "kafka.consume"
     assert consume_span2.parent_id is None
-    assert "pathway.hash" in consume_span1.meta
-    assert "pathway.hash" in consume_span2.meta
+    assert consume_span1.get_tag("pathway.hash") is not None
+    assert consume_span2.get_tag("pathway.hash") is not None
 
     # None of these spans are part of the same trace
     assert produce_span.trace_id != consume_span1.trace_id
