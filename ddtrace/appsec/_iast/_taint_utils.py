@@ -187,6 +187,17 @@ class LazyTaintList:
     def sort(self, *args):
         return self._obj.sort(*args)
 
+    # psycopg2 support
+    def __conform__(self, proto):
+        return self
+
+    def getquoted(self) -> bytes:
+        import psycopg2.extensions as ext
+
+        value = ext.adapt(self._obj).getquoted()
+        value = self._taint(value)
+        return value
+
 
 class LazyTaintDict:
     def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):

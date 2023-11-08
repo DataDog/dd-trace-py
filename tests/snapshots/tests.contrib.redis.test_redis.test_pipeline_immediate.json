@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET a 1",
+    "resource": "SET",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -35,7 +35,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET a 1",
+    "resource": "SET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
