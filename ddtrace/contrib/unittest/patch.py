@@ -259,6 +259,15 @@ def _generate_session_resource(test_command: str) -> str:
     return "{}".format(test_command)
 
 
+def _set_test_skipping_tags_to_span(span: ddtrace.Span):
+    span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
+    span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
+    span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
+    span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
+    span.set_tag_str(test.ITR_FORCED_RUN, "false")
+    span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
+
+
 def _set_identifier(item, name: str):
     """
     Adds an event type classification to a `unittest` test.
@@ -648,12 +657,7 @@ def _start_test_session_span(instance) -> ddtrace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
     if _CIVisibility.test_skipping_enabled():
-        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
-        test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
-        test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
-        test_session_span.set_tag_str(test.ITR_FORCED_RUN, "false")
-        test_session_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
+        _set_test_skipping_tags_to_span(span)
     else:
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_module_identifier(instance)
@@ -695,12 +699,6 @@ def _start_test_module_span(instance) -> ddtrace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
     if _CIVisibility.test_skipping_enabled():
-        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
-        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TYPE, TEST)
-        test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "false")
-        test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "false")
-        test_module_span.set_tag_str(test.ITR_FORCED_RUN, "false")
-        test_module_span.set_tag_str(test.ITR_UNSKIPPABLE, "false")
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
     else:
         test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
