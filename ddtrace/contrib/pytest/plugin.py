@@ -84,19 +84,6 @@ def _store_span(item, span):
     item._datadog_span = span
 
 
-def _detach_coverage(item, span):
-    if not hasattr(item, "_coverage"):
-        log.warning("No coverage object found for item")
-        return
-    span_id = str(span.trace_id)
-    item._coverage.stop()
-    if not item._coverage._collector or len(item._coverage._collector.data) == 0:
-        log.warning("No coverage collector or data found for item")
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, item.config.rootdir, test_id=span_id))
-    item._coverage.erase()
-    del item._coverage
-
-
 def _extract_module_span(item):
     """Extract span from `pytest.Item` instance."""
     return getattr(item, "_datadog_span_module", None)
