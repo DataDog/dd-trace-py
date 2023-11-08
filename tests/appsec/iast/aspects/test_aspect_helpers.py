@@ -105,8 +105,7 @@ def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: 
     s = "abcdefgh"
     ranges = _build_sample_range(0, 5, "2")
     set_ranges(s, (ranges,))
-    ranges_hash = hash(ranges)
-    assert as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<{0}>abcde<{0}>-+:fgh".format(
-        ranges_hash
+    assert (
+        as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<1750328947>abcde<1750328947>-+:fgh"
     )
-    assert _convert_escaped_text_to_tainted_text(":+-<{0}>abcde<{0}>-+:fgh".format(ranges_hash), [ranges]) == "abcdefgh"
+    assert _convert_escaped_text_to_tainted_text(":+-<1750328947>abcde<1750328947>-+:fgh", [ranges]) == "abcdefgh"
