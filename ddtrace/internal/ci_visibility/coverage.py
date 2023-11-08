@@ -1,11 +1,12 @@
+from itertools import groupby
 import json
 import os
-from itertools import groupby
 from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.logger import get_logger
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict

@@ -1,7 +1,7 @@
 import inspect
 import os
-import unittest
 from typing import Union
+import unittest
 
 import ddtrace
 from ddtrace import config
@@ -27,20 +27,17 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import (
-    _report_coverage_to_span,
-    _start_coverage,
-    _switch_coverage_context,
-)
-from ddtrace.internal.ci_visibility.utils import (
-    _add_start_end_source_file_path_data_to_span,
-    _generate_fully_qualified_test_name,
-)
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _start_coverage
+from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 _global_skipped_elements = 0

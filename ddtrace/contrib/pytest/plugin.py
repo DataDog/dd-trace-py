@@ -11,14 +11,14 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+from doctest import DocTest
 import json
 import os
 import re
-from doctest import DocTest
 from typing import Dict
 
-import pytest
 from _pytest.nodes import get_fslocation_from_item
+import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -44,15 +44,16 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span, _start_coverage, _switch_coverage_context
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _start_coverage
+from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import (
-    _add_start_end_source_file_path_data_to_span,
-    _generate_fully_qualified_module_name,
-    _generate_fully_qualified_test_name,
-)
+from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
