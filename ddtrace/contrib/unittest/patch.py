@@ -132,14 +132,15 @@ def _is_marked_as_unskippable(test_object) -> bool:
         and test_module_suite_name in _CIVisibility._unittest_data["unskippable_tests"]
     )
 
+
 def _update_skipped_elements_and_set_tags(test_module_span: ddtrace.Span, test_session_span: ddtrace.Span):
     global _global_skipped_elements
     _global_skipped_elements += 1
-    
+
     test_module_span._metrics[test.ITR_TEST_SKIPPING_COUNT] += 1
     test_module_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
     test_module_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-    
+
     test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
     test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
