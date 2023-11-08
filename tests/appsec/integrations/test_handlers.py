@@ -100,7 +100,6 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, se
         assert response.content == b"OK_test-body-hang"
 
 
-@pytest.mark.skip(reason="We're still finding a solution to this corner case. It hangs in CI")
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server,)))
