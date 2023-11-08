@@ -1,10 +1,11 @@
-from itertools import groupby
 import json
 import os
+from itertools import groupby
 from typing import TYPE_CHECKING
 
+import ddtrace
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.logger import get_logger
-
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
@@ -42,6 +43,26 @@ def _initialize_coverage(root_dir):
     }
     return Coverage(**coverage_kwargs)
 
+
+def _start_coverage(root_dir: str):
+    coverage = _initialize_coverage(root_dir)
+    coverage.start()
+    return coverage
+
+def _switch_coverage_context(coverage: Coverage, unique_test_name: str):
+    coverage._collector.data.clear()
+    coverage.switch_context(unique_test_name)
+
+def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
+    span_id = str(span.trace_id)
+    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+        return
+    span.set_tag_str(
+        COVERAGE_TAG_NAME,
+        build_payload(coverage_data, root_dir, span_id),
+    )
+    coverage_data._collector.data.clear()
 
 def segments(lines):
     # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]

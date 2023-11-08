@@ -1,7 +1,7 @@
 import inspect
 import os
-from typing import Union
 import unittest
+from typing import Union
 
 import ddtrace
 from ddtrace import config
@@ -17,7 +17,6 @@ from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
@@ -28,15 +27,17 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
-from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.coverage import (
+    _report_coverage_to_span,
+    _start_coverage,
+    _switch_coverage_context,
+)
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
-
 
 log = get_logger(__name__)
 _global_skipped_elements = 0
@@ -78,24 +79,6 @@ def _initialize_unittest_data():
 def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
-
-
-def _start_coverage(root_dir: str):
-    coverage = _initialize_coverage(root_dir)
-    coverage.start()
-    return coverage
-
-
-def _report_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
-    span_id = str(span.trace_id)
-    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
-        log.warning("No coverage collector or data found for item")
-        return
-    span.set_tag_str(
-        COVERAGE_TAG_NAME,
-        build_coverage_payload(coverage_data, root_dir, span_id),
-    )
-
 
 def _is_test_coverage_enabled(test_object) -> bool:
     return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
@@ -592,13 +575,11 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             else:
                 if not hasattr(unittest, "_coverage"):
                     unittest._coverage = _start_coverage(root_directory)
-                unittest._coverage._collector.data.clear()
-                unittest._coverage.switch_context(fqn_test)
+                _switch_coverage_context(unittest._coverage, fqn_test)
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):
-                _report_coverage(unittest._coverage, span, root_directory)
-                unittest._coverage._collector.data.clear()
+                _report_coverage_to_span(unittest._coverage, span, root_directory)
 
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
