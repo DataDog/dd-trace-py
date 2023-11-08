@@ -56,7 +56,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_tag("component") == "redis"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == "GET cheese"
+        assert span.resource == "GET"
 
     def test_unicode(self):
         us = self.r.get("😐")
@@ -73,7 +73,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_tag("component") == "redis"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == "GET 😐"
+        assert span.resource == "GET"
 
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
@@ -88,7 +88,7 @@ class TestRedisClusterPatch(TracerTestCase):
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
-        assert span.resource == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.resource == "SET\nRPUSH\nHGETALL"
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"

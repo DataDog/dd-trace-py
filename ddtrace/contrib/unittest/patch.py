@@ -17,6 +17,7 @@ from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
@@ -323,6 +324,10 @@ def _is_invoked_by_text_test_runner() -> bool:
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
 
 
+def _generate_module_suite_test_path(test_module_path: str, test_suite_name: str, test_name: str) -> str:
+    return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
+
+
 def _generate_module_suite_path(test_module_path: str, test_suite_name: str) -> str:
     return "{}.{}".format(test_module_path, test_suite_name)
 
@@ -554,6 +559,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
+
             if _CIVisibility.test_skipping_enabled():
                 if _is_marked_as_unskippable(instance):
                     span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
