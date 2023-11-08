@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET \\x80foo \\x80abc",
+    "resource": "SET",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -36,7 +36,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "GET \\x80foo",
+    "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,

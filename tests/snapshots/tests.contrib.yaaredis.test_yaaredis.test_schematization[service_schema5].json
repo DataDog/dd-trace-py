@@ -37,7 +37,7 @@
   {
     "name": "redis.command",
     "service": "mysvc",
-    "resource": "GET cheese",
+    "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,

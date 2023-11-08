@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
+    "resource": "SET\nSET\nGET\nGET",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

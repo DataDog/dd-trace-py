@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "GET \ud83d\ude10",
+    "resource": "GET",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

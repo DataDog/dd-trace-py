@@ -2,7 +2,7 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
+    "resource": "SET\nRPUSH\nHGETALL",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

@@ -33,7 +33,7 @@
   {
     "name": "redis.command",
     "service": "rediscluster",
-    "resource": "GET here...",
+    "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,

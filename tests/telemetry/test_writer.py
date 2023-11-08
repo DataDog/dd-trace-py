@@ -16,6 +16,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.utils import flaky
 
 
 def test_add_event(telemetry_writer, test_agent_session, mock_time):
@@ -379,6 +380,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
 
 
 @pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
+@flaky(1704067200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.start()
     telemetry_writer.stop()
@@ -393,6 +395,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
+@flaky(1704067200)
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
@@ -416,6 +419,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     assert len(heartbeat_events) == 1
 
 
+@flaky(1704067200)
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
