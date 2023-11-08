@@ -16,6 +16,7 @@ from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
