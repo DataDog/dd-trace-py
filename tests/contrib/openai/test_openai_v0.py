@@ -2163,7 +2163,8 @@ def test_est_tokens():
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_completion", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_completion",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
@@ -2180,7 +2181,8 @@ def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snaps
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_acompletion", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_acompletion",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_acompletion.yaml"):
@@ -2196,7 +2198,8 @@ async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     if not hasattr(azure_openai, "ChatCompletion"):
@@ -2215,7 +2218,8 @@ def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_chat_acompletion", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_chat_acompletion",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     if not hasattr(azure_openai, "ChatCompletion"):
@@ -2233,7 +2237,8 @@ async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, opena
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_embedding", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
@@ -2248,7 +2253,8 @@ def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapsh
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_aembedding", ignores=["meta.http.useragent"]
+    token="tests.contrib.openai.test_openai.test_azure_openai_aembedding",
+    ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_aembedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_aembedding.yaml"):

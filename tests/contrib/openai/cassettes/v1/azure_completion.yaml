@@ -15,7 +15,7 @@ interactions:
       content-type:
       - application/json
       host:
-      - yun-test-openai.openai.azure.com
+      - test-openai.openai.azure.com
       user-agent:
       - AzureOpenAI/Python 1.1.1
       x-stainless-arch:
@@ -31,7 +31,7 @@ interactions:
       x-stainless-runtime-version:
       - 3.10.5
     method: POST
-    uri: https://yun-test-openai.openai.azure.com//openai/deployments/test-openai/completions?api-version=2023-07-01-preview
+    uri: https://test-openai.openai.azure.com//openai/deployments/test-openai/completions?api-version=2023-07-01-preview
   response:
     content: '{"id":"cmpl-80yXLPWze5qul39qHFOlO1j7VViFv","object":"text_completion","created":1695243395,"model":"gpt-35-turbo","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}],"choices":[{"text":"\".
       The answer is that languages are not just a collection of words, but also a

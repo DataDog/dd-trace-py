@@ -277,7 +277,8 @@ def patch():
         wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
         wrap(openai.OpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AsyncOpenAI.__init__, _patched_client_init(openai, integration))
-        # TODO: Need to patch openai.Stream / openai.AsyncStream init() to add header info as tags...
+        wrap(openai.AzureOpenAI.__init__, _patched_client_init(openai, integration))
+        wrap(openai.AsyncAzureOpenAI.__init__, _patched_client_init(openai, integration))
 
         for resource, method_hook_dict in _RESOURCES.items():
             if deep_getattr(openai.resources, resource) is None:

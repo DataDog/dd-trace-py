@@ -1747,9 +1747,15 @@ def test_est_tokens():
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
-def test_azure_openai_completion(openai, azure_openai_client, openai_vcr, snapshot_tracer):
+def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
-        azure_openai_client.completions.create(
+        azure_client = openai.AzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        azure_client.completions.create(
             model="gpt-35-turbo",
             prompt="why do some languages have words that can't directly be translated to other languages?",
             temperature=0,
@@ -1771,9 +1777,15 @@ def test_azure_openai_completion(openai, azure_openai_client, openai_vcr, snapsh
         "metrics.openai.response.created",
     ],
 )
-async def test_azure_openai_acompletion(openai, azure_async_openai_client, openai_vcr, snapshot_tracer):
+async def test_azure_openai_acompletion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_completion.yaml"):
-        await azure_async_openai_client.completions.create(
+        azure_client = openai.AsyncAzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        await azure_client.completions.create(
             model="gpt-35-turbo",
             prompt="why do some languages have words that can't directly be translated to other languages?",
             temperature=0,
@@ -1787,9 +1799,15 @@ async def test_azure_openai_acompletion(openai, azure_async_openai_client, opena
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
-def test_azure_openai_chat_completion(openai, azure_openai_client, openai_vcr, snapshot_tracer):
+def test_azure_openai_chat_completion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_chat_completion.yaml"):
-        azure_openai_client.chat.completions.create(
+        azure_client = openai.AzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        azure_client.chat.completions.create(
             model="gpt-35-turbo",
             messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
             temperature=0,
@@ -1804,9 +1822,15 @@ def test_azure_openai_chat_completion(openai, azure_openai_client, openai_vcr, s
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
-async def test_azure_openai_chat_acompletion(openai, azure_async_openai_client, openai_vcr, snapshot_tracer):
+async def test_azure_openai_chat_acompletion(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_chat_completion.yaml"):
-        await azure_async_openai_client.chat.completions.create(
+        azure_client = openai.AsyncAzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        await azure_client.chat.completions.create(
             model="gpt-35-turbo",
             messages=[{"role": "user", "content": "What's the weather like in NYC right now?"}],
             temperature=0,
@@ -1820,9 +1844,15 @@ async def test_azure_openai_chat_acompletion(openai, azure_async_openai_client, 
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
-def test_azure_openai_embedding(openai, azure_openai_client, openai_vcr, snapshot_tracer):
+def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
-        azure_openai_client.embeddings.create(
+        azure_client = openai.AzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        azure_client.embeddings.create(
             model="text-embedding-ada-002",
             input="Hello world",
             user="ddtrace-test",
@@ -1834,9 +1864,15 @@ def test_azure_openai_embedding(openai, azure_openai_client, openai_vcr, snapsho
     token="tests.contrib.openai.test_openai.test_azure_openai_aembedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
-async def test_azure_openai_aembedding(openai, azure_async_openai_client, openai_vcr, snapshot_tracer):
+async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("azure_embedding.yaml"):
-        await azure_async_openai_client.embeddings.create(
+        azure_client = openai.AsyncAzureOpenAI(
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+            azure_deployment=azure_openai_config["azure_deployment"],
+            api_key=azure_openai_config["api_key"],
+        )
+        await azure_client.embeddings.create(
             model="text-embedding-ada-002",
             input="Hello world",
             user="ddtrace-test",

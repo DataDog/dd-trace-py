@@ -48,7 +48,7 @@ interactions:
       \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
       \"assistant\",\n        \"content\": null,\n        \"function_call\": {\n          \"name\":
       \"extract_student_info\",\n          \"arguments\": \"{\\n  \\\"name\\\": \\\"David
-      Nguyen\\\",\\n  \\\"major\\\": \\\"Computer Science\\\",\\n  \\\"school\\\":
+      Nguyen\\\",\\n  \\\"major\\\": \\\"computer science\\\",\\n  \\\"school\\\":
       \\\"Stanford University\\\",\\n  \\\"grades\\\": 3.8,\\n  \\\"clubs\\\": [\\\"Chess
       Club\\\", \\\"South Asian Student Association\\\"]\\n}\"\n        }\n      },\n
       \     \"finish_reason\": \"function_call\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":

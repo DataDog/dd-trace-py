@@ -77,25 +77,14 @@ def azure_openai(openai):
 
 
 @pytest.fixture
-def azure_openai_client(openai):
-    client = openai.AzureOpenAI(
-        api_version="2023-07-01-preview",
-        azure_endpoint="https://test-openai.openai.azure.com/",
-        azure_deployment="test-openai",
-        api_key="<not-a-real-key>",
-    )
-    yield client
-
-
-@pytest.fixture
-def azure_async_openai_client(openai):
-    client = openai.AsyncAzureOpenAI(
-        api_version="2023-07-01-preview",
-        azure_endpoint="https://test-openai.openai.azure.com/",
-        azure_deployment="test-openai",
-        api_key="<not-a-real-key>",
-    )
-    yield client
+def azure_openai_config(openai):
+    config = {
+        "api_version": "2023-07-01-preview",
+        "azure_endpoint": "https://test-openai.openai.azure.com/",
+        "azure_deployment": "test-openai",
+        "api_key": "<not-a-real-key>",
+    }
+    return config
 
 
 class FilterOrg(TraceFilter):

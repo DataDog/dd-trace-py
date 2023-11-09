@@ -286,7 +286,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if integration.is_pc_sampled_span(span) and message:
                 content = message.content or ""
                 span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
-                if hasattr(message, "function_call"):
+                if hasattr(message, "function_call") and message.function_call is not None:
                     tool_call = message.function_call
                     if hasattr(tool_call, "arguments") and hasattr(tool_call, "name"):
                         span.set_tag_str(
@@ -296,7 +296,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                         span.set_tag_str(
                             "openai.response.choices.%d.message.tool_calls.0.function" % idx, tool_call.name
                         )
-                if hasattr(message, "tool_calls"):
+                if hasattr(message, "tool_calls") and message.tool_calls is not None:
                     for idy, tool_call in enumerate(message.tool_calls):
                         function = tool_call.function
                         if hasattr(function, "arguments") and hasattr(function, "name"):
