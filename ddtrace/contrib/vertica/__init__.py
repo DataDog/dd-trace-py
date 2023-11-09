@@ -2,7 +2,7 @@
 The Vertica integration will trace queries made using the vertica-python
 library.
 
-Vertica will be automatically instrumented with ``patch_all``, or when using
+Vertica will be automatically instrumented with ``import ddtrace.auto``, or when using
 the ``ddtrace-run`` command.
 
 Vertica is instrumented on import. To instrument Vertica manually use the
