@@ -319,8 +319,8 @@ class CMakeBuild(build_ext):
         super().initialize_options()
         if not self.parallel:
             self.parallel = os.cpu_count()
-            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(self.parallel)
+        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+            os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(self.parallel)
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
