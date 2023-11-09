@@ -5,6 +5,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
+from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._utils import _is_python_version_supported
@@ -114,3 +115,12 @@ def test_metric_request_tainted(telemetry_writer):
     assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
+
+
+def test_log_metric(telemetry_writer):
+    _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+
+    list_metrics_logs = list(telemetry_writer._logs)
+    assert len(list_metrics_logs) == 1
+    assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+    assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
