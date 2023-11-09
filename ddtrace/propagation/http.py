@@ -235,9 +235,6 @@ class _DatadogMultiHeader:
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
-        # after this tag is injected, we no longer need it
-        if span_context._meta.get(_HIGHER_ORDER_TRACE_ID_BITS):
-            del span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS]
 
         if tags_to_encode:
             try:
