@@ -20,11 +20,11 @@ def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     assert "Hello" in json.loads(output[0])["text"]
-    assert json.loads(output[0])["dd.trace_id"] == str(dd_trace_id)
-    assert json.loads(output[0])["dd.span_id"] == str(dd_span_id)
-    assert json.loads(output[0])["dd.env"] == env or ""
-    assert json.loads(output[0])["dd.service"] == service or ""
-    assert json.loads(output[0])["dd.version"] == version or ""
+    assert json.loads(output[0])["record"]["extra"]["dd.trace_id"] == str(dd_trace_id)
+    assert json.loads(output[0])["record"]["extra"]["dd.span_id"] == str(dd_span_id)
+    assert json.loads(output[0])["record"]["extra"]["dd.env"] == env or ""
+    assert json.loads(output[0])["record"]["extra"]["dd.service"] == service or ""
+    assert json.loads(output[0])["record"]["extra"]["dd.version"] == version or ""
 
     output.clear()
 
@@ -96,11 +96,11 @@ def test_log_trace():
     span.finish()
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span.trace_id)
-    assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
-    assert json.loads(captured_logs[0])["dd.env"] == "global.env"
-    assert json.loads(captured_logs[0])["dd.service"] == "logging"
-    assert json.loads(captured_logs[0])["dd.version"] == "global.version"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "global.env"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "logging"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.version"] == "global.version"
 
     captured_logs.clear()
     unpatch()
@@ -140,11 +140,11 @@ def test_log_trace_128bit_trace_ids():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span.trace_id)
-    assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
-    assert json.loads(captured_logs[0])["dd.env"] == "global.env"
-    assert json.loads(captured_logs[0])["dd.service"] == "logging"
-    assert json.loads(captured_logs[0])["dd.version"] == "global.version"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "global.env"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "logging"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.version"] == "global.version"
 
     captured_logs.clear()
     unpatch()
@@ -184,11 +184,11 @@ def test_log_trace_128bit_trace_ids_log_64bits():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span._trace_id_64bits)
-    assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
-    assert json.loads(captured_logs[0])["dd.env"] == "global.env"
-    assert json.loads(captured_logs[0])["dd.service"] == "logging"
-    assert json.loads(captured_logs[0])["dd.version"] == "global.version"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span._trace_id_64bits)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "global.env"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "logging"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.version"] == "global.version"
 
     captured_logs.clear()
     unpatch()
@@ -215,11 +215,11 @@ def test_log_DD_TAGS():
     span.finish()
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span.trace_id)
-    assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
-    assert json.loads(captured_logs[0])["dd.env"] == "ddenv"
-    assert json.loads(captured_logs[0])["dd.service"] == "ddtagservice"
-    assert json.loads(captured_logs[0])["dd.version"] == "ddversion"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "ddenv"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "ddtagservice"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.version"] == "ddversion"
 
     captured_logs.clear()
     unpatch()
