@@ -703,7 +703,6 @@
             "@flask",
             "@appsec",
             "@appsec_iast",
-            "@appsec_integrations",
             "@wsgi",
             "tests/appsec/*",
             "tests/contrib/flask/*",

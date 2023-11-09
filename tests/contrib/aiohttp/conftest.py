@@ -35,7 +35,6 @@ if version.parse_version(aiohttp.__version__) < (3, 0, 0):
         # yield app, tracer
         # unpatch()
 
-
 else:
 
     @pytest.fixture

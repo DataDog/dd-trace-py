@@ -17,6 +17,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
@@ -25,7 +26,6 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
@@ -269,17 +269,17 @@ class SpanAggregator(SpanProcessor):
                 # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
                 # Here we submit the remanining span creation metrics without restarting the periodic thread.
                 # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
-                telemetry_writer._is_periodic = False
-                telemetry_writer._enabled = True
+                telemetry.telemetry_writer._is_periodic = False
+                telemetry.telemetry_writer._enabled = True
                 # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
                 # before the tracer is shutdown.
                 self._queue_span_count_metrics("spans_created", "integration_name", None)
                 # on_span_finish(...) queues span finish metrics in batches of 100.
                 # This ensures all remaining counts are sent before the tracer is shutdown.
                 self._queue_span_count_metrics("spans_finished", "integration_name", None)
-                telemetry_writer.periodic(True)
+                telemetry.telemetry_writer.periodic(True)
                 # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
-                telemetry_writer.disable()
+                telemetry.telemetry_writer.disable()
 
         try:
             self._writer.stop(timeout)
@@ -294,7 +294,7 @@ class SpanAggregator(SpanProcessor):
         # We should avoid calling this method on every invocation of span finish and span start.
         if min_count is None or sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
-                telemetry_writer.add_count_metric(
+                telemetry.telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)

@@ -393,7 +393,7 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib.pytest_bdd
 
-.. _psycopg2:
+.. _psycopg:
 
 psycopg
 ^^^^^^^

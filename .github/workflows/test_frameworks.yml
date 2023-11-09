@@ -24,6 +24,7 @@ jobs:
           export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }})
           python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/test_frameworks.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
+  
   bottle-testsuite-0_12_19:
     runs-on: ubuntu-latest
     needs: needs-run
@@ -31,6 +32,7 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
       run:
         working-directory: bottle
@@ -71,6 +73,9 @@ jobs:
         # Disable all test_simple tests because they check for
         # log output and it contains phony error messages.
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      - name: Debugger exploration result
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
 #   sanic-testsuite-22_12:
 #     runs-on: ubuntu-20.04
@@ -129,6 +134,7 @@ jobs:
       DD_DEBUGGER_EXPL_COVERAGE_ENABLED: ${{ matrix.expl_coverage }}
       DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
@@ -187,6 +193,10 @@ jobs:
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
+
   graphene-testsuite-3_0:
     runs-on: ubuntu-latest
     needs: needs-run
@@ -194,6 +204,7 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -229,6 +240,9 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: ddtrace-run pytest graphene
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
   fastapi-testsuite-0_92:
     runs-on: ubuntu-latest
@@ -237,6 +251,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
       run:
         working-directory: fastapi
@@ -270,6 +285,9 @@ jobs:
       - name: Test
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
   flask-testsuite-1_1_4:
     runs-on: ubuntu-latest
@@ -279,6 +297,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -316,6 +335,9 @@ jobs:
           pip install -e .
           pip install --upgrade MarkupSafe==2.0.1
           pytest -p no:warnings -k 'not test_exception_propagation and not test_memory_consumption' tests/
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
   httpx-testsuite-0_22_0:
     runs-on: ubuntu-latest
@@ -365,6 +387,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -403,6 +426,9 @@ jobs:
           pip install ../ddtrace
           pip install -e .
           pytest -p no:warnings
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
   starlette-testsuite-0_17_1:
     runs-on: "ubuntu-latest"
@@ -411,6 +437,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -445,6 +472,9 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: pytest -W ignore --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
 
   requests-testsuite-2_26_0:
     runs-on: "ubuntu-latest"
@@ -453,6 +483,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
       run:
         working-directory: requests
@@ -483,6 +514,9 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success' 
+        run: cat debugger-expl.txt
 
   asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
@@ -567,6 +601,7 @@ jobs:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -613,3 +648,6 @@ jobs:
       - name: Run deadlock tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: ddtrace-run ./tests/gh-deadlocks.sh python39
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
