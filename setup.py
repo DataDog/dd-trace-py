@@ -13,8 +13,6 @@ from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-from distutils import sysconfig
-
 
 try:
     # ORDER MATTERS
