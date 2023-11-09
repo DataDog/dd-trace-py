@@ -138,7 +138,7 @@ Enabling
 ~~~~~~~~
 
 The OpenAI integration is enabled automatically when you use
-:ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Note that these commands also enable the ``requests`` and ``aiohttp``
 integrations which trace HTTP requests from the OpenAI library.
