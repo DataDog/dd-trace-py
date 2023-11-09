@@ -1,3 +1,8 @@
+import asyncio
+import functools
+
+from aiohttp import web
+
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -45,7 +50,9 @@ async def trace_middleware(app, handler):
 
         # trace the handler
         request_span = tracer.trace(
-            schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
+            schematize_url_operation(
+                "aiohttp.request", protocol="http", direction=SpanDirection.INBOUND
+            ),
             service=service,
             span_type=SpanTypes.WEB,
         )
@@ -59,8 +66,13 @@ async def trace_middleware(app, handler):
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
-        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, app[CONFIG_KEY].get("analytics_sample_rate", True))
+        if (
+            config.analytics_enabled and analytics_enabled is not False
+        ) or analytics_enabled is True:
+            request_span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                app[CONFIG_KEY].get("analytics_sample_rate", True),
+            )
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
@@ -69,19 +81,23 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = await handler(request)
-            return response
         except Exception:
             request_span.set_traceback()
             raise
+        else:
+            if isinstance(response, web.StreamResponse):
+                import pudb
+
+                pudb.set_trace()
+                request.task.add_done_callback(
+                    lambda _: finish_request_span(request, response)
+                )
+            return response
 
     return attach_context
 
 
-async def on_prepare(request, response):
-    """
-    The on_prepare signal is used to close the request span that is created during
-    the trace middleware execution.
-    """
+def finish_request_span(request, response):
     # safe-guard: discard if we don't have a request span
     request_span = request.get(REQUEST_SPAN_KEY, None)
     if not request_span:
@@ -124,6 +140,19 @@ async def on_prepare(request, response):
     )
 
     request_span.finish()
+
+
+async def on_prepare(request, response):
+    """
+    The on_prepare signal is used to close the request span that is created during
+    the trace middleware execution.
+    """
+    import pudb
+
+    pudb.set_trace()
+    if isinstance(response, web.StreamResponse) and not response.task.done():
+        return
+    finish_request_span(request, response)
 
 
 def trace_app(app, tracer, service="aiohttp-web"):

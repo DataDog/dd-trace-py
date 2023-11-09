@@ -84,7 +84,11 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
 
-    return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
+    return [
+        version_to_str(version)
+        for version in SUPPORTED_PYTHON_VERSIONS
+        if min_version <= version <= max_version
+    ]
 
 
 venv = Venv(
@@ -609,7 +613,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"), pkgs={"pymongo": ["~=3.11", "~=4.0", latest]}
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={"pymongo": ["~=3.11", "~=4.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
@@ -636,7 +641,9 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
+                "psycopg2-binary": [
+                    ">=2.8.6"
+                ],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -790,7 +797,9 @@ venv = Venv(
         Venv(
             name="elasticsearch-async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
-            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
+            env={
+                "AIOHTTP_NO_EXTENSIONS": "1"
+            },  # needed until aiohttp is updated to support python 3.12
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -934,7 +943,10 @@ venv = Venv(
                     },
                     venvs=[
                         Venv(pys=select_pys(max_version="3.7")),
-                        Venv(pys=select_pys(min_version="3.8", max_version="3.9"), pkgs={"exceptiongroup": latest}),
+                        Venv(
+                            pys=select_pys(min_version="3.8", max_version="3.9"),
+                            pkgs={"exceptiongroup": latest},
+                        ),
                     ],
                 ),
                 Venv(
@@ -1042,8 +1054,12 @@ venv = Venv(
                 ]
             },
             venvs=[
-                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
-                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
+                Venv(
+                    command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"
+                ),
             ],
         ),
         Venv(
@@ -1235,7 +1251,10 @@ venv = Venv(
                         ],
                     },
                 ),
-                Venv(pys=select_pys(min_version="3.11"), pkgs={"mariadb": ["~=1.1.2", latest]}),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={"mariadb": ["~=1.1.2", latest]},
+                ),
             ],
         ),
         Venv(
@@ -1676,6 +1695,7 @@ venv = Venv(
                     latest,
                 ],
                 "yarl": "~=1.0",
+                "pudb": latest,
             },
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.7", max_version="3.11"),
@@ -1998,7 +2018,15 @@ venv = Venv(
             pys=select_pys(min_version="3.7", max_version="3.11"),
             pkgs={
                 "pytest-asyncio": latest,
-                "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
+                "opentelemetry-api": [
+                    "~=1.0.0",
+                    "~=1.3.0",
+                    "~=1.4.0",
+                    "~=1.8.0",
+                    "~=1.11.0",
+                    "~=1.15.0",
+                    latest,
+                ],
                 "opentelemetry-instrumentation-flask": latest,
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
@@ -2244,7 +2272,11 @@ venv = Venv(
         Venv(
             name="gunicorn",
             command="pytest {cmdargs} tests/contrib/gunicorn",
-            pkgs={"requests": latest, "gevent": latest, "gunicorn": ["==20.0.4", latest]},
+            pkgs={
+                "requests": latest,
+                "gevent": latest,
+                "gunicorn": ["==20.0.4", latest],
+            },
             pys=select_pys(),
         ),
         Venv(

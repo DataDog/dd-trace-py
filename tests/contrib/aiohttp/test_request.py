@@ -33,6 +33,16 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert "GET /" == request_span.resource
 
 
+async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    client = await aiohttp_client(app)
+    request = await client.request("GET", "/stream/")
+    await request.text()
+    traces = tracer.pop_traces()
+    request_span = traces[0][0]
+    assert 0.5 == request_span.duration
+
+
 async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
@@ -114,6 +124,9 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, 
 
     request_span = traces[0][0]
     assert request_span.service == "aiohttp-web"
-    assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+    assert (
+        request_span.get_tag("http.response.headers.my-response-header")
+        == "my_response_value"
+    )
     assert request_span.get_tag("component") == "aiohttp"
     assert request_span.get_tag("span.kind") == "server"

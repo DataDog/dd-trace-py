@@ -84,8 +84,22 @@ async def coro_2(request):
 
 
 async def delayed_handler(request):
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(1)
     return web.Response(text="Done")
+
+
+async def stream_handler(request):
+    async def async_range(count):
+        for i in range(count):
+            yield i
+            await asyncio.sleep(0.0)
+
+    response = web.StreamResponse()
+    await response.prepare(request)
+    await asyncio.sleep(0.5)
+    async for i in async_range(10):
+        await response.write(f"{i}".encode())
+    return response
 
 
 async def noop_middleware(app, handler):
@@ -100,7 +114,9 @@ async def noop_middleware(app, handler):
 if aiohttp_jinja2:
 
     async def template_handler(request):
-        return aiohttp_jinja2.render_template("template.jinja2", request, {"text": "OK"})
+        return aiohttp_jinja2.render_template(
+            "template.jinja2", request, {"text": "OK"}
+        )
 
     @aiohttp_jinja2.template("template.jinja2")
     async def template_decorator(request):
@@ -126,6 +142,7 @@ def setup_app(loop=None):
     )
     app.router.add_get("/", home)
     app.router.add_get("/delayed/", delayed_handler)
+    app.router.add_get("/stream/", stream_handler)
     app.router.add_get("/echo/{name}", name)
     app.router.add_get("/chaining/", coroutine_chaining)
     app.router.add_get("/exception", route_exception)
@@ -163,7 +180,9 @@ def set_filesystem_loader(app):
 
 
 def set_package_loader(app):
-    aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader("tests.contrib.aiohttp.app", "templates"))
+    aiohttp_jinja2.setup(
+        app, loader=jinja2.PackageLoader("tests.contrib.aiohttp.app", "templates")
+    )
 
 
 def get_tracer(request):
