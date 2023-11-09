@@ -857,7 +857,6 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
-        print("starting")
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
@@ -891,9 +890,8 @@ class HTTPPropagator(object):
                     if tracecontext_context and tracecontext_context.trace_id == primary_context.trace_id:
                         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                         if ts:
-                            print("we here")
                             # add the raw tracestate value to the context, no validation needed
-                            primary_context.meta[W3C_TRACESTATE_KEY] = ts
+                            primary_context._meta[W3C_TRACESTATE_KEY] = ts
 
                     return primary_context
 

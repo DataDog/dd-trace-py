@@ -1558,7 +1558,7 @@ EXTRACT_FIXTURES = [
             _PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_B3_SINGLE,
         ],
-        DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
             "trace_id": TRACE_ID,
             "span_id": 5678,
@@ -1647,6 +1647,7 @@ else:
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+        env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
