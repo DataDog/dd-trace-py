@@ -1,4 +1,3 @@
-import attr
 import logbook
 
 import ddtrace
@@ -27,15 +26,6 @@ def get_version():
     return getattr(logbook, "__version__", "")
 
 
-@attr.s(slots=True)
-class DDLogRecord(object):
-    trace_id = attr.ib(type=int)
-    span_id = attr.ib(type=int)
-    service = attr.ib(type=str)
-    version = attr.ib(type=str)
-    env = attr.ib(type=str)
-
-
 def _tracer_injection(event_dict):
     span = ddtrace.tracer.current_span()
 
@@ -48,29 +38,20 @@ def _tracer_injection(event_dict):
             trace_id = span._trace_id_64bits
 
     # add ids to logbook event dictionary
-    setattr(event_dict, RECORD_ATTR_TRACE_ID, str(trace_id or RECORD_ATTR_VALUE_ZERO))
-    setattr(event_dict, RECORD_ATTR_SPAN_ID, str(span_id or RECORD_ATTR_VALUE_ZERO))
+    event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
+    event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
     # add the env, service, and version configured for the tracer
-    setattr(event_dict, RECORD_ATTR_VERSION, config.version or RECORD_ATTR_VALUE_EMPTY)
-    setattr(event_dict, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
-    setattr(event_dict, RECORD_ATTR_SERVICE, config.service or RECORD_ATTR_VALUE_EMPTY)
+    event_dict[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
+    event_dict[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
+    event_dict[RECORD_ATTR_VERSION] = config.version or RECORD_ATTR_VALUE_EMPTY
 
     return event_dict
 
 
 def _w_process_record(func, instance, args, kwargs):
-
-    # should we add contextMap? or tell logs team to add extra as parsed field?
-
+    # patch logger to include datadog info before logging
     record = get_argument_value(args, kwargs, 0, "record")
-    _tracer_injection(record)
-    record.dd = DDLogRecord(
-        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
-        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-        service=getattr(record, RECORD_ATTR_SERVICE, RECORD_ATTR_VALUE_EMPTY),
-        version=getattr(record, RECORD_ATTR_VERSION, RECORD_ATTR_VALUE_EMPTY),
-        env=getattr(record, RECORD_ATTR_ENV, RECORD_ATTR_VALUE_EMPTY),
-    )
+    _tracer_injection(record.extra)
     return func(*args, **kwargs)
 
 

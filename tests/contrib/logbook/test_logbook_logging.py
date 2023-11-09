@@ -11,26 +11,18 @@ from ddtrace.contrib.logbook import patch
 from ddtrace.contrib.logbook import unpatch
 from tests.utils import override_global_config
 
-
-handler = TestHandler(
-    format_string='{{"message": "{record.message}", '
-    '"dd.trace_id": "{record.dd.trace_id}", '
-    '"dd.span_id": "{record.dd.span_id}", '
-    '"dd.env": "{record.dd.env}", '
-    '"dd.service": "{record.dd.service}", '
-    '"dd.version": "{record.dd.version}"}}'
-)
+handler = TestHandler()
 
 
 def _test_logging(span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].dd.trace_id == str(dd_trace_id)
-    assert handler.records[0].dd.span_id == str(dd_span_id)
-    assert handler.records[0].dd.env == env or ""
-    assert handler.records[0].dd.service == service or ""
-    assert handler.records[0].dd.version == version or ""
+    assert handler.records[0].extra["dd.trace_id"] == str(dd_trace_id)
+    assert handler.records[0].extra["dd.span_id"] == str(dd_span_id)
+    assert handler.records[0].extra["dd.env"] == env or ""
+    assert handler.records[0].extra["dd.service"] == service or ""
+    assert handler.records[0].extra["dd.version"] == version or ""
 
     handler.records.clear()
 
@@ -90,14 +82,7 @@ def test_log_trace():
     config.env = "global.env"
     config.version = "global.version"
 
-    handler = TestHandler(
-        format_string='{{"message": "{record.message}", '
-        '"dd.trace_id": "{record.dd.trace_id}", '
-        '"dd.span_id": "{record.dd.span_id}", '
-        '"dd.env": "{record.dd.env}", '
-        '"dd.service": "{record.dd.service}", '
-        '"dd.version": "{record.dd.version}"}}'
-    )
+    handler = TestHandler()
 
     patch()
     handler.push_application()
@@ -107,11 +92,11 @@ def test_log_trace():
     span.finish()
 
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].dd.trace_id == str(span.trace_id)
-    assert handler.records[0].dd.span_id == str(span.span_id)
-    assert handler.records[0].dd.env == config.env
-    assert handler.records[0].dd.service == config.service
-    assert handler.records[0].dd.version == config.version
+    assert handler.records[0].extra["dd.trace_id"] == str(span.trace_id)
+    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
+    assert handler.records[0].extra["dd.env"] == config.env
+    assert handler.records[0].extra["dd.service"] == config.service
+    assert handler.records[0].extra["dd.version"] == config.version
 
     handler.records.clear()
     unpatch()
@@ -138,14 +123,7 @@ def test_log_trace_128bit_trace_ids():
     config.env = "global.env"
     config.version = "global.version"
 
-    handler = TestHandler(
-        format_string='{{"message": "{record.message}", '
-        '"dd.trace_id": "{record.dd.trace_id}", '
-        '"dd.span_id": "{record.dd.span_id}", '
-        '"dd.env": "{record.dd.env}", '
-        '"dd.service": "{record.dd.service}", '
-        '"dd.version": "{record.dd.version}"}}'
-    )
+    handler = TestHandler()
 
     patch()
     handler.push_application()
@@ -156,11 +134,11 @@ def test_log_trace_128bit_trace_ids():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].dd.trace_id == str(span.trace_id)
-    assert handler.records[0].dd.span_id == str(span.span_id)
-    assert handler.records[0].dd.env == config.env
-    assert handler.records[0].dd.service == config.service
-    assert handler.records[0].dd.version == config.version
+    assert handler.records[0].extra["dd.trace_id"] == str(span.trace_id)
+    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
+    assert handler.records[0].extra["dd.env"] == config.env
+    assert handler.records[0].extra["dd.service"] == config.service
+    assert handler.records[0].extra["dd.version"] == config.version
 
     handler.records.clear()
     unpatch()
@@ -187,14 +165,7 @@ def test_log_trace_128bit_trace_ids_log_64bits():
     config.env = "global.env"
     config.version = "global.version"
 
-    handler = TestHandler(
-        format_string='{{"message": "{record.message}", '
-        '"dd.trace_id": "{record.dd.trace_id}", '
-        '"dd.span_id": "{record.dd.span_id}", '
-        '"dd.env": "{record.dd.env}", '
-        '"dd.service": "{record.dd.service}", '
-        '"dd.version": "{record.dd.version}"}}'
-    )
+    handler = TestHandler()
 
     patch()
     handler.push_application()
@@ -205,11 +176,11 @@ def test_log_trace_128bit_trace_ids_log_64bits():
 
     assert span.trace_id > MAX_UINT_64BITS
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].dd.trace_id == str(span._trace_id_64bits)
-    assert handler.records[0].dd.span_id == str(span.span_id)
-    assert handler.records[0].dd.env == config.env
-    assert handler.records[0].dd.service == config.service
-    assert handler.records[0].dd.version == config.version
+    assert handler.records[0].extra["dd.trace_id"] == str(span._trace_id_64bits)
+    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
+    assert handler.records[0].extra["dd.env"] == config.env
+    assert handler.records[0].extra["dd.service"] == config.service
+    assert handler.records[0].extra["dd.version"] == config.version
 
     handler.records.clear()
     unpatch()
@@ -224,14 +195,7 @@ def test_log_DD_TAGS():
     from ddtrace.contrib.logbook import patch
     from ddtrace.contrib.logbook import unpatch
 
-    handler = TestHandler(
-        format_string='{{"message": "{record.message}", '
-        '"dd.trace_id": "{record.dd.trace_id}", '
-        '"dd.span_id": "{record.dd.span_id}", '
-        '"dd.env": "{record.dd.env}", '
-        '"dd.service": "{record.dd.service}", '
-        '"dd.version": "{record.dd.version}"}}'
-    )
+    handler = TestHandler()
 
     patch()
     handler.push_application()
@@ -241,11 +205,11 @@ def test_log_DD_TAGS():
     span.finish()
 
     assert handler.records[0].message == "Hello!"
-    assert handler.records[0].dd.trace_id == str(span.trace_id)
-    assert handler.records[0].dd.span_id == str(span.span_id)
-    assert handler.records[0].dd.env == "ddenv"
-    assert handler.records[0].dd.service == "ddtagservice"
-    assert handler.records[0].dd.version == "ddversion"
+    assert handler.records[0].extra["dd.trace_id"] == str(span._trace_id_64bits)
+    assert handler.records[0].extra["dd.span_id"] == str(span.span_id)
+    assert handler.records[0].extra["dd.env"] == "ddenv"
+    assert handler.records[0].extra["dd.service"] == "ddtagservice"
+    assert handler.records[0].extra["dd.version"] == "ddversion"
 
     handler.records.clear()
     unpatch()
