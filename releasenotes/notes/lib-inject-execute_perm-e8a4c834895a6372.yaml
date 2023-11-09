@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib injection: Fix permissions for non-root users.
