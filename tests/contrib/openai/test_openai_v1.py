@@ -1596,7 +1596,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
-        assert resp.choices[0].dict() == {
+        assert resp.choices[0].model_dump() == {
             "finish_reason": "stop",
             "index": 0,
             "message": {

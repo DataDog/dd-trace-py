@@ -387,6 +387,12 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
 
 def _patched_endpoint(openai, integration, patch_hook):
     def patched_endpoint(func, args, kwargs):
+        # FIXME: this is a temporary workaround for the fact that our bytecode wrapping seems to modify
+        #        a function keyword argument into a cell when it shouldn't. This is only an issue on
+        #        Python 3.11+.
+        if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
+            kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
+
         pin = Pin._find(openai, args[0])
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
@@ -414,6 +420,12 @@ def _patched_endpoint(openai, integration, patch_hook):
 def _patched_endpoint_async(openai, integration, patch_hook):
     # Same as _patched_endpoint but async
     async def patched_endpoint(func, args, kwargs):
+        # FIXME: this is a temporary workaround for the fact that our bytecode wrapping seems to modify
+        #        a function keyword argument into a cell when it shouldn't. This is only an issue on
+        #        Python 3.11+.
+        if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
+            kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
+
         pin = Pin._find(openai, args[0])
         if not pin or not pin.enabled():
             return await func(*args, **kwargs)
