@@ -792,4 +792,3 @@ def test_json_encoder_traces_bytes():
         assert "\ufffdspan.a" == span_a["name"], span_a["name"]
         assert "\x80span.b" == span_b["name"]
         assert "\ufffdspan.b" == span_c["name"]
-        
