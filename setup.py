@@ -13,6 +13,7 @@ from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
+from distutils import sysconfig
 
 
 try:
@@ -56,6 +57,8 @@ LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
 
 LIBDATADOG_PROF_VERSION = "v3.0.0"
 
+if CURRENT_OS == "Darwin":
+    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
