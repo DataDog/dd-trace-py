@@ -382,7 +382,8 @@ class CMakeBuild(build_ext):
             subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
         except subprocess.CalledProcessError as e:
             print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
-            raise
+            if not ext.permissive_build:
+                raise
         except Exception as e:
             print("WARNING: An error occurred while building the CMake extension.")
             raise
@@ -397,6 +398,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
+        permissive_build=False,
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -404,6 +406,7 @@ class CMakeExtension(Extension):
         self.build_args = build_args or []
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.permissive_build = permissive_build # If True, build errors are ignored
 
 
 long_description = """
@@ -500,6 +503,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.appsec._iast._taint_tracking._native",
                 source_dir=IAST_DIR,
+                permissive_build=True if CURRENT_OS == "Darwin" else False,
             )
         )
 else:
