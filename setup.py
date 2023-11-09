@@ -57,6 +57,7 @@ LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
 
 LIBDATADOG_PROF_VERSION = "v3.0.0"
 
+# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
