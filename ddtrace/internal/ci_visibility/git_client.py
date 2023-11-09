@@ -7,11 +7,12 @@ from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
 from ddtrace.ext import ci
-from ddtrace.ext.git import _extract_clone_defaultremotename
+from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
 from ddtrace.ext.git import _extract_upstream_sha
-from ddtrace.ext.git import _get_rev_list
-from ddtrace.ext.git import _is_shallow_repository
+from ddtrace.ext.git import _get_rev_list_with_details
+from ddtrace.ext.git import _is_shallow_repository_with_details
 from ddtrace.ext.git import _unshallow_repository
+from ddtrace.ext.git import _unshallow_repository_with_details
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
@@ -25,6 +26,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
+from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
@@ -32,6 +34,10 @@ from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import GIT_API_BASE_PATH
 from .constants import REQUESTS_MODE
+from .telemetry.constants import GIT_TELEMETRY_COMMANDS
+from .telemetry.git import record_git_command
+from .telemetry.git import record_objects_pack
+from .telemetry.git import record_search_commits
 
 
 log = get_logger(__name__)
@@ -172,7 +178,11 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
         # type: (List[str], Optional[List[str]], Optional[str]) -> str
-        return _get_rev_list(excluded_commits, included_commits, cwd=cwd)
+        filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
+            excluded_commits, included_commits, cwd=cwd
+        )
+        record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode if returncode != 0 else None)
+        return filtered_revisions
 
     @classmethod
     def _build_packfiles(cls, revisions, cwd=None):
@@ -201,36 +211,47 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _is_shallow_repository(cls, cwd=None):
         # type () -> bool
-        return _is_shallow_repository(cwd=cwd)
+        is_shallow_repository, duration, returncode = _is_shallow_repository_with_details(cwd=cwd)
+        record_git_command(GIT_TELEMETRY_COMMANDS.CHECK_SHALLOW, duration, returncode if returncode != 0 else None)
+        return is_shallow_repository
 
     @classmethod
     def _unshallow_repository(cls, cwd=None):
         # type () -> None
+        stopwatch = StopWatch()
+        stopwatch.start()
+        error_exit_code = None
         try:
-            remote = _extract_clone_defaultremotename()
-        except ValueError as e:
-            log.debug("Failed to get default remote: %s", e)
-            return
+            remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
+            if exit_code != 0:
+                error_exit_code = exit_code
+                log.debug("Failed to get default remote: %s", e)
+                return
 
-        try:
-            CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
-            return
-        except ValueError as e:
-            log.debug("Could not unshallow repository to local head: %s", e)
+            try:
+                CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
+                return
+            except ValueError as e:
+                log.debug("Could not unshallow repository to local head: %s", e)
 
-        try:
-            CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
-            return
-        except ValueError as e:
-            log.debug("Could not unshallow to upstream: %s", e)
+            try:
+                CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
+                return
+            except ValueError as e:
+                log.debug("Could not unshallow to upstream: %s", e)
 
-        log.debug("Unshallowing to default")
-        try:
-            _unshallow_repository(cwd=cwd, repo=remote)
-            log.debug("Unshallowing to default successful")
+            log.debug("Unshallowing to default")
+            _, unshallow_error, _, exit_code = _unshallow_repository_with_details(cwd=cwd, repo=remote)
+            if exit_code == 0:
+                log.debug("Unshallowing to default successful")
+                return
+            log.debug("Unshallowing failed: %s", unshallow_error)
+            error_exit_code = exit_code
             return
-        except ValueError as e:
-            log.debug("Unshallowing failed: %s", e)
+        finally:
+            stopwatch.stop()
+            duration = stopwatch.elapsed() * 1000  # StopWatch measures elapsed time in seconds
+            record_git_command(GIT_TELEMETRY_COMMANDS.UNSHALLOW, duration, error_exit_code)
 
     @classmethod
     def _unshallow_repository_to_local_head(cls, remote, cwd=None):

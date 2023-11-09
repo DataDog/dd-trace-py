@@ -25,6 +25,7 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.provider import CIContextProvider
 
 from .. import agent
+from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
@@ -38,6 +39,8 @@ from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
 from .git_client import CIVisibilityGitClient
+from .telemetry.constants import ERROR_TYPES
+from .telemetry.git import record_settings
 from .writer import CIVisibilityWriter
 
 
@@ -220,10 +223,23 @@ class CIVisibility(Service):
                 },
             }
         }
+
+        sw = StopWatch()
+        sw.start()
         try:
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:
             log.warning("Request timeout while fetching enabled features")
+            sw.stop()
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.TIMEOUT)
+            return False, False
+        if response.status >= 400:
+            log.warning(
+                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
+            )
+            sw.stop()
+            error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.CODE_4XX)
             return False, False
         try:
             if isinstance(response.body, bytes):
@@ -232,15 +248,22 @@ class CIVisibility(Service):
                 parsed = json.loads(response.body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
+            sw.stop()
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.BAD_JSON)
             return False, False
-        if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
-            log.warning(
-                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
-            )
+        sw.stop()
+
+        if "errors" in parsed and parsed["errors"][0] == "Not found":
+            log.warning("Settings request contained an error, disabling Intelligent Test Runner")
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.UNKNOWN)
             return False, False
 
         attributes = parsed["data"]["attributes"]
-        return attributes["code_coverage"], attributes["tests_skipping"]
+        coverage_enabled = attributes["code_coverage"]
+        skipping_enabled = attributes["tests_skipping"]
+        record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled)
+
+        return coverage_enabled, skipping_enabled
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None

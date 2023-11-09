@@ -59,3 +59,5 @@ class REQUESTS_MODE(IntEnum):
 
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
+
+# Metrics
