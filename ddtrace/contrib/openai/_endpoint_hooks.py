@@ -215,14 +215,14 @@ class _CompletionHook(_BaseCompletionHook):
                     span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.text))
         integration.record_usage(span, resp.usage)
         if integration.is_pc_sampled_log(span):
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
             integration.log(
                 span,
                 "info" if error is None else "error",
                 "sampled %s" % self.OPERATION_ID,
-                attrs={
-                    "prompt": prompt,
-                    "choices": resp.choices if hasattr(resp, "choices") else [],
-                },
+                attrs={"prompt": prompt, "choices": log_choices},
             )
         return self._handle_response(pin, span, integration, resp)
 
@@ -313,13 +313,16 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 )
         integration.record_usage(span, resp.usage)
         if integration.is_pc_sampled_log(span):
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
             integration.log(
                 span,
                 "info" if error is None else "error",
                 "sampled %s" % self.OPERATION_ID,
                 attrs={
                     "messages": messages,
-                    "completion": choices,
+                    "completion": log_choices,
                 },
             )
         return self._handle_response(pin, span, integration, resp)
@@ -592,6 +595,9 @@ class _EditHook(_EndpointHook):
         if integration.is_pc_sampled_log(span):
             instruction = kwargs.get("instruction", "")
             input_text = kwargs.get("input", "")
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
             integration.log(
                 span,
                 "info" if error is None else "error",
@@ -599,7 +605,7 @@ class _EditHook(_EndpointHook):
                 attrs={
                     "instruction": instruction,
                     "input": input_text,
-                    "choices": choices,
+                    "choices": log_choices,
                 },
             )
         return resp
@@ -631,14 +637,17 @@ class _ImageHook(_EndpointHook):
             if kwargs.get("response_format", "") == "b64_json":
                 attrs_dict.update({"choices": [{"b64_json": "returned"} for _ in resp.data]})
             else:
-                attrs_dict.update({"choices": resp.data})
+                log_choices = resp.data
+                if hasattr(resp.data[0], "model_dump"):
+                    log_choices = [choice.model_dump() for choice in resp.data]
+                attrs_dict.update({"choices": log_choices})
             if "prompt" in self._request_kwarg_params:
                 attrs_dict.update({"prompt": kwargs.get("prompt", "")})
             if "image" in self._request_kwarg_params:
-                image = args[1] or ""
+                image = args[1] if len(args) >= 2 else kwargs.get("image", "")
                 attrs_dict.update({"image": image.name.split("/")[-1]})
             if "mask" in self._request_kwarg_params:
-                mask = args[2] or ""
+                mask = args[2] if len(args) >= 3 else kwargs.get("mask", "")
                 attrs_dict.update({"mask": mask.name.split("/")[-1]})
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
@@ -726,21 +735,25 @@ class _BaseAudioHook(_EndpointHook):
         if not resp:
             return
         if integration.is_pc_sampled_span(span):
-            if isinstance(resp, str):
+            resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
+            if isinstance(resp_to_tag, str):
                 text = resp
-            elif isinstance(resp, dict):
-                text = resp.text
-                if resp.language:
-                    span.set_tag_str("openai.response.language", str(resp.language))
-                if resp.duration:
-                    span.set_metric("openai.response.duration", resp.duration)
-                if resp.segments:
-                    span.set_metric("openai.response.segments_count", len(resp.segments))
+            elif isinstance(resp_to_tag, dict):
+                text = resp_to_tag.get("text", "")
+                if "language" in resp_to_tag:
+                    span.set_tag_str("openai.response.language", str(resp_to_tag.get("language")))
+                if "duration" in resp_to_tag:
+                    span.set_metric("openai.response.duration", resp_to_tag.get("duration"))
+                if "segments" in resp_to_tag:
+                    span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
             else:
                 text = ""
             span.set_tag_str("openai.response.text", integration.trunc(text))
         if integration.is_pc_sampled_log(span):
-            file_input = args[2] or ""
+            file_input = args[2] if len(args) >= 3 else kwargs.get("file", "")
+            log_resp = resp
+            if hasattr(resp, "model_dump"):
+                log_resp = resp.model_dump()
             integration.log(
                 span,
                 "info" if error is None else "error",
@@ -749,7 +762,7 @@ class _BaseAudioHook(_EndpointHook):
                     "file": getattr(file_input, "name", "").split("/")[-1],
                     "prompt": kwargs.get("prompt", ""),
                     "language": kwargs.get("language", ""),
-                    "text": resp.text if isinstance(resp, dict) else resp,
+                    "text": log_resp["text"] if isinstance(log_resp, dict) else log_resp,
                 },
             )
         return resp
