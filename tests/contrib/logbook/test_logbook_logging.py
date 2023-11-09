@@ -11,6 +11,7 @@ from ddtrace.contrib.logbook import patch
 from ddtrace.contrib.logbook import unpatch
 from tests.utils import override_global_config
 
+
 handler = TestHandler()
 
 
