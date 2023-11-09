@@ -10,8 +10,7 @@ Enable Django tracing automatically via ``ddtrace-run``::
 
 Django tracing can also be enabled manually::
 
-    from ddtrace import patch_all
-    patch_all()
+    import ddtrace.auto
 
 
 To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
@@ -33,7 +32,7 @@ Configuration
 .. important::
 
     Note that the in-code configuration must be run before Django is instrumented. This means that in-code configuration
-    will not work with ``ddtrace-run`` and before a call to ``patch`` or ``patch_all``.
+    will not work with ``ddtrace-run`` and before a call to ``patch`` or ``import ddtrace.auto``.
 
 
 .. py:data:: ddtrace.config.django['distributed_tracing_enabled']
