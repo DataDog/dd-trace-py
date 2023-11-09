@@ -116,7 +116,7 @@ class Hooks(object):
         self,
         hook,  # type: Any
         *args,  # type: Any
-        **kwargs  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> None
         """

@@ -280,7 +280,7 @@ class CIVisibility(Service):
 
     @classmethod
     def test_skipping_enabled(cls):
-        if not cls.enabled:
+        if not cls.enabled or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)):
             return False
         return cls._instance and cls._instance._test_skipping_enabled_by_api
 

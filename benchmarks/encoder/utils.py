@@ -21,7 +21,6 @@ try:
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
         return MSGPACK_ENCODERS[encoding](max_size, max_item_size)
 
-
 except ImportError:
 
     def init_encoder(encoding):
@@ -70,7 +69,7 @@ def gen_traces(config):
                         dict(
                             zip(
                                 metric_keys,
-                                [random.randint(0, 2 ** 16) for _ in range(config.nmetrics)],
+                                [random.randint(0, 2**16) for _ in range(config.nmetrics)],
                             )
                         )
                     )
