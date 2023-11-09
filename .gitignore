@@ -33,6 +33,7 @@ ddtrace/internal/datadog/profiling/libdatadog/
 .Python
 env/
 build/
+cmake_build/
 develop-eggs/
 dist/
 downloads/
