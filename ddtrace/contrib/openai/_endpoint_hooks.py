@@ -281,10 +281,32 @@ class _ChatCompletionHook(_BaseCompletionHook):
         span.set_tag_str("openai.response.model", resp.get("model", ""))
         for choice in choices:
             idx = choice["index"]
+            message = choice.message
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice.get("finish_reason"))
-            if integration.is_pc_sampled_span(span) and choice.get("message"):
-                content = choice.get("message", {}).get("content", "") or ""
+            if integration.is_pc_sampled_span(span) and message:
+                content = message.content or ""
                 span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
+                if hasattr(message, "function_call"):
+                    tool_call = message.function_call
+                    if hasattr(tool_call, "arguments") and hasattr(tool_call, "name"):
+                        span.set_tag_str(
+                            "openai.response.choices.%d.message.tool_calls.0.arguments" % idx,
+                            integration.trunc(tool_call.arguments),
+                        )
+                        span.set_tag_str(
+                            "openai.response.choices.%d.message.tool_calls.0.function" % idx, tool_call.name
+                        )
+                if hasattr(message, "tool_calls"):
+                    for idy, tool_call in enumerate(message.tool_calls):
+                        function = tool_call.function
+                        if hasattr(function, "arguments") and hasattr(function, "name"):
+                            span.set_tag_str(
+                                "openai.response.choices.%d.message.tool_calls.%d.arguments" % (idx, idy),
+                                integration.trunc(function.arguments),
+                            )
+                            span.set_tag_str(
+                                "openai.response.choices.%d.message.tool_calls.%d.function" % (idx, idy), function.name
+                            )
                 span.set_tag_str(
                     "openai.response.choices.%d.message.role" % idx,
                     integration.trunc(choice.get("message", {}).get("role", "")),

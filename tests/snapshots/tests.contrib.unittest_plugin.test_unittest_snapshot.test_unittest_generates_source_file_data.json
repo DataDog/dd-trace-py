@@ -13,30 +13,32 @@
       "_dd.p.dm": "-0",
       "component": "unittest",
       "language": "python",
-      "library_version": "2.3.0.dev46+g15420418c.d20231030",
+      "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "693e00422405484db5d138fda039778c",
+      "runtime-id": "4fa37166ad6e4bbe9b95ecfe803bdeaa",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
+      "test.code_coverage.enabled": "false",
       "test.command": "python -m unittest",
       "test.framework": "unittest",
       "test.framework_version": "3.10.11",
+      "test.itr.tests_skipping.enabled": "false",
       "test.status": "fail",
       "test.type": "test",
-      "test_session_id": "8461629622447314477",
+      "test_session_id": "14223514166541281241",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2812
+      "process_id": 1178
     },
-    "duration": 6954417,
-    "start": 1698668220581512090
+    "duration": 35847792,
+    "start": 1699372363151417012
   },
      {
        "name": "unittest.test_module",
@@ -50,26 +52,28 @@
          "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
          "component": "unittest",
-         "library_version": "2.3.0.dev46+g15420418c.d20231030",
+         "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
          "os.architecture": "aarch64",
          "os.platform": "Linux",
          "os.version": "5.15.49-linuxkit-pr",
          "runtime.name": "CPython",
          "runtime.version": "3.10.11",
          "span.kind": "test",
+         "test.code_coverage.enabled": "false",
          "test.command": "python -m unittest",
          "test.framework": "unittest",
          "test.framework_version": "3.10.11",
+         "test.itr.tests_skipping.enabled": "false",
          "test.module": "test_source_file",
          "test.module_path": "test_source_file.py",
          "test.status": "fail",
          "test.type": "test",
-         "test_module_id": "819583995170382945",
-         "test_session_id": "8461629622447314477",
+         "test_module_id": "261080784454608234",
+         "test_session_id": "14223514166541281241",
          "type": "test_module_end"
        },
-       "duration": 6447917,
-       "start": 1698668220581927465
+       "duration": 35295792,
+       "start": 1699372363151848762
      },
         {
           "name": "unittest.test_suite",
@@ -83,7 +87,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "component": "unittest",
-            "library_version": "2.3.0.dev46+g15420418c.d20231030",
+            "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
             "os.architecture": "aarch64",
             "os.platform": "Linux",
             "os.version": "5.15.49-linuxkit-pr",
@@ -98,13 +102,13 @@
             "test.status": "fail",
             "test.suite": "CoverageTestCase",
             "test.type": "test",
-            "test_module_id": "819583995170382945",
-            "test_session_id": "8461629622447314477",
-            "test_suite_id": "5721419116701309841",
+            "test_module_id": "261080784454608234",
+            "test_session_id": "14223514166541281241",
+            "test_suite_id": "16646987277489931202",
             "type": "test_suite_end"
           },
-          "duration": 6358417,
-          "start": 1698668220582006590
+          "duration": 35187166,
+          "start": 1699372363151944721
         },
            {
              "name": "unittest.test",
@@ -118,7 +122,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev46+g15420418c.d20231030",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -127,6 +131,7 @@
                "span.kind": "test",
                "test.class_hierarchy": "CoverageTestCase",
                "test.command": "python -m unittest",
+               "test.coverage": "{\"files\": [{\"filename\": \"test_source_file.py\", \"segments\": [[5, 0, 6, 0, -1]]}, {\"filename\": \"lib_fn.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
                "test.framework": "unittest",
                "test.framework_version": "3.10.11",
                "test.module": "test_source_file",
@@ -136,17 +141,17 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "819583995170382945",
-               "test_session_id": "8461629622447314477",
-               "test_suite_id": "5721419116701309841",
+               "test_module_id": "261080784454608234",
+               "test_session_id": "14223514166541281241",
+               "test_suite_id": "16646987277489931202",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 7,
                "test.source.start": 4
              },
-             "duration": 567375,
-             "start": 1698668220586257840
+             "duration": 28046959,
+             "start": 1699372363151983512
            },
            {
              "name": "unittest.test",
@@ -160,7 +165,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.3.0.dev46+g15420418c.d20231030",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -169,6 +174,7 @@
                "span.kind": "test",
                "test.class_hierarchy": "CoverageTestCase",
                "test.command": "python -m unittest",
+               "test.coverage": "{\"files\": [{\"filename\": \"test_source_file.py\", \"segments\": [[8, 0, 9, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[1, 0, 2, 0, -1]]}]}",
                "test.framework": "unittest",
                "test.framework_version": "3.10.11",
                "test.module": "test_source_file",
@@ -178,17 +184,17 @@
                "test.status": "pass",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "819583995170382945",
-               "test_session_id": "8461629622447314477",
-               "test_suite_id": "5721419116701309841",
+               "test_module_id": "261080784454608234",
+               "test_session_id": "14223514166541281241",
+               "test_suite_id": "16646987277489931202",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 10,
                "test.source.start": 7
              },
-             "duration": 338833,
-             "start": 1698668220587045799
+             "duration": 3717166,
+             "start": 1699372363180148096
            },
            {
              "name": "unittest.test",
@@ -204,9 +210,9 @@
                "_dd.origin": "ciapp-test",
                "component": "unittest",
                "error.message": "",
-               "error.stack": "Traceback (most recent call last):\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/tmp/pytest-of-root/pytest-1/test_unittest_generates_source_file_data0/test_source_file.py\", line 12, in test_third\n    assert ret_false()\nAssertionError\n",
+               "error.stack": "Traceback (most recent call last):\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 59, in testPartExecutor\n    yield\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 591, in run\n    self._callTestMethod(testMethod)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/case.py\", line 549, in _callTestMethod\n    method()\n  File \"/tmp/pytest-of-root/pytest-3/test_unittest_generates_source_file_data0/test_source_file.py\", line 12, in test_third\n    assert ret_false()\nAssertionError\n",
                "error.type": "builtins.AssertionError",
-               "library_version": "2.3.0.dev46+g15420418c.d20231030",
+               "library_version": "2.3.0.dev130+g2bfb78063.d20231107",
                "os.architecture": "aarch64",
                "os.platform": "Linux",
                "os.version": "5.15.49-linuxkit-pr",
@@ -215,6 +221,7 @@
                "span.kind": "test",
                "test.class_hierarchy": "CoverageTestCase",
                "test.command": "python -m unittest",
+               "test.coverage": "{\"files\": [{\"filename\": \"test_source_file.py\", \"segments\": [[11, 0, 12, 0, -1]]}, {\"filename\": \"ret_false.py\", \"segments\": [[2, 0, 2, 0, -1]]}]}",
                "test.framework": "unittest",
                "test.framework_version": "3.10.11",
                "test.module": "test_source_file",
@@ -224,15 +231,15 @@
                "test.status": "fail",
                "test.suite": "CoverageTestCase",
                "test.type": "test",
-               "test_module_id": "819583995170382945",
-               "test_session_id": "8461629622447314477",
-               "test_suite_id": "5721419116701309841",
+               "test_module_id": "261080784454608234",
+               "test_session_id": "14223514166541281241",
+               "test_suite_id": "16646987277489931202",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 13,
                "test.source.start": 10
              },
-             "duration": 778375,
-             "start": 1698668220587568257
+             "duration": 3155500,
+             "start": 1699372363183953721
            }]]
