@@ -8,6 +8,7 @@ import pytest
 from ddtrace.context import Context
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -26,6 +27,7 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.span import _get_64_lowest_order_bits_as_int
 
 from ..utils import override_global_config
 
@@ -1007,10 +1009,11 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_ORIGIN: "synthetics",
 }
 DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
-    HTTP_HEADER_TRACE_ID: TRACE_ID,
+    HTTP_HEADER_TRACE_ID: str(_get_64_lowest_order_bits_as_int(TRACE_ID)),
     HTTP_HEADER_PARENT_ID: "5678",
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
+    _HTTP_HEADER_TAGS: "=".join([HIGHER_ORDER_TRACE_ID_BITS, "80f198ee56343ba8"]),
 }
 DATADOG_HEADERS_INVALID = {
     HTTP_HEADER_TRACE_ID: "13088165645273925489",  # still valid
@@ -1529,7 +1532,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         # name, styles, headers, expected_context,
-        "tracecontext_precedence_matters",
+        "tracecontext_precedence_matters_invalid_dd_headers",
         [
             PROPAGATION_STYLE_DATADOG,
             _PROPAGATION_STYLE_W3C_TRACECONTEXT,
@@ -1549,10 +1552,13 @@ EXTRACT_FIXTURES = [
     (
         # name, styles, headers, expected_context,
         "additional_tracestate_support_when_present_and_matches_first_styles_trace_id",
-        # [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, _PROPAGATION_STYLE_W3C_TRACECONTEXT, PROPAGATION_STYLE_B3_SINGLE],
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
-        # {**TRACECONTEXT_HEADERS_VALID},
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+        ],
+        DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
         {
             "trace_id": TRACE_ID,
             "span_id": 5678,
@@ -1601,6 +1607,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
+            "tracestate": "dd=s:2;o:rum",
         },
     ),
 ]
