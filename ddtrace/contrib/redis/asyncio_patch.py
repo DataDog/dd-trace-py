@@ -28,8 +28,7 @@ async def traced_async_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c, cmd_max_len=config.redis.cmd_max_length) for c, _ in instance.command_stack]
-    resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.redis, resource, instance):
+    with _trace_redis_execute_pipeline(pin, config.redis, cmds, instance):
         return await func(*args, **kwargs)
 
 
@@ -53,6 +52,5 @@ async def traced_async_execute_cluster_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c.args, cmd_max_len=config.redis.cmd_max_length) for c in instance._command_stack]
-    resource = "\n".join(cmds)
-    with _trace_redis_execute_async_cluster_pipeline(pin, config.redis, resource, instance):
+    with _trace_redis_execute_async_cluster_pipeline(pin, config.redis, cmds, instance):
         return await func(*args, **kwargs)

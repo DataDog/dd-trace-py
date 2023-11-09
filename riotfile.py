@@ -155,6 +155,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
+                "psycopg2": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
