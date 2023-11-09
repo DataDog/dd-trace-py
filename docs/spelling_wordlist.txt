@@ -78,6 +78,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
