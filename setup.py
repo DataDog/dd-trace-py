@@ -315,6 +315,13 @@ class CMakeBuild(build_ext):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
             subprocess.run(["strip", "-g", so_file], check=True)
 
+    def initialize_options(self):
+        super().initialize_options()
+        if not self.parallel:
+            self.parallel = os.cpu_count()
+            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+                os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(self.parallel)
+
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
             self.build_extension_cmake(ext)
@@ -349,13 +356,6 @@ class CMakeBuild(build_ext):
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
         build_args += ["--config {}".format(ext.build_type)]
-        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-            # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
-            # self.parallel is a Python 3 only way to set parallel jobs by hand
-            # using -j in the build_ext call, not supported by pip or PyPA-build.
-            # DEV: -j is only supported in CMake 3.12+ only.
-            if hasattr(self, "parallel") and self.parallel:
-                build_args += ["-j{}".format(self.parallel)]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
