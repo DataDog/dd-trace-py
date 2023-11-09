@@ -406,7 +406,7 @@ class CMakeExtension(Extension):
         self.build_args = build_args or []
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
-        self.permissive_build = permissive_build # If True, build errors are ignored
+        self.permissive_build = permissive_build  # If True, build errors are ignored
 
 
 long_description = """
