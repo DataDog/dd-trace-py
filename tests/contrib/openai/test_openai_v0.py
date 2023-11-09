@@ -476,7 +476,7 @@ def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
 
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
-    ignores=["meta.http.useragent", "meta.openai.response.choices.0.finish_reason"],
+    ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.choices.0.finish_reason"],
 )
 def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
