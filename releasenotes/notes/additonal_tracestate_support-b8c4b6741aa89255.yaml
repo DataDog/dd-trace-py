@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    propagation: When the tracer is configured to read & write W3C headers, 
+    the tracer will propagate the tracestate values from other vendors so 
+    long as the traceparent trace-id matches the inherited trace context,
+    regardless of propagator configuration order.
+
