@@ -515,7 +515,14 @@ class Span(object):
             attributes=attributes,
         )
 
-    def _set_span_link(self, trace_id: int, span_id: int, tracestate: Optional[str] = None, traceflags: Optional[int] = None, attributes: Optional[Dict[str, Any]] = None) -> None:
+    def _set_span_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        traceflags: Optional[int] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if attributes is None:
             attributes = dict()
 

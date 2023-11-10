@@ -769,7 +769,14 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def trace(self, name: str, service: Optional[str] = None, resource: Optional[str] = None, span_type: Optional[str] = None, span_api: str = SPAN_API_DATADOG) -> Span:
+    def trace(
+        self,
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced

@@ -153,7 +153,12 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module: str, prefix: str = "ddtrace.contrib", raise_errors: bool = True, patch_indicator: Union[bool, List[str]] = True) -> Callable[[Any], None]:
+def _on_import_factory(
+    module: str,
+    prefix: str = "ddtrace.contrib",
+    raise_errors: bool = True,
+    patch_indicator: Union[bool, List[str]] = True,
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -225,7 +230,11 @@ def patch_all(**patch_modules: bool) -> None:
         patch_iast()
 
 
-def patch(raise_errors: bool = True, patch_modules_prefix: str = DEFAULT_MODULES_PREFIX, **patch_modules: Union[List[str], bool]) -> None:
+def patch(
+    raise_errors: bool = True,
+    patch_modules_prefix: str = DEFAULT_MODULES_PREFIX,
+    **patch_modules: Union[List[str], bool],
+) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.

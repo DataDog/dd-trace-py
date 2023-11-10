@@ -50,7 +50,9 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     def active(self) -> Optional[Union[Context, Span]]:
         pass
 
-    def _on_activate(self, func: Callable[[Optional[Union[Span, Context]]], Any]) -> Callable[[Optional[Union[Span, Context]]], Any]:
+    def _on_activate(
+        self, func: Callable[[Optional[Union[Span, Context]]], Any]
+    ) -> Callable[[Optional[Union[Span, Context]]], Any]:
         """Register a function to execute when a span is activated.
 
         Can be used as a decorator.
@@ -61,7 +63,9 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         self._hooks.register(self.activate, func)
         return func
 
-    def _deregister_on_activate(self, func: Callable[[Optional[Union[Span, Context]]], Any]) -> Callable[[Optional[Union[Span, Context]]], Any]:
+    def _deregister_on_activate(
+        self, func: Callable[[Optional[Union[Span, Context]]], Any]
+    ) -> Callable[[Optional[Union[Span, Context]]], Any]:
         """Unregister a function registered to execute when a span is activated.
 
         Can be used as a decorator.
