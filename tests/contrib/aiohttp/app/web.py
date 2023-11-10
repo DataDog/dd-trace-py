@@ -113,9 +113,7 @@ async def noop_middleware(app, handler):
 if aiohttp_jinja2:
 
     async def template_handler(request):
-        return aiohttp_jinja2.render_template(
-            "template.jinja2", request, {"text": "OK"}
-        )
+        return aiohttp_jinja2.render_template("template.jinja2", request, {"text": "OK"})
 
     @aiohttp_jinja2.template("template.jinja2")
     async def template_decorator(request):
@@ -179,9 +177,7 @@ def set_filesystem_loader(app):
 
 
 def set_package_loader(app):
-    aiohttp_jinja2.setup(
-        app, loader=jinja2.PackageLoader("tests.contrib.aiohttp.app", "templates")
-    )
+    aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader("tests.contrib.aiohttp.app", "templates"))
 
 
 def get_tracer(request):
