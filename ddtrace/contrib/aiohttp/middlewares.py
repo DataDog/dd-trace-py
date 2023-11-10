@@ -1,6 +1,3 @@
-import asyncio
-import functools
-
 from aiohttp import web
 
 from ddtrace import config
