@@ -139,12 +139,12 @@ class TestOperatorsReplacement(BaseReplacement):
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == "00:+-012-+:34"
 
-    def test_aspect_zfill_error_and_no_log_metric(self, telemetry_writer):
+    def test_aspect_zfill_error_and_no_log_metric(self, mock_telemetry_lifecycle_writer):
         string_input = create_taint_range_with_format(":+-foo-+:")
         with pytest.raises(TypeError):
             mod.do_zfill(string_input, "aaaaa")
 
-        list_metrics_logs = list(telemetry_writer._logs)
+        list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
         assert len(list_metrics_logs) == 0
 
     def test_format(self):
