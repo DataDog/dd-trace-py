@@ -47,9 +47,7 @@ async def trace_middleware(app, handler):
 
         # trace the handler
         request_span = tracer.trace(
-            schematize_url_operation(
-                "aiohttp.request", protocol="http", direction=SpanDirection.INBOUND
-            ),
+            schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
             service=service,
             span_type=SpanTypes.WEB,
         )
@@ -63,9 +61,7 @@ async def trace_middleware(app, handler):
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
-        if (
-            config.analytics_enabled and analytics_enabled is not False
-        ) or analytics_enabled is True:
+        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
                 app[CONFIG_KEY].get("analytics_sample_rate", True),
@@ -79,9 +75,7 @@ async def trace_middleware(app, handler):
         try:
             response = await handler(request)
             if isinstance(response, web.StreamResponse):
-                request.task.add_done_callback(
-                    lambda _: finish_request_span(request, response)
-                )
+                request.task.add_done_callback(lambda _: finish_request_span(request, response))
             return response
         except Exception:
             request_span.set_traceback()
