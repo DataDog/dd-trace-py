@@ -835,8 +835,9 @@ class HTTPPropagator(object):
     def extract(headers):
         # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
-        We have a special case for tracecontext propagation to extract tracestate headers for
-        propagation even if another propagation style is specified before tracecontext.
+        For tracecontext propagation we extract tracestate headers for
+        propagation even if another propagation style is specified before tracecontext,
+        so as to always propagate other vendor's tracestate values by default.
         This is skipped if the tracer is configured to take the first style it matches.
 
         Here is an example from a web endpoint::
