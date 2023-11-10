@@ -130,6 +130,7 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
         assert list_ranges[0].length == len_infix
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_encode_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
@@ -144,6 +145,7 @@ def test_encode_error_and_no_log_metric(telemetry_writer):
     assert len(list_metrics_logs) == 0
 
 
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_dencode_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject=b"abcde",

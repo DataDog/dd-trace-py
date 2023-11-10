@@ -66,6 +66,9 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
         assert tainted_ranges[0].length == 1
 
 
+@pytest.mark.skipif(
+    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
+)
 def test_index_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
