@@ -100,7 +100,7 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
 def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_retrieve",
-        ignores=["meta.http.useragent", "meta.openai.base_url"],
+        ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.created"],
     ):
         with openai_vcr.use_cassette("model_retrieve.yaml"):
             openai.Model.retrieve("curie", api_key=request_api_key, user="ddtrace-test")
@@ -111,7 +111,7 @@ def test_model_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, moc
 async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_retrieve",
-        ignores=["meta.http.useragent", "meta.openai.base_url"],
+        ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.created"],
     ):
         with openai_vcr.use_cassette("model_aretrieve.yaml"):
             await openai.Model.aretrieve("curie", api_key=request_api_key, user="ddtrace-test")

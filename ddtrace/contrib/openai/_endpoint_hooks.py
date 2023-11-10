@@ -429,6 +429,7 @@ class _RetrieveHook(_EndpointHook):
         "parent",
         "root",
         "bytes",
+        "created",
         "created_at",
         "purpose",
         "filename",

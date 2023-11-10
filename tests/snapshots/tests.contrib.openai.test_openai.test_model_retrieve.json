@@ -17,6 +17,7 @@
       "openai.request.method": "GET",
       "openai.request.model": "curie",
       "openai.request.user": "ddtrace-test",
+      "openai.response.created": "1649359874",
       "openai.response.id": "curie",
       "openai.response.owned_by": "openai",
       "openai.response.parent": "None",
