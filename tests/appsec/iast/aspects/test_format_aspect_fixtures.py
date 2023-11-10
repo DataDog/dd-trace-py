@@ -5,6 +5,9 @@ from typing import NamedTuple
 
 import pytest
 
+from tests.utils import override_env
+from tests.utils import override_global_config
+
 
 try:
     from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
@@ -224,3 +227,10 @@ class TestOperatorFormatReplacement(BaseReplacement):
         #     escaped_expected_result="a:+-<input2>aaaa<input2>-+:a parameter",
         # )
         pass
+
+    def test_format_key_error_and_no_log_metric(self, telemetry_writer):
+        with pytest.raises(KeyError):
+            mod.do_format_key_error("test1")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
