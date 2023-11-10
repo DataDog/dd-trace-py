@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    aiohttp: This introduces basic tracing of streaming responses that stay open long after the `on_prepare`
+    signal has been sent.
