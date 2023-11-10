@@ -5,7 +5,7 @@ from tests.utils import override_global_config
 
 
 try:
-    from ddtrace.appsec._iast import oce
+    from ddtrace.appsec.iast import oce
     from ddtrace.appsec.iast._taint_tracking import OriginType
     from ddtrace.appsec.iast._taint_tracking import create_context
     from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
