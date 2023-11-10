@@ -81,18 +81,14 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = await handler(request)
-        except Exception:
-            request_span.set_traceback()
-            raise
-        else:
             if isinstance(response, web.StreamResponse):
-                import pudb
-
-                pudb.set_trace()
                 request.task.add_done_callback(
                     lambda _: finish_request_span(request, response)
                 )
             return response
+        except Exception:
+            request_span.set_traceback()
+            raise
 
     return attach_context
 
@@ -147,10 +143,9 @@ async def on_prepare(request, response):
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.
     """
-    import pudb
-
-    pudb.set_trace()
-    if isinstance(response, web.StreamResponse) and not response.task.done():
+    # NB isinstance is not appropriate here because StreamResponse is a parent of the other
+    # aiohttp response types
+    if type(response) is web.StreamResponse and not response.task.done():
         return
     finish_request_span(request, response)
 

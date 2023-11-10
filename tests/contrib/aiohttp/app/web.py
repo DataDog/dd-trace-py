@@ -84,7 +84,7 @@ async def coro_2(request):
 
 
 async def delayed_handler(request):
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.1)
     return web.Response(text="Done")
 
 
@@ -92,7 +92,6 @@ async def stream_handler(request):
     async def async_range(count):
         for i in range(count):
             yield i
-            await asyncio.sleep(0.0)
 
     response = web.StreamResponse()
     await response.prepare(request)
