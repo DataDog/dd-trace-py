@@ -22,7 +22,7 @@ async def traced_aredis():
 
     patch()
     try:
-        yield
+        yield r
     finally:
         unpatch()
 
@@ -93,7 +93,7 @@ async def test_basics(snapshot_context):
 async def test_unicode(snapshot_context):
     with snapshot_context():
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-        await r.get(u"😐")
+        await r.get("😐")
 
 
 @pytest.mark.asyncio
@@ -118,7 +118,7 @@ async def test_pipeline_traced(snapshot_context):
         r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
         p = await r.pipeline(transaction=False)
         await p.set("blah", 32)
-        await p.rpush("foo", u"éé")
+        await p.rpush("foo", "éé")
         await p.hgetall("xxx")
         await p.execute()
 
@@ -212,3 +212,39 @@ async def test_opentracing(tracer, snapshot_context):
 
         with ot_tracer.start_active_span("redis_get"):
             await r.get("cheese")
+
+
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.snapshot
+def test_full_command_in_resource_env():
+    import asyncio
+
+    import aredis
+
+    import ddtrace
+    from tests.contrib.config import REDIS_CONFIG
+
+    async def traced_client():
+        with ddtrace.tracer.trace("web-request", service="test"):
+            redis_client = aredis.StrictRedis(port=REDIS_CONFIG["port"])
+            await redis_client.get("put_key_in_resource")
+            p = await redis_client.pipeline(transaction=False)
+            await p.set("pipeline-cmd1", 1)
+            await p.set("pipeline-cmd2", 2)
+            await p.execute()
+
+    ddtrace.patch(aredis=True)
+    asyncio.run(traced_client())
+
+
+@pytest.mark.snapshot
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_global_tracer", [True])
+async def test_full_command_in_resource_config(tracer, traced_aredis):
+    with override_config("aredis", dict(resource_only_command=False)):
+        with tracer.trace("web-request", service="test"):
+            await traced_aredis.get("put_key_in_resource")
+            p = await traced_aredis.pipeline(transaction=False)
+            await p.set("pipeline-cmd1", 1)
+            await p.set("pipeline-cmd2", 2)
+            await p.execute()
