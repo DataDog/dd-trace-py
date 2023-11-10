@@ -497,8 +497,7 @@ def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
     if flag_added_args > 0:
         self = args[0]
         args = args[flag_added_args:]
-
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    else:
         return orig_function(*args, **kwargs)
 
     result = self.decode(*args, **kwargs)
@@ -519,8 +518,7 @@ def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
     if flag_added_args > 0:
         self = args[0]
         args = args[flag_added_args:]
-
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    else:
         return orig_function(*args, **kwargs)
 
     result = self.encode(*args, **kwargs)
