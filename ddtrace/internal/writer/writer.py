@@ -20,7 +20,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.telemetry import telemetry_writer
+from ...internal import telemetry
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -189,7 +189,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
@@ -621,9 +621,9 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if not telemetry_writer.started:
-                telemetry_writer._app_started_event()
-                telemetry_writer._app_dependencies_loaded_event()
+            if not telemetry.telemetry_writer.started:
+                telemetry.telemetry_writer._app_started_event()
+                telemetry.telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

@@ -120,7 +120,6 @@ async def tasks_app_with_more_body(scope, receive, send):
     message = await receive()
     request_span = scope["datadog"]["request_spans"][0]
     if message.get("type") == "http.request":
-
         # assert that the request span hasn't finished at the start of a response
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
         assert not request_span.finished

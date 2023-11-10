@@ -1,11 +1,11 @@
 import os
 
 import molten
-import wrapt
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ... import Pin
 from ... import config
@@ -100,7 +100,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WEB,
     ) as span:
-
         span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         # set span.kind tag equal to type of operation being performed
@@ -128,7 +127,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
             if not span.get_tag(MOLTEN_ROUTE):
                 # if route never resolve, update root resource
-                span.resource = u"{} {}".format(request.method, code)
+                span.resource = "{} {}".format(request.method, code)
 
             trace_utils.set_http_meta(span, config.molten, status_code=code)
 

@@ -143,6 +143,7 @@ venv = Venv(
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -154,6 +155,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
+                "psycopg2": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -1379,7 +1381,10 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_PATCH_MODULES": "unittest:true"},
+            env={
+                "DD_PATCH_MODULES": "unittest:true",
+                "DD_AGENT_PORT": "9126",
+            },
             pys=select_pys(),
         ),
         Venv(

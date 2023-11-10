@@ -2,8 +2,6 @@ import functools
 import io
 import json
 
-from wrapt import wrap_function_wrapper as _w
-from wrapt.importer import when_imported
 import xmltodict
 
 from ddtrace import config
@@ -15,6 +13,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)
@@ -168,11 +167,11 @@ def _on_flask_patch(flask_version):
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-def _on_flask_blocked_request():
+def _on_flask_blocked_request(_):
     core.set_item(HTTP_REQUEST_BLOCKED, True)
 
 
-def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type):
+def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):

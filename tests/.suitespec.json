@@ -394,8 +394,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "tests/appsec/appsec/*",
-            "tests/snapshots/tests.appsec.*"
+            "tests/appsec/*"
         ],
         "appsec_iast": [
             "@bootstrap",
@@ -411,7 +410,9 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "tests/appsec/iast_integrations/*"
+            "tests/appsec/*",
+            "tests/appsec/iast_integrations/*",
+            "tests/snapshots/tests.appsec.*"
         ],
         "aws_lambda": [
             "@bootstrap",
@@ -498,7 +499,8 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@logging"
+            "@logging",
+            "tests/contrib/logging/*"
         ],
         "loguru": [
             "@loguru",
@@ -694,7 +696,6 @@
             "@flask",
             "@appsec",
             "@appsec_iast",
-            "@appsec_integrations",
             "@wsgi",
             "tests/appsec/*",
             "tests/contrib/flask/*",
