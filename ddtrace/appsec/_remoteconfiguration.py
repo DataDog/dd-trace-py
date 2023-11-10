@@ -26,6 +26,8 @@ from ddtrace.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+APPSEC_PRODUCTS = [PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD]
+
 
 class AppSecRC(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
@@ -38,7 +40,7 @@ class AppSecRC(PubSub):
 
 
 def _forksafe_appsec_rc():
-    remoteconfig_poller.restart_subscribers()
+    remoteconfig_poller.start_subscribers_by_product(APPSEC_PRODUCTS)
 
 
 def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
@@ -80,11 +82,8 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
 def disable_appsec_rc():
     # only used to avoid data leaks between tests
-
-    remoteconfig_poller.unregister(PRODUCTS.ASM_FEATURES)
-    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-    remoteconfig_poller.unregister(PRODUCTS.ASM)
-    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+    for product_name in APPSEC_PRODUCTS:
+        remoteconfig_poller.unregister(product_name)
 
 
 def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, ruleset: Dict[str, Any]) -> None:

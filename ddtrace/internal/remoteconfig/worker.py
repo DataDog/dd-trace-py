@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -92,10 +93,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
         self._client.renew_id()
 
-    def restart_subscribers(self):
-        # type: () -> None
-        for pubsub in self._client.get_pubsubs():
-            pubsub.restart_subscriber()
+    def start_subscribers_by_product(self, products_list):
+        # type: (List[str]) -> None
+        self._client.start_products(products_list)
 
     def _poll_data(self, test_tracer=None):
         """Force subscribers to poll new data. This function is only used in tests"""
