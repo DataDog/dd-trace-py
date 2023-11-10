@@ -263,7 +263,6 @@ def zfill_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     result = candidate_text.zfill(*args, **kwargs)
 
-
     if not isinstance(candidate_text, TEXT_TYPES):
         return result
 
@@ -492,6 +491,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     result = empty.join(result_list)
     taint_pyobject_with_ranges(result, new_ranges)
     return result
+
 
 def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
     if flag_added_args > 0:
