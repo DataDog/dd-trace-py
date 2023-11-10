@@ -28,6 +28,8 @@ def submit_file():
 
 @app.route("/test-body-hang", methods=["POST"])
 def appsec_body_hang():
+    # If you uncomment this, it will also hang even without ddtrace:
+    # print("request.data: %s" % request.stream.readlines())
     return "OK_test-body-hang", 200
 
 
