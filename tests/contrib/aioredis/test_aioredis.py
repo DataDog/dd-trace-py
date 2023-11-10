@@ -319,3 +319,48 @@ async def test_parenting(redis_client):
     with tracer.trace("web-request", service="test"):
         await redis_client.set("blah", "boo")
         await redis_client.get("blah")
+
+
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+def test_full_command_in_resource_env():
+    import asyncio
+
+    import ddtrace
+    from ddtrace.contrib.aioredis.patch import aioredis_version
+    from tests.contrib.aioredis.test_aioredis import get_redis_instance
+
+    async def traced_client():
+        with ddtrace.tracer.trace("web-request", service="test"):
+            redis_client = await get_redis_instance(1)
+            await redis_client.get("put_key_in_resource")
+            if aioredis_version >= (2, 0):
+                p = await redis_client.pipeline()
+                await p.set("pipeline-cmd1", 1)
+                await p.set("pipeline-cmd2", 2)
+                await p.execute()
+            else:
+                p = redis_client.pipeline()
+                p.set("pipeline-cmd1", 1)
+                p.set("pipeline-cmd2", 2)
+                await p.execute()
+
+    ddtrace.patch(aioredis=True)
+    asyncio.run(traced_client())
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+async def test_full_command_in_resource_config(redis_client):
+    with override_config("aioredis", dict(resource_only_command=False)):
+        with tracer.trace("web-request", service="test"):
+            await redis_client.get("put_key_in_resource")
+            if aioredis_version >= (2, 0):
+                p = await redis_client.pipeline(transaction=False)
+                await p.set("pipeline-cmd1", 1)
+                await p.set("pipeline-cmd2", 2)
+            else:
+                p = redis_client.pipeline()
+                p.set("pipeline-cmd1", 1)
+                p.set("pipeline-cmd2", 2)
+            await p.execute()

@@ -92,17 +92,17 @@ def _run_redis_command(span, func, args, kwargs):
 @contextmanager
 def _trace_redis_cmd(pin, config_integration, instance, args):
     """Create a span for the execute command method and tag it"""
+    query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
     with pin.tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
+        resource=query.split(" ")[0] if config_integration.resource_only_command else query,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         span.set_tag_str(COMPONENT, config_integration.integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
-        query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
-        span.resource = query
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
         span.set_tag_str(span_name, query)
         if pin.tags:
@@ -117,8 +117,12 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
 
 
 @contextmanager
-def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, is_cluster=False):
+def _trace_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
     """Create a span for the execute pipeline method and tag it"""
+    cmd_string = resource = "\n".join(cmds)
+    if config_integration.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
     with pin.tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
@@ -130,7 +134,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, i
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
-        span.set_tag_str(span_name, resource)
+        span.set_tag_str(span_name, cmd_string)
         if not is_cluster:
             span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
@@ -141,8 +145,12 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance, i
 
 
 @contextmanager
-def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, resource, instance):
+def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
     """Create a span for the execute async cluster pipeline method and tag it"""
+    cmd_string = resource = "\n".join(cmds)
+    if config_integration.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
     with pin.tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
@@ -154,7 +162,7 @@ def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, resourc
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tag(SPAN_MEASURED_KEY)
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
-        span.set_tag_str(span_name, resource)
+        span.set_tag_str(span_name, cmd_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())

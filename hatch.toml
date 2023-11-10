@@ -55,6 +55,20 @@ template = "docs"
 dev-mode = false
 python = "3.10"
 features = ["opentracing"]
+dependencies = [  # copied from library dependencies
+    "ddsketch>=2.0.1",
+    "protobuf>=3",
+    "attrs>=20",
+    "cattrs",
+    "six>=1.12.0",
+    "typing_extensions",
+    "xmltodict>=0.12",
+    "envier",
+    "opentelemetry-api>=1",
+    "opentracing>=2.0.0",
+    "bytecode",
+    "six>=1.12.0",
+]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
