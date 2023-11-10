@@ -4,7 +4,7 @@ from flask import request
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
+from ddtrace.appsec._iast import oce
 from ddtrace.appsec.iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec.iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec.iast.constants import VULN_NO_HTTPONLY_COOKIE
