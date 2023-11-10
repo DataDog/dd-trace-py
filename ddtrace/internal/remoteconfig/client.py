@@ -248,8 +248,7 @@ class RemoteConfigClient(object):
         for product_name in products_list:
             pubsub_instance = self._products.get(product_name)
             if pubsub_instance:
-                if not self.is_subscriber_running(pubsub_instance):
-                    pubsub_instance.start_subscriber()
+                pubsub_instance.restart_subscriber()
 
     def unregister_product(self, product_name):
         # type: (str) -> None
