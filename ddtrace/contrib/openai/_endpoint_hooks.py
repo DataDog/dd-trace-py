@@ -591,7 +591,7 @@ class _EditHook(_EndpointHook):
         if integration.is_pc_sampled_span(span):
             for choice in choices:
                 idx = choice.index
-                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice.text))
+                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
         integration.record_usage(span, resp.usage)
         if integration.is_pc_sampled_log(span):
             instruction = kwargs.get("instruction", "")
