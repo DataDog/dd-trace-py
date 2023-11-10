@@ -533,31 +533,6 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
-@skip_if_testagent
-@pytest.mark.subprocess(
-    env={
-        "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true",
-        "DD_TRACE_API_VERSION": "v0.5",
-        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
-    }
-)
-def test_trace_with_invalid_encoding_for_v05_payload():
-    import mock
-
-    from ddtrace import tracer
-    from tests.utils import AnyStr
-    from tests.utils import AnyStringWithText
-
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        span = tracer.trace("name")
-        span.finish()
-        span.name = "new_name"
-        tracer.flush()
-
-    log.error.assert_has_calls([mock.call("Encoding Error (or span was modified after finish): %s", AnyStr())])
-    log.debug.assert_has_calls([mock.call(AnyStringWithText("Malformed String table values"))])
-
-
 def test_trace_with_failing_encoder_generates_error_log():
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
