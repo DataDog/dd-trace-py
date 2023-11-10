@@ -225,9 +225,9 @@ class TestOperatorFormatReplacement(BaseReplacement):
         # )
         pass
 
-    def test_format_key_error_and_no_log_metric(self, telemetry_writer):
+    def test_format_key_error_and_no_log_metric(self, mock_telemetry_lifecycle_writer):
         with pytest.raises(KeyError):
             mod.do_format_key_error("test1")
 
-        list_metrics_logs = list(telemetry_writer._logs)
+        list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
         assert len(list_metrics_logs) == 0

@@ -126,7 +126,7 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_encode_error_and_no_log_metric(telemetry_writer):
+def test_encode_error_and_no_log_metric(mock_telemetry_lifecycle_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
         source_name="test_add_aspect_tainting_left_hand",
@@ -136,12 +136,12 @@ def test_encode_error_and_no_log_metric(telemetry_writer):
     with pytest.raises(LookupError):
         mod.do_encode(string_input, "encoding-not-exists")
 
-    list_metrics_logs = list(telemetry_writer._logs)
+    list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
     assert len(list_metrics_logs) == 0
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_dencode_error_and_no_log_metric(telemetry_writer):
+def test_dencode_error_and_no_log_metric(mock_telemetry_lifecycle_writer):
     string_input = taint_pyobject(
         pyobject=b"abcde",
         source_name="test_add_aspect_tainting_left_hand",
@@ -151,5 +151,5 @@ def test_dencode_error_and_no_log_metric(telemetry_writer):
     with pytest.raises(LookupError):
         mod.do_decode(string_input, "decoding-not-exists")
 
-    list_metrics_logs = list(telemetry_writer._logs)
+    list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
     assert len(list_metrics_logs) == 0

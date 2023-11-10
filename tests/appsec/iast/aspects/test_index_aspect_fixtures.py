@@ -69,7 +69,7 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
 @pytest.mark.skipif(
     not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
 )
-def test_index_error_and_no_log_metric(telemetry_writer):
+def test_index_error_and_no_log_metric(mock_telemetry_lifecycle_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
         source_name="test_add_aspect_tainting_left_hand",
@@ -79,5 +79,5 @@ def test_index_error_and_no_log_metric(telemetry_writer):
     with pytest.raises(IndexError):
         mod.do_index(string_input, 100)
 
-    list_metrics_logs = list(telemetry_writer._logs)
+    list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
     assert len(list_metrics_logs) == 0
