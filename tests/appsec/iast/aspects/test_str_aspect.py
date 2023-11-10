@@ -112,12 +112,12 @@ class TestOperatorsReplacement(BaseReplacement):
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
 
-    def test_aspect_ljust_error_and_no_log_metric(self, telemetry_writer):
+    def test_aspect_ljust_error_and_no_log_metric(self, mock_telemetry_lifecycle_writer):
         string_input = create_taint_range_with_format(":+-foo-+:")
         with pytest.raises(TypeError):
             mod.do_ljust(string_input, "aaaaa")
 
-        list_metrics_logs = list(telemetry_writer._logs)
+        list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
         assert len(list_metrics_logs) == 0
 
     def test_zfill(self):
