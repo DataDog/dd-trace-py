@@ -2,7 +2,6 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
-import traceback
 from types import BuiltinFunctionType
 from typing import TYPE_CHECKING
 from typing import Any
