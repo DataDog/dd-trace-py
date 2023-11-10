@@ -38,7 +38,7 @@ class AppSecRC(PubSub):
 
 
 def _forksafe_appsec_rc():
-    remoteconfig_poller.start_subscribers()
+    remoteconfig_poller.restart_subscribers()
 
 
 def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:

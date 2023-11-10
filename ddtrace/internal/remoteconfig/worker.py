@@ -80,17 +80,20 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             self.start()
-
+            forksafe.register(self.reset_at_fork)
             atexit.register(self.disable)
             return True
         return False
 
-    def start_subscribers(self):
+    def reset_at_fork(self):
         # type: () -> None
-        """Subscribers need to be restarted when application forks"""
+        """Client Id needs to be restarted when application forks"""
         self._enable = False
         log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
         self._client.renew_id()
+
+    def restart_subscribers(self):
+        # type: () -> None
         for pubsub in self._client.get_pubsubs():
             pubsub.restart_subscriber()
 
@@ -121,6 +124,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
+        forksafe.unregister(self.reset_at_fork)
         atexit.unregister(self.disable)
 
         self.stop(join=join)
