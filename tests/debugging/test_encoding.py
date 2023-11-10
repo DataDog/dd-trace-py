@@ -8,6 +8,7 @@ import threading
 import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
+from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
@@ -455,6 +456,137 @@ def test_encoding_stopping_cond_collection_size(count, result):
 )
 def test_encoding_stopping_cond_map_size(count, result):
     assert utils.capture_value({i: i for i in range(100)}, stopping_cond=CountBudget(count)) == result
+
+
+def test_json_tree():
+    tree = JSONTree(r'{"a": 1, "b": {"a": [{"a": 1, "b": 2}, {"a": 1, "notCapturedReason": "depth"}], "b": 2}}')
+
+    def node_to_tuple(node: JSONTree.Node):
+        return (
+            node.start,
+            node.end,
+            node.level,
+            node.not_captured,
+            node.pruned,
+            [node_to_tuple(_) for _ in node.children],
+        )
+
+    assert node_to_tuple(tree.root) == (
+        0,
+        88,
+        0,
+        False,
+        0,
+        [
+            (
+                14,
+                87,
+                1,
+                False,
+                0,
+                [
+                    (21, 37, 2, False, 0, []),
+                    (39, 77, 2, True, 0, []),
+                ],
+            )
+        ],
+    )
+
+    assert [node_to_tuple(_) for _ in sorted(tree.leaves)] == [
+        (39, 77, 2, True, 0, []),
+        (21, 37, 2, False, 0, []),
+    ]
+
+
+@pytest.mark.parametrize(
+    "size, expected",
+    [
+        (
+            800,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"type": "Custom", "notCapturedReason": "depth"},
+                    {"type": "Custom", "notCapturedReason": "depth"}
+                ]}
+            }""",
+        ),
+        (
+            440,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"pruned":true},
+                    {"pruned":true}
+                ]}
+            }""",
+        ),
+        (
+            350,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"pruned":true}
+            }""",
+        ),
+        (
+            270,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"pruned":true}
+                ]},
+                "prune": {"pruned":true}
+            }""",
+        ),
+        (
+            240,
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"pruned":true},
+                    {"pruned":true}
+                ]},
+                "prune": {"pruned":true}
+            }""",
+        ),
+        (
+            120,
+            r"""{
+                "keep": {"pruned":true},
+                "prune": {"pruned":true}
+            }""",
+        ),
+        (20, r'{"pruned":true}'),
+    ],
+)
+def test_json_pruning_not_capture_depth(size, expected):
+    class TestEncoder(LogSignalJsonEncoder):
+        MAX_SIGNAL_SIZE = size
+        MIN_LEVEL = 0
+
+    assert (
+        TestEncoder(None).pruned(
+            r"""{
+                "keep": {"type": "list", "size":2, "elements": [
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+                    {"type": "str", "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                ]},
+                "prune": {"type": "list", "size":2, "elements": [
+                    {"type": "Custom", "notCapturedReason": "depth"},
+                    {"type": "Custom", "notCapturedReason": "depth"}
+                ]}
+            }""",
+        )
+        == expected
+    )
 
 
 def test_capture_value_redacted_type():
