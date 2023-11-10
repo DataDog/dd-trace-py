@@ -23,6 +23,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -210,6 +211,13 @@ class SpanTestCase(TracerTestCase):
         assert not s.get_tag(ERROR_MSG)
         assert not s.get_tag(ERROR_TYPE)
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
+
+    def test_large_traceback(self):
+        with override_global_config(dict(_span_traceback_max_size=50)):
+            s = Span("test.span")
+            s.set_traceback()
+            stack = s.get_tag(ERROR_STACK)
+            assert len(stack.splitlines()) == 50
 
     def test_ctx_mgr(self):
         s = Span("bar")
