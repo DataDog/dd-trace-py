@@ -36,7 +36,7 @@ def generate_patch_test_source(contrib):
     if not required_modules_node:
         print(
             f"WARNING: failed to generate patch test for {contrib},"
-            " required_modules not found in ddtrace.contrib.{contrib}.__init__"
+            f" required_modules not found in ddtrace.contrib.{contrib}.__init__"
         )
         return
 
@@ -45,7 +45,7 @@ def generate_patch_test_source(contrib):
     if not required_modules:
         print(
             f"WARNING: failed to generate patch test for {contrib},"
-            " ddtrace.contrib.{contrib}.required_modules could not be parsed"
+            f" ddtrace.contrib.{contrib}.required_modules could not be parsed"
         )
         return
 
@@ -60,6 +60,7 @@ def generate_patch_test_source(contrib):
             # removed the ``_generated`` suffix from the file name, to prevent the content
             # from being overwritten by future re-generations.
 
+            from ddtrace.contrib.{contrib} import get_version
             from ddtrace.contrib.{contrib}.patch import patch
 
 
@@ -75,6 +76,7 @@ def generate_patch_test_source(contrib):
                 __module_name__ = "{module}"
                 __patch_func__ = patch
                 __unpatch_func__ = unpatch
+                __get_version__ = get_version
 
                 def assert_module_patched(self, {module.replace(".", "_")}):
                     pass

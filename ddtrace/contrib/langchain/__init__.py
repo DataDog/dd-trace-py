@@ -90,7 +90,7 @@ Enabling
 ~~~~~~~~
 
 The LangChain integration is enabled automatically when you use
-:ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Note that these commands also enable the ``requests`` and ``aiohttp``
 integrations which trace HTTP requests to LLM providers, as well as the
@@ -202,5 +202,6 @@ with require_modules(required_modules) as missing_modules:
 
         patch = _patch.patch
         unpatch = _patch.unpatch
+        get_version = _patch.get_version
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

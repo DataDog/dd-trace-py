@@ -81,7 +81,7 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 4
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
     spans = test_spans.pop()
@@ -263,7 +263,7 @@ def test_200():
 @snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
 def test_500():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
@@ -292,7 +292,7 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     # Note - span modifiers are not called
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 

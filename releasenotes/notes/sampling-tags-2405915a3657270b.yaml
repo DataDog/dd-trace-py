@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where the `_dd.p.dm` and `_dd.*_psr` tags were applied to spans
+    in ways that did not match their intended semantics, increasing the potential for metrics-counting
+    bugs.

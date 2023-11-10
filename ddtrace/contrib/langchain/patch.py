@@ -1,12 +1,13 @@
 import os
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import TYPE_CHECKING
 
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+from pydantic import SecretStr
 
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
@@ -19,7 +20,7 @@ from ddtrace.contrib.langchain.constants import PROVIDER
 from ddtrace.contrib.langchain.constants import TOTAL_COST
 from ddtrace.contrib.langchain.constants import TYPE
 from ddtrace.contrib.langchain.constants import text_embedding_models
-from ddtrace.contrib.langchain.constants import vectorstores
+from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -38,6 +39,11 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(langchain, "__version__", "")
 
 
 config._add(
@@ -135,8 +141,11 @@ def _extract_model_name(instance):
 
 
 def _format_api_key(api_key):
-    # type: (str) -> str
+    # type: (str | SecretStr) -> str
     """Obfuscate a given LLM provider API key by returning the last four characters."""
+    if hasattr(api_key, "get_secret_value"):
+        api_key = api_key.get_secret_value()
+
     if not api_key or len(api_key) < 4:
         return ""
     return "...%s" % api_key[-4:]
@@ -690,7 +699,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 instance._index.configuration.server_variables.get("project_name", ""),
             )
             api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, "...%s" % api_key[-4:])  # override api_key for Pinecone
+            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
@@ -727,7 +736,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
-    setattr(langchain, "_datadog_patch", True)
+    langchain._datadog_patch = True
 
     #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
     ddsite = os.getenv("DD_SITE", "datadoghq.com")
@@ -740,7 +749,7 @@ def patch():
         site=ddsite,
         api_key=ddapikey,
     )
-    setattr(langchain, "_datadog_integration", integration)
+    langchain._datadog_integration = integration
 
     if config.langchain.logs_enabled:
         if not ddapikey:
@@ -750,6 +759,14 @@ def patch():
                 " environment variable to False."
             )
         integration.start_log_writer()
+
+    # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
+    # ref: https://github.com/DataDog/dd-trace-py/issues/7123
+    from langchain import embeddings  # noqa
+    from langchain import vectorstores  # noqa
+    from langchain.chains.base import Chain  # noqa
+    from langchain.chat_models.base import BaseChatModel  # noqa
+    from langchain.llms.base import BaseLLM  # noqa
 
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -772,7 +789,7 @@ def patch():
                 wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
                 # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
-    for vectorstore in vectorstores:
+    for vectorstore in vectorstore_classes:
         if hasattr(langchain.vectorstores, vectorstore):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
@@ -786,7 +803,7 @@ def patch():
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
         return
-    setattr(langchain, "_datadog_patch", False)
+    langchain._datadog_patch = False
 
     unwrap(langchain.llms.base.BaseLLM, "generate")
     unwrap(langchain.llms.base.BaseLLM, "agenerate")
@@ -804,7 +821,7 @@ def unpatch():
                 deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
             ):
                 unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
-    for vectorstore in vectorstores:
+    for vectorstore in vectorstore_classes:
         if hasattr(langchain.vectorstores, vectorstore):
             if isinstance(
                 deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy

@@ -6,12 +6,13 @@ import os
 import mock
 from paste import fixture
 from paste.deploy import loadapp
+from paste.fixture import AppError
 import pylons
 import pytest
 from routes import url_for
 
 from ddtrace import config
-from ddtrace.appsec.ddwaf import _DDWAF_LOADED
+from ddtrace.appsec._ddwaf import _DDWAF_LOADED
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -23,7 +24,7 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.appsec.test_processor import RULES_GOOD_PATH
+from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -129,7 +130,7 @@ class PylonsTestCase(TracerTestCase):
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service="web")
         app = fixture.TestApp(app)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Middleware exception"):
             app.get(url_for(controller="root", action="index"))
 
         spans = self.pop_spans()
@@ -203,7 +204,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag("span.kind") == "server"
 
     def test_success_200(self, query_string=""):
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True)):
             if query_string:
                 fqs = "?" + query_string
             else:
@@ -323,7 +324,7 @@ class PylonsTestCase(TracerTestCase):
         assert template.error == 0
 
     def test_template_render_exception(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="integer division or modulo by zero"):
             self.app.get(url_for(controller="root", action="render_exception"))
 
         spans = self.pop_spans()
@@ -345,7 +346,7 @@ class PylonsTestCase(TracerTestCase):
         assert "ZeroDivisionError: integer division or modulo by zero" in template.get_tag("error.stack")
 
     def test_failure_500(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_exception"))
 
         spans = self.pop_spans()
@@ -364,7 +365,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_wrong_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_wrong_code"))
 
         spans = self.pop_spans()
@@ -383,7 +384,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_custom_code(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_custom_code"))
 
         spans = self.pop_spans()
@@ -402,7 +403,7 @@ class PylonsTestCase(TracerTestCase):
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_code_method(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Ouch!"):
             self.app.get(url_for(controller="root", action="raise_code_method"))
 
         spans = self.pop_spans()
@@ -528,8 +529,8 @@ class PylonsTestCase(TracerTestCase):
 
     @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_cookie_sql_injection(self):
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self.tracer._appsec_enabled = True
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self.tracer._asm_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             self.app.cookies = {"attack": "w00tw00t.at.isc.sans.dfind"}
@@ -545,8 +546,8 @@ class PylonsTestCase(TracerTestCase):
             assert span["attack"] == "w00tw00t.at.isc.sans.dfind"
 
     def test_pylons_cookie(self):
-        with override_global_config(dict(_appsec_enabled=True)):
-            self.tracer._appsec_enabled = True
+        with override_global_config(dict(_asm_enabled=True)):
+            self.tracer._asm_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             self.app.cookies = {"testingcookie_key": "testingcookie_value"}
@@ -560,7 +561,7 @@ class PylonsTestCase(TracerTestCase):
             assert span["testingcookie_key"] == "testingcookie_value"
 
     def test_pylons_body_urlencoded(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with self.override_global_config(dict(_asm_enabled=True)):
             self.tracer.configure(api_version="v0.4")
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
             response = self.app.post(
@@ -582,7 +583,7 @@ class PylonsTestCase(TracerTestCase):
             assert span["mytestingbody_key"] == "mytestingbody_value"
 
     def test_pylons_request_body_urlencoded_appsec_disabled_then_no_body(self):
-        self.tracer._appsec_enabled = False
+        self.tracer._asm_enabled = False
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
@@ -596,9 +597,9 @@ class PylonsTestCase(TracerTestCase):
 
     @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_urlencoded_attack(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with self.override_global_config(dict(_asm_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-                self.tracer._appsec_enabled = True
+                self.tracer._asm_enabled = True
                 # Hack: need to pass an argument to configure so that the processors are recreated
                 self.tracer.configure(api_version="v0.4")
                 payload = urlencode({"attack": "1' or '1' = '1'"})
@@ -618,7 +619,7 @@ class PylonsTestCase(TracerTestCase):
                 assert query == {"attack": "1' or '1' = '1'"}
 
     def test_pylons_body_json(self):
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
@@ -642,9 +643,9 @@ class PylonsTestCase(TracerTestCase):
 
     @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylons_body_json_attack(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with self.override_global_config(dict(_asm_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-                self.tracer._appsec_enabled = True
+                self.tracer._asm_enabled = True
                 # Hack: need to pass an argument to configure so that the processors are recreated
                 self.tracer.configure(api_version="v0.4")
                 payload = json.dumps({"attack": "1' or '1' = '1'"})
@@ -667,7 +668,7 @@ class PylonsTestCase(TracerTestCase):
                 assert span == {"attack": "1' or '1' = '1'"}
 
     def test_pylons_body_xml(self):
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
@@ -692,12 +693,12 @@ class PylonsTestCase(TracerTestCase):
 
     def test_pylons_body_json_unicode_decode_error_charset(self):
         # Regression test, if request.charset returns None, a TypeError is raised
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with self.override_global_config(dict(_asm_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), mock.patch(
                 "ddtrace.contrib.pylons.middleware.Request.charset", new_callable=mock.PropertyMock
             ) as mock_charset:
                 mock_charset.return_value = None
-                self.tracer._appsec_enabled = True
+                self.tracer._asm_enabled = True
                 # Hack: need to pass an argument to configure so that the processors are recreated
                 self.tracer.configure(api_version="v0.4")
                 self.app.post(
@@ -717,9 +718,9 @@ class PylonsTestCase(TracerTestCase):
                 assert core.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_json_unicode_decode_error(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with self.override_global_config(dict(_asm_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-                self.tracer._appsec_enabled = True
+                self.tracer._asm_enabled = True
                 # Hack: need to pass an argument to configure so that the processors are recreated
                 self.tracer.configure(api_version="v0.4")
                 self.app.post(
@@ -739,7 +740,7 @@ class PylonsTestCase(TracerTestCase):
                 assert core.get_item("http.request.body", span=root_span) is None
 
     def test_pylons_body_xml_attack_and_unicode_decode_error(self):
-        with override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = b"\x80<attack>1' or '1' = '1'</attack>"
@@ -763,8 +764,8 @@ class PylonsTestCase(TracerTestCase):
             assert span == {"attack": "1' or '1' = '1'"}
 
     def test_pylons_body_plain(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
-            self.tracer._appsec_enabled = True
+        with self.override_global_config(dict(_asm_enabled=True)):
+            self.tracer._asm_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "foo=bar"
@@ -785,8 +786,8 @@ class PylonsTestCase(TracerTestCase):
             assert span is None
 
     def test_pylons_body_plain_attack(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
-            self.tracer._appsec_enabled = True
+        with self.override_global_config(dict(_asm_enabled=True)):
+            self.tracer._asm_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "1' or '1' = '1'"
@@ -813,7 +814,7 @@ class PylonsTestCase(TracerTestCase):
         assert spans[0].get_tag("http.method") == "GET"
 
     def test_request_method_get_404(self):
-        with pytest.raises(Exception):
+        with pytest.raises(AppError):
             res = self.app.get(url_for(controller="root", action="index") + "nonexistent-path")
             assert res.status == 404
         spans = self.pop_spans()
@@ -826,8 +827,8 @@ class PylonsTestCase(TracerTestCase):
         assert spans[0].get_tag("http.method") == "POST"
 
     def test_pylon_path_params(self):
-        with override_global_config(dict(_appsec_enabled=True)):
-            self.tracer._appsec_enabled = False
+        with override_global_config(dict(_asm_enabled=True)):
+            self.tracer._asm_enabled = False
             self.tracer.configure(api_version="v0.4")
             self.app.get("/path-params/2022/july/")
 
@@ -841,8 +842,8 @@ class PylonsTestCase(TracerTestCase):
 
     @pytest.mark.skipif(not _DDWAF_LOADED, reason="Test only makes sense when ddwaf is loaded")
     def test_pylon_path_params_attack(self):
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            self.tracer._appsec_enabled = True
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self.tracer._asm_enabled = True
 
             self.tracer.configure(api_version="v0.4")
             self.app.get("/path-params/2022/w00tw00t.at.isc.sans.dfind/")
@@ -867,7 +868,7 @@ class PylonsTestCase(TracerTestCase):
         """
         "Failed to parse request body"
         """
-        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_asm_enabled=True)):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = ""

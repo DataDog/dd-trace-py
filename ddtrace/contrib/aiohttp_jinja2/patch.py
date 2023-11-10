@@ -1,3 +1,5 @@
+import aiohttp_jinja2
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -13,6 +15,11 @@ config._add(
     "aiohttp_jinja2",
     dict(),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(aiohttp_jinja2, "__version__", "")
 
 
 @with_traced_module
@@ -50,7 +57,7 @@ def patch():
 
     _patch(aiohttp_jinja2)
 
-    setattr(aiohttp_jinja2, "_datadog_patch", True)
+    aiohttp_jinja2._datadog_patch = True
 
 
 def _unpatch(aiohttp_jinja2):
@@ -65,4 +72,4 @@ def unpatch():
 
     _unpatch(aiohttp_jinja2)
 
-    setattr(aiohttp_jinja2, "_datadog_patch", False)
+    aiohttp_jinja2._datadog_patch = False

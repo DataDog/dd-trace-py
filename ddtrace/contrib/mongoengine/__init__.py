@@ -1,6 +1,6 @@
 """Instrument mongoengine to report MongoDB queries.
 
-``patch_all`` will automatically patch your mongoengine connect method to make it work.
+``import ddtrace.auto`` will automatically patch your mongoengine connect method to make it work.
 ::
 
     from ddtrace import Pin, patch
@@ -24,6 +24,7 @@ required_modules = ["mongoengine"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "get_version"]

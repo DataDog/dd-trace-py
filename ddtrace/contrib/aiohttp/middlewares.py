@@ -2,7 +2,6 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -11,6 +10,7 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import stringify
 from ...internal.schema import schematize_url_operation
+from .. import trace_utils
 from ..asyncio import context_provider
 
 
@@ -139,7 +139,7 @@ def trace_app(app, tracer, service="aiohttp-web"):
     # safe-guard: don't trace an application twice
     if getattr(app, "__datadog_trace", False):
         return
-    setattr(app, "__datadog_trace", True)
+    app.__datadog_trace = True
 
     # configure datadog settings
     app[CONFIG_KEY] = {

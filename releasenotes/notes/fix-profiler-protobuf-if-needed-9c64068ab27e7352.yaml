@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Load the protobuf module only if needed to avoid interfering with
+    the module state for applications that also make use of it. The protobuf
+    module is used in file and classic Python HTTP export. It is not needed for
+    the libdatadog-based exporter.

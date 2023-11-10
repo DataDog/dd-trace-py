@@ -8,9 +8,11 @@ import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.contrib.pytest_bdd.plugin import _get_step_func_args_json
+from ddtrace.contrib.pytest_bdd.plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -50,6 +52,13 @@ class TestPytest(TracerTestCase):
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
+
+    def test_and_emit_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version != ""
+
+        emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""

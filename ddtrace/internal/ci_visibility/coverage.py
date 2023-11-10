@@ -46,7 +46,7 @@ def segments(lines):
     # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
     _segments = []
-    for key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
+    for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
         group = list(g)
         start = group[0][1]
         end = group[-1][1]

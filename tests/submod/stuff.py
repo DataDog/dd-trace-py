@@ -144,3 +144,21 @@ def age_checker(people, age, name=None):
 
 def caller(f, *args, **kwargs):
     return f(*args, **kwargs)
+
+
+def finallystuff():
+    a = 0
+    try:
+        if a == 0:
+            Exception("Hello", "world!", 42)
+    except Exception:
+        return a
+    finally:
+        a = 42
+    return a
+
+
+def sensitive_stuff(pwd):
+    token, answer = "deadbeef", 42  # noqa
+    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa
+    return pwd

@@ -21,20 +21,20 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_STYLE_NONE
+from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ..internal.constants import PROPAGATION_STYLE_B3
-from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
+from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
-from ..internal.constants import _PROPAGATION_STYLE_NONE
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
-from ..span import _MetaDictType
 from ..span import _get_64_highest_order_bits_as_hex
 from ..span import _get_64_lowest_order_bits_as_int
+from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 
@@ -786,8 +786,8 @@ class _NOP_Propagator:
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
-    PROPAGATION_STYLE_B3: _B3MultiHeader,
-    PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+    PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
+    PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_NONE: _NOP_Propagator,
 }
@@ -824,9 +824,9 @@ class HTTPPropagator(object):
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3 in config._propagation_style_inject:
+        if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
             _B3MultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
+        if PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)

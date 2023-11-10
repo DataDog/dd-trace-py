@@ -19,6 +19,7 @@ from tests.utils import override_global_config
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
+
 # To (re)-generate the cassettes: pass a real API key with
 # {PROVIDER}_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
@@ -52,6 +53,9 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
     with override_config("langchain", ddtrace_config_langchain):
         # ensure that mock OpenAI API key is passed in
         os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+        os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
+        os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
+        os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
         patch()
         import langchain
 
@@ -134,7 +138,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
 
     assert mock_logs.enqueue.call_count == 1
     assert mock_metrics.mock_calls
-    for _, args, kwargs in mock_metrics.mock_calls:
+    for _, _args, kwargs in mock_metrics.mock_calls:
         expected_metrics = [
             "service:test-svc",
             "env:staging",
@@ -148,7 +152,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         for m in expected_metrics:
             assert m in actual_tags
 
-    for call, args, kwargs in mock_logs.mock_calls:
+    for call, args, _kwargs in mock_logs.mock_calls:
         if call != "enqueue":
             continue
         log = args[0]
@@ -233,8 +237,10 @@ async def test_openai_llm_async_stream(langchain, request_vcr):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_openai_llm_error(langchain, request_vcr):
+    import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
+
     llm = langchain.llms.OpenAI()
-    with pytest.raises(Exception):
+    with pytest.raises(openai.error.InvalidRequestError):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 
@@ -1075,9 +1081,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1097,9 +1101,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1124,9 +1126,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1149,9 +1149,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1202,9 +1200,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)

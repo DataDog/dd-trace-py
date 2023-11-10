@@ -7,7 +7,7 @@ Enabling
 ~~~~~~~~
 
 The aioredis integration is enabled automatically when using
-:ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
@@ -37,6 +37,16 @@ Global Configuration
 
    Default: ``1000``
 
+.. py:data:: ddtrace.config.aioedis["resource_only_command"]
+
+   The span resource will only include the command executed. To include all
+   arguments in the span resource, set this value to ``False``.
+
+   This option can also be set with the ``DD_REDIS_RESOURCE_ONLY_COMMAND`` environment
+   variable.
+
+   Default: ``True``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -57,7 +67,8 @@ required_modules = ["aioredis"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

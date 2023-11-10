@@ -32,9 +32,9 @@ and modify spans created by this integration.
 
 Example::
 
+    import ddtrace.auto
     import falcon
-    from ddtrace import config, patch_all
-    patch_all()
+    from ddtrace import config
 
     app = falcon.API()
 
@@ -52,6 +52,7 @@ required_modules = ["falcon"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from .patch import get_version
         from .patch import patch
 
-        __all__ = ["TraceMiddleware", "patch"]
+        __all__ = ["TraceMiddleware", "patch", "get_version"]

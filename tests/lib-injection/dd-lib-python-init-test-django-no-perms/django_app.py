@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.http import HttpResponse
@@ -9,6 +10,8 @@ ROOT_URLCONF = os.path.basename(filepath)
 DEBUG = False
 SECRET_KEY = "fdsfdasfa"
 ALLOWED_HOSTS = ["*"]
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def index(request):

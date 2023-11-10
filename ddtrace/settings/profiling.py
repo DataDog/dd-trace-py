@@ -33,7 +33,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
         return default_heap_sample_size
 
     # This is TRACEBACK_ARRAY_MAX_COUNT
-    max_samples = 2 ** 16
+    max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
@@ -153,6 +153,28 @@ class ProfilingConfig(En):
         help_type="Mapping",
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
+
+    class Stack(En):
+        __item__ = __prefix__ = "stack"
+
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Whether to enable the stack profiler",
+        )
+
+    class Lock(En):
+        __item__ = __prefix__ = "lock"
+
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Whether to enable the lock profiler",
+        )
 
     class Memory(En):
         __item__ = __prefix__ = "memory"

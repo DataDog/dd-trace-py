@@ -15,13 +15,13 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -65,12 +65,6 @@ LINE_BREAK = "\n"
 
 log = get_logger(__name__)
 
-if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
-    debtcollector.deprecate(
-        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
-        message="The botocore integration no longer includes all API parameters by default.",
-        removal_version="2.0.0",
-    )
 
 # Botocore default settings
 config._add(
@@ -80,10 +74,14 @@ config._add(
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return __version__
 
 
 class TraceInjectionSizeExceed(Exception):
@@ -92,6 +90,14 @@ class TraceInjectionSizeExceed(Exception):
 
 class TraceInjectionDecodingError(Exception):
     pass
+
+
+def _encode_data(trace_data):
+    """
+    This method exists solely to enable us to patch the value in tests, since
+    moto doesn't support auto-encoded SNS -> SQS as binary with RawDelivery enabled
+    """
+    return json.dumps(trace_data)
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
@@ -110,12 +116,12 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
         if endpoint_service == "sqs":
             # Use String since changing this to Binary would be a breaking
             # change as other tracers expect this to be a String.
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": _encode_data(trace_data)}
         elif endpoint_service == "sns":
             # Use Binary since SNS subscription filter policies fail silently
             # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
             # AWS will encode our value if it sees "Binary"
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": _encode_data(trace_data)}
         else:
             log.warning("skipping trace injection, endpoint is not SNS or SQS")
     else:
@@ -286,7 +292,7 @@ def get_kinesis_data_object(data):
     - json string
     - byte encoded json string
     - base64 encoded json string
-    If it's neither of these, then we leave the message as it is.
+    If it's none of these, then we leave the message as it is.
     """
 
     # check if data is a json string
@@ -307,7 +313,7 @@ def get_kinesis_data_object(data):
         data_str = base64.b64decode(data).decode("ascii")
         return get_json_from_str(data_str)
     except Exception:
-        log.error("Unable to parse payload, unable to inject trace context.")
+        log.debug("Unable to parse payload, unable to inject trace context.")
 
     return None, None
 
@@ -379,7 +385,6 @@ def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=
     if data_streams_enabled:
         stream_arn = get_stream_arn(params)
         if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-
             # put_records has a "Records" entry but put_record does not, so we fake a record to
             # collapse the logic for the two cases
             for _ in params.get("Records", ["fake_record"]):
@@ -430,7 +435,7 @@ def inject_trace_to_client_context(params, span):
 def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return
-    setattr(botocore.client, "_datadog_patch", True)
+    botocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
     Pin(service="aws").onto(botocore.client.BaseClient)
@@ -442,7 +447,7 @@ def patch():
 def unpatch():
     _PATCHED_SUBMODULES.clear()
     if getattr(botocore.client, "_datadog_patch", False):
-        setattr(botocore.client, "_datadog_patch", False)
+        botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
@@ -581,9 +586,6 @@ def patched_api_call(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        if not config.botocore["tag_no_params"] and config.botocore["tag_all_params"]:
-            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
-
         region_name = deep_getattr(instance, "meta.region_name")
 
         span.set_tag_str("aws.agent", "botocore")
@@ -640,6 +642,18 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 # The message originated from SQS
                                 message_body = message
                                 context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
+                            elif (
+                                "MessageAttributes" in message
+                                and "_datadog" in message["MessageAttributes"]
+                                and "BinaryValue" in message["MessageAttributes"]["_datadog"]
+                            ):
+                                # Raw message delivery
+                                message_body = message
+                                context_json = json.loads(
+                                    message_body["MessageAttributes"]["_datadog"]["BinaryValue"].decode()
+                                )
+                            else:
+                                log.debug("DataStreams did not handle message: %r", message)
 
                             pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
                             ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)

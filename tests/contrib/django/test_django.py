@@ -854,7 +854,6 @@ class RaiseAttributeError:
 
 
 def test_cache_get_rowcount_throws_attribute_and_value_error(test_spans):
-
     # get the default cache
     cache = django.core.cache.caches["default"]
 
@@ -966,7 +965,7 @@ def test_cache_get_unicode(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
 
-    cache.get(u"😐")
+    cache.get("😐")
 
     spans = test_spans.get_spans()
     assert len(spans) == 1
@@ -981,7 +980,7 @@ def test_cache_get_unicode(test_spans):
     expected_meta = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": u"😐",
+        "django.cache.key": "😐",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -1220,7 +1219,6 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
-        "_dd.p.dm": "-0",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1422,14 +1420,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1468,7 +1466,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.p.dm": "-0",
+        "_dd.base_service": "",
     }
 
     assert span_template_cache.get_tags() == expected_meta
@@ -2255,8 +2253,8 @@ class _HttpRequest(django.http.HttpRequest):
     "request_cls,request_path,http_host",
     itertools.product(
         [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
-        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
+        ["/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        ["testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):

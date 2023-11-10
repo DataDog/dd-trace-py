@@ -74,3 +74,13 @@ config._add(
         operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    import pytest
+
+    return pytest.__version__
+
+
+__all__ = ["get_version"]

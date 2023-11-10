@@ -32,14 +32,11 @@ NAME = TEST_NAME = "test.name"
 # Test Parameters
 PARAMETERS = "test.parameters"
 
-# Pytest Result (XFail, XPass)
-RESULT = TEST_RESULT = "pytest.result"
+# Test Result (XFail, XPass)
+RESULT = TEST_RESULT = "test.result"
 
 # Skip Reason
 SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
-
-# Test skipped by ITR
-SKIPPED_BY_ITR = "skipped_by_itr"
 
 # Test Status
 STATUS = TEST_STATUS = "test.status"
@@ -54,15 +51,35 @@ TYPE = TEST_TYPE = "test.type"
 # Use when test implementation file is different from test suite name.
 FILE = TEST_FILE = "test.file"
 
+# Test Source File
+SOURCE_FILE = TEST_SOURCE_FILE = "test.source.file"
+
+# Test Source Start
+SOURCE_START = TEST_SOURCE_START = "test.source.start"
+
+# Test Source End
+SOURCE_END = TEST_SOURCE_END = "test.source.end"
+
 # Test Class Hierarchy
 CLASS_HIERARCHY = "test.class_hierarchy"
 
 # Test Codeowners
 CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
-ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
+# ITR
+ITR_SKIPPED = "test.skipped_by_itr"
 
+# Test session-level ITR and coverage:
+ITR_DD_CI_ITR_TESTS_SKIPPED = "_dd.ci.itr.tests_skipped"
+ITR_TEST_SKIPPING_ENABLED = "test.itr.tests_skipping.enabled"
+ITR_TEST_SKIPPING_TESTS_SKIPPED = "test.itr.tests_skipping.tests_skipped"
+ITR_TEST_SKIPPING_TYPE = "test.itr.tests_skipping.type"
 ITR_TEST_SKIPPING_COUNT = "test.itr.tests_skipping.count"
+ITR_TEST_CODE_COVERAGE_ENABLED = "test.code_coverage.enabled"
+
+# ITR: unskippable tests
+ITR_UNSKIPPABLE = "test.itr.unskippable"
+ITR_FORCED_RUN = "test.itr.forced_run"
 
 
 class Status(Enum):

@@ -52,7 +52,7 @@ def _test_log():
 
 def test_buffer_limit(mock_logs):
     logger = V2LogWriter(site="datadoghq.com", api_key="asdf", interval=1000, timeout=1)
-    for i in range(1001):
+    for _ in range(1001):
         logger.enqueue({})
     mock_logs.warning.assert_called_with("log buffer full (limit is %d), dropping log", 1000)
     assert len(logger._buffer) == 1000

@@ -14,7 +14,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.constants import COMPONENT
 
-from .. import trace_utils
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal import compat
@@ -22,6 +21,7 @@ from ...internal.schema import SpanDirection
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
+from .. import trace_utils
 
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,12 @@ config._add(
         distributed_tracing=asbool(os.getenv("DD_CHERRYPY_DISTRIBUTED_TRACING", default=True)),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(cherrypy, "__version__", "")
+
 
 SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)
 

@@ -8,9 +8,9 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from .. import trace_utils
 
 
 DD_PATCH_ATTR = "_datadog_patch"
@@ -19,6 +19,7 @@ SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
 
 try:
+    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
@@ -30,6 +31,11 @@ except ImportError:
     algoliasearch_version = (0, 0)
 
 
+def get_version():
+    # type: () -> str
+    return VERSION
+
+
 def patch():
     if algoliasearch_version == (0, 0):
         return
@@ -37,7 +43,7 @@ def patch():
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
-    setattr(algoliasearch, "_datadog_patch", True)
+    algoliasearch._datadog_patch = True
 
     pin = Pin()
 

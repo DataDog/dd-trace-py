@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: function duration measurements are now reported in
+    milliseconds to match the expectation from the UI.

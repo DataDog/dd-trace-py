@@ -6,24 +6,22 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
+      "runtime-id": "f335963d0a054add88871c4f52e100e1"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 15844
+      "process_id": 18654
     },
-    "duration": 53818,
-    "start": 1690574476592448085
+    "duration": 49416,
+    "start": 1692900308655182086
   }]]

@@ -72,7 +72,7 @@ LIBRARY_VERSION = "library_version"
 # CI Visibility env vars used for pipeline correlation ID
 _CI_ENV_VARS = "_dd.ci.env_vars"
 
-_RE_URL = re.compile(r"(https?://)[^/]*@")
+_RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
 
 
 log = get_logger(__name__)
@@ -240,7 +240,7 @@ def extract_bitbucket(env):
         git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
         git.TAG: env.get("BITBUCKET_TAG"),
         JOB_URL: url,
-        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
+        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,  # noqa: B005
         PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
         PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
         PIPELINE_URL: url,
@@ -528,6 +528,34 @@ def extract_buddy(env):
     }
 
 
+def extract_codebuild(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from codebuild environments."""
+
+    tags = {}
+
+    # AWS Codepipeline
+    if "CODEBUILD_INITIATOR" in env:
+        codebuild_initiator = env.get("CODEBUILD_INITIATOR")
+        if codebuild_initiator and codebuild_initiator.startswith("codepipeline"):
+            tags.update(
+                {
+                    PROVIDER_NAME: "awscodepipeline",
+                    PIPELINE_ID: env.get("DD_PIPELINE_EXECUTION_ID"),
+                    _CI_ENV_VARS: json.dumps(
+                        {
+                            "CODEBUILD_BUILD_ARN": env.get("CODEBUILD_BUILD_ARN"),
+                            "DD_PIPELINE_EXECUTION_ID": env.get("DD_PIPELINE_EXECUTION_ID"),
+                            "DD_ACTION_EXECUTION_ID": env.get("DD_ACTION_EXECUTION_ID"),
+                        },
+                        separators=(",", ":"),
+                    ),
+                }
+            )
+
+    return tags
+
+
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
@@ -542,4 +570,5 @@ PROVIDERS = (
     ("TRAVIS", extract_travis),
     ("BITRISE_BUILD_SLUG", extract_bitrise),
     ("BUDDY", extract_buddy),
+    ("CODEBUILD_INITIATOR", extract_codebuild),
 )

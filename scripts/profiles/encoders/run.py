@@ -9,6 +9,6 @@ encoder = ENCODERS[sys.argv[1]](8 << 20, 8 << 20)
 
 trace = gen_trace(nspans=1000)
 
-for i in range(200):
+for _ in range(200):
     encoder.put(trace)
     encoder.encode()

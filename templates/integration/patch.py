@@ -11,6 +11,11 @@ config._add(
 )
 
 
+def get_version():
+    # get the package distribution version here
+    pass
+
+
 def patch():
     # Do monkey patching here
     pass

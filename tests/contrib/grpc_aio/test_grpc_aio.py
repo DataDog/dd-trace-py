@@ -102,7 +102,7 @@ class _SyncHelloServicer(HelloServicer):
         except RuntimeError:
             pass
         else:
-            assert False, "This method must not invoked in async context"
+            raise AssertionError("This method must not invoked in async context")
 
     def SayHello(self, request, context):
         self._assert_not_in_async_context()

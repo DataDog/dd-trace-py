@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    ASM: Improve default value of regex for query string obfuscation.
+    Rename env var ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` to ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP``.

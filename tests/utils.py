@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import datetime as dt
 import inspect
 import json
 import os
@@ -95,6 +96,7 @@ def override_global_config(values):
     # List of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
+        "_tracing_enabled",
         "analytics_enabled",
         "client_ip_header",
         "retrieve_client_ip",
@@ -111,38 +113,57 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
-        "_appsec_enabled",
-        "_api_security_enabled",
-        "_waf_timeout",
-        "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
-        "_automatic_login_events_mode",
-        "_user_model_login_field",
-        "_user_model_email_field",
-        "_user_model_name_field",
+        "_remote_config_enabled",
+        "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_sample_rate",
         "_trace_rate_limit",
+        "_trace_sampling_rules",
+        "_trace_api",
+        "_trace_writer_buffer_size",
+        "_trace_writer_payload_size",
+        "_trace_writer_interval_seconds",
+        "_trace_writer_connection_reuse",
+        "_trace_writer_log_err_payload",
+    ]
+
+    asm_config_keys = [
+        "_asm_enabled",
+        "_api_security_enabled",
+        "_api_security_sample_rate",
+        "_waf_timeout",
+        "_iast_enabled",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
     ]
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
+    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+        elif key in asm_config_keys:
+            setattr(ddtrace.settings.asm.config, key, value)
     try:
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        for key, value in asm_originals.items():
+            setattr(ddtrace.settings.asm.config, key, value)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -162,6 +183,7 @@ def override_config(integration, values):
         yield
     finally:
         options.update(original)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -450,11 +472,11 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, "tracer", tracer)
+        ddtrace.tracer = tracer
         try:
             yield
         finally:
-            setattr(ddtrace, "tracer", original)
+            ddtrace.tracer = original
 
 
 class DummyWriterMixin:
@@ -996,7 +1018,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(50):
+            for _ in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()
@@ -1107,10 +1129,14 @@ def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    if PY2:
-        # Python 2 doesn't support timeout
-        stdout, stderr = subp.communicate()
-    else:
+    try:
+        if PY2:
+            # Python 2 doesn't support timeout
+            stdout, stderr = subp.communicate()
+        else:
+            stdout, stderr = subp.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
@@ -1209,3 +1235,45 @@ def add_dd_env_variables_to_headers(headers):
         headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
 
     return headers
+
+
+def _get_skipped_item(item, skip_reason):
+    if not inspect.isfunction(item) and not inspect.isclass(item):
+        raise ValueError(f"Unexpected skipped object: {item}")
+
+    if not hasattr(item, "pytestmark"):
+        item.pytestmark = []
+
+    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+
+    return item
+
+
+def _should_skip(condition=None, until: int = None):
+    if until is None:
+        until = dt.datetime(3000, 1, 1)
+    else:
+        until = dt.datetime.fromtimestamp(until)
+    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+        return True
+    if condition is not None and not condition:
+        return False
+    return True
+
+
+def flaky(until: int = None, condition: bool = None, reason: str = None):
+    return skip_if_until(until, condition=condition, reason=reason)
+
+
+def skip_if_until(until: int, condition=None, reason=None):
+    """Conditionally skip the test until the given epoch timestamp"""
+    skip = _should_skip(condition=condition, until=until)
+
+    def decorator(function_or_class):
+        if not skip:
+            return function_or_class
+
+        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
+        return _get_skipped_item(function_or_class, full_reason)
+
+    return decorator

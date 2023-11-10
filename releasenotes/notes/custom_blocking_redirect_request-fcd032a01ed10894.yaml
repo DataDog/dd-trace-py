@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces support for custom blocking actions of type redirect_request.

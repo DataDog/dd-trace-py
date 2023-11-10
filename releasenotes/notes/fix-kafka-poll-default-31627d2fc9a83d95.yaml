@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    kafka: Resolves an issue where traced kafka connections were assigned a default timeout of 1 second.
+    The default timeout in `Consumer.poll(...) <https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/index.html#confluent_kafka.Consumer.poll>`_ should be None.
+

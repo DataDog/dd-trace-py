@@ -1,5 +1,6 @@
 import os
 
+import aiohttp
 from yarl import URL
 
 from ddtrace import config
@@ -41,6 +42,11 @@ config._add(
         default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     ),
 )
+
+
+def get_version():
+    # type: () -> str
+    return aiohttp.__version__
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):
@@ -129,7 +135,7 @@ def patch():
 
     _patch_client(aiohttp)
 
-    setattr(aiohttp, "_datadog_patch", True)
+    aiohttp._datadog_patch = True
 
 
 def _unpatch_client(aiohttp):
@@ -145,4 +151,4 @@ def unpatch():
 
     _unpatch_client(aiohttp)
 
-    setattr(aiohttp, "_datadog_patch", False)
+    aiohttp._datadog_patch = False

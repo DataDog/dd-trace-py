@@ -6,26 +6,24 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
+      "runtime-id": "f335963d0a054add88871c4f52e100e1"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 19794
+      "process_id": 18654
     },
-    "duration": 76854,
-    "start": 1691163615392974052
+    "duration": 55833,
+    "start": 1692900308663710086
   },
      {
        "name": "child",
@@ -34,13 +32,11 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
-         "_dd.p.dm": "-0"
+         "_dd.base_service": ""
        },
-       "duration": 10470,
-       "start": 1691163615393028452
+       "duration": 8792,
+       "start": 1692900308663749377
      }],
 [
   {
@@ -50,26 +46,24 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "k": "v",
       "language": "python",
-      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
+      "runtime-id": "f335963d0a054add88871c4f52e100e1"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 19794
+      "process_id": 18654
     },
-    "duration": 46600,
-    "start": 1691163615393254861
+    "duration": 35500,
+    "start": 1692900308664048211
   },
      {
        "name": "child",
@@ -78,11 +72,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
-         "_dd.p.dm": "-0"
+         "_dd.base_service": ""
        },
-       "duration": 8565,
-       "start": 1691163615393285748
+       "duration": 7417,
+       "start": 1692900308664070169
      }]]

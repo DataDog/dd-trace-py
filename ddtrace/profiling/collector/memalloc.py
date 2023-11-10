@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
+from math import ceil
 import os
 import threading
 import typing
@@ -166,11 +167,11 @@ class MemoryCollector(collector.PeriodicCollector):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
         if self._export_libdd_enabled:
-            for (frames, nframes, thread_id), size, domain in events:
+            for (frames, nframes, thread_id), size, _domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
                 ddup.start_sample(nframes)
-                ddup.push_alloc(((size + 0.51) * alloc_count) / count, count)  # Roundup to help float precision
+                ddup.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )

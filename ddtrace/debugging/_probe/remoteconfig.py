@@ -1,3 +1,4 @@
+from itertools import count
 import os
 import sys
 import time
@@ -12,12 +13,10 @@ import six
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
-from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import CaptureLimits
-from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineProbe
@@ -34,77 +33,35 @@ from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
+from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
-from ddtrace.internal.utils.cache import LFUCache
 
 
 log = get_logger(__name__)
 
 
-_EXPRESSION_CACHE = LFUCache()
-
-
-def xlate_keys(d, mapping):
-    # type: (Dict[str, Any], Dict[str, str]) -> Dict[str, Any]
+def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _invalid_expression(_):
-    """Forces probes with invalid expression/conditions to never trigger.
-
-    Any signs of invalid conditions in logs is an indication of a problem with
-    the expression compiler.
-    """
-    return None
-
-
-INVALID_EXPRESSION = _invalid_expression
-
-
-def _compile_expression(expr):
-    # type: (Optional[Dict[str, Any]]) -> Optional[DDExpression]
-    global _EXPRESSION_CACHE, INVALID_EXPRESSION
-
-    if expr is None:
-        return None
-
-    ast = expr["json"]
-
-    def compile_or_invalid(expr):
-        # type: (str) -> Callable[[Dict[str, Any]], Any]
-        try:
-            return dd_compile(ast)
-        except Exception:
-            log.error("Cannot compile expression: %s", expr, exc_info=True)
-            return INVALID_EXPRESSION
-
-    dsl = expr["dsl"]
-
-    compiled = _EXPRESSION_CACHE.get(dsl, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
-
-    if compiled is INVALID_EXPRESSION:
-        log.error("Cannot compile expression: %s", dsl, exc_info=True)
-
-    return DDExpression(dsl=dsl, callable=compiled)
-
-
-def _compile_segment(segment):
-    if segment.get("str", ""):
+def _compile_segment(segment: dict) -> Optional[TemplateSegment]:
+    if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
-    elif segment.get("json", None) is not None:
-        return ExpressionTemplateSegment(expr=_compile_expression(segment))
+
+    if "json" in segment:
+        return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
 
     # what type of error we should show here?
     return None
 
 
-def _match_env_and_version(probe):
-    # type: (Probe) -> bool
+def _match_env_and_version(probe: Probe) -> bool:
     probe_version = probe.tags.get("version", None)
     probe_env = probe.tags.get("env", None)
 
@@ -113,26 +70,23 @@ def _match_env_and_version(probe):
     )
 
 
-def _filter_by_env_and_version(f):
-    # type: (Callable[..., Iterable[Probe]]) -> Callable[..., Iterable[Probe]]
-    def _wrapper(*args, **kwargs):
-        # type: (Any, Any) -> Iterable[Probe]
+def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..., Iterable[Probe]]:
+    def _wrapper(*args: Any, **kwargs: Any) -> Iterable[Probe]:
         return [_ for _ in f(*args, **kwargs) if _match_env_and_version(_)]
 
     return _wrapper
 
 
 class ProbeFactory(object):
-    __line_class__ = None  # type: Optional[Type[LineProbe]]
-    __function_class__ = None  # type: Optional[Type[FunctionProbe]]
+    __line_class__: Optional[Type[LineProbe]] = None
+    __function_class__: Optional[Type[FunctionProbe]] = None
 
     @classmethod
     def update_args(cls, args, attribs):
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args, attribs):
-        # type: (Dict[str, Any], Dict[str, Any]) -> Any
+    def build(cls, args: Dict[str, Any], attribs: Dict[str, Any]) -> Any:
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -169,7 +123,7 @@ class LogProbeFactory(ProbeFactory):
             rate = sampling.get("snapshotsPerSecond", rate)
 
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             rate=rate,
             limits=CaptureLimits(
                 **xlate_keys(
@@ -178,7 +132,7 @@ class LogProbeFactory(ProbeFactory):
                         "maxReferenceDepth": "max_level",
                         "maxCollectionSize": "max_size",
                         "maxLength": "max_len",
-                        "maxFieldDepth": "max_fields",
+                        "maxFieldCount": "max_fields",
                     },
                 )
             )
@@ -197,12 +151,15 @@ class MetricProbeFactory(ProbeFactory):
 
     @classmethod
     def update_args(cls, args, attribs):
+        # adding probe_id to probe-tags so it would be recorded as a metric tag
+        args["tags"]["debugger.probeid"] = args["probe_id"]
+
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             name=attribs["metricName"],
             kind=attribs["kind"],
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
-            value=_compile_expression(attribs.get("value")),
+            value=DDRedactedExpression.compile(attribs["value"]) if "value" in attribs else None,
         )
 
 
@@ -212,7 +169,7 @@ class SpanProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args, attribs):
         args.update(
-            condition=_compile_expression(attribs.get("when")),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 
@@ -227,7 +184,7 @@ class SpanDecorationProbeFactory(ProbeFactory):
             target_span=attribs["targetSpan"],
             decorations=[
                 SpanDecoration(
-                    when=_compile_expression(d.get("when")),
+                    when=DDRedactedExpression.compile(d["when"]) if "when" in d else None,
                     tags=[
                         SpanDecorationTag(
                             name=t["name"],
@@ -248,8 +205,7 @@ class InvalidProbeConfiguration(ValueError):
     pass
 
 
-def build_probe(attribs):
-    # type: (Dict[str, Any]) -> Probe
+def build_probe(attribs: Dict[str, Any]) -> Probe:
     """
     Create a new Probe instance.
     """
@@ -278,8 +234,7 @@ def build_probe(attribs):
 
 
 @_filter_by_env_and_version
-def get_probes(config, status_logger):
-    # type: (dict, ProbeStatusLogger) -> Iterable[Probe]
+def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe]:
     try:
         return [build_probe(config)]
     except InvalidProbeConfiguration:
@@ -287,8 +242,7 @@ def get_probes(config, status_logger):
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
-            message=str(e),
-            exc_info=sys.exc_info(),
+            error=(type(e).__name__, str(e)),
         )
         return []
 
@@ -312,40 +266,47 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
     def __init__(self, data_connector, callback, name, status_logger):
         super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
-        self._configs = {}  # type: Dict[str, Dict[str, Probe]]
-        self._status_timestamp = time.time()
+        self._configs: Dict[str, Dict[str, Probe]] = {}
+        self._status_timestamp_sequence = count(
+            time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
+        )
+        self._status_timestamp = next(self._status_timestamp_sequence)
         self._status_logger = status_logger
-        self._next_status_update_timestamp()
 
     def _exec_callback(self, data, test_tracer=None):
-        if data:
-            metadatas = data["metadata"]
-            rc_configs = data["config"]
-            # DEV: We emit a status update event here to avoid having to spawn a
-            # separate thread for this.
-            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-            for idx in range(len(rc_configs)):
-                if time.time() > self._status_timestamp:
-                    log.debug(
-                        "[%s][P: %s] Dynamic Instrumentation,Emitting probe status log messages",
-                        os.getpid(),
-                        os.getppid(),
-                    )
-                    probes = [probe for config in self._configs.values() for probe in config.values()]
-                    self._callback(ProbePollerEvent.STATUS_UPDATE, probes)
-                    self._next_status_update_timestamp()
-                if metadatas[idx] is None:
-                    log.debug("[%s][P: %s] Dynamic Instrumentation, no RCM metadata", os.getpid(), os.getppid())
-                    return
+        # Check if it is time to re-emit probe status messages.
+        # DEV: We use the periodic signal from the remote config client worker
+        # thread to avoid having to spawn a separate thread for this.
+        if time.time() > self._status_timestamp:
+            self._send_status_update()
+            self._status_timestamp = next(self._status_timestamp_sequence)
 
-                self._update_probes_for_config(metadatas[idx]["id"], rc_configs[idx])
+        if not data:
+            # Nothing else to do.
+            return
 
-    def _next_status_update_timestamp(self):
-        # type: () -> None
-        self._status_timestamp = time.time() + di_config.diagnostics_interval
+        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+        for metadata, config in zip(data["metadata"], data["config"]):
+            if metadata is None:
+                log.debug(
+                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                    os.getpid(),
+                    os.getppid(),
+                )
+                continue
 
-    def _dispatch_probe_events(self, prev_probes, next_probes):
-        # type: (Dict[str, Probe], Dict[str, Probe]) -> None
+            self._update_probes_for_config(metadata["id"], config)
+
+    def _send_status_update(self):
+        log.debug(
+            "[%s][P: %s] Dynamic Instrumentation: emitting probe status log messages",
+            os.getpid(),
+            os.getppid(),
+        )
+
+        self._callback(ProbePollerEvent.STATUS_UPDATE, [])
+
+    def _dispatch_probe_events(self, prev_probes: Dict[str, Probe], next_probes: Dict[str, Probe]) -> None:
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
@@ -357,14 +318,13 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         if new_probes:
             self._callback(ProbePollerEvent.NEW_PROBES, new_probes)
 
-    def _update_probes_for_config(self, config_id, config):
-        # type: (str, Any) -> None
-        prev_probes = self._configs.get(config_id, {})  # type: Dict[str, Probe]
-        next_probes = (
+    def _update_probes_for_config(self, config_id: str, config: Any) -> None:
+        prev_probes: Dict[str, Probe] = self._configs.get(config_id, {})
+        next_probes: Dict[str, Probe] = (
             {probe.probe_id: probe for probe in get_probes(config, self._status_logger)}
             if config not in (None, False)
             else {}
-        )  # type: Dict[str, Probe]
+        )
         log.debug("[%s][P: %s] Dynamic Instrumentation, dispatch probe events", os.getpid(), os.getppid())
         self._dispatch_probe_events(prev_probes, next_probes)
 

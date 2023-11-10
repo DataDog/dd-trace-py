@@ -7,6 +7,7 @@
 
 #include <array>
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -130,7 +131,7 @@ private:
   // strategy to dedup + store strings
   using StringTable = std::unordered_set<std::string_view>;
 
-  std::vector<std::string> string_storage;
+  std::deque<std::string> string_storage;
   StringTable strings;
 
   unsigned int type_mask;
@@ -169,6 +170,7 @@ private:
   } val_idx;
 
   // Helpers
+  std::string_view insert_or_get(std::string_view sv);
   bool push_label(const ExportLabelKey key, std::string_view val);
   bool push_label(const ExportLabelKey key, int64_t val);
   void push_frame_impl(std::string_view name, std::string_view filename,
@@ -195,8 +197,8 @@ public:
                        std::string_view thread_name);
   bool push_task_id(int64_t task_id);
   bool push_task_name(std::string_view task_name);
-  bool push_span_id(int64_t span_id);
-  bool push_local_root_span_id(int64_t local_root_span_id);
+  bool push_span_id(uint64_t span_id);
+  bool push_local_root_span_id(uint64_t local_root_span_id);
   bool push_trace_type(std::string_view trace_type);
   bool push_trace_resource_container(std::string_view trace_resource_container);
   bool push_exceptioninfo(std::string_view exception_type, int64_t count);

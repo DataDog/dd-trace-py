@@ -1,4 +1,7 @@
+from collections import defaultdict
+import json
 import os
+import textwrap
 import time
 
 import mock
@@ -9,10 +12,14 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
+from ddtrace.internal.ci_visibility.constants import SUITE
+from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
@@ -49,8 +56,7 @@ def test_filters_non_test_spans():
     assert trace_filter.process_trace(trace) is None
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_ci_visibility_service_enable(_check_enabled_features_patch):
+def test_ci_visibility_service_enable():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -71,9 +77,8 @@ def test_ci_visibility_service_enable(_check_enabled_features_patch):
             CIVisibility.disable()
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request, _check_enabled_features_patch):
+def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -102,6 +107,7 @@ def test_ci_visibility_service_settings_timeout(_do_request):
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -119,6 +125,7 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -134,6 +141,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_enabled(_do_request):
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -167,8 +175,7 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
         CIVisibility.disable()
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_ci_visibility_service_disable(_check_enabled_features):
+def test_ci_visibility_service_disable():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
@@ -222,6 +229,7 @@ def test_git_client_worker_agentless(_do_request, git_repo):
         dict(
             DD_API_KEY="foobar.baz",
             DD_APPLICATION_KEY="banana",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_SITE="datadoghq.com",
         )
@@ -255,7 +263,13 @@ def test_git_client_worker_evp_proxy(_do_request, git_repo):
         body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
         '{"code_coverage":true,"tests_skipping":true}}}',
     )
-    with override_env(dict(DD_API_KEY="foobar.baz", DD_APPLICATION_KEY="banana",)), mock.patch(
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APPLICATION_KEY="banana",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+        )
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
@@ -305,7 +319,7 @@ def test_git_client_get_latest_commits(git_repo):
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
     latest_commits = [TEST_SHA]
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     backend_commits = CIVisibilityGitClient._search_commits(
         REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
     )
@@ -313,9 +327,9 @@ def test_git_client_search_commits():
 
 
 def test_get_client_do_request_agentless_headers():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response
@@ -324,15 +338,13 @@ def test_get_client_do_request_agentless_headers():
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with(
-        "POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo", "dd-application-key": "bar"}
-    )
+    _request.assert_called_once_with("POST", "http://base_url/repository/endpoint", "payload", {"dd-api-key": "foo"})
 
 
 def test_get_client_do_request_evp_proxy_headers():
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
-    setattr(response, "status", 200)
+    response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
         "ddtrace.internal.compat.get_connection_response", return_value=response
@@ -342,7 +354,10 @@ def test_get_client_do_request_evp_proxy_headers():
         )
 
     _request.assert_called_once_with(
-        "POST", "http://base_url/repository/endpoint", "payload", {"X-Datadog-EVP-Subdomain": "api"}
+        "POST",
+        "http://base_url/repository/endpoint",
+        "payload",
+        {"X-Datadog-EVP-Subdomain": "api"},
     )
 
 
@@ -400,7 +415,7 @@ def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_rep
 
 
 def test_git_client_upload_packfiles(git_repo):
-    serializer = CIVisibilityGitClientSerializerV1("foo", "bar")
+    serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
@@ -415,6 +430,72 @@ def test_git_client_upload_packfiles(git_repo):
             assert call_args[2] == "/packfile"
             assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
             assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
+
+
+def test_git_do_request_agentless(git_repo):
+    mock_serializer = CIVisibilityGitClientSerializerV1("fakeapikey")
+    response = mock.MagicMock()
+    setattr(response, "status", 200)  # noqa: B010
+
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
+        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+            mock_http_connection = mock.Mock()
+            mock_http_connection.request = mock.Mock()
+            mock_http_connection.close = mock.Mock()
+            mock_get_connection.return_value = mock_http_connection
+
+            CIVisibilityGitClient._do_request(
+                REQUESTS_MODE.AGENTLESS_EVENTS,
+                "base_url",
+                "endpoint",
+                '{"payload": "payload"}',
+                mock_serializer,
+                {"mock_header_name": "mock_header_value"},
+            )
+
+            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
+            mock_http_connection.request.assert_called_once_with(
+                "POST",
+                "base_url/repositoryendpoint",
+                '{"payload": "payload"}',
+                {
+                    "dd-api-key": "fakeapikey",
+                    "mock_header_name": "mock_header_value",
+                },
+            )
+
+
+def test_git_do_request_evp(git_repo):
+    mock_serializer = CIVisibilityGitClientSerializerV1("foo")
+    response = mock.MagicMock()
+    setattr(response, "status", 200)  # noqa: B010
+
+    with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
+        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+            mock_http_connection = mock.Mock()
+            mock_http_connection.request = mock.Mock()
+            mock_http_connection.close = mock.Mock()
+            mock_get_connection.return_value = mock_http_connection
+
+            CIVisibilityGitClient._do_request(
+                REQUESTS_MODE.EVP_PROXY_EVENTS,
+                "base_url",
+                "endpoint",
+                '{"payload": "payload"}',
+                mock_serializer,
+                {"mock_header_name": "mock_header_value"},
+            )
+
+            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
+            mock_http_connection.request.assert_called_once_with(
+                "POST",
+                "base_url/repositoryendpoint",
+                '{"payload": "payload"}',
+                {
+                    "X-Datadog-EVP-Subdomain": "api",
+                    "mock_header_name": "mock_header_value",
+                },
+            )
 
 
 def test_civisibilitywriter_agentless_url():
@@ -478,8 +559,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
             _get_connection.assert_called_once_with("http://localhost:8126", 2.0)
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_civisibilitywriter_agentless_url_envvar(_check_enabled_features):
+def test_civisibilitywriter_agentless_url_envvar():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -495,9 +575,12 @@ def test_civisibilitywriter_agentless_url_envvar(_check_enabled_features):
         CIVisibility.disable()
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_civisibilitywriter_evp_proxy_url(_check_enabled_features):
-    with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
+def test_civisibilitywriter_evp_proxy_url():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -508,9 +591,12 @@ def test_civisibilitywriter_evp_proxy_url(_check_enabled_features):
         CIVisibility.disable()
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(False, False))
-def test_civisibilitywriter_only_traces(_check_enabled_features):
-    with override_env(dict(DD_API_KEY="foobar.baz",)), mock.patch(
+def test_civisibilitywriter_only_traces():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
     ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -521,11 +607,114 @@ def test_civisibilitywriter_only_traces(_check_enabled_features):
         CIVisibility.disable()
 
 
+def test_civisibility_check_enabled_features_agentless_do_request_called_correctly():
+    with mock.patch("ddtrace.internal.ci_visibility.recorder.uuid4", return_value="checkoutmyuuid4"):
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._do_request") as mock_do_request:
+            mock_do_request.return_value = Response(
+                status=200,
+                body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+                '{"code_coverage":true,"tests_skipping":true}}}',
+            )
+            with mock.patch.object(CIVisibility, "__init__", return_value=None):
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
+
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._api_key = "myfakeapikey"
+                    mock_civisibilty._dd_site = "datad0g.com"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
+                    }
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert do_request_call_args[1] == "https://api.datad0g.com/api/v2/libraries/tests/services/setting"
+                    assert do_request_call_args[3] == {
+                        "dd-api-key": "myfakeapikey",
+                        "Content-Type": "application/json",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
+
+
+def test_civisibility_check_enabled_features_evp_do_request_called_correctly():
+    with mock.patch("ddtrace.internal.ci_visibility.recorder.uuid4", return_value="checkoutmyuuid4"):
+        with mock.patch("ddtrace.internal.ci_visibility.recorder._do_request") as mock_do_request:
+            mock_do_request.return_value = Response(
+                status=200,
+                body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+                '{"code_coverage":true,"tests_skipping":true}}}',
+            )
+            with mock.patch.object(CIVisibility, "__init__", return_value=None):
+                with override_env({"DD_CIVISIBILITY_ITR_ENABLED": "true"}):
+                    mock_civisibilty = CIVisibility()
+
+                    ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                    mock_civisibilty._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+                    mock_civisibilty._service = "service"
+                    mock_civisibilty._tags = {
+                        ci.git.REPOSITORY_URL: "my_repo_url",
+                        ci.git.COMMIT_SHA: "mycommitshaaaaaaalalala",
+                        ci.git.BRANCH: "notmain",
+                    }
+
+                    enabled_features = mock_civisibilty._check_enabled_features()
+
+                    mock_do_request.assert_called_once()
+                    do_request_call_args = mock_do_request.call_args[0]
+                    do_request_payload = json.loads(do_request_call_args[2])
+
+                    assert do_request_call_args[0] == "POST"
+                    assert (
+                        do_request_call_args[1]
+                        == "http://localhost:8126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
+                    )
+                    assert do_request_call_args[3] == {
+                        "X-Datadog-EVP-Subdomain": "api",
+                    }
+                    assert do_request_payload == {
+                        "data": {
+                            "id": "checkoutmyuuid4",
+                            "type": "ci_app_test_service_libraries_settings",
+                            "attributes": {
+                                "service": "service",
+                                "env": None,
+                                "repository_url": "my_repo_url",
+                                "sha": "mycommitshaaaaaaalalala",
+                                "branch": "notmain",
+                            },
+                        }
+                    }
+                    assert enabled_features == (True, True)
+
+
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_request):
+def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
+            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
@@ -537,11 +726,67 @@ def test_civisibility_check_enabled_features_no_app_key_request_not_called(_do_r
         _do_request.assert_not_called()
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
+
         CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_errors_not_found(_do_request):
+def test_civisibility_check_enabled_features_itr_enabled_request_called(_do_request):
+    _do_request.return_value = Response(
+        status=200,
+        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
+        '{"code_coverage":true,"tests_skipping":true}}}',
+    )
+    with override_env(
+        dict(
+            DD_API_KEY="foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_ENV="staging",
+            DD_GIT_COMMIT_SHA="fffffff",
+            DD_GIT_BRANCH="main",
+        )
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
+    ) as git_start, mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.uuid4"
+    ) as _uuid4:
+        _uuid4.return_value = "111-111-111"
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+
+        _do_request.assert_called_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/libraries/tests/services/setting",
+            json.dumps(
+                {
+                    "data": {
+                        "id": "111-111-111",
+                        "type": "ci_app_test_service_libraries_settings",
+                        "attributes": {
+                            "service": "test-service",
+                            "env": "staging",
+                            "repository_url": "git@github.com:DataDog/dd-trace-py.git",
+                            "sha": "fffffff",
+                            "branch": "main",
+                        },
+                    }
+                }
+            ),
+            {"dd-api-key": "foo.bar", "Content-Type": "application/json"},
+        )
+        assert CIVisibility._instance._code_coverage_enabled_by_api is True
+        assert CIVisibility._instance._test_skipping_enabled_by_api is True
+
+        # Git client is started
+        assert git_start.call_count == 1
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+def test_civisibility_check_enabled_features_itr_enabled_errors_not_found(_do_request):
     _do_request.return_value = Response(
         status=200,
         body='{"errors":["Not found"]}',
@@ -549,9 +794,9 @@ def test_civisibility_check_enabled_features_errors_not_found(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -562,13 +807,13 @@ def test_civisibility_check_enabled_features_errors_not_found(_do_request):
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client should not start if ITR is not enabled
-        assert git_start.call_count == 0
+        # Git client is started
+        assert git_start.call_count == 1
         CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_404_response(_do_request):
+def test_civisibility_check_enabled_features_itr_enabled_404_response(_do_request):
     _do_request.return_value = Response(
         status=404,
         body="",
@@ -576,9 +821,9 @@ def test_civisibility_check_enabled_features_404_response(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start") as git_start:
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
@@ -591,13 +836,13 @@ def test_civisibility_check_enabled_features_404_response(_do_request):
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client should not start if ITR is not enabled
-        assert git_start.call_count == 0
+        # Git client is started
+        assert git_start.call_count == 1
         CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_malformed_response(_do_request):
+def test_civisibility_check_enabled_features_itr_enabled_malformed_response(_do_request):
     _do_request.return_value = Response(
         status=200,
         body="}",
@@ -605,9 +850,9 @@ def test_civisibility_check_enabled_features_malformed_response(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.log") as mock_log, mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibilityGitClient.start"
@@ -620,10 +865,9 @@ def test_civisibility_check_enabled_features_malformed_response(_do_request):
         assert CIVisibility._instance._code_coverage_enabled_by_api is False
         assert CIVisibility._instance._test_skipping_enabled_by_api is False
 
-        # Git client should not start if ITR is not enabled
-        assert git_start.call_count == 0
-
-        mock_log.warning.assert_called_with("Settings request responded with invalid JSON '%s'", "}")
+        # Git client is started
+        assert git_start.call_count == 1
+        mock_log.warning.assert_any_call("Settings request responded with invalid JSON '%s'", "}")
         CIVisibility.disable()
 
 
@@ -691,175 +935,436 @@ def test_is_shallow_repository_false():
         mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
 
 
-def test_unshallow_repository():
-    with mock.patch("ddtrace.internal.ci_visibility.git_client._unshallow_repository") as mock_unshallow_repository:
-        CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
-        mock_unshallow_repository.assert_called_once_with(cwd="/path/to/repo")
-
-
-def test_configure_itr_disabled_by_env_var():
-    with override_env(
-        dict(
-            DD_API_KEY="mock_api_key",
-            DD_APP_KEY="mock_app_key",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_DISABLED="1",
-        )
+def test_unshallow_repository_local_head():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
     ):
+        with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_commit_sha", return_value="myfakesha"):
+            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                mock_git_subprocess_command.assert_called_once_with(
+                    [
+                        "fetch",
+                        '--shallow-since="1 month ago"',
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        "origin",
+                        "myfakesha",
+                    ],
+                    cwd="/path/to/repo",
+                )
+
+
+def test_unshallow_repository_upstream():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+    ):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
+            side_effect=ValueError,
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client._extract_upstream_sha", return_value="myupstreamsha"
+            ):
+                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                    CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                    mock_git_subprocess_command.assert_called_once_with(
+                        [
+                            "fetch",
+                            '--shallow-since="1 month ago"',
+                            "--update-shallow",
+                            "--filter=blob:none",
+                            "--recurse-submodules=no",
+                            "origin",
+                            "myupstreamsha",
+                        ],
+                        cwd="/path/to/repo",
+                    )
+
+
+def test_unshallow_repository_full():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+    ):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
+            side_effect=ValueError,
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_upstream",
+                side_effect=ValueError,
+            ):
+                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                    CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
+                    mock_git_subprocess_command.assert_called_once_with(
+                        [
+                            "fetch",
+                            '--shallow-since="1 month ago"',
+                            "--update-shallow",
+                            "--filter=blob:none",
+                            "--recurse-submodules=no",
+                            "origin",
+                        ],
+                        cwd="/path/to/repo",
+                    )
+
+
+def test_unshallow_respository_cant_get_remote():
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", side_effect=ValueError
+    ):
+        with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+            CIVisibilityGitClient._unshallow_repository()
+            mock_git_subprocess_command.assert_not_called()
+
+
+def test_encoder_pack_payload():
+    packed_payload = CIVisibilityEncoderV01._pack_payload(
+        {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
+    )
+    if PY2:
+        assert (
+            packed_payload == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            "\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+    else:
+        assert (
+            packed_payload == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+            b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
+        )
+
+
+@pytest.mark.skipif(not PY2, reason="py2 payload encoder only tested in Python 2.x")
+def test_encoder_py2_payload_force_unicode_strings():
+    assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
+        {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
+    ) == {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
+
+
+class TestFetchTestsToSkip:
+    @pytest.fixture(scope="function")
+    def mock_civisibility(self):
         with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
+            _civisibility = CIVisibility()
+            _civisibility._api_key = "notanapikey"
+            _civisibility._dd_site = "notdatadog.notcom"
+            _civisibility._service = "test-service"
+            _civisibility._git_client = None
+            _civisibility._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+            _civisibility._tags = {
+                ci.git.REPOSITORY_URL: "test_repo_url",
+                ci.git.COMMIT_SHA: "testcommitsssshhhaaaa1234",
+            }
+
+            yield _civisibility
+            CIVisibility._test_suites_to_skip = None
+            CIVisibility._tests_to_skip = defaultdict(list)
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _test_context_manager(self):
+        with mock.patch("ddtrace.ext.ci._get_runtime_and_os_metadata"), mock.patch("json.dumps", return_value=""):
+            yield
+
+    def test_fetch_tests_to_skip_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                        "data": [
+                            {
+                                "id": "123456789",
+                                "type": "test",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testbundle"
+                                    },
+                                    "name": "test_name_1",
+                                    "suite": "test_suite_1.py"
+                                }
+                            },
+                            {
+                                "id": "987654321",
+                                "type": "test",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testpackage/testbundle"
+                                    },
+                                    "name": "test_name_2",
+                                    "suite": "test_suite_2.py"
+                                }
+                            }
+                        ]
+                    }"""
+                ),
+            ),
+        ):
             ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {
+                "testbundle/test_suite_1.py": ["test_name_1"],
+                "testpackage/testbundle/test_suite_2.py": ["test_name_2"],
+            }
 
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
+    def test_fetch_tests_to_skip_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                        "data": [
+                            {
+                                "id": "34640cc7ce80c01e",
+                                "type": "suite",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testbundle"
+                                    },
+                                    "suite": "test_module_1.py"
+                                }
+                            },
+                            {
+                                "id": "239fa7de754db779",
+                                "type": "suite",
+                                "attributes": {
+                                    "configurations": {
+                                        "test.bundle": "testpackage/testbundle"
+                                    },
+                                    "suite": "test_suite_2.py"
+                                }
+                            }
+                        ]
+                    }"""
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == [
+                "testbundle/test_module_1.py",
+                "testpackage/testbundle/test_suite_2.py",
+            ]
+            assert mock_civisibility._tests_to_skip == {}
 
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
+    def test_fetch_tests_to_skip_no_data_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{}",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_no_data_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{}",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_data_is_none_test_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": null}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(TEST)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_data_is_none_suite_level(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": null}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_bad_json(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body="{ this is not valid JSON { ",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_bad_response(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=500,
+                body="Internal server error",
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_missing_key(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": [{"somekey": "someval"}]}',
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_type_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": "2"
+                            },
+                            "suite": 1
+                        }
+                    }]}""",
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_test_to_skip_invalid_data_attribute_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body=textwrap.dedent(
+                    """{
+                    "data": [                            {
+                        "id": "12345",
+                        "type": "suite",
+                        "attributes": {
+                            "configurations": {
+                                "test.bundle": 2
+                            },
+                            "suite": "1"
+                        }
+                    }]}""",
+                ),
+            ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
 
 
-def test_configure_itr_disabled_by_api():
+def test_fetch_tests_to_skip_custom_configurations():
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="1",
+            DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
+            DD_SERVICE="test-service",
+            DD_ENV="test-env",
         )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = False
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+    ), mock.patch.multiple(
+        CIVisibilityGitClient,
+        _get_repository_url=mock.DEFAULT,
+        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+        _get_filtered_revisions=mock.DEFAULT,
+        _build_packfiles=mock.DEFAULT,
+        _upload_packfiles=mock.DEFAULT,
+    ), mock.patch(
+        "ddtrace.ext.ci._get_runtime_and_os_metadata",
+        return_value={
+            "os.architecture": "testarch64",
+            "os.platform": "Not Actually Linux",
+            "os.version": "1.2.3-test",
+            "runtime.name": "CPythonTest",
+            "runtime.version": "1.2.3",
+        },
+    ), mock.patch(
+        "ddtrace.ext.ci.tags",
+        return_value={
+            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+            "git.commit.sha": "mytestcommitsha1234",
+        },
+    ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder._do_request",
+        return_value=Response(
+            status=200,
+            body='{"data": []}',
+        ),
+    ) as mock_do_request:
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
 
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
-
-
-def test_configure_itr_disabled_by_configuration():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        expected_data_arg = json.dumps(
+            {
+                "data": {
+                    "type": "test_params",
+                    "attributes": {
+                        "service": "test-service",
+                        "env": "test-env",
+                        "repository_url": "git@github.com:TestDog/dd-test-py.git",
+                        "sha": "mytestcommitsha1234",
+                        "configurations": {
+                            "os.architecture": "testarch64",
+                            "os.platform": "Not Actually Linux",
+                            "os.version": "1.2.3-test",
+                            "runtime.name": "CPythonTest",
+                            "runtime.version": "1.2.3",
+                            "custom": {"disk": "slow", "memory": "low"},
+                        },
+                        "test_level": "test",
+                    },
+                }
+            }
         )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            ddtrace.internal.ci_visibility.recorder.ddconfig._ci_visibility_intelligent_testrunner_disabled = True
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
 
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
-
-
-def test_configure_itr_disabled_by_missing_app_key():
-    with override_env(
-        dict(
-            DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        mock_do_request.assert_called_once_with(
+            "POST",
+            "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+            expected_data_arg,
+            {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
         )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
-
-            mock_civisibilty._configure_itr("mock_api_key", "", REQUESTS_MODE.AGENTLESS_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
-
-
-def test_configure_itr_disabled_by_missing_bad_requests_mode():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
-
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.TRACES)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is False
-            assert mock_civisibilty._git_client is None
-
-
-def test_configure_itr_enabled_with_coverage_not_enabled():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = False
-            mock_civisibilty._git_client = None
-
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is True
-            assert mock_civisibilty._git_client is not None
-
-
-def test_configure_itr_enabled_with_agentless_mode():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
-
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.AGENTLESS_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is True
-            assert mock_civisibilty._git_client is not None
-
-
-def test_configure_itr_enabled_with_evp_mode():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APP_KEY="foobar",
-        )
-    ):
-        with mock.patch.object(CIVisibility, "__init__", return_value=None):
-            mock_civisibilty = CIVisibility()
-            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-            mock_civisibilty._test_skipping_enabled_by_api = True
-            mock_civisibilty._code_coverage_enabled_by_api = True
-            mock_civisibilty._git_client = None
-
-            mock_civisibilty._configure_itr("mock_api_key", "mock_app_key", REQUESTS_MODE.EVP_PROXY_EVENTS)
-
-            assert mock_civisibilty._itr_test_skipping_is_enabled is True
-            assert mock_civisibilty._git_client is not None
+        CIVisibility.disable()

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    propagation: Prevent propagating unsupported non-ascii ``origin`` header values.

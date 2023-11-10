@@ -8,9 +8,11 @@ from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
+from ..trace_utils_redis import _run_redis_command
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
@@ -20,8 +22,14 @@ config._add(
     {
         "_default_service": schematize_service_name("redis"),
         "cmd_max_length": int(os.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        "resource_only_command": asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return getattr(redis, "__version__", "")
 
 
 def patch():
@@ -32,7 +40,7 @@ def patch():
     """
     if getattr(redis, "_datadog_patch", False):
         return
-    setattr(redis, "_datadog_patch", True)
+    redis._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
@@ -83,7 +91,7 @@ def patch():
 
 def unpatch():
     if getattr(redis, "_datadog_patch", False):
-        setattr(redis, "_datadog_patch", False)
+        redis._datadog_patch = False
 
         if redis.VERSION < (3, 0, 0):
             unwrap(redis.StrictRedis, "execute_command")
@@ -121,8 +129,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args):
-            return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
+            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command
 
@@ -151,8 +159,7 @@ def traced_execute_pipeline(integration_config, is_cluster=False):
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
                 for c, _ in instance.command_stack
             ]
-        resource = "\n".join(cmds)
-        with _trace_redis_execute_pipeline(pin, integration_config, resource, instance, is_cluster):
+        with _trace_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
             return func(*args, **kwargs)
 
     return _traced_execute_pipeline

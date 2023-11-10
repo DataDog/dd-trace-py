@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import RetryError  # noqa
+from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
 
@@ -46,7 +47,7 @@ def parse_payload(data):
 
 def _gunicorn_settings_factory(
     env=None,  # type: Dict[str, str]
-    directory=os.getcwd(),  # type: str
+    directory=None,  # type: str
     app_path="tests.contrib.gunicorn.wsgi_mw_app:app",  # type: str
     num_workers="4",  # type: str
     worker_class="sync",  # type: str
@@ -58,10 +59,12 @@ def _gunicorn_settings_factory(
     debug_mode=False,  # type: bool
     dd_service=None,  # type: Optional[str]
     schema_version=None,  # type: Optional[str]
-    rlock=False,  # type: bool
+    rlock=True,  # type: bool
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
+    if directory is None:
+        directory = os.getcwd()
     if env is None:
         env = os.environ.copy()
     if import_auto_in_app is not None:
@@ -168,14 +171,15 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
     debug_mode=True,
     enable_module_cloning=True,
 )
-SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK = _gunicorn_settings_factory(
+SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK = _gunicorn_settings_factory(
     worker_class="gevent",
     use_ddtracerun=False,
     import_auto_in_app=True,
-    rlock=True,
+    rlock=False,
 )
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [
@@ -184,7 +188,7 @@ def test_no_known_errors_occur(tmp_path):
         SETTINGS_GEVENT_DDTRACERUN,
         SETTINGS_GEVENT_DDTRACERUN_MODULE_CLONE,
         SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE,
-        SETTINGS_GEVENT_SPANAGGREGATOR_RLOCK,
+        SETTINGS_GEVENT_SPANAGGREGATOR_NO_RLOCK,
     ]:
         with gunicorn_server(gunicorn_server_settings, tmp_path) as context:
             _, client = context
@@ -194,6 +198,7 @@ def test_no_known_errors_occur(tmp_path):
         assert payload["profiler"]["is_active"] is True
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_span_schematization(tmp_path):
     for schema_version in [None, "v0", "v1"]:

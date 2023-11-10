@@ -2,14 +2,32 @@
 
 CHECKPOINT_FILENAME="latest-success-commit"
 RIOT_PATTERN=${1}
-if [[ -v CIRCLECI ]]; then
-    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort | circleci tests split)
-else
-    RIOT_HASHES=$(riot list --hash-only $RIOT_PATTERN | sort)
-fi
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
+
+RIOT_HASHES=( $(riot list --hash-only $RIOT_PATTERN | sort) )
+echo "Found ${#RIOT_HASHES[@]} riot hashes: ${RIOT_HASHES[@]}"
+if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
+    echo "No riot hashes found for pattern: $RIOT_PATTERN"
+    if [[ -v CIRCLECI ]]; then
+        circleci step halt
+    fi
+    exit 1
+fi
+
+if [[ -v CIRCLECI ]]; then
+    # circleci tests splits expects one test per line
+    RIOT_HASHES=( $( printf '%s\n' "${RIOT_HASHES[@]}"  | circleci tests split) )
+    if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
+        echo "No riot hashes found after split, halting."
+        circleci step halt
+        exit 0
+    fi
+    echo "${#RIOT_HASHES[@]} hashes split for CircleCI: ${RIOT_HASHES[@]}"
+fi
+
+
 
 set -e
 
@@ -26,8 +44,9 @@ if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
     fi
 fi
 
-for hash in $RIOT_HASHES; do
-    if ! $DDTEST_CMD riot -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
+for hash in ${RIOT_HASHES[@]}; do
+    echo "Running riot hash: $hash"
+    if ! $DDTEST_CMD riot -P -v run --exitfirst --pass-env -s $hash $DDTRACE_FLAG $COVERAGE_FLAG; then
         if [[ -v CIRCLECI ]]; then
             circleci step halt
         fi

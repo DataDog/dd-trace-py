@@ -1,6 +1,7 @@
 # coding: utf-8
 import base64
 from collections import defaultdict
+from functools import partial
 import gzip
 import os
 import struct
@@ -20,6 +21,8 @@ import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
@@ -39,7 +42,6 @@ if six.PY3:
 
     def gzip_compress(payload):
         return gzip.compress(payload, 1)
-
 
 else:
     import StringIO
@@ -68,6 +70,7 @@ log = get_logger(__name__)
 
 PROPAGATION_KEY = "dd-pathway-ctx"
 PROPAGATION_KEY_BASE_64 = "dd-pathway-ctx-base64"
+SHUTDOWN_TIMEOUT = 5
 
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
@@ -82,11 +85,12 @@ PathwayAggrKey = typing.Tuple[
 class PathwayStats(object):
     """Aggregated pathway statistics."""
 
-    __slots__ = ("full_pathway_latency", "edge_latency")
+    __slots__ = ("full_pathway_latency", "edge_latency", "payload_size")
 
     def __init__(self):
         self.full_pathway_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
         self.edge_latency = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.payload_size = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
 
 PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
@@ -125,22 +129,23 @@ class DataStreamsProcessor(PeriodicService):
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
         self._hostname = six.ensure_text(get_hostname())
-        self._service = six.ensure_text(config._get_service("unnamed-python-service"))
+        self._service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
-            initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
+            initial_wait=0.618 * self.interval / (1.618**retry_attempts) / 2,
         )(self._flush_stats)
 
+        register_on_exit_signal(partial(_atexit, obj=self))
         self.start()
 
     def on_checkpoint_creation(
-        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec
+        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
-        # type: (int, int, List[str], float, float, float) -> None
+        # type: (int, int, List[str], float, float, float, Optional[int]) -> None
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -168,6 +173,7 @@ class DataStreamsProcessor(PeriodicService):
             stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
+            stats.payload_size.add(payload_size)
             self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
     def track_kafka_produce(self, topic, partition, offset, now_sec):
@@ -201,42 +207,42 @@ class DataStreamsProcessor(PeriodicService):
             for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
-                    u"EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
-                    u"Hash": hash_value,
-                    u"ParentHash": parent_hash,
-                    u"PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
-                    u"EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
+                    "EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
+                    "Hash": hash_value,
+                    "ParentHash": parent_hash,
+                    "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
+                    "EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_commit",
                             "consumer_group:" + consumer_key.group,
                             "topic:" + consumer_key.topic,
                             "partition:" + str(consumer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             for producer_key, offset in bucket.latest_produce_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_produce",
                             "topic:" + producer_key.topic,
                             "partition:" + str(producer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             serialized_buckets.append(
                 {
-                    u"Start": bucket_time_ns,
-                    u"Duration": self._bucket_size_ns,
-                    u"Stats": bucket_aggr_stats,
-                    u"Backlogs": backlogs,
+                    "Start": bucket_time_ns,
+                    "Duration": self._bucket_size_ns,
+                    "Stats": bucket_aggr_stats,
+                    "Backlogs": backlogs,
                 }
             )
 
@@ -280,16 +286,16 @@ class DataStreamsProcessor(PeriodicService):
             log.debug("No data streams reported. Skipping flushing.")
             return
         raw_payload = {
-            u"Service": self._service,
-            u"TracerVersion": ddtrace.__version__,
-            u"Lang": "python",
-            u"Stats": serialized_stats,
-            u"Hostname": self._hostname,
+            "Service": self._service,
+            "TracerVersion": ddtrace.__version__,
+            "Lang": "python",
+            "Stats": serialized_stats,
+            "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload[u"Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = six.ensure_text(config.env)
         if config.version:
-            raw_payload[u"Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = six.ensure_text(config.version)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -338,7 +344,14 @@ class DataStreamsProcessor(PeriodicService):
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None):
+    def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+        """
+        type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
+        :param tags: a list of strings identifying the pathway and direction
+        :param now_sec: The time in seconds to count as "now" when computing latencies
+        :param payload_size: The size of the payload being sent in bytes
+        """
+
         if not now_sec:
             now_sec = time.time()
         if hasattr(self._current_context, "value"):
@@ -346,7 +359,12 @@ class DataStreamsProcessor(PeriodicService):
         else:
             ctx = self.new_pathway()
             self._current_context.value = ctx
-        ctx.set_checkpoint(tags, now_sec=now_sec)
+        if "direction:out" in tags:
+            # Add the header for this now, as the callee doesn't have access
+            # when producing
+            payload_size += len(ctx.encode())
+            payload_size += len(PROPAGATION_KEY)
+        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size)
         return ctx
 
 
@@ -357,7 +375,7 @@ class DataStreamsCtx:
         self.pathway_start_sec = pathway_start_sec
         self.current_edge_start_sec = current_edge_start_sec
         self.hash = hash_value
-        self.service = six.ensure_text(config._get_service("unnamed-python-service"))
+        self.service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self.env = six.ensure_text(config.env or "none")
         # loop detection logic
         self.previous_direction = ""
@@ -396,7 +414,9 @@ class DataStreamsCtx:
         node_hash = fnv1_64(b)
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
-    def set_checkpoint(self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None):
+    def set_checkpoint(
+        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+    ):
         """
         type: (List[str], float, float, float) -> None
 
@@ -440,5 +460,16 @@ class DataStreamsCtx:
         self.hash = hash_value
         self.current_edge_start_sec = now_sec
         self.processor.on_checkpoint_creation(
-            hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec
+            hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec, payload_size=payload_size
         )
+
+
+def _atexit(obj=None):
+    try:
+        # Data streams tries to flush data on shutdown.
+        # Adding a try except here to ensure we don't crash the application if the agent is killed before
+        # the application for example.
+        obj.shutdown(SHUTDOWN_TIMEOUT)
+    except Exception as e:
+        if config._data_streams_enabled:
+            log.warning("Failed to shutdown data streams processor: %s", repr(e))

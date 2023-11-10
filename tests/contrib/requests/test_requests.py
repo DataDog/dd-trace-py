@@ -44,7 +44,7 @@ class BaseRequestTestCase(object):
 
         patch()
         self.session = Session()
-        setattr(self.session, "datadog_tracer", self.tracer)
+        self.session.datadog_tracer = self.tracer
 
     def tearDown(self):
         unpatch()
@@ -111,7 +111,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that double patch doesn't duplicate instrumentation
         patch()
         session = Session()
-        setattr(session, "datadog_tracer", self.tracer)
+        session.datadog_tracer = self.tracer
 
         out = session.get(URL_200)
         assert out.status_code == 200
@@ -240,8 +240,12 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == "doesnotexist.google.com"
         assert s.error == 1
-        assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
-        assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
+        if sys.version_info >= (3, 12, 0):
+            assert "Failed to resolve 'doesnotexist.google.com'" in s.get_tag(ERROR_MSG)
+            assert "Failed to resolve 'doesnotexist.google.com'" in s.get_tag(ERROR_STACK)
+        else:
+            assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
+            assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
         assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
         assert "requests.exception" in s.get_tag(ERROR_TYPE)
 

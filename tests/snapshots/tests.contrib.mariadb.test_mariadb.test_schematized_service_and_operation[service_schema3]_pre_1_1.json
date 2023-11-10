@@ -7,8 +7,8 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
+      "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
       "component": "mariadb",
       "db.name": "test",
@@ -16,19 +16,18 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "e7ff85c0cb314f47b8048ee1897c0f4d",
+      "runtime-id": "bc86c32383d946fca3fc9a9de8dee50d",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.row_count": 0,
       "network.destination.port": 3306,
-      "process_id": 51958
+      "process_id": 19562
     },
-    "duration": 248000,
-    "start": 1685619026035027126
+    "duration": 233292,
+    "start": 1692647264697535710
   }]]

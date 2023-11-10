@@ -9,6 +9,7 @@ import six
 
 from ddtrace.ext import ci
 from ddtrace.ext import git
+from ddtrace.ext.ci import _filter_sensitive_info
 from tests import utils
 
 
@@ -70,6 +71,32 @@ def test_git_extract_repository_url(git_repo):
     """Make sure that the git repository url is extracted properly."""
     expected_repository_url = "git@github.com:test-repo-url.git"
     assert git.extract_repository_url(cwd=git_repo) == expected_repository_url
+
+
+def test_git_filter_repository_url_valid():
+    """Make sure that valid git repository urls are not filtered."""
+    valid_url_1 = "https://github.com/DataDog/dd-trace-py.git"
+    valid_url_2 = "git@github.com:DataDog/dd-trace-py.git"
+    valid_url_3 = "ssh://github.com/Datadog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(valid_url_1) == valid_url_1
+    assert _filter_sensitive_info(valid_url_2) == valid_url_2
+    assert _filter_sensitive_info(valid_url_3) == valid_url_3
+
+
+def test_git_filter_repository_url_invalid():
+    """Make sure that valid git repository urls are not filtered."""
+    invalid_url_1 = "https://username:password@github.com/DataDog/dd-trace-py.git"
+    invalid_url_2 = "https://username@github.com/DataDog/dd-trace-py.git"
+
+    invalid_url_3 = "ssh://username:password@github.com/DataDog/dd-trace-py.git"
+    invalid_url_4 = "ssh://username@github.com/DataDog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(invalid_url_1) == "https://github.com/DataDog/dd-trace-py.git"
+    assert _filter_sensitive_info(invalid_url_2) == "https://github.com/DataDog/dd-trace-py.git"
+
+    assert _filter_sensitive_info(invalid_url_3) == "ssh://github.com/DataDog/dd-trace-py.git"
+    assert _filter_sensitive_info(invalid_url_4) == "ssh://github.com/DataDog/dd-trace-py.git"
 
 
 def test_git_extract_repository_url_error(git_repo_empty):
@@ -263,6 +290,20 @@ def test_get_rev_list_git_lt_223(git_repo):
         )
 
 
+def test_valid_git_version(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13 (Apple 256)"):
+        assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13"):
+        assert git.extract_git_version(cwd=git_repo) == (2, 6, 13)
+
+
+def test_invalid_git_version(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version 2.6.13a (invalid)"):
+        assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="git version (invalid)"):
+        assert git.extract_git_version(cwd=git_repo) == (0, 0, 0)
+
+
 def test_is_shallow_repository_true(git_repo):
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="true") as mock_git_subprocess:
         assert git._is_shallow_repository(cwd=git_repo) is True
@@ -275,33 +316,57 @@ def test_is_shallow_repository_false(git_repo):
         mock_git_subprocess.assert_called_once_with("rev-parse --is-shallow-repository", cwd=git_repo)
 
 
-def test_unshallow_repository(git_repo):
-    with mock.patch(
-        "ddtrace.ext.git._extract_clone_defaultremotename", return_value="myremote"
-    ) as mock_defaultremotename:
-        with mock.patch(
-            "ddtrace.ext.git.extract_commit_sha", return_value="mycommitshaaaaaaaaaaaa123"
-        ) as mock_extract_sha:
-            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
-                git._unshallow_repository(cwd=git_repo)
+def test_unshallow_repository_bare(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
+        git._unshallow_repository(cwd=git_repo)
+        mock_git_subprocess.assert_called_once_with(
+            [
+                "fetch",
+                '--shallow-since="1 month ago"',
+                "--update-shallow",
+                "--filter=blob:none",
+                "--recurse-submodules=no",
+            ],
+            cwd=git_repo,
+        )
 
-                mock_defaultremotename.assert_called_once_with(git_repo)
-                mock_extract_sha.assert_called_once_with(git_repo)
-                mock_git_subprocess.assert_called_once_with(
-                    [
-                        "fetch",
-                        "--update-shallow",
-                        "--filter=blob:none",
-                        "--recurse-submodules=no",
-                        '--shallow-since="1 month ago"',
-                        "myremote",
-                        "mycommitshaaaaaaaaaaaa123",
-                    ],
-                    cwd=git_repo,
-                )
+
+def test_unshallow_repository_bare_repo(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
+        git._unshallow_repository(cwd=git_repo, repo="myremote")
+        mock_git_subprocess.assert_called_once_with(
+            [
+                "fetch",
+                '--shallow-since="1 month ago"',
+                "--update-shallow",
+                "--filter=blob:none",
+                "--recurse-submodules=no",
+                "myremote",
+            ],
+            cwd=git_repo,
+        )
+
+
+def test_unshallow_repository_bare_repo_refspec(git_repo):
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess:
+        git._unshallow_repository(cwd=git_repo, repo="myremote", refspec="mycommitshaaaaaaaaaaaa123")
+        mock_git_subprocess.assert_called_once_with(
+            [
+                "fetch",
+                '--shallow-since="1 month ago"',
+                "--update-shallow",
+                "--filter=blob:none",
+                "--recurse-submodules=no",
+                "myremote",
+                "mycommitshaaaaaaaaaaaa123",
+            ],
+            cwd=git_repo,
+        )
 
 
 def test_extract_clone_defaultremotename():
     with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="default_remote_name") as mock_git_subprocess:
         assert git._extract_clone_defaultremotename(cwd=git_repo) == "default_remote_name"
-        mock_git_subprocess.assert_called_once_with("config --default origin --get clone.defaultRemoteName")
+        mock_git_subprocess.assert_called_once_with(
+            "config --default origin --get clone.defaultRemoteName", cwd=git_repo
+        )

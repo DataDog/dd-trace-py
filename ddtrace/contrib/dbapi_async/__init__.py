@@ -1,7 +1,9 @@
 from ddtrace import config
-from ddtrace.appsec.iast._util import _is_iast_enabled
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
+from ...appsec._constants import IAST_SPAN_TAGS
+from ...appsec._iast._metrics import increment_iast_span_metric
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -18,6 +20,11 @@ from ..trace_utils import iswrapped
 
 
 log = get_logger(__name__)
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 class TracedAsyncCursor(TracedCursor):
@@ -68,9 +75,12 @@ class TracedAsyncCursor(TracedCursor):
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             if _is_iast_enabled():
-                from ddtrace.appsec.iast._taint_utils import check_tainted_args
-                from ddtrace.appsec.iast.taint_sinks.sql_injection import SqlInjection
+                from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+                from ddtrace.appsec._iast._taint_utils import check_tainted_args
+                from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
+                _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                 if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                     SqlInjection.report(evidence_value=args[0])
 
@@ -103,7 +113,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     async def execute(self, query, *args, **kwargs):
@@ -121,7 +131,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
 

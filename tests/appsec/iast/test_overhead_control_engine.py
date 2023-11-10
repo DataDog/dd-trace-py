@@ -4,9 +4,9 @@ from time import sleep
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._overhead_control_engine import MAX_REQUESTS
-from ddtrace.appsec.iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
+from ddtrace.appsec._iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
 from ddtrace.internal import core
 
 
