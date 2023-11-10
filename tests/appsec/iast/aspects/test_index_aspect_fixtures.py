@@ -64,3 +64,17 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == 1
+
+
+def test_index_error_and_no_log_metric(telemetry_writer):
+    string_input = taint_pyobject(
+        pyobject="abcde",
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value="abcde",
+        source_origin=OriginType.PARAMETER,
+    )
+    with pytest.raises(IndexError):
+        mod.do_index(string_input, 100)
+
+    list_metrics_logs = list(telemetry_writer._logs)
+    assert len(list_metrics_logs) == 0
