@@ -131,7 +131,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: williamconti549/dd-apm-test-agent:test-payload-hash-ignore
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.15.0
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
