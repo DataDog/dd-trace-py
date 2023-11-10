@@ -66,10 +66,8 @@ class VulnerabilityBase(Operation):
         cls._redacted_report_cache.clear()
 
     @classmethod
-    def wrap(cls, func):
-        # type: (Callable) -> Callable
-        def wrapper(wrapped, instance, args, kwargs):
-            # type: (Callable, Any, Any, Any) -> Any
+    def wrap(cls, func: Callable) -> Callable:
+        def wrapper(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
             """Get the current root Span and attach it to the wrapped function. We need the span to report the
             vulnerability and update the context with the report information.
             """
@@ -82,8 +80,7 @@ class VulnerabilityBase(Operation):
         return wrapper
 
     @classmethod
-    def report(cls, evidence_value="", sources=None):
-        # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
+    def report(cls, evidence_value: Union[Text|List[Dict[str, Any]]] = "", sources: Optional[List[Source]] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
@@ -168,8 +165,7 @@ class VulnerabilityBase(Operation):
             core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, report):
-        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
+    def _extract_sensitive_tokens(cls, report: Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]:
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
         return {}
 
@@ -205,7 +201,7 @@ class VulnerabilityBase(Operation):
         return ret, replaced
 
     @classmethod
-    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
+    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
         if not asm_config._iast_redaction_enabled:
             return report
 
@@ -245,7 +241,7 @@ class VulnerabilityBase(Operation):
         if not vulns_to_tokens:
             return report
 
-        all_tokens = set()  # type: Set[str]
+        all_tokens: Set[str] = set()
         for _, value_dict in six.iteritems(vulns_to_tokens):
             all_tokens.update(value_dict["tokens"])
 

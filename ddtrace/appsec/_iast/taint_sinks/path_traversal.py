@@ -30,18 +30,15 @@ class PathTraversal(VulnerabilityBase):
         super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def unpatch_iast():
-    # type: () -> None
+def unpatch_iast() -> None:
     set_module_unpatched("builtins", default_attr="_datadog_path_traversal_patch")
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     """Wrap functions which interact with file system."""
     if not set_and_check_module_is_patched("builtins", default_attr="_datadog_path_traversal_patch"):
         return

@@ -14,8 +14,7 @@ class RetryError(Exception):
     pass
 
 
-def retry(after, until=lambda result: result is None, initial_wait=0):
-    # type: (t.Union[int, float, t.Iterable[t.Union[int, float]]], t.Callable[[t.Any], bool], float) -> t.Callable
+def retry(after: t.Union[int, float, t.Iterable[t.Union[int, float]]], until: t.Callable[[t.Any], bool] = lambda result: result is None, initial_wait: float = 0) -> t.Callable:
     def retry_decorator(f):
         @wraps(f)
         def retry_wrapped(*args, **kwargs):
@@ -55,8 +54,7 @@ def retry(after, until=lambda result: result is None, initial_wait=0):
     return retry_decorator
 
 
-def fibonacci_backoff_with_jitter(attempts, initial_wait=1.0, until=lambda result: result is None):
-    # type: (int, float, t.Callable[[t.Any], bool]) -> t.Callable
+def fibonacci_backoff_with_jitter(attempts: int, initial_wait: float = 1.0, until: t.Callable[[t.Any], bool] = lambda result: result is None) -> t.Callable:
     return retry(
         after=[random.uniform(0, initial_wait * (1.618**i)) for i in range(attempts - 1)],  # nosec
         until=until,

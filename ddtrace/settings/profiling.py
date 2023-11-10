@@ -11,8 +11,7 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
-def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
-    # type: (ProfilingConfig.Heap, int) -> int
+def _derive_default_heap_sample_size(heap_config: ProfilingConfig.Heap, default_heap_sample_size: int = 1024 * 1024) -> int:
     heap_sample_size = heap_config._sample_size
     if heap_sample_size is not None:
         return heap_sample_size
@@ -38,8 +37,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _is_valid_libdatadog():
-    # type: () -> bool
+def _is_valid_libdatadog() -> bool:
     return platform.machine() in ["x86_64", "aarch64"] and "glibc" in platform.libc_ver()[0]
 
 

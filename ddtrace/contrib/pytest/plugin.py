@@ -137,8 +137,7 @@ def _mark_not_skipped(item):
     item._fully_skipped = False
 
 
-def _mark_test_forced(test_item):
-    # type: (pytest.Test) -> None
+def _mark_test_forced(test_item: pytest.Test) -> None:
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
@@ -152,8 +151,7 @@ def _mark_test_forced(test_item):
     session_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
 
-def _mark_test_unskippable(test_item):
-    # type: (pytest.Test) -> None
+def _mark_test_unskippable(test_item: pytest.Test) -> None:
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
@@ -651,7 +649,7 @@ def pytest_runtest_protocol(item, nextitem):
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
-            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+            parameters: Dict[str, Dict[str, str]] = {"arguments": {}, "metadata": {}}
             for param_name, param_val in item.callspec.params.items():
                 try:
                     parameters["arguments"][param_name] = encode_test_parameter(param_val)

@@ -404,8 +404,7 @@ class TelemetryTestSession(object):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method, url):
-        # type: (str, str) -> Tuple[int, bytes]
+    def _request(self, method: str, url: str) -> Tuple[int, bytes]:
         conn = self.create_connection()
         try:
             conn.request(method, url)
@@ -448,8 +447,7 @@ class TelemetryTestSession(object):
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
-    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request)
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token

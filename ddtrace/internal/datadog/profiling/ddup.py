@@ -16,75 +16,75 @@ except ImportError:
 
     @not_implemented
     def init(
-        env,  # type: Optional[str]
-        service,  # type: Optional[str]
-        version,  # type: Optional[str]
-        tags,  # type: Optional[Dict[str, str]]
-        max_nframes,  # type: Optional[int]
-        url,  # type: Optional[str]
+        env: Optional[str],
+        service: Optional[str],
+        version: Optional[str],
+        tags: Optional[Dict[str, str]],
+        max_nframes: Optional[int],
+        url: Optional[str],
     ):
         pass
 
     @not_implemented
-    def start_sample(nframes):  # type: (int) -> None
+    def start_sample(nframes: int) -> None:
         pass
 
     @not_implemented
-    def push_cputime(value, count):  # type: (int, int) -> None
+    def push_cputime(value: int, count: int) -> None:
         pass
 
     @not_implemented
-    def push_walltime(value, count):  # type: (int, int) -> None
+    def push_walltime(value: int, count: int) -> None:
         pass
 
     @not_implemented
-    def push_acquire(value, count):  # type: (int, int) -> None
+    def push_acquire(value: int, count: int) -> None:
         pass
 
     @not_implemented
-    def push_release(value, count):  # type: (int, int) -> None
+    def push_release(value: int, count: int) -> None:
         pass
 
     @not_implemented
-    def push_alloc(value, count):  # type: (int, int) -> None
+    def push_alloc(value: int, count: int) -> None:
         pass
 
     @not_implemented
-    def push_heap(value):  # type: (int) -> None
+    def push_heap(value: int) -> None:
         pass
 
     @not_implemented
-    def push_lock_name(lock_name):  # type: (str) -> None
+    def push_lock_name(lock_name: str) -> None:
         pass
 
     @not_implemented
-    def push_frame(name, filename, address, line):  # type: (str, str, int, int) -> None
+    def push_frame(name: str, filename: str, address: int, line: int) -> None:
         pass
 
     @not_implemented
-    def push_threadinfo(thread_id, thread_native_id, thread_name):  # type: (int, int, Optional[str]) -> None
+    def push_threadinfo(thread_id: int, thread_native_id: int, thread_name: Optional[str]) -> None:
         pass
 
     @not_implemented
-    def push_taskinfo(task_id, task_name):  # type: (int, str) -> None
+    def push_taskinfo(task_id: int, task_name: str) -> None:
         pass
 
     @not_implemented
-    def push_exceptioninfo(exc_type, count):  # type: (type, int) -> None
+    def push_exceptioninfo(exc_type: type, count: int) -> None:
         pass
 
     @not_implemented
-    def push_class_name(class_name):  # type: (str) -> None
+    def push_class_name(class_name: str) -> None:
         pass
 
     @not_implemented
-    def push_span(span, endpoint_collection_enabled):  # type: (Optional[Span], bool) -> None
+    def push_span(span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         pass
 
     @not_implemented
-    def flush_sample():  # type: () -> None
+    def flush_sample() -> None:
         pass
 
     @not_implemented
-    def upload():  # type: () -> None
+    def upload() -> None:
         pass

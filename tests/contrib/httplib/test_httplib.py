@@ -408,7 +408,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         with self.override_config("httplib", {}):
             from ddtrace.settings import IntegrationConfig
 
-            integration_config = config.httplib  # type: IntegrationConfig
+            integration_config: IntegrationConfig = config.httplib
             integration_config.http.trace_headers(["my-header", "access-control-allow-origin"])
             conn = self.get_http_connection(SOCKET)
             with contextlib.closing(conn):

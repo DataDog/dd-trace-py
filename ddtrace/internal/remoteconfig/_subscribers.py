@@ -22,8 +22,7 @@ log = get_logger(__name__)
 class RemoteConfigSubscriber(object):
     _th_worker = None
 
-    def __init__(self, data_connector, callback, name):
-        # type: (PublisherSubscriberConnector, Callable, str) -> None
+    def __init__(self, data_connector: PublisherSubscriberConnector, callback: Callable, name: str) -> None:
         self._data_connector = data_connector
         self.is_running = False
         self._callback = callback
@@ -31,14 +30,12 @@ class RemoteConfigSubscriber(object):
         log.debug("[%s] Subscriber %s init", os.getpid(), self._name)
         self.interval = get_poll_interval_seconds() / 2
 
-    def _exec_callback(self, data, test_tracer=None):
-        # type: (SharedDataType, Optional[Tracer]) -> None
+    def _exec_callback(self, data: SharedDataType, test_tracer: Optional[Tracer] = None) -> None:
         if data:
             log.debug("[%s] Subscriber %s _exec_callback: %s", os.getpid(), self._name, str(data)[:50])
             self._callback(data, test_tracer=test_tracer)
 
-    def _get_data_from_connector_and_exec(self, test_tracer=None):
-        # type: (Optional[Tracer]) -> None
+    def _get_data_from_connector_and_exec(self, test_tracer: Optional[Tracer] = None) -> None:
         data = self._data_connector.read()
         self._exec_callback(data, test_tracer=test_tracer)
 
@@ -87,8 +84,7 @@ class RemoteConfigSubscriber(object):
         )
         self.start()
 
-    def stop(self, join=False):
-        # type: (bool) -> None
+    def stop(self, join: bool = False) -> None:
         if self._th_worker:
             self.is_running = False
             self._th_worker.stop()

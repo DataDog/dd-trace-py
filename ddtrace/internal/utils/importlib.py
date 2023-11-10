@@ -12,8 +12,7 @@ from typing import Type
 class require_modules(object):
     """Context manager to check the availability of required modules."""
 
-    def __init__(self, modules):
-        # type: (List[str]) -> None
+    def __init__(self, modules: List[str]) -> None:
         self._missing_modules = []
         for module in modules:
             try:
@@ -21,24 +20,20 @@ class require_modules(object):
             except ImportError:
                 self._missing_modules.append(module)
 
-    def __enter__(self):
-        # type: () -> List[str]
+    def __enter__(self) -> List[str]:
         return self._missing_modules
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
         return
 
 
-def func_name(f):
-    # type: (Callable[..., Any]) -> str
+def func_name(f: Callable[..., Any]) -> str:
     """Return a human readable version of the function's name."""
     if hasattr(f, "__module__"):
         return "%s.%s" % (f.__module__, getattr(f, "__name__", f.__class__.__name__))
     return getattr(f, "__name__", f.__class__.__name__)
 
 
-def module_name(instance):
-    # type: (Any) -> str
+def module_name(instance: Any) -> str:
     """Return the instance module name."""
     return instance.__class__.__module__.split(".")[0]

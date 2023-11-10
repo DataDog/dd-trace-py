@@ -36,14 +36,12 @@ class Collector(service.Service):
 class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
-    def periodic(self):
-        # type: (...) -> None
+    def periodic(self) -> None:
         """Collect events and push them into the recorder."""
         for events in self.collect():
             self.recorder.push_events(events)
 
-    def collect(self):
-        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
+    def collect(self) -> typing.Iterable[typing.Iterable[event.Event]]:
         """Collect the actual data.
 
         :return: A list of event list to push in the recorder.

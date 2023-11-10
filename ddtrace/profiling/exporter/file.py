@@ -18,11 +18,10 @@ class PprofFileExporter(pprof.PprofExporter):
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
-    ):
-        # type: (...) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
+    ) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]:
         """Export events to pprof file.
 
         The file name is based on the prefix passed to init. The process ID number and type of export is then added as a

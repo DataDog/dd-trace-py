@@ -141,8 +141,7 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
-def _load_json(data):
-    # type: (Union[str, bytes]) -> Dict[str, Any]
+def _load_json(data: Union[str, bytes]) -> Dict[str, Any]:
     if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
         data = str(data, encoding="utf-8")
     return json.loads(data)
@@ -158,8 +157,7 @@ class RemoteConfigClient(object):
     and dispatches configurations to registered products.
     """
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         tracer_version = _pep440_to_semver()
 
         self.id = str(uuid.uuid4())
@@ -198,7 +196,7 @@ class RemoteConfigClient(object):
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
         )
-        self.cached_target_files = []  # type: List[AppliedConfigType]
+        self.cached_target_files: List[AppliedConfigType] = []
         self.converter = cattr.Converter()
 
         # cattrs doesn't implement datetime converter in Py27, we should register
@@ -215,26 +213,24 @@ class RemoteConfigClient(object):
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
         self.converter.register_structure_hook(SignedTargets, base64_to_struct)
 
-        self._products = dict()  # type: MutableMapping[str, PubSub]
-        self._applied_configs = dict()  # type: AppliedConfigType
+        self._products: MutableMapping[str, PubSub] = dict()
+        self._applied_configs: AppliedConfigType = dict()
         self._last_targets_version = 0
-        self._last_error = None  # type: Optional[str]
-        self._backend_state = None  # type: Optional[str]
+        self._last_error: Optional[str] = None
+        self._backend_state: Optional[str] = None
 
     def renew_id(self):
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
 
-    def register_product(self, product_name, pubsub_instance=None):
-        # type: (str, Optional[PubSub]) -> None
+    def register_product(self, product_name: str, pubsub_instance: Optional[PubSub] = None) -> None:
         if pubsub_instance is not None:
             self._products[product_name] = pubsub_instance
         else:
             self._products.pop(product_name, None)
 
-    def update_product_callback(self, product_name, callback):
-        # type: (str, Callable) -> bool
+    def update_product_callback(self, product_name: str, callback: Callable) -> bool:
         pubsub_instance = self._products.get(product_name)
         if pubsub_instance:
             pubsub_instance._subscriber._callback = callback
@@ -243,16 +239,14 @@ class RemoteConfigClient(object):
             return True
         return False
 
-    def unregister_product(self, product_name):
-        # type: (str) -> None
+    def unregister_product(self, product_name: str) -> None:
         self._products.pop(product_name, None)
 
     def get_pubsubs(self):
         for pubsub in set(self._products.values()):
             yield pubsub
 
-    def is_subscriber_running(self, pubsub_to_check):
-        # type: (PubSub) -> bool
+    def is_subscriber_running(self, pubsub_to_check: PubSub) -> bool:
         for pubsub in self.get_pubsubs():
             if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
                 return True
@@ -261,8 +255,7 @@ class RemoteConfigClient(object):
     def reset_products(self):
         self._products = dict()
 
-    def _send_request(self, payload):
-        # type: (str) -> Optional[Mapping[str, Any]]
+    def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         try:
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
@@ -288,8 +281,7 @@ class RemoteConfigClient(object):
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload, target, config):
-        # type: (AgentPayload, str, ConfigMetadata) -> Optional[Dict[str, Any]]
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[Dict[str, Any]]:
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -314,8 +306,7 @@ class RemoteConfigClient(object):
             raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
     @staticmethod
-    def _parse_target(target, metadata):
-        # type: (str, TargetDesc) -> ConfigMetadata
+    def _parse_target(target: str, metadata: TargetDesc) -> ConfigMetadata:
         m = TARGET_FORMAT.match(target)
         if m is None:
             raise RemoteConfigError("unexpected target format {!r}".format(target))
@@ -328,8 +319,7 @@ class RemoteConfigClient(object):
             tuf_version=metadata.custom.get("v"),
         )
 
-    def _build_payload(self, state):
-        # type: (Mapping[str, Any]) -> Mapping[str, Any]
+    def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
 
         return dict(
@@ -344,8 +334,7 @@ class RemoteConfigClient(object):
             cached_target_files=self.cached_target_files,
         )
 
-    def _build_state(self):
-        # type: () -> Mapping[str, Any]
+    def _build_state(self) -> Mapping[str, Any]:
         has_error = self._last_error is not None
         state = dict(
             root_version=1,
@@ -375,14 +364,13 @@ class RemoteConfigClient(object):
             state["error"] = self._last_error
         return state
 
-    def _process_targets(self, payload):
-        # type: (AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]
+    def _process_targets(self, payload: AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]:
         if payload.targets is None:
             # no targets received
             return None, None, None
 
         signed = payload.targets.signed
-        targets = dict()  # type: TargetsType
+        targets: TargetsType = dict()
 
         for target, metadata in signed.targets.items():
             config = self._parse_target(target, metadata)
@@ -393,14 +381,12 @@ class RemoteConfigClient(object):
         return signed.version, backend_state, targets
 
     @staticmethod
-    def _apply_callback(list_callbacks, callback, config_content, target, config_metadata):
-        # type: (List[PubSub], Any, Any, str, ConfigMetadata) -> None
+    def _apply_callback(list_callbacks: List[PubSub], callback: Any, config_content: Any, target: str, config_metadata: ConfigMetadata) -> None:
         callback.append(config_content, target, config_metadata)
         if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
             list_callbacks.append(callback)
 
-    def _remove_previously_applied_configurations(self, list_callbacks, applied_configs, client_configs, targets):
-        # type: (List[PubSub], AppliedConfigType, TargetsType, TargetsType) -> None
+    def _remove_previously_applied_configurations(self, list_callbacks: List[PubSub], applied_configs: AppliedConfigType, client_configs: TargetsType, targets: TargetsType) -> None:
         for target, config in self._applied_configs.items():
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
@@ -420,8 +406,7 @@ class RemoteConfigClient(object):
                     log.debug("error while removing product %s config %r", config.product_name, config)
                     continue
 
-    def _load_new_configurations(self, list_callbacks, applied_configs, client_configs, payload):
-        # type: (List[PubSub], AppliedConfigType, TargetsType, AgentPayload) -> None
+    def _load_new_configurations(self, list_callbacks: List[PubSub], applied_configs: AppliedConfigType, client_configs: TargetsType, payload: AgentPayload) -> None:
         for target, config in client_configs.items():
             callback = self._products.get(config.product_name)
             if callback:
@@ -462,8 +447,7 @@ class RemoteConfigClient(object):
         else:
             self.cached_target_files = []
 
-    def _validate_config_exists_in_target_paths(self, payload_client_configs, payload_target_files):
-        # type: (Set[str], List[TargetFile]) -> None
+    def _validate_config_exists_in_target_paths(self, payload_client_configs: Set[str], payload_target_files: List[TargetFile]) -> None:
         paths = {_.path for _ in payload_target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
 
@@ -472,8 +456,7 @@ class RemoteConfigClient(object):
             raise RemoteConfigError("Not all client configurations have target files")
 
     @staticmethod
-    def _validate_signed_target_files(payload_target_files, payload_targets_signed, client_configs):
-        # type: (List[TargetFile], Targets, TargetsType) -> None
+    def _validate_signed_target_files(payload_target_files: List[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType) -> None:
         for target in payload_target_files:
             if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
                 client_configs and not client_configs.get(target.path)
@@ -482,13 +465,11 @@ class RemoteConfigClient(object):
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
-    def _publish_configuration(self, list_callbacks):
-        # type: (List[PubSub]) -> None
+    def _publish_configuration(self, list_callbacks: List[PubSub]) -> None:
         for callback_to_dispach in list_callbacks:
             callback_to_dispach.publish()
 
-    def _process_response(self, data):
-        # type: (Mapping[str, Any]) -> None
+    def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
@@ -514,8 +495,8 @@ class RemoteConfigClient(object):
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 
         # 2. Remove previously applied configurations
-        applied_configs = dict()  # type: AppliedConfigType
-        list_callbacks = []  # type: List[PubSub]
+        applied_configs: AppliedConfigType = dict()
+        list_callbacks: List[PubSub] = []
         self._remove_previously_applied_configurations(list_callbacks, applied_configs, client_configs, targets)
 
         # 3. Load new configurations
@@ -529,8 +510,7 @@ class RemoteConfigClient(object):
 
         self._add_apply_config_to_cache()
 
-    def request(self):
-        # type: () -> bool
+    def request(self) -> bool:
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))

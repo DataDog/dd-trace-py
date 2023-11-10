@@ -26,8 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def patched_conn():
-    # type: () -> Generator[sqlite3.Cursor, None, None]
+def patched_conn() -> Generator[sqlite3.Cursor, None, None]:
     patch()
     conn = sqlite3.connect(":memory:")
     yield conn

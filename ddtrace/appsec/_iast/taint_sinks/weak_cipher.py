@@ -30,8 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def get_weak_cipher_algorithms():
-    # type: () -> Set
+def get_weak_cipher_algorithms() -> Set:
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
@@ -47,8 +46,7 @@ class WeakCipher(VulnerabilityBase):
     evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
-def unpatch_iast():
-    # type: () -> None
+def unpatch_iast() -> None:
     set_module_unpatched("Crypto", default_attr="_datadog_weak_cipher_patch")
     set_module_unpatched("cryptography", default_attr="_datadog_weak_cipher_patch")
 
@@ -62,13 +60,11 @@ def unpatch_iast():
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -129,8 +125,7 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_rc4_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
     _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
     WeakCipher.report(
@@ -140,8 +135,7 @@ def wrapped_rc4_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if hasattr(instance, "_dd_weakcipher_algorithm"):
         evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
@@ -154,8 +148,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_cryptography_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     algorithm_name = instance.algorithm.name.lower()
     if algorithm_name in get_weak_cipher_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)

@@ -22,8 +22,8 @@ from .visitor import AstVisitor
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
-IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
+IAST_ALLOWLIST: tuple[str, ...] = ("tests.appsec.iast",)
+IAST_DENYLIST: tuple[str, ...] = ("ddtrace", "pkg_resources")
 
 
 if IAST.PATCH_MODULES in os.environ:
@@ -38,7 +38,7 @@ ENCODING = ""
 log = get_logger(__name__)
 
 
-def get_encoding(module_path):  # type: (str) -> str
+def get_encoding(module_path: str) -> str:
     """
     First tries to detect the encoding for the file,
     otherwise, returns global encoding default
@@ -58,7 +58,7 @@ except ImportError:
     import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
-def _build_installed_package_names_list():  # type: (...) -> set[str]
+def _build_installed_package_names_list() -> set[str]:
     return {
         ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
     }
@@ -69,11 +69,11 @@ _NOT_PATCH_MODULE_NAMES = (
 )
 
 
-def _in_python_stdlib_or_third_party(module_name):  # type: (str) -> bool
+def _in_python_stdlib_or_third_party(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
-def _should_iast_patch(module_name):  # type: (str) -> bool
+def _should_iast_patch(module_name: str) -> bool:
     """
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
@@ -85,10 +85,10 @@ def _should_iast_patch(module_name):  # type: (str) -> bool
 
 
 def visit_ast(
-    source_text,  # type: str
-    module_path,  # type: str
-    module_name="",  # type: str
-):  # type: (...) -> Optional[str]
+    source_text: str,
+    module_path: str,
+    module_name: str = "",
+) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
 
     visitor = AstVisitor(
@@ -123,8 +123,7 @@ def _remove_flask_run(text):  # type (str) -> str
     return new_text
 
 
-def astpatch_module(module, remove_flask_run=False):
-    # type: (ModuleType, bool) -> Tuple[str, str]
+def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
     module_name = module.__name__
     module_path = str(origin(module))
     try:

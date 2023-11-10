@@ -8,8 +8,7 @@ from ..trace_utils import unwrap as _u
 from .wrappers import wrapped_create_task
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 

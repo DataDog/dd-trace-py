@@ -68,8 +68,7 @@ def resource_from_cache_prefix(resource, cache):
     return name.lower()
 
 
-def quantize_key_values(keys):
-    # type: (_quantize_param) -> Text
+def quantize_key_values(keys: _quantize_param) -> Text:
     """
     Used for Django cache key normalization.
 
@@ -79,7 +78,7 @@ def quantize_key_values(keys):
 
     If text is provided we convert to text.
     """
-    args = []  # type: List[Union[Text, bytes, Any]]
+    args: List[Union[Text, bytes, Any]] = []
 
     # Normalize input values into a List[Text, bytes]
     if isinstance(keys, dict):
@@ -287,12 +286,11 @@ def _extract_body(request):
         return req_body
 
 
-def _get_request_headers(request):
-    # type: (Any) -> Mapping[str, str]
+def _get_request_headers(request: Any) -> Mapping[str, str]:
     if DJANGO22:
-        request_headers = request.headers  # type: Mapping[str, str]
+        request_headers: Mapping[str, str] = request.headers
     else:
-        request_headers = {}  # type: Mapping[str, str]
+        request_headers: Mapping[str, str] = {}
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:

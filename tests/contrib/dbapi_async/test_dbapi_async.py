@@ -193,7 +193,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
@@ -220,7 +220,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "cfg-service"
 
     @mark_asyncio
@@ -236,7 +236,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "db"
 
     @mark_asyncio
@@ -252,7 +252,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "default-svc"
 
     @mark_asyncio
@@ -268,7 +268,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "pin-svc"
 
     @mark_asyncio
@@ -287,7 +287,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -442,7 +442,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
         assert span.name == "my_name", "Span name is respected"
@@ -469,7 +469,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -522,7 +522,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
             pass
 
         await traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.get_metric("db.row_count") is None
 
     @mark_asyncio

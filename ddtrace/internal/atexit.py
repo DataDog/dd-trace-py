@@ -21,10 +21,9 @@ if hasattr(atexit, "unregister"):
     unregister = atexit.unregister
 else:
     # Hello Python 2!
-    _registry = []  # type: typing.List[typing.Tuple[typing.Callable[..., None], typing.Tuple, typing.Dict]]
+    _registry: typing.List[typing.Tuple[typing.Callable[..., None], typing.Tuple, typing.Dict]] = []
 
-    def _ddtrace_atexit():
-        # type: (...) -> None
+    def _ddtrace_atexit() -> None:
         """Wrapper function that calls all registered function on normal program termination"""
         global _registry
 
@@ -38,18 +37,16 @@ else:
                 log.exception("Error in atexit hook %r", hook)
 
     def register(
-        func,  # type: typing.Callable[..., typing.Any]
-        *args,  # type: typing.Any
-        **kwargs,  # type: typing.Any
-    ):
-        # type: (...) -> typing.Callable[..., typing.Any]
+        func: typing.Callable[..., typing.Any],
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> typing.Callable[..., typing.Any]:
         """Register a function to be executed upon normal program termination"""
 
         _registry.append((func, args, kwargs))
         return func
 
-    def unregister(func):
-        # type: (typing.Callable[..., typing.Any]) -> None
+    def unregister(func: typing.Callable[..., typing.Any]) -> None:
         """
         Unregister an exit function which was previously registered using
         atexit.register.

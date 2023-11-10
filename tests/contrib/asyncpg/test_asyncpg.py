@@ -13,16 +13,14 @@ from tests.contrib.config import POSTGRES_CONFIG
 
 
 @pytest.fixture(autouse=True)
-def patch_asyncpg():
-    # type: () -> Generator[None, None, None]
+def patch_asyncpg() -> Generator[None, None, None]:
     patch()
     yield
     unpatch()
 
 
 @pytest.fixture
-async def patched_conn():
-    # type: () -> Generator[asyncpg.Connection, None, None]
+async def patched_conn() -> Generator[asyncpg.Connection, None, None]:
     conn = await asyncpg.connect(
         host=POSTGRES_CONFIG["host"],
         port=POSTGRES_CONFIG["port"],

@@ -21,26 +21,22 @@ DEFAULT_HEADERS = {
 
 
 @pytest.fixture
-def flask_port():
-    # type: () -> str
+def flask_port() -> str:
     return "8000"
 
 
 @pytest.fixture
-def flask_wsgi_application():
-    # type: () -> str
+def flask_wsgi_application() -> str:
     return "tests.contrib.flask.app:app"
 
 
 @pytest.fixture
-def flask_command(flask_wsgi_application, flask_port):
-    # type: (str, str) -> List[str]
+def flask_command(flask_wsgi_application: str, flask_port: str) -> List[str]:
     cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
-def flask_default_env(flask_wsgi_application):
-    # type: (str) -> Dict[str, str]
+def flask_default_env(flask_wsgi_application: str) -> Dict[str, str]:
     env = os.environ.copy()
     env.update(
         {
@@ -53,8 +49,7 @@ def flask_default_env(flask_wsgi_application):
 
 
 @pytest.fixture
-def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_arg):
-    # type: (List[str], Dict[str, str], str, Callable) -> Generator[Client, None, None]
+def flask_client(flask_command: List[str], flask_port: Dict[str, str], flask_wsgi_application: str, flask_env_arg: Callable) -> Generator[Client, None, None]:
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
@@ -99,8 +94,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     ignores=["meta.flask.version"], variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)}
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_default_env,))
-def test_flask_200(flask_client):
-    # type: (Client) -> None
+def test_flask_200(flask_client: Client) -> None:
     assert flask_client.get("/", headers=DEFAULT_HEADERS).status_code == 200
 
 
@@ -109,8 +103,7 @@ def test_flask_200(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_default_env,))
-def test_flask_stream(flask_client):
-    # type: (Client) -> None
+def test_flask_stream(flask_client: Client) -> None:
     resp = flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True)
     # read streamed reasponse, this will close the flask.response span
     assert list(resp.iter_lines()) == [b"0123456789"]
@@ -123,6 +116,5 @@ def test_flask_stream(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_default_env,))
-def test_flask_get_user(flask_client):
-    # type: (Client) -> None
+def test_flask_get_user(flask_client: Client) -> None:
     assert flask_client.get("/identify").status_code == 200

@@ -7,8 +7,7 @@ from ddtrace.internal.wrapping import wrap as _w
 from .threading import _wrap_submit
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 

@@ -76,13 +76,11 @@ IP_PATTERNS = (
 
 
 @cached()
-def _normalized_header_name(header_name):
-    # type: (str) -> str
+def _normalized_header_name(header_name: str) -> str:
     return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
 
 
-def _get_header_value_case_insensitive(headers, keyname):
-    # type: (Mapping[str, str], str) -> Optional[str]
+def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
     """
     Get a header in a case insensitive way. This function is meant for frameworks
     like Django < 2.2 that don't store the headers in a case insensitive mapping.
@@ -99,8 +97,7 @@ def _get_header_value_case_insensitive(headers, keyname):
     return None
 
 
-def _normalize_tag_name(request_or_response, header_name):
-    # type: (str, str) -> str
+def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     """
     Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
     'http.request.headers.content_type'. Rules applied actual header name are:
@@ -124,8 +121,7 @@ def _normalize_tag_name(request_or_response, header_name):
     return "http.{}.headers.{}".format(request_or_response, normalized_name)
 
 
-def _store_headers(headers, span, integration_config, request_or_response):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+def _store_headers(headers: Dict[str, str], span: Span, integration_config: IntegrationConfig, request_or_response: str) -> None:
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -154,8 +150,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
-def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
-    # type: (Mapping[str, str], bool) -> str
+def _get_request_header_user_agent(headers: Mapping[str, str], headers_are_case_sensitive: bool = False) -> str:
     """Get user agent from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -177,12 +172,11 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 _USED_IP_HEADER = ""
 
 
-def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
-    # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
+def _get_request_header_client_ip(headers: Optional[Mapping[str, str]], peer_ip: Optional[str] = None, headers_are_case_sensitive: bool = False) -> str:
 
     global _USED_IP_HEADER
 
-    def get_header_value(key):  # type: (str) -> Optional[str]
+    def get_header_value(key: str) -> Optional[str]:
         if not headers_are_case_sensitive:
             return headers.get(key)
 
@@ -255,8 +249,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     return private_ip_from_headers
 
 
-def _store_request_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+def _store_request_headers(headers: Dict[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -269,8 +262,7 @@ def _store_request_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def _store_response_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+def _store_response_headers(headers: Dict[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -283,8 +275,7 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
-def _sanitized_url(url):
-    # type: (str) -> str
+def _sanitized_url(url: str) -> str:
     """
     Sanitize url by removing parts with potential auth info
     """
@@ -345,8 +336,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def distributed_tracing_enabled(int_config, default=False):
-    # type: (IntegrationConfig, bool) -> bool
+def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled
@@ -355,8 +345,7 @@ def distributed_tracing_enabled(int_config, default=False):
     return default
 
 
-def int_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+def int_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -386,8 +375,7 @@ def int_service(pin, int_config, default=None):
     return default
 
 
-def ext_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+def ext_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -407,8 +395,7 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-def _set_url_tag(integration_config, span, url, query):
-    # type: (IntegrationConfig, Span, str, str) -> None
+def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, query: str) -> None:
 
     if integration_config.http_tag_query_string:  # Tagging query string in http.url
         if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
@@ -420,28 +407,27 @@ def _set_url_tag(integration_config, span, url, query):
 
 
 def set_http_meta(
-    span,  # type: Span
-    integration_config,  # type: IntegrationConfig
-    method=None,  # type: Optional[str]
-    url=None,  # type: Optional[str]
-    target_host=None,  # type: Optional[str]
-    status_code=None,  # type: Optional[Union[int, str]]
-    status_msg=None,  # type: Optional[str]
-    query=None,  # type: Optional[str]
-    parsed_query=None,  # type: Optional[Mapping[str, str]]
-    request_headers=None,  # type: Optional[Mapping[str, str]]
-    response_headers=None,  # type: Optional[Mapping[str, str]]
-    retries_remain=None,  # type: Optional[Union[int, str]]
-    raw_uri=None,  # type: Optional[str]
-    request_cookies=None,  # type: Optional[Dict[str, str]]
-    request_path_params=None,  # type: Optional[Dict[str, str]]
-    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
-    peer_ip=None,  # type: Optional[str]
-    headers_are_case_sensitive=False,  # type: bool
-    route=None,  # type: Optional[str]
-    response_cookies=None,  # type: Optional[Dict[str, str]]
-):
-    # type: (...) -> None
+    span: Span,
+    integration_config: IntegrationConfig,
+    method: Optional[str] = None,
+    url: Optional[str] = None,
+    target_host: Optional[str] = None,
+    status_code: Optional[Union[int, str]] = None,
+    status_msg: Optional[str] = None,
+    query: Optional[str] = None,
+    parsed_query: Optional[Mapping[str, str]] = None,
+    request_headers: Optional[Mapping[str, str]] = None,
+    response_headers: Optional[Mapping[str, str]] = None,
+    retries_remain: Optional[Union[int, str]] = None,
+    raw_uri: Optional[str] = None,
+    request_cookies: Optional[Dict[str, str]] = None,
+    request_path_params: Optional[Dict[str, str]] = None,
+    request_body: Optional[Union[str, Dict[str, List[str]]]] = None,
+    peer_ip: Optional[str] = None,
+    headers_are_case_sensitive: bool = False,
+    route: Optional[str] = None,
+    response_cookies: Optional[Dict[str, str]] = None,
+) -> None:
     """
     Set HTTP metas on the span
 
@@ -557,8 +543,7 @@ def set_http_meta(
         span.set_tag_str(http.ROUTE, route)
 
 
-def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+def activate_distributed_headers(tracer: Tracer, int_config: Optional[IntegrationConfig] = None, request_headers: Optional[Dict[str, str]] = None, override: Optional[bool] = None) -> None:
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
@@ -597,12 +582,11 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
 
 
 def _flatten(
-    obj,  # type: Any
-    sep=".",  # type: str
-    prefix="",  # type: str
-    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-):
-    # type: (...) -> Generator[Tuple[str, Any], None, None]
+    obj: Any,
+    sep: str = ".",
+    prefix: str = "",
+    exclude_policy: Optional[Callable[[str], bool]] = None,
+) -> Generator[Tuple[str, Any], None, None]:
     s = deque()  # type: ignore
     s.append((prefix, obj))
     while s:
@@ -616,30 +600,28 @@ def _flatten(
 
 
 def set_flattened_tags(
-    span,  # type: Span
-    items,  # type: Iterator[Tuple[str, Any]]
-    sep=".",  # type: str
-    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-    processor=None,  # type: Optional[Callable[[Any], Any]]
-):
-    # type: (...) -> None
+    span: Span,
+    items: Iterator[Tuple[str, Any]],
+    sep: str = ".",
+    exclude_policy: Optional[Callable[[str], bool]] = None,
+    processor: Optional[Callable[[Any], Any]] = None,
+) -> None:
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
 def set_user(
-    tracer,  # type: Tracer
-    user_id,  # type: str
-    name=None,  # type: Optional[str]
-    email=None,  # type: Optional[str]
-    scope=None,  # type: Optional[str]
-    role=None,  # type: Optional[str]
-    session_id=None,  # type: Optional[str]
+    tracer: Tracer,
+    user_id: str,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    scope: Optional[str] = None,
+    role: Optional[str] = None,
+    session_id: Optional[str] = None,
     propagate=False,  # type bool
-    span=None,  # type: Optional[Span]
-):
-    # type: (...) -> None
+    span: Optional[Span] = None,
+) -> None:
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
@@ -677,8 +659,7 @@ def set_user(
         )
 
 
-def extract_netloc_and_query_info_from_url(url):
-    # type: (str) -> Tuple[str, str]
+def extract_netloc_and_query_info_from_url(url: str) -> Tuple[str, str]:
     parse_result = parse.urlparse(url)
     query = parse_result.query
 

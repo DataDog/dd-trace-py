@@ -13,7 +13,7 @@ from ddtrace.vendor import wrapt
 log = logging.getLogger(__name__)
 
 
-_registry = []  # type: typing.List[typing.Callable[[], None]]
+_registry: typing.List[typing.Callable[[], None]] = []
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -22,8 +22,7 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 _soft = True
 
 
-def ddtrace_after_in_child():
-    # type: () -> None
+def ddtrace_after_in_child() -> None:
     global _registry
 
     # DEV: we make a copy of the registry to prevent hook execution from
@@ -36,8 +35,7 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def register(after_in_child):
-    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
+def register(after_in_child: typing.Callable[[], None]) -> typing.Callable[[], None]:
     """Register a function to be called after fork in the child process.
 
     Note that ``after_in_child`` will be called in all child processes across
@@ -47,8 +45,7 @@ def register(after_in_child):
     return after_in_child
 
 
-def unregister(after_in_child):
-    # type: (typing.Callable[[], None]) -> None
+def unregister(after_in_child: typing.Callable[[], None]) -> None:
     """Unregister a function to be called after fork in the child process.
 
     Raises `ValueError` if the function was not registered.
@@ -63,8 +60,7 @@ elif hasattr(os, "fork"):
     # work if hooks create new threads.
     _threading_after_fork = threading._after_fork  # type: ignore
 
-    def _after_fork():
-        # type: () -> None
+    def _after_fork() -> None:
         _threading_after_fork()
         if not _soft:
             ddtrace_after_in_child()
@@ -82,11 +78,10 @@ elif hasattr(os, "fork"):
 
     os.fork = _fork
 
-_resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
+_resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()
 
 
-def _reset_objects():
-    # type: (...) -> None
+def _reset_objects() -> None:
     for obj in list(_resetable_objects):
         try:
             obj._reset_object()
@@ -110,28 +105,23 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """
 
     def __init__(
-        self, wrapped_class  # type: typing.Type[_T]
-    ):
-        # type: (...) -> None
+        self, wrapped_class: typing.Type[_T]
+    ) -> None:
         super(ResetObject, self).__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 
-    def _reset_object(self):
-        # type: (...) -> None
+    def _reset_object(self) -> None:
         self.__wrapped__ = self._self_wrapped_class()
 
 
-def Lock():
-    # type: (...) -> ResetObject[threading.Lock]
+def Lock() -> ResetObject[threading.Lock]:
     return ResetObject(threading.Lock)
 
 
-def RLock():
-    # type: (...) -> ResetObject[threading.RLock]
+def RLock() -> ResetObject[threading.RLock]:
     return ResetObject(threading.RLock)
 
 
-def Event():
-    # type: (...) -> ResetObject[threading.Event]
+def Event() -> ResetObject[threading.Event]:
     return ResetObject(threading.Event)

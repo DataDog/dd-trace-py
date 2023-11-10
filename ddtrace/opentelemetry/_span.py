@@ -37,14 +37,13 @@ class Span(OtelSpan):
 
     def __init__(
         self,
-        datadog_span,  # type: DDSpan
-        kind=SpanKind.INTERNAL,  # type: SpanKind
-        attributes=None,  # type: Optional[Mapping[str, AttributeValue]]
-        start_time=None,  # type: Optional[int]
-        record_exception=None,  # type: Optional[bool]
-        set_status_on_exception=None,  # type: Optional[bool]
-    ):
-        # type: (...) -> None
+        datadog_span: DDSpan,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, AttributeValue]] = None,
+        start_time: Optional[int] = None,
+        record_exception: Optional[bool] = None,
+        set_status_on_exception: Optional[bool] = None,
+    ) -> None:
         if start_time is not None:
             # start_time should be set in nanoseconds
             datadog_span.start_ns = start_time
@@ -63,29 +62,24 @@ class Span(OtelSpan):
             self.set_attributes(attributes)
 
     @property
-    def _record_exception(self):
-        # type: () -> bool
+    def _record_exception(self) -> bool:
         # default value is True, if record exception key is not set return True
         return core.get_item(self._RECORD_EXCEPTION_KEY, span=self._ddspan) is not False
 
     @_record_exception.setter
-    def _record_exception(self, value):
-        # type: (bool) -> None
+    def _record_exception(self, value: bool) -> None:
         core.set_item(self._RECORD_EXCEPTION_KEY, value, span=self._ddspan)
 
     @property
-    def _set_status_on_exception(self):
-        # type: () -> bool
+    def _set_status_on_exception(self) -> bool:
         # default value is True, if set status on exception key is not set return True
         return core.get_item(self._SET_EXCEPTION_STATUS_KEY, span=self._ddspan) is not False
 
     @_set_status_on_exception.setter
-    def _set_status_on_exception(self, value):
-        # type: (bool) -> None
+    def _set_status_on_exception(self, value: bool) -> None:
         core.set_item(self._SET_EXCEPTION_STATUS_KEY, value, span=self._ddspan)
 
-    def end(self, end_time=None):
-        # type: (Optional[int]) -> None
+    def end(self, end_time: Optional[int] = None) -> None:
         """
         Marks the end time of a span. This method should be called once.
 
@@ -103,8 +97,7 @@ class Span(OtelSpan):
         # TODO: Propose a fix in opentelemetry-python-contrib project
         return self._ddspan._meta.get(SPAN_KIND, SpanKind.INTERNAL.name.lower())
 
-    def get_span_context(self):
-        # type: () -> SpanContext
+    def get_span_context(self) -> SpanContext:
         """Returns an OpenTelemetry SpanContext"""
         ts = None
         tf = TraceFlags.DEFAULT
@@ -115,14 +108,12 @@ class Span(OtelSpan):
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
-    def set_attributes(self, attributes):
-        # type: (Mapping[str, AttributeValue]) -> None
+    def set_attributes(self, attributes: Mapping[str, AttributeValue]) -> None:
         """Sets attributes/tags"""
         for k, v in attributes.items():
             self.set_attribute(k, v)
 
-    def set_attribute(self, key, value):
-        # type: (str, AttributeValue) -> None
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
         """Sets an attribute or service name on a tag"""
         if not self.is_recording():
             return
@@ -130,13 +121,11 @@ class Span(OtelSpan):
         # `service.version` attributes. This functionality is supported by Span.set_tag and NOT Span.set_tag_str().
         self._ddspan.set_tag(key, value)
 
-    def add_event(self, name, attributes=None, timestamp=None):
-        # type: (str, Optional[Attributes], Optional[int]) -> None
+    def add_event(self, name: str, attributes: Optional[Attributes] = None, timestamp: Optional[int] = None) -> None:
         """NOOP - events are not yet supported"""
         return
 
-    def update_name(self, name):
-        # type: (str) -> None
+    def update_name(self, name: str) -> None:
         """Updates the name of a span"""
         if not self.is_recording():
             return
@@ -145,13 +134,11 @@ class Span(OtelSpan):
         self._ddspan.name = name
         self._ddspan.resource = name
 
-    def is_recording(self):
-        # type: () -> bool
+    def is_recording(self) -> bool:
         """Returns False if Span.end() is called."""
         return not self._ddspan.finished
 
-    def set_status(self, status, description=None):
-        # type: (Union[Status, StatusCode], Optional[str]) -> None
+    def set_status(self, status: Union[Status, StatusCode], description: Optional[str] = None) -> None:
         """
         Updates a Span from StatusCode.OK to StatusCode.ERROR.
         Note - The default status is OK. Setting the status to StatusCode.UNSET or updating the
@@ -173,8 +160,7 @@ class Span(OtelSpan):
             if message:
                 self.set_attribute(ERROR_MSG, message)
 
-    def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
-        # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
+    def record_exception(self, exception: BaseException, attributes: Optional[Attributes] = None, timestamp: Optional[int] = None, escaped: bool = False) -> None:
         """
         Records the type, message, and traceback of an exception as Span attributes.
         Note - Span Events are not yet supported.
@@ -185,8 +171,7 @@ class Span(OtelSpan):
         if attributes:
             self.set_attributes(attributes)
 
-    def __enter__(self):
-        # type: () -> Span
+    def __enter__(self) -> Span:
         """Invoked when `Span` is used as a context manager.
         Returns the `Span` itself.
         """

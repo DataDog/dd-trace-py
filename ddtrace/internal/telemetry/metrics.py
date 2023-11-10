@@ -20,8 +20,7 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
     metric_type = ""
     __slots__ = ["namespace", "name", "_tags", "is_common_to_all_tracers", "interval", "_points", "_count"]
 
-    def __init__(self, namespace, name, tags, common, interval=None):
-        # type: (str, str, MetricTagType, bool, Optional[float]) -> None
+    def __init__(self, namespace: str, name: str, tags: MetricTagType, common: bool, interval: Optional[float] = None) -> None:
         """
         namespace: the scope of the metric: tracer, appsec, etc.
         name: string
@@ -35,11 +34,10 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         self.namespace = namespace
         self._tags = tags
         self._count = 0.0
-        self._points = []  # type: List
+        self._points: List = []
 
     @classmethod
-    def get_id(cls, name, namespace, tags, metric_type):
-        # type: (str, str, MetricTagType, str) -> int
+    def get_id(cls, name: str, namespace: str, tags: MetricTagType, metric_type: str) -> int:
         """
         https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
         """
@@ -49,13 +47,11 @@ class Metric(six.with_metaclass(abc.ABCMeta)):
         return self.get_id(self.name, self.namespace, self._tags, self.metric_type)
 
     @abc.abstractmethod
-    def add_point(self, value=1.0):
-        # type: (float) -> None
+    def add_point(self, value: float = 1.0) -> None:
         """adds timestamped data point associated with a metric"""
         pass
 
-    def to_dict(self):
-        # type: () -> Dict
+    def to_dict(self) -> Dict:
         """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
         data = {
             "metric": self.name,
@@ -77,8 +73,7 @@ class CountMetric(Metric):
 
     metric_type = "count"
 
-    def add_point(self, value=1.0):
-        # type: (float) -> None
+    def add_point(self, value: float = 1.0) -> None:
         """adds timestamped data point associated with a metric"""
         if self._points:
             self._points[0][1] += value
@@ -96,8 +91,7 @@ class GaugeMetric(Metric):
 
     metric_type = "gauge"
 
-    def add_point(self, value=1.0):
-        # type: (float) -> None
+    def add_point(self, value: float = 1.0) -> None:
         """adds timestamped data point associated with a metric"""
         self._points = [(time.time(), value)]
 
@@ -110,8 +104,7 @@ class RateMetric(Metric):
 
     metric_type = "rate"
 
-    def add_point(self, value=1.0):
-        # type: (float) -> None
+    def add_point(self, value: float = 1.0) -> None:
         """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
@@ -128,15 +121,13 @@ class DistributionMetric(Metric):
 
     metric_type = "distributions"
 
-    def add_point(self, value=1.0):
-        # type: (float) -> None
+    def add_point(self, value: float = 1.0) -> None:
         """Example:
         https://github.com/DataDog/datadogpy/blob/ee5ac16744407dcbd7a3640ee7b4456536460065/datadog/threadstats/metrics.py#L181
         """
         self._points.append(value)
 
-    def to_dict(self):
-        # type: () -> Dict
+    def to_dict(self) -> Dict:
         """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
         data = {
             "metric": self.name,

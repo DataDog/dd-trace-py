@@ -27,8 +27,7 @@ config._add(
 )  # by default, override here for custom tracer
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(logging, "__version__", "")
 
 

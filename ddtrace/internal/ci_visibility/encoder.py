@@ -99,8 +99,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         return _ensure_text_strings(payload)
 
-    def _convert_span(self, span, dd_origin):
-        # type: (Span, str) -> Dict[str, Any]
+    def _convert_span(self, span: Span, dd_origin: str) -> Dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -171,8 +170,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_coverage_attachment(self, data):
-        # type: (bytes) -> List[bytes]
+    def _build_coverage_attachment(self, data: bytes) -> List[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
@@ -181,8 +179,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             data,
         ]
 
-    def _build_event_json_attachment(self):
-        # type: () -> List[bytes]
+    def _build_event_json_attachment(self) -> List[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
@@ -191,16 +188,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             b'{"dummy":true}',
         ]
 
-    def _build_body(self, data):
-        # type: (bytes) -> List[bytes]
+    def _build_body(self, data: bytes) -> List[bytes]:
         return (
             self._build_coverage_attachment(data)
             + self._build_event_json_attachment()
             + [b"--%s--" % self.boundary.encode("utf-8")]
         )
 
-    def _build_data(self, traces):
-        # type: (List[List[Span]]) -> Optional[bytes]
+    def _build_data(self, traces: List[List[Span]]) -> Optional[bytes]:
         normalized_covs = [
             self._convert_span(span, "") for trace in traces for span in trace if COVERAGE_TAG_NAME in span.get_tags()
         ]
@@ -209,15 +204,13 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
-    def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Optional[bytes]
+    def _build_payload(self, traces: List[List[Span]]) -> Optional[bytes]:
         data = self._build_data(traces)
         if not data:
             return None
         return b"\r\n".join(self._build_body(data))
 
-    def _convert_span(self, span, dd_origin):
-        # type: (Span, str) -> Dict[str, Any]
+    def _convert_span(self, span: Span, dd_origin: str) -> Dict[str, Any]:
         converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),

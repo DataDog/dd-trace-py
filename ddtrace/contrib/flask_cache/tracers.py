@@ -33,8 +33,7 @@ CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         import flask_caching
 
@@ -74,8 +73,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd):
-            # type: (str, bool) -> Span
+        def __trace(self: str, cmd: bool) -> Span:
             """
             Start a tracing with default attributes and tags
             """

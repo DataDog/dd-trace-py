@@ -31,8 +31,7 @@ except ImportError:
     algoliasearch_version = (0, 0)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return VERSION
 
 

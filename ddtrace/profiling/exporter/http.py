@@ -108,10 +108,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     @staticmethod
     def _encode_multipart_formdata(
-        event,  # type: bytes
-        data,  # type: typing.List[typing.Dict[str, bytes]]
-    ):
-        # type: (...) -> typing.Tuple[bytes, bytes]
+        event: bytes,
+        data: typing.List[typing.Dict[str, bytes]],
+    ) -> typing.Tuple[bytes, bytes]:
         boundary = binascii.hexlify(os.urandom(16))
 
         # The body that is generated is very sensitive and must perfectly match what the server expects.
@@ -137,9 +136,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         return content_type, body
 
     def _get_tags(
-        self, service  # type: str
-    ):
-        # type: (...) -> str
+        self, service: str
+    ) -> str:
         tags = {
             "service": service,
             "runtime-id": runtime.get_runtime_id(),
@@ -151,11 +149,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
-    ):
-        # type: (...) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
+    ) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]:
         """Export events to an HTTP endpoint.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
@@ -206,14 +203,14 @@ class PprofHTTPExporter(pprof.PprofExporter):
             )
 
         service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
-        event = {
+        event: Dict[str, Any] = {
             "version": "4",
             "family": "python",
             "attachments": [item["filename"].decode("utf-8") for item in data],
             "tags_profiler": self._get_tags(service),
             "start": (datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
             "end": (datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
-        }  # type: Dict[str, Any]
+        }
 
         if self.endpoint_call_counter_span_processor is not None:
             event["endpoint_counts"] = self.endpoint_call_counter_span_processor.reset()

@@ -73,11 +73,11 @@ def test_common_replace_tainted_bytearray():
     assert get_ranges(s2) == [_RANGE1, _RANGE2]
 
 
-def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
+def _build_sample_range(start, end: int, name: int) -> TaintRange:
     return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
 
 
-def test_as_formatted_evidence():  # type: () -> None
+def test_as_formatted_evidence() -> None:
     s = "abcdefgh"
     set_ranges(s, (_build_sample_range(0, 5, "first"),))
     assert as_formatted_evidence(s) == ":+-<first>abcde<first>-+:fgh"
@@ -99,7 +99,7 @@ def test_as_formatted_evidence():  # type: () -> None
     assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh"
 
 
-def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: () -> None
+def test_as_formatted_evidence_convert_escaped_text_to_tainted_text() -> None:
     from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 
     s = "abcdefgh"

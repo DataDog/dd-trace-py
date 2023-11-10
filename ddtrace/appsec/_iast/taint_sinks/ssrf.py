@@ -42,7 +42,7 @@ class SSRF(VulnerabilityBase):
 
     @classmethod
     def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> VULNERABILITY_TOKEN_TYPE:
-        ret = {}  # type: VULNERABILITY_TOKEN_TYPE
+        ret: VULNERABILITY_TOKEN_TYPE = {}
         for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
             authority = []
@@ -58,7 +58,7 @@ class SSRF(VulnerabilityBase):
         return ret
 
     @classmethod
-    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
+    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
         if not asm_config._iast_redaction_enabled:
             return report
 
@@ -98,7 +98,7 @@ class SSRF(VulnerabilityBase):
         if not vulns_to_tokens:
             return report
 
-        all_tokens = set()  # type: Set[str]
+        all_tokens: Set[str] = set()
         for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 

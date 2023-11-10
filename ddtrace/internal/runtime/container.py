@@ -38,8 +38,7 @@ class CGroupInfo(object):
     )
 
     @classmethod
-    def from_line(cls, line):
-        # type: (str) -> Optional[CGroupInfo]
+    def from_line(cls, line: str) -> Optional[CGroupInfo]:
         """
         Parse a new :class:`CGroupInfo` from the provided line
 
@@ -84,8 +83,7 @@ class CGroupInfo(object):
         return cls(id=id_, groups=groups, path=path, container_id=container_id, controllers=controllers, pod_id=pod_id)
 
 
-def get_container_info(pid="self"):
-    # type: (str) -> Optional[CGroupInfo]
+def get_container_info(pid: str = "self") -> Optional[CGroupInfo]:
     """
     Helper to fetch the current container id, if we are running in a container
 

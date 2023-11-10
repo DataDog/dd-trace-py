@@ -40,8 +40,7 @@ class LockReleaseEvent(LockEventBase):
     locked_for_ns = attr.ib(default=0, type=int)
 
 
-def _current_thread():
-    # type: (...) -> typing.Tuple[int, str]
+def _current_thread() -> typing.Tuple[int, str]:
     thread_id = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -185,31 +184,26 @@ class LockCollector(collector.CaptureSamplerCollector):
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
 
     @abc.abstractmethod
-    def _get_original(self):
-        # type: (...) -> typing.Any
+    def _get_original(self) -> typing.Any:
         pass
 
     @abc.abstractmethod
     def _set_original(
-        self, value  # type: typing.Any
-    ):
-        # type: (...) -> None
+        self, value: typing.Any
+    ) -> None:
         pass
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start collecting lock usage."""
         self.patch()
         super(LockCollector, self)._start_service()
 
-    def _stop_service(self):
-        # type: (...) -> None
+    def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()
         self.unpatch()
 
-    def patch(self):
-        # type: (...) -> None
+    def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
         # We only patch the lock from the `threading` module.
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
@@ -223,7 +217,6 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         self._set_original(FunctionWrapper(self.original, _allocate_lock))
 
-    def unpatch(self):
-        # type: (...) -> None
+    def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
         self._set_original(self.original)

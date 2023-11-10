@@ -13,7 +13,7 @@ from .constants import TRACER_VERSION
 
 class RuntimeTagCollector(ValueCollector):
     periodic = False
-    value = []  # type: List[Tuple[str, str]]
+    value: List[Tuple[str, str]] = []
 
 
 class TracerTagCollector(RuntimeTagCollector):

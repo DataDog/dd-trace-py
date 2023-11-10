@@ -35,7 +35,6 @@ ConfigKeys = ConfigKeyNames(
 )
 
 
-def config_invalid_keys(config):
-    # type: (Dict[str, Any]) -> List[str]
+def config_invalid_keys(config: Dict[str, Any]) -> List[str]:
     """Returns a list of keys that exist in *config* and not in KEYS."""
     return [key for key in config.keys() if key not in ConfigKeys]

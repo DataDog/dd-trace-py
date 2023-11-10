@@ -11,8 +11,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def fromisoformat_py2(t):
-    # type: (str) -> datetime
+def fromisoformat_py2(t: str) -> datetime:
     """Alternative function to datetime.fromisoformat that does not exist in python 2. This function parses dates with
     this format: 2022-09-01T01:00:00+02:00
     """
@@ -24,8 +23,7 @@ def fromisoformat_py2(t):
     return ret
 
 
-def parse_isoformat(date):
-    # type: (str) -> Optional[datetime]
+def parse_isoformat(date: str) -> Optional[datetime]:
     if date.endswith("Z"):
         try:
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -56,19 +54,16 @@ class StopWatch(object):
     .. _monotonic: https://pypi.python.org/pypi/monotonic/
     """
 
-    def __init__(self):
-        # type: () -> None
-        self._started_at = None  # type: Optional[float]
-        self._stopped_at = None  # type: Optional[float]
+    def __init__(self) -> None:
+        self._started_at: Optional[float] = None
+        self._stopped_at: Optional[float] = None
 
-    def start(self):
-        # type: () -> StopWatch
+    def start(self) -> StopWatch:
         """Starts the watch."""
         self._started_at = compat.monotonic()
         return self
 
-    def elapsed(self):
-        # type: () -> float
+    def elapsed(self) -> float:
         """Get how many seconds have elapsed.
 
         :return: Number of seconds elapsed
@@ -83,19 +78,16 @@ class StopWatch(object):
             now = self._stopped_at
         return now - self._started_at
 
-    def __enter__(self):
-        # type: () -> StopWatch
+    def __enter__(self) -> StopWatch:
         """Starts the watch."""
         self.start()
         return self
 
-    def __exit__(self, tp, value, traceback):
-        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
+    def __exit__(self, tp: Optional[Type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
         """Stops the watch."""
         self.stop()
 
-    def stop(self):
-        # type: () -> StopWatch
+    def stop(self) -> StopWatch:
         """Stops the watch."""
         if self._started_at is None:
             raise RuntimeError("Can not stop a stopwatch that has not been" " started")
@@ -106,8 +98,7 @@ class StopWatch(object):
 class HourGlass(object):
     """An implementation of an hourglass."""
 
-    def __init__(self, duration):
-        # type: (float) -> None
+    def __init__(self, duration: float) -> None:
         t = compat.monotonic()
 
         self._duration = duration
@@ -116,8 +107,7 @@ class HourGlass(object):
 
         self.trickling = self._trickled  # type: ignore[assignment]
 
-    def turn(self):
-        # type: () -> None
+    def turn(self) -> None:
         """Turn the hourglass."""
         t = compat.monotonic()
         top_0 = self._end_at - self._started_at
@@ -128,17 +118,14 @@ class HourGlass(object):
 
         self.trickling = self._trickling  # type: ignore[assignment]
 
-    def trickling(self):
-        # type: () -> bool
+    def trickling(self) -> bool:
         """Check if sand is still trickling."""
         return False
 
-    def _trickled(self):
-        # type: () -> bool
+    def _trickled(self) -> bool:
         return False
 
-    def _trickling(self):
-        # type: () -> bool
+    def _trickling(self) -> bool:
         if compat.monotonic() < self._end_at:
             return True
 
@@ -147,8 +134,7 @@ class HourGlass(object):
 
         return False
 
-    def __enter__(self):
-        # type: () -> HourGlass
+    def __enter__(self) -> HourGlass:
         self.turn()
         return self
 

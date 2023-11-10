@@ -75,8 +75,7 @@ _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import django
 
     return django.__version__

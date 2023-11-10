@@ -15,8 +15,7 @@ class SimpleMovingAverage(object):
         "sum_total",
     )
 
-    def __init__(self, size):
-        # type: (int) -> None
+    def __init__(self, size: int) -> None:
         """
         Constructor for SimpleMovingAverage.
 
@@ -35,8 +34,7 @@ class SimpleMovingAverage(object):
         self.counts = [0] * self.size
         self.totals = [0] * self.size
 
-    def get(self):
-        # type: () -> float
+    def get(self) -> float:
         """
         Get the current SMA value.
         """
@@ -45,8 +43,7 @@ class SimpleMovingAverage(object):
 
         return float(self.sum_count) / self.sum_total
 
-    def set(self, count, total):
-        # type: (int, int) -> None
+    def set(self, count: int, total: int) -> None:
         """
         Set the value of the next bucket and update the SMA value.
 

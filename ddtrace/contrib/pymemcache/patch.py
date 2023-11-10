@@ -16,8 +16,7 @@ _hash_Client = pymemcache.client.hash.Client
 _hash_HashClient = pymemcache.client.hash.Client
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(pymemcache, "__version__", "")
 
 

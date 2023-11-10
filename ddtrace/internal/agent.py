@@ -28,8 +28,7 @@ log = get_logger(__name__)
 
 
 # This method returns if a hostname is an IPv6 address
-def is_ipv6_hostname(hostname):
-    # type: (Union[T, str]) -> bool
+def is_ipv6_hostname(hostname: Union[T, str]) -> bool:
     if not isinstance(hostname, str):
         return False
     try:
@@ -39,8 +38,7 @@ def is_ipv6_hostname(hostname):
         return False
 
 
-def get_trace_url():
-    # type: () -> str
+def get_trace_url() -> str:
     """Return the Agent URL computed from the environment.
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
@@ -65,8 +63,7 @@ def get_trace_url():
     return url
 
 
-def get_stats_url():
-    # type: () -> str
+def get_stats_url() -> str:
     user_supplied_host = ddconfig._stats_agent_hostname is not None
     user_supplied_port = ddconfig._stats_agent_port is not None
 

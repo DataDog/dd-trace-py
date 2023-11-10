@@ -11,8 +11,7 @@ if typing.TYPE_CHECKING:
     from typing import Tuple
 
 
-def get_logger(name):
-    # type: (str) -> DDLogger
+def get_logger(name: str) -> DDLogger:
     """
     Retrieve or create a ``DDLogger`` instance.
 
@@ -63,8 +62,7 @@ def get_logger(name):
     return cast(DDLogger, logger)
 
 
-def hasHandlers(self):
-    # type: (DDLogger) -> bool
+def hasHandlers(self: DDLogger) -> bool:
     """
     See if this logger has any handlers configured.
     Loop through all handlers for this logger and its parents in the
@@ -99,15 +97,14 @@ class DDLogger(logging.Logger):
     # Named tuple used for keeping track of a log lines current time bucket and the number of log lines skipped
     LoggingBucket = collections.namedtuple("LoggingBucket", ("bucket", "skipped"))
 
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Constructor for ``DDLogger``"""
         super(DDLogger, self).__init__(*args, **kwargs)
 
         # Dict to keep track of the current time bucket per name/level/pathname/lineno
-        self.buckets = collections.defaultdict(
+        self.buckets: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket] = collections.defaultdict(
             lambda: DDLogger.LoggingBucket(0, 0)
-        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
+        )
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
         # Allow configuring via `DD_TRACE_LOGGING_RATE`
@@ -119,8 +116,7 @@ class DDLogger(logging.Logger):
         else:
             self.rate_limit = 60
 
-    def handle(self, record):
-        # type: (logging.LogRecord) -> None
+    def handle(self, record: logging.LogRecord) -> None:
         """
         Function used to call the handlers for a log line.
 

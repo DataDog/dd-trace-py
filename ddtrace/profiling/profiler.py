@@ -92,9 +92,8 @@ class Profiler(object):
         self._profiler.start()
 
     def __getattr__(
-        self, key  # type: str
-    ):
-        # type: (...) -> typing.Any
+        self, key: str
+    ) -> typing.Any:
         return getattr(self._profiler, key)
 
 
@@ -132,8 +131,7 @@ class _ProfilerInstance(service.Service):
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
-    def _build_default_exporters(self):
-        # type: (...) -> List[exporter.Exporter]
+    def _build_default_exporters(self) -> List[exporter.Exporter]:
         _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
             # DEV: Import this only if needed to avoid importing protobuf
@@ -208,8 +206,7 @@ class _ProfilerInstance(service.Service):
             ]
         return []
 
-    def __attrs_post_init__(self):
-        # type: (...) -> None
+    def __attrs_post_init__(self) -> None:
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
         max_stack_events = 10 * 60 * 50
         r = self._recorder = recorder.Recorder(
@@ -266,9 +263,9 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
-            scheduler_class = (
+            scheduler_class: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]]) = (
                 scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+            )
 
             self._scheduler = scheduler_class(
                 recorder=r,
@@ -297,8 +294,7 @@ class _ProfilerInstance(service.Service):
             }
         )
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start the profiler."""
         collectors = []
         for col in self._collectors:
@@ -315,8 +311,7 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def _stop_service(self, flush=True, join=True):
-        # type: (bool, bool) -> None
+    def _stop_service(self, flush: bool = True, join: bool = True) -> None:
         """Stop the profiler.
 
         :param flush: Flush a last profile.

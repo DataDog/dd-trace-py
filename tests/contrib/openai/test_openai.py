@@ -110,8 +110,7 @@ def azure_openai(openai):
 class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         for span in trace:
             if span.get_tag("organization"):
                 span.set_tag_str("organization", "not-a-real-org")

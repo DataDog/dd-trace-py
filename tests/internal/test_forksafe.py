@@ -150,8 +150,7 @@ else:
     lock_release_exc_type = RuntimeError
 
 
-def test_lock_basic():
-    # type: (...) -> None
+def test_lock_basic() -> None:
     """Check that a forksafe.Lock implements the correct threading.Lock interface"""
     lock = forksafe.Lock()
     assert lock.acquire()
@@ -185,8 +184,7 @@ def test_lock_fork():
     assert exit_code == 12
 
 
-def test_rlock_basic():
-    # type: (...) -> None
+def test_rlock_basic() -> None:
     """Check that a forksafe.RLock implements the correct threading.RLock interface"""
     lock = forksafe.RLock()
     assert lock.acquire()
@@ -227,8 +225,7 @@ def test_rlock_fork():
     assert exit_code == 12
 
 
-def test_event_basic():
-    # type: (...) -> None
+def test_event_basic() -> None:
     """Check that a forksafe.Event implements the correct threading.Event interface"""
     event = forksafe.Event()
     assert event.is_set() is False

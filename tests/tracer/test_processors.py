@@ -52,10 +52,10 @@ def test_no_impl():
 def test_default_post_init():
     @attr.s
     class MyProcessor(SpanProcessor):
-        def on_span_start(self, span):  # type: (Span) -> None
+        def on_span_start(self, span: Span) -> None:
             pass
 
-        def on_span_finish(self, data):  # type: (Any) -> Any
+        def on_span_finish(self, data: Any) -> Any:
             pass
 
     with mock.patch("ddtrace.internal.processor.log") as log:

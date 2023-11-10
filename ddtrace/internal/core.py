@@ -137,12 +137,10 @@ class EventHub:
     def __init__(self):
         self.reset()
 
-    def has_listeners(self, event_id):
-        # type: (str) -> bool
+    def has_listeners(self, event_id: str) -> bool:
         return event_id in self._listeners
 
-    def on(self, event_id, callback):
-        # type: (str, Callable) -> None
+    def on(self, event_id: str, callback: Callable) -> None:
         if callback not in self._listeners[event_id]:
             self._listeners[event_id].insert(0, callback)
 
@@ -151,8 +149,7 @@ class EventHub:
             del self._listeners
         self._listeners = defaultdict(list)
 
-    def dispatch(self, event_id, args, *other_args):
-        # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+    def dispatch(self, event_id, args, *other_args) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]:
         if not isinstance(args, list):
             args = [args] + list(other_args)
         else:
@@ -181,23 +178,19 @@ class EventHub:
 _EVENT_HUB = contextvars.ContextVar("EventHub_var", default=EventHub())
 
 
-def has_listeners(event_id):
-    # type: (str) -> bool
+def has_listeners(event_id: str) -> bool:
     return _EVENT_HUB.get().has_listeners(event_id)  # type: ignore
 
 
-def on(event_id, callback):
-    # type: (str, Callable) -> None
+def on(event_id: str, callback: Callable) -> None:
     return _EVENT_HUB.get().on(event_id, callback)  # type: ignore
 
 
-def reset_listeners():
-    # type: () -> None
+def reset_listeners() -> None:
     _EVENT_HUB.get().reset()  # type: ignore
 
 
-def dispatch(event_id, args, *other_args):
-    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+def dispatch(event_id, args, *other_args) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]:
     return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
@@ -275,22 +268,18 @@ class ExecutionContext:
             raise KeyError
         return value
 
-    def get_items(self, data_keys):
-        # type: (List[str]) -> Optional[Any]
+    def get_items(self, data_keys: List[str]) -> Optional[Any]:
         return [self.get_item(key) for key in data_keys]
 
-    def set_item(self, data_key, data_value):
-        # type: (str, Optional[Any]) -> None
+    def set_item(self, data_key: str, data_value: Optional[Any]) -> None:
         self._data[data_key] = data_value
 
-    def set_safe(self, data_key, data_value):
-        # type: (str, Optional[Any]) -> None
+    def set_safe(self, data_key: str, data_value: Optional[Any]) -> None:
         if data_key in self._data:
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
 
-    def set_items(self, keys_values):
-        # type: (Dict[str, Optional[Any]]) -> None
+    def set_items(self, keys_values: Dict[str, Optional[Any]]) -> None:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
@@ -317,38 +306,33 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS.context_with_data(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
-def get_item(data_key, span=None):
-    # type: (str, Optional[Span]) -> Optional[Any]
+def get_item(data_key: str, span: Optional[Span] = None) -> Optional[Any]:
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
         return _CURRENT_CONTEXT.get().get_item(data_key)  # type: ignore
 
 
-def get_items(data_keys, span=None):
-    # type: (List[str], Optional[Span]) -> Optional[Any]
+def get_items(data_keys: List[str], span: Optional[Span] = None) -> Optional[Any]:
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
     else:
         return _CURRENT_CONTEXT.get().get_items(data_keys)  # type: ignore
 
 
-def set_safe(data_key, data_value):
-    # type: (str, Optional[Any]) -> None
+def set_safe(data_key: str, data_value: Optional[Any]) -> None:
     _CURRENT_CONTEXT.get().set_safe(data_key, data_value)  # type: ignore
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key, data_value, span=None):
-    # type: (str, Optional[Any], Optional[Span]) -> None
+def set_item(data_key: str, data_value: Optional[Any], span: Optional[Span] = None) -> None:
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
         _CURRENT_CONTEXT.get().set_item(data_key, data_value)  # type: ignore
 
 
-def set_items(keys_values, span=None):
-    # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
+def set_items(keys_values: Dict[str, Optional[Any]], span: Optional[Span] = None) -> None:
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
     else:

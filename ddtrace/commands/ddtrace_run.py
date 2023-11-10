@@ -25,9 +25,8 @@ else:
 
 
 def find_executable(
-    p,  # type: str
-):
-    # type: (...) -> typing.Optional[str]
+    p: str,
+) -> typing.Optional[str]:
     if os.path.isfile(p):
         return p
     return _which(p)

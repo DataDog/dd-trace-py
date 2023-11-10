@@ -19,15 +19,13 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @pytest.fixture
-def sample_rate():
-    # type: () -> Generator[float, None, None]
+def sample_rate() -> Generator[float, None, None]:
     # Default the sample rate to 0 so no traces are sent for requests.
     yield 0.0
 
 
 @pytest.fixture
-def stats_tracer(sample_rate):
-    # type: (float) -> Generator[Tracer, None, None]
+def stats_tracer(sample_rate: float) -> Generator[Tracer, None, None]:
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer = Tracer()
         tracer.configure(

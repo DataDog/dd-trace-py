@@ -9,13 +9,13 @@ if TYPE_CHECKING:
 
     from ._taint_tracking import Source
 
-_IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Source, int, int],...]]
+_IAST_TAINT_DICT: Dict[int, Tuple[Tuple[Source, int, int],...]] = {}
 
 
-def get_taint_dict():  # type: () -> Dict[int, Tuple[Tuple[Source, int, int],...]]
+def get_taint_dict() -> Dict[int, Tuple[Tuple[Source, int, int],...]]:
     return _IAST_TAINT_DICT
 
 
-def clear_taint_mapping():  # type: () -> None
+def clear_taint_mapping() -> None:
     global _IAST_TAINT_DICT
     _IAST_TAINT_DICT = {}

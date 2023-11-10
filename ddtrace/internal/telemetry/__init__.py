@@ -12,7 +12,7 @@ import sys
 from .writer import TelemetryWriter
 
 
-telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
+telemetry_writer: TelemetryWriter = TelemetryWriter()
 
 __all__ = ["telemetry_writer"]
 

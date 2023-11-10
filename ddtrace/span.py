@@ -57,14 +57,12 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
-def _get_64_lowest_order_bits_as_int(large_int):
-    # type: (int) -> int
+def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
     """Get the 64 lowest order bits from a 128bit integer"""
     return _MAX_UINT_64BITS & large_int
 
 
-def _get_64_highest_order_bits_as_hex(large_int):
-    # type: (int) -> str
+def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
     return "{:032x}".format(large_int)[:16]
 
@@ -100,20 +98,19 @@ class Span(object):
 
     def __init__(
         self,
-        name,  # type: str
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[str]
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        parent_id=None,  # type: Optional[int]
-        start=None,  # type: Optional[int]
-        context=None,  # type: Optional[Context]
-        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        span_api=SPAN_API_DATADOG,  # type: str
-        links=None,  # type: Optional[List[_span_link.SpanLink]]
-    ):
-        # type: (...) -> None
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
+        context: Optional[Context] = None,
+        on_finish: Optional[List[Callable[[Span], None]]] = None,
+        span_api: str = SPAN_API_DATADOG,
+        links: Optional[List[_span_link.SpanLink]] = None,
+    ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
 
@@ -151,56 +148,52 @@ class Span(object):
         self._span_api = span_api
 
         # tags / metadata
-        self._meta = {}  # type: _MetaDictType
+        self._meta: _MetaDictType = {}
         self.error = 0
-        self._metrics = {}  # type: _MetricDictType
+        self._metrics: _MetricDictType = {}
 
         # timing
-        self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
-        self.duration_ns = None  # type: Optional[int]
+        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self.duration_ns: Optional[int] = None
 
         # tracing
         if trace_id is not None:
-            self.trace_id = trace_id  # type: int
+            self.trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
             self.trace_id = _rand128bits()
         else:
             self.trace_id = _rand64bits()
-        self.span_id = span_id or _rand64bits()  # type: int
-        self.parent_id = parent_id  # type: Optional[int]
+        self.span_id: int = span_id or _rand64bits()
+        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
-        self.sampled = True  # type: bool
+        self.sampled: bool = True
 
-        self._context = context._with_span(self) if context else None  # type: Optional[Context]
+        self._context: Optional[Context] = context._with_span(self) if context else None
         self._links = links or []
-        self._parent = None  # type: Optional[Span]
-        self._ignored_exceptions = None  # type: Optional[List[Exception]]
-        self._local_root = None  # type: Optional[Span]
-        self._store = None  # type: Optional[Dict[str, Any]]
+        self._parent: Optional[Span] = None
+        self._ignored_exceptions: Optional[List[Exception]] = None
+        self._local_root: Optional[Span] = None
+        self._store: Optional[Dict[str, Any]] = None
 
-    def _ignore_exception(self, exc):
-        # type: (Exception) -> None
+    def _ignore_exception(self, exc: Exception) -> None:
         if self._ignored_exceptions is None:
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
 
-    def _set_ctx_item(self, key, val):
-        # type: (str, Any) -> None
+    def _set_ctx_item(self, key: str, val: Any) -> None:
         if not self._store:
             self._store = {}
         self._store[key] = val
 
-    def _set_ctx_items(self, items):
-        # type: (Dict[str, Any]) -> None
+    def _set_ctx_items(self, items: Dict[str, Any]) -> None:
         if not self._store:
             self._store = {}
         self._store.update(items)
 
-    def _get_ctx_item(self, key):
-        # type: (str) -> Optional[Any]
+    def _get_ctx_item(self, key: str) -> Optional[Any]:
         if not self._store:
             return None
         return self._store.get(key)
@@ -210,14 +203,12 @@ class Span(object):
         return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
-    def start(self):
-        # type: () -> float
+    def start(self) -> float:
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
 
     @start.setter
-    def start(self, value):
-        # type: (Union[int, float]) -> None
+    def start(self, value: Union[int, float]) -> None:
         self.start_ns = int(value * 1e9)
 
     @property
@@ -229,13 +220,11 @@ class Span(object):
         self._resource[0] = value
 
     @property
-    def finished(self):
-        # type: () -> bool
+    def finished(self) -> bool:
         return self.duration_ns is not None
 
     @finished.setter
-    def finished(self, value):
-        # type: (bool) -> None
+    def finished(self, value: bool) -> None:
         """Finishes the span if set to a truthy value.
 
         If the span is already finished and a truthy value is provided
@@ -248,20 +237,17 @@ class Span(object):
             self.duration_ns = None
 
     @property
-    def duration(self):
-        # type: () -> Optional[float]
+    def duration(self) -> Optional[float]:
         """The span duration in seconds."""
         if self.duration_ns is not None:
             return self.duration_ns / 1e9
         return None
 
     @duration.setter
-    def duration(self, value):
-        # type: (float) -> None
+    def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
 
-    def finish(self, finish_time=None):
-        # type: (Optional[float]) -> None
+    def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
         If the span has already been finished don't do anything.
 
@@ -272,8 +258,7 @@ class Span(object):
         else:
             self._finish_ns(int(finish_time * 1e9))
 
-    def _finish_ns(self, finish_time_ns):
-        # type: (int) -> None
+    def _finish_ns(self, finish_time_ns: int) -> None:
         if self.duration_ns is not None:
             return
 
@@ -451,8 +436,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=30):
-        # type: (int) -> None
+    def set_traceback(self, limit: int = 30) -> None:
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, set the span to the current python stack.
         """
@@ -464,8 +448,7 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
-    def set_exc_info(self, exc_type, exc_val, exc_tb):
-        # type: (Any, Any, Any) -> None
+    def set_exc_info(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
@@ -489,8 +472,7 @@ class Span(object):
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
-    def _pprint(self):
-        # type: () -> str
+    def _pprint(self) -> str:
         """Return a human readable version of the span."""
         data = [
             ("name", self.name),
@@ -514,15 +496,13 @@ class Span(object):
         )
 
     @property
-    def context(self):
-        # type: () -> Context
+    def context(self) -> Context:
         """Return the trace context for this span."""
         if self._context is None:
             self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
 
-    def link_span(self, context, attributes=None):
-        # type: (Context, Optional[Dict[str, Any]]) -> None
+    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
             raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
@@ -535,8 +515,7 @@ class Span(object):
             attributes=attributes,
         )
 
-    def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
-        # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
+    def _set_span_link(self, trace_id: int, span_id: int, tracestate: Optional[str] = None, traceflags: Optional[int] = None, attributes: Optional[Dict[str, Any]] = None) -> None:
         if attributes is None:
             attributes = dict()
 
@@ -550,14 +529,13 @@ class Span(object):
             )
         )
 
-    def finish_with_ancestors(self):
-        # type: () -> None
+    def finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.
 
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span = self  # type: Optional[Span]
+        span: Optional[Span] = self
         while span is not None:
             span.finish()
             span = span._parent
@@ -582,8 +560,7 @@ class Span(object):
         )
 
 
-def _is_top_level(span):
-    # type: (Span) -> bool
+def _is_top_level(span: Span) -> bool:
     """Return whether the span is a "top level" span.
 
     Top level meaning the root of the trace or a child span

@@ -16,14 +16,14 @@ mod_py3 = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods_p
 
 class TestOperatorsReplacement(BaseReplacement):
     @staticmethod
-    def test_taint():  # type: () -> None
+    def test_taint() -> None:
         string_input = "foo"
         assert as_formatted_evidence(string_input) == "foo"
 
         string_input = create_taint_range_with_format(":+-foo-+:")
         assert as_formatted_evidence(string_input) == ":+-foo-+:"
 
-    def test_string_build_string_tainted(self):  # type: () -> None
+    def test_string_build_string_tainted(self) -> None:
         string_input = "foo"
         result = mod_py3.do_fmt_value(string_input)  # pylint: disable=no-member
         assert result == "foo     bar"
@@ -33,8 +33,7 @@ class TestOperatorsReplacement(BaseReplacement):
         assert result == "foo     bar"
         assert as_formatted_evidence(result) == ":+-foo-+:     bar"
 
-    def test_string_fstring_tainted(self):
-        # type: () -> None
+    def test_string_fstring_tainted(self) -> None:
         string_input = "foo"
         result = mod_py3.do_repr_fstring(string_input)
         assert result == "'foo'"
@@ -44,8 +43,7 @@ class TestOperatorsReplacement(BaseReplacement):
         result = mod_py3.do_repr_fstring(string_input)  # pylint: disable=no-member
         assert as_formatted_evidence(result) == "':+-foo-+:'"
 
-    def test_string_fstring_with_format_tainted(self):
-        # type: () -> None
+    def test_string_fstring_with_format_tainted(self) -> None:
         string_input = "foo"
         result = mod_py3.do_repr_fstring_with_format(string_input)
         assert result == "'foo'     "
@@ -55,8 +53,7 @@ class TestOperatorsReplacement(BaseReplacement):
         result = mod_py3.do_repr_fstring_with_format(string_input)  # pylint: disable=no-member
         assert as_formatted_evidence(result) == "':+-foo-+:'     "
 
-    def test_string_fstring_repr_str_twice_tainted(self):
-        # type: () -> None
+    def test_string_fstring_repr_str_twice_tainted(self) -> None:
         string_input = "foo"
 
         result = mod_py3.do_repr_fstring_twice(string_input)  # pylint: disable=no-member
@@ -68,8 +65,7 @@ class TestOperatorsReplacement(BaseReplacement):
         assert result == "'foo' 'foo'"
         assert as_formatted_evidence(result) == "':+-foo-+:' ':+-foo-+:'"
 
-    def test_string_fstring_repr_object_twice_tainted(self):
-        # type: () -> None
+    def test_string_fstring_repr_object_twice_tainted(self) -> None:
         string_input = "foo"
         result = mod.MyObject(string_input)
         assert repr(result) == "foo a"
@@ -84,7 +80,7 @@ class TestOperatorsReplacement(BaseReplacement):
         assert result == "foo a foo a"
         assert as_formatted_evidence(result) == ":+-foo-+: a :+-foo-+: a"
 
-    def test_string_fstring_twice_different_objects_tainted(self):  # type: () -> None
+    def test_string_fstring_twice_different_objects_tainted(self) -> None:
         string_input = create_taint_range_with_format(":+-foo-+:")
         obj = mod.MyObject(string_input)  # pylint: disable=no-member
         obj2 = mod.MyObject(string_input)  # pylint: disable=no-member
@@ -93,7 +89,7 @@ class TestOperatorsReplacement(BaseReplacement):
         assert result == "foo a foo a"
         assert as_formatted_evidence(result) == ":+-foo-+: a :+-foo-+: a"
 
-    def test_string_fstring_twice_different_objects_tainted_twice(self):  # type: () -> None
+    def test_string_fstring_twice_different_objects_tainted_twice(self) -> None:
         string_input = create_taint_range_with_format(":+-foo-+:")
         obj = mod.MyObject(string_input)  # pylint: disable=no-member
 
@@ -111,6 +107,6 @@ class TestOperatorsReplacement(BaseReplacement):
             mod_py3.do_repr_fstring_with_expression5,
         ],
     )
-    def test_string_fstring_non_string(self, function):  # type: () -> None
+    def test_string_fstring_non_string(self, function) -> None:
         result = function()  # pylint: disable=no-member
         assert result == "Hello world, True!"

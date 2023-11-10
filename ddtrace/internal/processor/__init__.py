@@ -16,10 +16,9 @@ log = get_logger(__name__)
 class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
-    __processors__ = []  # type: List["SpanProcessor"]
+    __processors__: List["SpanProcessor"] = []
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __attrs_post_init__(self) -> None:
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
 
@@ -34,8 +33,7 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         log.debug("initialized processor %r", self)
 
     @abc.abstractmethod
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         """Called when a span is started.
 
         This method is useful for making upfront decisions on spans.
@@ -46,8 +44,7 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         """Called with the result of any previous processors or initially with
         the finishing span when a span finishes.
 
@@ -56,21 +53,18 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         """
         pass
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         """Called when the processor is done being used.
 
         Any clean-up or flushing should be performed with this method.
         """
         pass
 
-    def register(self):
-        # type: () -> None
+    def register(self) -> None:
         """Register the processor with the global list of processors."""
         SpanProcessor.__processors__.append(self)
 
-    def unregister(self):
-        # type: () -> None
+    def unregister(self) -> None:
         """Unregister the processor from the global list of processors."""
         try:
             SpanProcessor.__processors__.remove(self)

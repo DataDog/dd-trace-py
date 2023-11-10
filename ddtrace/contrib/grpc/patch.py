@@ -13,8 +13,7 @@ from .client_interceptor import intercept_channel
 from .server_interceptor import create_server_interceptor
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(grpc, "__version__", "")
 
 

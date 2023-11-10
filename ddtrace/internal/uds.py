@@ -12,16 +12,14 @@ class UDSHTTPConnection(BasePathMixin, httplib.HTTPConnection):
     # mechanism, they are actually used as HTTP headers such as `Host`.
     def __init__(
         self,
-        path,  # type: str
-        *args,  # type: Any
-        **kwargs,  # type: Any
-    ):
-        # type: (...) -> None
+        path: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super(UDSHTTPConnection, self).__init__(*args, **kwargs)
         self.path = path
 
-    def connect(self):
-        # type: () -> None
+    def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(self.path)
         self.sock = sock

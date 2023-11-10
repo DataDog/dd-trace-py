@@ -56,8 +56,7 @@ log = get_logger(__name__)
 DEFAULT_TIMEOUT = 15
 
 
-def _extract_repository_name_from_url(repository_url):
-    # type: (str) -> str
+def _extract_repository_name_from_url(repository_url: str) -> str:
     try:
         return parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
     except ValueError:
@@ -81,8 +80,7 @@ def _get_custom_configurations():
     return custom_configurations
 
 
-def _do_request(method, url, payload, headers):
-    # type: (str, str, str, Dict) -> Response
+def _do_request(method: str, url: str, payload: str, headers: Dict) -> Response:
     try:
         conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
@@ -96,13 +94,12 @@ def _do_request(method, url, payload, headers):
 
 
 class CIVisibility(Service):
-    _instance = None  # type: Optional[CIVisibility]
+    _instance: Optional[CIVisibility] = None
     enabled = False
-    _test_suites_to_skip = None  # type: Optional[List[str]]
-    _tests_to_skip = defaultdict(list)  # type: DefaultDict[str, List[str]]
+    _test_suites_to_skip: Optional[List[str]] = None
+    _tests_to_skip: DefaultDict[str, List[str]] = defaultdict(list)
 
-    def __init__(self, tracer=None, config=None, service=None):
-        # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
+    def __init__(self, tracer: Optional[Tracer] = None, config: Optional[IntegrationConfig] = None, service: Optional[str] = None) -> None:
         super(CIVisibility, self).__init__()
 
         if tracer:
@@ -118,8 +115,8 @@ class CIVisibility(Service):
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
-        self.config = config  # type: Optional[IntegrationConfig]
-        self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
+        self.config: Optional[IntegrationConfig] = config
+        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -182,8 +179,7 @@ class CIVisibility(Service):
             return False
         return True
 
-    def _check_enabled_features(self):
-        # type: () -> Tuple[bool, bool]
+    def _check_enabled_features(self) -> Tuple[bool, bool]:
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
@@ -265,8 +261,7 @@ class CIVisibility(Service):
         if writer is not None:
             self.tracer.configure(writer=writer)
 
-    def _agent_evp_proxy_is_available(self):
-        # type: () -> bool
+    def _agent_evp_proxy_is_available(self) -> bool:
         try:
             info = agent.info()
         except Exception:
@@ -378,8 +373,7 @@ class CIVisibility(Service):
         return False
 
     @classmethod
-    def enable(cls, tracer=None, config=None, service=None):
-        # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
+    def enable(cls, tracer: Optional[Tracer] = None, config: Optional[Any] = None, service: Optional[str] = None) -> None:
         log.debug("Enabling %s", cls.__name__)
 
         if ddconfig._ci_visibility_agentless_enabled:
@@ -405,8 +399,7 @@ class CIVisibility(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls) -> None:
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -419,8 +412,7 @@ class CIVisibility(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def _start_service(self):
-        # type: () -> None
+    def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
@@ -430,8 +422,7 @@ class CIVisibility(Service):
         if self.test_skipping_enabled() and (not self._tests_to_skip and self._test_suites_to_skip is None):
             self._fetch_tests_to_skip(SUITE if self._suite_skipping_mode else TEST)
 
-    def _stop_service(self):
-        # type: () -> None
+    def _stop_service(self) -> None:
         if self._git_client is not None:
             self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:

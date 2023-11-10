@@ -24,8 +24,7 @@ def _run_python_file(*args, **kwargs):
 
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
-def test_env_var_iast_enabled(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     _run_python_file(env=env)
@@ -35,8 +34,7 @@ def test_env_var_iast_enabled(capfd):
 
 
 @pytest.mark.skipif(PY2, reason="Not testing Python 2")
-def test_env_var_iast_disabled(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var_iast_disabled(monkeypatch, capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "false"
     _run_python_file(env=env)
@@ -46,8 +44,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
 
 
 @pytest.mark.skipif(PY2, reason="Not testing Python 2")
-def test_env_var_iast_unset(monkeypatch, capfd):
-    # type: (...) -> None
+def test_env_var_iast_unset(monkeypatch, capfd) -> None:
     _run_python_file()
     captured = capfd.readouterr()
     assert "hi" in captured.out
@@ -56,8 +53,7 @@ def test_env_var_iast_unset(monkeypatch, capfd):
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 @pytest.mark.xfail(reason="IAST now working with Gevent yet")
-def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_unload_modules_true(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
@@ -69,8 +65,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 @pytest.mark.xfail(reason="IAST now working with Gevent yet")
-def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_unload_modules_false(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
@@ -82,8 +77,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 @pytest.mark.xfail(reason="IAST now working with Gevent yet")
-def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
-    # type: (...) -> None
+def test_env_var_iast_enabled_gevent_patch_all_true(capfd) -> None:
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
@@ -93,8 +87,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
 
 
 @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
-def test_A_env_var_iast_modules_to_patch(capfd):
-    # type: (...) -> None
+def test_A_env_var_iast_modules_to_patch(capfd) -> None:
     import gc
     import sys
 

@@ -21,11 +21,11 @@ mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 class TestOperatorFormatMapReplacement(BaseReplacement):
     def _assert_format_map_result(
         self,
-        taint_escaped_template,  # type: str
-        taint_escaped_mapping,  # type: Dict[str, Any]
-        expected_result,  # type: str
-        escaped_expected_result,  # type: str
-    ):  # type: (...) -> None
+        taint_escaped_template: str,
+        taint_escaped_mapping: Dict[str, Any],
+        expected_result: str,
+        escaped_expected_result: str,
+    ) -> None:
         template = self._to_tainted_string_with_origin(taint_escaped_template)
         mapping = {key: self._to_tainted_string_with_origin(value) for key, value in iteritems(taint_escaped_mapping)}
 
@@ -37,23 +37,23 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_template_is_none_then_raises_attribute_error(self):  # type: () -> None
+    def test_format_map_when_template_is_none_then_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):
             mod.do_format_map(None, {})
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_parameter_is_none_then_raises_type_error(self):  # type: () -> None
+    def test_format_map_when_parameter_is_none_then_raises_type_error(self) -> None:
         with pytest.raises(TypeError):
             assert mod.do_format_map("{key}", None) == "None"
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_no_tainted_strings_then_no_tainted_result(self):  # type: () -> None
+    def test_format_map_when_no_tainted_strings_then_no_tainted_result(self) -> None:
         result = mod.do_format_map("template {key}", {"key": "parameter"})
         assert result, "template parameter"
         assert not get_ranges(result)
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_tainted_parameter_then_tainted_result(self):  # type: () -> None
+    def test_format_map_when_tainted_parameter_then_tainted_result(self) -> None:
         self._assert_format_map_result(
             taint_escaped_template="template {key}",
             taint_escaped_mapping={"key": ":+-<input1>parameter<input1>-+:"},
@@ -62,7 +62,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         )
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_tainted_template_range_no_brackets_then_tainted_result(self):  # type: () -> None
+    def test_format_map_when_tainted_template_range_no_brackets_then_tainted_result(self) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template<input1>-+: {key}",
             taint_escaped_mapping={"key": "parameter"},
@@ -71,7 +71,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         )
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_tainted_template_range_with_brackets_then_tainted_result(self):  # type: () -> None
+    def test_format_map_when_tainted_template_range_with_brackets_then_tainted_result(self) -> None:
         self._assert_format_map_result(
             taint_escaped_template="template :+-<input1>{key}<input1>-+:",
             taint_escaped_mapping={"key": "parameter"},
@@ -82,7 +82,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_tainted_template_range_no_brackets_and_tainted_param_then_tainted(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template<input1>-+: {key}",
             taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+:"},
@@ -93,7 +93,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_tainted_template_range_with_brackets_and_tainted_param_then_tainted(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template {key}<input1>-+:",
             taint_escaped_mapping={"key": ":+-<input1>parameter<input2>-+:"},
@@ -102,7 +102,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         )
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_ranges_overlap_then_give_preference_to_ranges_from_parameter(self):  # type: () -> None
+    def test_format_map_when_ranges_overlap_then_give_preference_to_ranges_from_parameter(self) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template {key} range overlapping<input1>-+:",
             taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+:"},
@@ -113,7 +113,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
         )
 
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
-    def test_format_map_when_tainted_str_emoji_strings_then_tainted_result(self):  # type: () -> None
+    def test_format_map_when_tainted_str_emoji_strings_then_tainted_result(self) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: {key}",
             taint_escaped_mapping={"key": ":+-<input2>parameter⚠️<input2>-+:"},
@@ -124,7 +124,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_tainted_template_range_no_brackets_and_param_not_str_then_tainted(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template<input1>-+: {key:.2f}",
             taint_escaped_mapping={"key": math.pi},
@@ -135,7 +135,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_tainted_template_range_with_brackets_and_param_not_str_then_tainted(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template {key:.2f}<input1>-+:",
             taint_escaped_mapping={"key": math.pi},
@@ -146,7 +146,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_texts_tainted_and_contain_escape_sequences_then_result_uncorrupted(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: {key}",
             taint_escaped_mapping={"key": ":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::"},
@@ -159,7 +159,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     @pytest.mark.skipif(not hasattr("", "format_map"), reason="Method format_map not supported")
     def test_format_map_when_parameter_value_already_present_in_template_then_range_is_correct(
         self,
-    ):  # type: () -> None
+    ) -> None:
         self._assert_format_map_result(
             taint_escaped_template="aaaaaa{key}aaa",
             taint_escaped_mapping={"key": "a:+-<input1>a<input1>-+:a"},

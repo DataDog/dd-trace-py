@@ -40,13 +40,11 @@ class Recorder(object):
     events = attr.ib(init=False, repr=False, eq=False, type=EventsType)
     _events_lock = attr.ib(init=False, repr=False, factory=threading.RLock, eq=False)
 
-    def __attrs_post_init__(self):
-        # type: (...) -> None
+    def __attrs_post_init__(self) -> None:
         self._reset_events()
         forksafe.register(self._after_fork)
 
-    def _after_fork(self):
-        # type: (...) -> None
+    def _after_fork(self) -> None:
         # NOTE: do not try to push events if the process forked
         # This means we don't know the state of _events_lock and it might be unusable — we'd deadlock
         self.push_events = self._push_events_noop  # type: ignore[assignment]

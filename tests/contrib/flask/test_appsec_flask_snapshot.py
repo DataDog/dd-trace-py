@@ -29,26 +29,22 @@ DEFAULT_HEADERS = {
 
 
 @pytest.fixture
-def flask_port():
-    # type: () -> str
+def flask_port() -> str:
     return "8000"
 
 
 @pytest.fixture
-def flask_wsgi_application():
-    # type: () -> str
+def flask_wsgi_application() -> str:
     return "tests.contrib.flask.app:app"
 
 
 @pytest.fixture
-def flask_command(flask_wsgi_application, flask_port):
-    # type: (str, str) -> List[str]
+def flask_command(flask_wsgi_application: str, flask_port: str) -> List[str]:
     cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
-def flask_appsec_good_rules_env(flask_wsgi_application):
-    # type: (str) -> Dict[str, str]
+def flask_appsec_good_rules_env(flask_wsgi_application: str) -> Dict[str, str]:
     env = os.environ.copy()
     env.update(
         {
@@ -63,8 +59,7 @@ def flask_appsec_good_rules_env(flask_wsgi_application):
 
 
 @pytest.fixture
-def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_arg):
-    # type: (List[str], Dict[str, str], str, Callable) -> Generator[Client, None, None]
+def flask_client(flask_command: List[str], flask_port: Dict[str, str], flask_wsgi_application: str, flask_env_arg: Callable) -> Generator[Client, None, None]:
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group

@@ -80,8 +80,7 @@ _RESOURCES = {
 }
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return version.VERSION
 
 
@@ -97,16 +96,14 @@ class _OpenAIIntegration(BaseLLMIntegration):
         self._openai = openai
 
     @property
-    def _user_api_key(self):
-        # type: () -> Optional[str]
+    def _user_api_key(self) -> Optional[str]:
         """Get a representation of the user API key for tagging."""
         # Match the API key representation that OpenAI uses in their UI.
         if self._openai.api_key is None:
             return
         return "sk-...%s" % self._openai.api_key[-4:]
 
-    def _set_base_span_tags(self, span):
-        # type: (Span) -> None
+    def _set_base_span_tags(self, span: Span) -> None:
         span.set_tag_str(COMPONENT, self._config.integration_name)
         if self._user_api_key is not None:
             span.set_tag_str("openai.user.api_key", self._user_api_key)

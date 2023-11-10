@@ -90,8 +90,7 @@ def test_traceparent_basic():
         Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}),
     ],
 )
-def test_context_serializable(context):
-    # type: (Context) -> None
+def test_context_serializable(context: Context) -> None:
     state = pickle.dumps(context)
     restored = pickle.loads(state)
     assert context == restored
@@ -190,8 +189,7 @@ def test_context_serializable(context):
         "no_span_id_or_tp",
     ],
 )
-def test_traceparent(context, expected_traceparent):
-    # type: (Context,str) -> None
+def test_traceparent(context: Context, expected_traceparent: str) -> None:
     assert context._traceparent == expected_traceparent
 
 
@@ -324,8 +322,7 @@ def test_traceparent(context, expected_traceparent):
         "test_origin_specific_replacement",
     ],
 )
-def test_tracestate(context, expected_tracestate):
-    # type: (Context,str) -> None
+def test_tracestate(context: Context, expected_tracestate: str) -> None:
     assert context._tracestate == expected_tracestate
 
 
@@ -341,6 +338,5 @@ def test_tracestate(context, expected_tracestate):
         (Context(dd_origin="§¢À"), None),
     ],
 )
-def test_dd_origin_character_set(ctx, expected_dd_origin):
-    # type: (Context,Optional[str]) -> None
+def test_dd_origin_character_set(ctx: Context, expected_dd_origin: Optional[str]) -> None:
     assert ctx.dd_origin == expected_dd_origin

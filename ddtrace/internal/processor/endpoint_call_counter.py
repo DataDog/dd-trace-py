@@ -18,16 +18,13 @@ class EndpointCallCounterProcessor(SpanProcessor):
     _endpoint_counts_lock = attr.ib(init=False, repr=False, factory=forksafe.Lock, eq=False)
     _enabled = attr.ib(default=False, repr=False, eq=False)
 
-    def enable(self):
-        # type: () -> None
+    def enable(self) -> None:
         self._enabled = True
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         if not self._enabled:
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:
@@ -35,8 +32,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1
 
-    def reset(self):
-        # type: () -> EndpointCountsType
+    def reset(self) -> EndpointCountsType:
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}

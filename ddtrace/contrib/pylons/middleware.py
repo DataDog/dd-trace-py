@@ -66,11 +66,11 @@ class PylonsTraceMiddleware(object):
     def _distributed_tracing(self, distributed_tracing):
         ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
-    def _unlist_multidict_params(self, multidict):  # type: (webob.multidict.MultiDict) -> Dict[str, Any]
+    def _unlist_multidict_params(self, multidict: webob.multidict.MultiDict) -> Dict[str, Any]:
         # Pylons multidict always return values in a list. This will convert lists with a
         # single value
         # into the un-listed value
-        new_dict = {}  # type: Dict[str, Any]
+        new_dict: Dict[str, Any] = {}
 
         for k, v in iteritems(multidict):
             if isinstance(v, list) and len(v) == 1:
@@ -80,7 +80,7 @@ class PylonsTraceMiddleware(object):
 
         return new_dict
 
-    def _parse_path_params(self, pylon_path_params):  # type: (Tuple[Any, Dict[str, Any]]) -> Dict[str, Any]
+    def _parse_path_params(self, pylon_path_params: Tuple[Any, Dict[str, Any]]) -> Dict[str, Any]:
         path_params = {}
         if len(pylon_path_params) > 0:
             path_params = {k: v for k, v in iteritems(pylon_path_params[1].copy()) if k not in ["action", "controller"]}

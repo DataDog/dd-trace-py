@@ -42,8 +42,7 @@ def _initialize_coverage(root_dir):
     return Coverage(**coverage_kwargs)
 
 
-def segments(lines):
-    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
+def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
     """Extract the relevant report data for a single file."""
     _segments = []
     for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
@@ -55,8 +54,7 @@ def segments(lines):
     return _segments
 
 
-def _lines(coverage, context):
-    # type: (Coverage, Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]
+def _lines(coverage: Coverage, context: Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]:
     if not coverage._collector or not coverage._collector.data:
         return {}
 
@@ -66,8 +64,7 @@ def _lines(coverage, context):
     }
 
 
-def build_payload(coverage, root_dir, test_id=None):
-    # type: (Coverage, str, Optional[str]) -> str
+def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = None) -> str:
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 

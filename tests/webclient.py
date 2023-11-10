@@ -10,8 +10,7 @@ from ddtrace.propagation.http import HTTPPropagator
 class Client(object):
     """HTTP Client for making requests to a local http server."""
 
-    def __init__(self, base_url):
-        # type: (str) -> None
+    def __init__(self, base_url: str) -> None:
         self._base_url = base_url
         self._session = requests.Session()
         # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
@@ -19,8 +18,7 @@ class Client(object):
         HTTPPropagator.inject(c, d)
         self._ignore_headers = d
 
-    def _url(self, path):
-        # type: (str) -> str
+    def _url(self, path: str) -> str:
         return six.moves.urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):

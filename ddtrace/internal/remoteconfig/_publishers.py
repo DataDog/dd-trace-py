@@ -25,19 +25,16 @@ log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
-    _preprocess_results_func = None  # type: Optional[PreprocessFunc]
+    _preprocess_results_func: Optional[PreprocessFunc] = None
 
-    def __init__(self, data_connector, preprocess_func=None):
-        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+    def __init__(self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None) -> None:
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_func
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
         raise NotImplementedError
 
-    def append(self, config_content, target, config_metadata):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any]) -> None:
         raise NotImplementedError
 
 
@@ -46,17 +43,14 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     shared them to all process. Dynamic Instrumentation uses this class
     """
 
-    def __init__(self, data_connector, preprocess_func=None):
-        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+    def __init__(self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None) -> None:
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
-        self._config_and_metadata = []  # type: List[Tuple[Optional[Any], Optional[Any]]]
+        self._config_and_metadata: List[Tuple[Optional[Any], Optional[Any]]] = []
 
-    def append(self, config_content, target="", config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str = "", config_metadata: Optional[Any] = None) -> None:
         self._config_and_metadata.append((config_content, config_metadata))
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
         from attr import asdict
 
         # TODO: RemoteConfigPublisher doesn't need _preprocess_results_func callback at this moment. Uncomment those
@@ -79,13 +73,11 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
     payloads and send it to the subscriber. ASM uses this class
     """
 
-    def __init__(self, data_connector, preprocess_func):
-        # type: (PublisherSubscriberConnector, PreprocessFunc) -> None
+    def __init__(self, data_connector: PublisherSubscriberConnector, preprocess_func: PreprocessFunc) -> None:
         super(RemoteConfigPublisherMergeDicts, self).__init__(data_connector, preprocess_func)
-        self._configs = {}  # type: Dict[str, Any]
+        self._configs: Dict[str, Any] = {}
 
-    def append(self, config_content, target, config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any] = None) -> None:
         if not self._configs.get(target):
             self._configs[target] = {}
 
@@ -101,9 +93,8 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             else:
                 raise ValueError("target %s config %s has type of %s" % (target, config_content, type(config_content)))
 
-    def dispatch(self, pubsub_instance=None):
-        # type: (Optional[Any]) -> None
-        config_result = {}  # type: Dict[str, Any]
+    def dispatch(self, pubsub_instance: Optional[Any] = None) -> None:
+        config_result: Dict[str, Any] = {}
         try:
             for _target, config_item in self._configs.items():
                 for key, value in config_item.items():

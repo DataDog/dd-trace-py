@@ -20,8 +20,7 @@ log = get_logger(__name__)
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_token_count(prompt, model):
-    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
+def _compute_prompt_token_count(prompt: Union[str, List[int]], model: Optional[str]) -> Tuple[bool, int]:
     """
     Takes in a prompt(s) and model pair, and returns a tuple of whether or not the number of prompt
     tokens was estimated, and the estimated/calculated prompt token count.
@@ -47,8 +46,7 @@ def _compute_prompt_token_count(prompt, model):
     return estimated, _est_tokens(prompt)
 
 
-def _est_tokens(prompt):
-    # type: (Union[str, List[int]]) -> int
+def _est_tokens(prompt: Union[str, List[int]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count
@@ -69,8 +67,7 @@ def _est_tokens(prompt):
     return est_tokens
 
 
-def _format_openai_api_key(openai_api_key):
-    # type: (Optional[str]) -> Optional[str]
+def _format_openai_api_key(openai_api_key: Optional[str]) -> Optional[str]:
     """
     Returns `sk-...XXXX`, where XXXX is the last 4 characters of the provided OpenAI API key.
     This mimics how OpenAI UI formats the API key.

@@ -40,7 +40,7 @@ class NoSameSite(VulnerabilityBase):
     skip_location = True
 
 
-def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
+def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
 

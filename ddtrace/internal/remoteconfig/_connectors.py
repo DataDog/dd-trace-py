@@ -24,8 +24,7 @@ SharedDataType = Mapping[str, Any]
 
 
 class UUIDEncoder(json.JSONEncoder):
-    def default(self, obj):
-        # type: (Any) -> Any
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, UUID):
             # if the obj is uuid, we simply return the value of uuid
             return obj.hex
@@ -46,12 +45,10 @@ class PublisherSubscriberConnector(object):
         self.shared_data_counter = 0
 
     @staticmethod
-    def _hash_config(config_raw, metadata_raw):
-        # type: (Any, Any) -> int
+    def _hash_config(config_raw: Any, metadata_raw: Any) -> int:
         return hash(str(config_raw) + str(metadata_raw))
 
-    def read(self):
-        # type: () -> SharedDataType
+    def read(self) -> SharedDataType:
         config_raw = to_unicode(self.data.value)
         config = json.loads(config_raw) if config_raw else {}
         if config:
@@ -61,8 +58,7 @@ class PublisherSubscriberConnector(object):
                 return config
         return {}
 
-    def write(self, metadata, config_raw):
-        # type: (Any, Any) -> None
+    def write(self, metadata: Any, config_raw: Any) -> None:
         last_checksum = self._hash_config(config_raw, metadata)
         if last_checksum != self.checksum:
             data_len = len(self.data.value)
@@ -80,8 +76,7 @@ class PublisherSubscriberConnector(object):
             self.checksum = last_checksum
 
     @staticmethod
-    def serialize(metadata, config_raw, shared_data_counter):
-        # type: (Any, Dict[str, Any], int) -> bytes
+    def serialize(metadata: Any, config_raw: Dict[str, Any], shared_data_counter: int) -> bytes:
         if PY2:
             data = bytes(
                 json.dumps(

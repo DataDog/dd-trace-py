@@ -13,7 +13,7 @@ from ddtrace.internal.wrapping import wrap
 from . import _threading
 
 
-THREAD_LINK = None  # type: typing.Optional[_threading._ThreadLink]
+THREAD_LINK: typing.Optional[_threading._ThreadLink] = None
 
 
 def current_task(loop=None):
@@ -29,8 +29,7 @@ def _task_get_name(task):
 
 
 @ModuleWatchdog.after_module_imported("asyncio")
-def _(asyncio):
-    # type: (ModuleType) -> None
+def _(asyncio: ModuleType) -> None:
     global THREAD_LINK
 
     if hasattr(asyncio, "current_task"):

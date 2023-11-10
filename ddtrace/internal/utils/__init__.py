@@ -15,13 +15,12 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args,  # type: List[Any]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    optional=False,  # type: bool
-):
-    # type: (...) -> Optional[Any]
+    args: List[Any],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    optional: bool = False,
+) -> Optional[Any]:
     """
     This function parses the value of a target function argument that may have been
     passed in as a positional argument or a keyword argument. Because monkey-patched
@@ -48,13 +47,12 @@ def get_argument_value(
 
 
 def set_argument_value(
-    args,  # type: Tuple[Any, ...]
-    kwargs,  # type: Dict[str, Any]
-    pos,  # type: int
-    kw,  # type: str
-    value,  # type: Any
-):
-    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    pos: int,
+    kw: str,
+    value: Any,
+) -> Tuple[Tuple[Any, ...], Dict[str, Any]]:
     """
     Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
@@ -74,8 +72,7 @@ def set_argument_value(
     return args, kwargs
 
 
-def _get_metas_to_propagate(context):
-    # type: (Any) -> List[Tuple[str, str]]
+def _get_metas_to_propagate(context: Any) -> List[Tuple[str, str]]:
     metas_to_propagate = []
     for k, v in context._meta.items():
         if isinstance(k, six.string_types) and k.startswith("_dd.p."):

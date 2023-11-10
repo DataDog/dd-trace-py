@@ -41,13 +41,12 @@ class APIManager(Service):
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
     ]
 
-    _instance = None  # type: Optional[APIManager]
+    _instance: Optional[APIManager] = None
 
     SAMPLE_START_VALUE = 1.0 - sys.float_info.epsilon
 
     @classmethod
-    def enable(cls):
-        # type: () -> None
+    def enable(cls) -> None:
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -59,8 +58,7 @@ class APIManager(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls) -> None:
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -71,20 +69,17 @@ class APIManager(Service):
         metrics.disable()
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         super(APIManager, self).__init__()
 
         self.current_sampling_value = self.SAMPLE_START_VALUE
         self._schema_meter = metrics.get_meter("schema")
         log.debug("%s initialized", self.__class__.__name__)
 
-    def _stop_service(self):
-        # type: () -> None
+    def _stop_service(self) -> None:
         remove_context_callback(self._schema_callback, global_callback=True)
 
-    def _start_service(self):
-        # type: () -> None
+    def _start_service(self) -> None:
         add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, env):

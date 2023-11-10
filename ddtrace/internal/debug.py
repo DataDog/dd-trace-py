@@ -31,8 +31,7 @@ logger = get_logger(__name__)
 architecture = callonce(lambda: platform.architecture())
 
 
-def in_venv():
-    # type: () -> bool
+def in_venv() -> bool:
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -42,14 +41,12 @@ def in_venv():
     )
 
 
-def tags_to_str(tags):
-    # type: (Dict[str, Any]) -> str
+def tags_to_str(tags: Dict[str, Any]) -> str:
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect(tracer):
-    # type: (Tracer) -> Dict[str, Any]
+def collect(tracer: Tracer) -> Dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
@@ -78,7 +75,7 @@ def collect(tracer):
     is_venv = in_venv()
 
     packages_available = {p.name: p.version for p in get_distributions()}
-    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
+    integration_configs: Dict[str, Union[Dict[str, Any], str]] = {}
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.

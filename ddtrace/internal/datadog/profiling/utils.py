@@ -8,8 +8,7 @@ LOG = get_logger(__name__)
 
 
 # 3.11 and above
-def _sanitize_string_check(value):
-    # type: (Any) -> str
+def _sanitize_string_check(value: Any) -> str:
     if isinstance(value, str):
         return value
     elif value is None:
@@ -22,8 +21,7 @@ def _sanitize_string_check(value):
 
 
 # 3.10 and below (the noop version)
-def _sanitize_string_identity(value):
-    # type: (Any) -> str
+def _sanitize_string_identity(value: Any) -> str:
     return value or ""
 
 

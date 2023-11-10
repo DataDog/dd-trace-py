@@ -16,16 +16,14 @@ NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]
 
 
 class MetricNamespace:
-    def __init__(self):
-        # type: () -> None
-        self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._metrics_data = {
+    def __init__(self) -> None:
+        self._lock: forksafe.ResetObject = forksafe.Lock()
+        self._metrics_data: Dict[str, Dict[str, Dict[int, Metric]]] = {
             TELEMETRY_TYPE_GENERATE_METRICS: defaultdict(dict),
             TELEMETRY_TYPE_DISTRIBUTION: defaultdict(dict),
-        }  # type: Dict[str, Dict[str, Dict[int, Metric]]]
+        }
 
-    def flush(self):
-        # type: () -> Dict
+    def flush(self) -> Dict:
         with self._lock:
             namespace_metrics = self._metrics_data
             self._metrics_data = {
@@ -34,8 +32,7 @@ class MetricNamespace:
             }
             return namespace_metrics
 
-    def add_metric(self, metric_class, namespace, name, value=1.0, tags=None, interval=None):
-        # type: (Type[Metric], str, str, float, MetricTagType, Optional[float]) -> None
+    def add_metric(self, metric_class: Type[Metric], namespace: str, name: str, value: float = 1.0, tags: MetricTagType = None, interval: Optional[float] = None) -> None:
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
         The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name

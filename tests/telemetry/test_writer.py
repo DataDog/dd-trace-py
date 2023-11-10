@@ -396,8 +396,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
 
 
 @flaky(1704067200)
-def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: TelemetryWriter) -> None:
     """asserts that we queue/send app-heartbeat when periodc() is called"""
 
     # Ensure telemetry writer is initialized to send periodic events
@@ -420,8 +419,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
 
 
 @flaky(1704067200)
-def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: TelemetryWriter) -> None:
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
     # Assert clean slate
@@ -435,8 +433,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     assert len(events) == 1
 
 
-def _get_request_body(payload, payload_type, seq_id=1):
-    # type: (Dict, str, int) -> Dict
+def _get_request_body(payload: Dict, payload_type: str, seq_id: int = 1) -> Dict:
     """used to test the body of requests received by the testagent"""
     return {
         "tracer_time": time.time(),

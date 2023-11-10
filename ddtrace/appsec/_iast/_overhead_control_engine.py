@@ -21,7 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def get_request_sampling_value():  # type: () -> float
+def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
     return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
 
@@ -37,7 +37,7 @@ class Operation(object):
 
     _lock = threading.Lock()
     _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
-    _reported_vulnerabilities = set()  # type: Set[Tuple[str, int]]
+    _reported_vulnerabilities: Set[Tuple[str, int]] = set()
 
     @classmethod
     def reset(cls):
@@ -45,8 +45,7 @@ class Operation(object):
         cls._reported_vulnerabilities = set()
 
     @classmethod
-    def acquire_quota(cls):
-        # type: () -> bool
+    def acquire_quota(cls) -> bool:
         cls._lock.acquire()
         result = False
         if cls._vulnerability_quota > 0:
@@ -56,16 +55,14 @@ class Operation(object):
         return result
 
     @classmethod
-    def has_quota(cls):
-        # type: () -> bool
+    def has_quota(cls) -> bool:
         cls._lock.acquire()
         result = cls._vulnerability_quota > 0
         cls._lock.release()
         return result
 
     @classmethod
-    def is_not_reported(cls, filename, lineno):
-        # type: (str, int) -> bool
+    def is_not_reported(cls, filename: str, lineno: int) -> bool:
         vulnerability_id = (filename, lineno)
         if vulnerability_id in cls._reported_vulnerabilities:
             return False
@@ -81,13 +78,13 @@ class OverheadControl(object):
 
     _request_quota = MAX_REQUESTS
     _enabled = False
-    _vulnerabilities = set()  # type: Set[Type[Operation]]
+    _vulnerabilities: Set[Type[Operation]] = set()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span):  # type: (Span) -> None
+    def acquire_request(self, span: Span) -> None:
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
@@ -106,18 +103,15 @@ class OverheadControl(object):
             self._enabled = False
         self.vulnerabilities_reset_quota()
 
-    def register(self, klass):
-        # type: (Type[Operation]) -> Type[Operation]
+    def register(self, klass: Type[Operation]) -> Type[Operation]:
         """Register vulnerabilities/taint_sinks. This set of elements will restart for each request."""
         self._vulnerabilities.add(klass)
         return klass
 
     @property
-    def request_has_quota(self):
-        # type: () -> bool
+    def request_has_quota(self) -> bool:
         return self._enabled
 
-    def vulnerabilities_reset_quota(self):
-        # type: () -> None
+    def vulnerabilities_reset_quota(self) -> None:
         for k in self._vulnerabilities:
             k.reset()

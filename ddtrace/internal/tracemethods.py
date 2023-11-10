@@ -3,8 +3,7 @@ import typing
 import wrapt
 
 
-def _parse_trace_methods(raw_dd_trace_methods):
-    # type: (str) -> typing.List[str]
+def _parse_trace_methods(raw_dd_trace_methods: str) -> typing.List[str]:
     """Return the methods to trace based on the specification of DD_TRACE_METHODS.
 
     DD_TRACE_METHODS is specified to be FullyQualifiedClassOrModuleName[comma-separated-methods]
@@ -60,8 +59,7 @@ def _parse_trace_methods(raw_dd_trace_methods):
     return dd_trace_methods
 
 
-def _install_trace_methods(raw_dd_trace_methods):
-    # type: (str) -> None
+def _install_trace_methods(raw_dd_trace_methods: str) -> None:
     """Install tracing on the given methods."""
     for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
         # We don't know if the method is a class method or a module method, so we need to assume it's a module
@@ -86,8 +84,7 @@ def _install_trace_methods(raw_dd_trace_methods):
         trace_method(base_module_guess, method_name)
 
 
-def trace_method(module, method_name):
-    # type: (str, str) -> None
+def trace_method(module: str, method_name: str) -> None:
 
     @wrapt.importer.when_imported(module)
     def _(m):

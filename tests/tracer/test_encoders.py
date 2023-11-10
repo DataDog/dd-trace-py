@@ -40,8 +40,7 @@ from tests.utils import DummyTracer
 _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
-def span_to_tuple(span):
-    # type: (Span) -> tuple
+def span_to_tuple(span: Span) -> tuple:
     return (
         span.service,
         span.name,

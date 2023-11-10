@@ -80,19 +80,19 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url="",  # type: str
-        sampler=None,  # type: Optional[BaseSampler]
-        processing_interval=None,  # type: Optional[float]
-        timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=False,  # type: bool
-        report_metrics=False,  # type: bool
-        api_version=None,  # type: Optional[str]
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        use_evp=False,  # type: bool
-        coverage_enabled=False,  # type: bool
-        itr_suite_skipping_mode=False,  # type: bool
+        intake_url: str = "",
+        sampler: Optional[BaseSampler] = None,
+        processing_interval: Optional[float] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional[DogStatsd] = None,
+        sync_mode: bool = False,
+        report_metrics: bool = False,
+        api_version: Optional[str] = None,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[Dict[str, str]] = None,
+        use_evp: bool = False,
+        coverage_enabled: bool = False,
+        itr_suite_skipping_mode: bool = False,
     ):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -108,9 +108,9 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
-        clients = (
+        clients: List[WriterClientBase] = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        )
         if coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
@@ -142,8 +142,7 @@ class CIVisibilityWriter(HTTPWriter):
         if self.status != service.ServiceStatus.STOPPED:
             super(CIVisibilityWriter, self).stop(timeout=timeout)
 
-    def recreate(self):
-        # type: () -> HTTPWriter
+    def recreate(self) -> HTTPWriter:
         return self.__class__(
             intake_url=self.intake_url,
             sampler=self._sampler,

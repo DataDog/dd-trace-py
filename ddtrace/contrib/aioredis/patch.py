@@ -49,8 +49,7 @@ aioredis_version_str = getattr(aioredis, "__version__", "")
 aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return aioredis_version_str
 
 

@@ -29,11 +29,10 @@ log = get_logger(__name__)
 
 
 _run_code = None
-_post_run_module_hooks = []  # type: List[ModuleHookType]
+_post_run_module_hooks: List[ModuleHookType] = []
 
 
-def _wrapped_run_code(*args, **kwargs):
-    # type: (*Any, **Any) -> Dict[str, Any]
+def _wrapped_run_code(*args: Any, **kwargs: Any) -> Dict[str, Any]:
     global _run_code, _post_run_module_hooks
 
     # DEV: If we are calling this wrapper then _run_code must have been set to
@@ -50,8 +49,7 @@ def _wrapped_run_code(*args, **kwargs):
             hook(module)
 
 
-def _patch_run_code():
-    # type: () -> None
+def _patch_run_code() -> None:
     global _run_code
 
     if _run_code is None:
@@ -61,8 +59,7 @@ def _patch_run_code():
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 
 
-def register_post_run_module_hook(hook):
-    # type: (ModuleHookType) -> None
+def register_post_run_module_hook(hook: ModuleHookType) -> None:
     """Register a post run module hook.
 
     The hooks gets called after the module is loaded. For this to work, the
@@ -76,8 +73,7 @@ def register_post_run_module_hook(hook):
     _post_run_module_hooks.append(hook)
 
 
-def unregister_post_run_module_hook(hook):
-    # type: (ModuleHookType) -> None
+def unregister_post_run_module_hook(hook: ModuleHookType) -> None:
     """Unregister a post run module hook.
 
     If the hook was not registered, a ``ValueError`` exception is raised.
@@ -107,8 +103,7 @@ def origin(module: ModuleType) -> Optional[Path]:
     return None
 
 
-def _resolve(path):
-    # type: (Path) -> Optional[Path]
+def _resolve(path: Path) -> Optional[Path]:
     """Resolve a (relative) path with respect to sys.path."""
     for base in (Path(_) for _ in sys.path):
         if base.is_dir():
@@ -134,8 +129,7 @@ else:
     from importlib.machinery import ModuleSpec
     from importlib.util import find_spec
 
-    def find_loader(fullname):
-        # type: (str) -> Optional[Loader]
+    def find_loader(fullname: str) -> Optional[Loader]:
         return getattr(find_spec(fullname), "loader", None)
 
 
@@ -143,10 +137,9 @@ LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader):
-        # type: (Loader) -> None
+    def __init__(self, loader: Loader) -> None:
         self.loader = loader
-        self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
+        self.callbacks: Dict[Any, Callable[[ModuleType], None]] = {}
 
         # DEV: load_module is deprecated so we define it at runtime if also
         # defined by the default loader. We also check and define for the
@@ -171,12 +164,10 @@ class _ImportHookChainedLoader(Loader):
         # Proxy any other attribute access to the underlying loader.
         return getattr(self.loader, name)
 
-    def add_callback(self, key, callback):
-        # type: (Any, Callable[[ModuleType], None]) -> None
+    def add_callback(self, key: Any, callback: Callable[[ModuleType], None]) -> None:
         self.callbacks[key] = callback
 
-    def _load_module(self, fullname):
-        # type: (str) -> ModuleType
+    def _load_module(self, fullname: str) -> ModuleType:
         module = self.loader.load_module(fullname)
         for callback in self.callbacks.values():
             callback(module)
@@ -224,18 +215,16 @@ class ModuleWatchdog(object):
     the subclass is installed.
     """
 
-    _instance = None  # type: Optional[ModuleWatchdog]
+    _instance: Optional[ModuleWatchdog] = None
 
-    def __init__(self):
-        # type: () -> None
-        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
-        self._finding = set()  # type: Set[str]
-        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
+    def __init__(self) -> None:
+        self._hook_map: DefaultDict[str, List[ModuleHookType]] = defaultdict(list)
+        self._om: Optional[wvdict[str, ModuleType]] = None
+        self._finding: Set[str] = set()
+        self._pre_exec_module_hooks: List[Tuple[PreExecHookCond, PreExecHookType]] = []
 
     @property
-    def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
+    def _origin_map(self) -> wvdict[str, ModuleType]:
         def modules_with_origin(modules):
             result = wvdict({str(origin(m)): m for m in modules})
             try:
@@ -256,21 +245,18 @@ class ModuleWatchdog(object):
 
         return self._om
 
-    def _add_to_meta_path(self):
-        # type: () -> None
+    def _add_to_meta_path(self) -> None:
         sys.meta_path.insert(0, self)  # type: ignore[arg-type]
 
     @classmethod
-    def _find_in_meta_path(cls):
-        # type: () -> Optional[int]
+    def _find_in_meta_path(cls) -> Optional[int]:
         for i, meta_path in enumerate(sys.meta_path):
             if type(meta_path) is cls:
                 return i
         return None
 
     @classmethod
-    def _remove_from_meta_path(cls):
-        # type: () -> None
+    def _remove_from_meta_path(cls) -> None:
         i = cls._find_in_meta_path()
 
         if i is None:
@@ -278,8 +264,7 @@ class ModuleWatchdog(object):
 
         sys.meta_path.pop(i)
 
-    def after_import(self, module):
-        # type: (ModuleType) -> None
+    def after_import(self, module: ModuleType) -> None:
         module_path = origin(module)
         path = str(module_path) if module_path is not None else None
         if path is not None:
@@ -298,8 +283,7 @@ class ModuleWatchdog(object):
                 hook(module)
 
     @classmethod
-    def get_by_origin(cls, _origin):
-        # type: (Path) -> Optional[ModuleType]
+    def get_by_origin(cls, _origin: Path) -> Optional[ModuleType]:
         """Lookup a module by its origin."""
         cls._check_installed()
 
@@ -322,8 +306,7 @@ class ModuleWatchdog(object):
 
         return None
 
-    def find_module(self, fullname, path=None):
-        # type: (str, Optional[str]) -> Union[Loader, None]
+    def find_module(self, fullname: str, path: Optional[str] = None) -> Union[Loader, None]:
         if fullname in self._finding:
             return None
 
@@ -352,8 +335,7 @@ class ModuleWatchdog(object):
 
         return None
 
-    def find_spec(self, fullname, path=None, target=None):
-        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
+    def find_spec(self, fullname: str, path: Optional[str] = None, target: Optional[ModuleType] = None) -> Optional[ModuleSpec]:
         if fullname in self._finding:
             return None
 
@@ -383,8 +365,7 @@ class ModuleWatchdog(object):
             self._finding.remove(fullname)
 
     @classmethod
-    def register_origin_hook(cls, origin, hook):
-        # type: (Path, ModuleHookType) -> None
+    def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
         """Register a hook to be called when the module with the given origin is
         imported.
 
@@ -422,8 +403,7 @@ class ModuleWatchdog(object):
         hook(module)
 
     @classmethod
-    def unregister_origin_hook(cls, origin, hook):
-        # type: (Path, ModuleHookType) -> None
+    def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
         """Unregister the hook registered with the given module origin and
         argument.
         """
@@ -449,8 +429,7 @@ class ModuleWatchdog(object):
             raise ValueError("Hook %r not registered for origin %s" % (hook, origin))
 
     @classmethod
-    def register_module_hook(cls, module, hook):
-        # type: (str, ModuleHookType) -> None
+    def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
         """Register a hook to be called when the module with the given name is
         imported.
 
@@ -472,8 +451,7 @@ class ModuleWatchdog(object):
         hook(module_object)
 
     @classmethod
-    def unregister_module_hook(cls, module, hook):
-        # type: (str, ModuleHookType) -> None
+    def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
         """Unregister the hook registered with the given module name and
         argument.
         """
@@ -493,17 +471,14 @@ class ModuleWatchdog(object):
             raise ValueError("Hook %r not registered for module %r" % (hook, module))
 
     @classmethod
-    def after_module_imported(cls, module):
-        # type: (str) -> Callable[[ModuleHookType], None]
-        def _(hook):
-            # type: (ModuleHookType) -> None
+    def after_module_imported(cls, module: str) -> Callable[[ModuleHookType], None]:
+        def _(hook: ModuleHookType) -> None:
             cls.register_module_hook(module, hook)
 
         return _
 
     @classmethod
-    def register_pre_exec_module_hook(cls, cond, hook):
-        # type: (Type[ModuleWatchdog], PreExecHookCond, PreExecHookType) -> None
+    def register_pre_exec_module_hook(cls: Type[ModuleWatchdog], cond: PreExecHookCond, hook: PreExecHookType) -> None:
         """Register a hook to execute before/instead of exec_module.
 
         The pre exec_module hook is executed before the module is executed
@@ -518,14 +493,12 @@ class ModuleWatchdog(object):
         instance._pre_exec_module_hooks.append((cond, hook))
 
     @classmethod
-    def _check_installed(cls):
-        # type: () -> None
+    def _check_installed(cls) -> None:
         if not cls.is_installed():
             raise RuntimeError("%s is not installed" % cls.__name__)
 
     @classmethod
-    def install(cls):
-        # type: () -> None
+    def install(cls) -> None:
         """Install the module watchdog."""
         if cls.is_installed():
             raise RuntimeError("%s is already installed" % cls.__name__)
@@ -540,8 +513,7 @@ class ModuleWatchdog(object):
         return cls._instance is not None and type(cls._instance) is cls
 
     @classmethod
-    def uninstall(cls):
-        # type: () -> None
+    def uninstall(cls) -> None:
         """Uninstall the module watchdog.
 
         This will uninstall only the most recently installed instance of this

@@ -46,13 +46,12 @@ PACK_EXTENSION = ".pack"
 class CIVisibilityGitClient(object):
     def __init__(
         self,
-        api_key,
-        requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
-        base_url="",
-    ):
-        # type: (str, int, str) -> None
+        api_key: str,
+        requests_mode: int = REQUESTS_MODE.AGENTLESS_EVENTS,
+        base_url: str = "",
+    ) -> None:
         self._serializer = CIVisibilityGitClientSerializerV1(api_key)
-        self._worker = None  # type: Optional[Process]
+        self._worker: Optional[Process] = None
         self._response = RESPONSE
         self._requests_mode = requests_mode
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
@@ -60,8 +59,7 @@ class CIVisibilityGitClient(object):
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
 
-    def start(self, cwd=None):
-        # type: (Optional[str]) -> None
+    def start(self, cwd: Optional[str] = None) -> None:
         self._tags = ci.tags(cwd=cwd)
         if self._worker is None:
             self._worker = Process(
@@ -71,8 +69,7 @@ class CIVisibilityGitClient(object):
             )
             self._worker.start()
 
-    def shutdown(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float] = None) -> None:
         if self._worker is not None:
             self._worker.join(timeout)
             self._worker = None
@@ -87,8 +84,7 @@ class CIVisibilityGitClient(object):
         _response=None,  # Optional[Response]
         cwd=None,  # Optional[str]
         log_level=0,  # int
-    ):
-        # type: (...) -> None
+    ) -> None:
         log.setLevel(log_level)
         if _tags is None:
             _tags = {}
@@ -118,8 +114,7 @@ class CIVisibilityGitClient(object):
                 )
 
     @classmethod
-    def _get_repository_url(cls, tags=None, cwd=None):
-        # type: (Optional[Dict[str, str]], Optional[str]) -> str
+    def _get_repository_url(cls, tags: Optional[Dict[str, str]] = None, cwd: Optional[str] = None) -> str:
         if tags is None:
             tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
@@ -128,13 +123,11 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_latest_commits(cls, cwd=None):
-        # type: (Optional[str]) -> List[str]
+    def _get_latest_commits(cls, cwd: Optional[str] = None) -> List[str]:
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
-    def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, List[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[List[str]]
+    def _search_commits(cls, requests_mode: int, base_url: str, repo_url: str, latest_commits: List[str], serializer: CIVisibilityGitClientSerializerV1, _response: Optional[Response]) -> Optional[List[str]]:
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         response = _response or cls._do_request(requests_mode, base_url, "/search_commits", payload, serializer)
         if response.status >= 400:
@@ -146,8 +139,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
-    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
+    def _do_request(cls, requests_mode: int, base_url: str, endpoint: str, payload: str, serializer: CIVisibilityGitClientSerializerV1, headers: Optional[dict] = None) -> Response:
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
@@ -170,8 +162,7 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
-        # type: (List[str], Optional[List[str]], Optional[str]) -> str
+    def _get_filtered_revisions(cls, excluded_commits: List[str], included_commits: Optional[List[str]] = None, cwd: Optional[str] = None) -> str:
         return _get_rev_list(excluded_commits, included_commits, cwd=cwd)
 
     @classmethod
@@ -179,8 +170,7 @@ class CIVisibilityGitClient(object):
         return build_git_packfiles(revisions, cwd=cwd)
 
     @classmethod
-    def _upload_packfiles(cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
+    def _upload_packfiles(cls, requests_mode: int, base_url: str, repo_url: str, packfiles_prefix: str, serializer: CIVisibilityGitClientSerializerV1, _response: Optional[Response], cwd: Optional[str] = None) -> bool:
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
@@ -250,19 +240,16 @@ class CIVisibilityGitClient(object):
 
 
 class CIVisibilityGitClientSerializerV1(object):
-    def __init__(self, api_key):
-        # type: (str) -> None
+    def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def search_commits_encode(self, repo_url, latest_commits):
-        # type: (str, list[str]) -> str
+    def search_commits_encode(self, repo_url: str, latest_commits: list[str]) -> str:
         return json.dumps(
             {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
         )
 
-    def search_commits_decode(self, payload):
-        # type: (str) -> List[str]
-        res = []  # type: List[str]
+    def search_commits_decode(self, payload: str) -> List[str]:
+        res: List[str] = []
         try:
             if isinstance(payload, bytes):
                 parsed = json.loads(payload.decode())
@@ -276,8 +263,7 @@ class CIVisibilityGitClientSerializerV1(object):
 
         return res
 
-    def upload_packfile_encode(self, repo_url, sha, file_path):
-        # type: (str, str, str) -> Tuple[str, bytes]
+    def upload_packfile_encode(self, repo_url: str, sha: str, file_path: str) -> Tuple[str, bytes]:
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
         body = []

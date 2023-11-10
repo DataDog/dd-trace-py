@@ -17,13 +17,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional
 
 
-_DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
+_DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 log = get_logger(__name__)
 
 
-def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
-    # type: (str, str) -> Optional[bool]
+def set_and_check_module_is_patched(module_str: str, default_attr: str = "_datadog_patch") -> Optional[bool]:
     try:
         __import__(module_str)
         module = sys.modules[module_str]
@@ -35,8 +34,7 @@ def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
     return True
 
 
-def set_module_unpatched(module_str, default_attr="_datadog_patch"):
-    # type: (str, str) -> None
+def set_module_unpatched(module_str: str, default_attr: str = "_datadog_patch") -> None:
     try:
         __import__(module_str)
         module = sys.modules[module_str]
@@ -45,8 +43,7 @@ def set_module_unpatched(module_str, default_attr="_datadog_patch"):
         pass
 
 
-def try_wrap_function_wrapper(module, name, wrapper):
-    # type: (str, str, Callable) -> None
+def try_wrap_function_wrapper(module: str, name: str, wrapper: Callable) -> None:
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):

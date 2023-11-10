@@ -25,8 +25,7 @@ def redis_client():
         unpatch()
 
 
-def _get_test_client():
-    # type: () -> rediscluster.StrictRedisCluster
+def _get_test_client() -> rediscluster.StrictRedisCluster:
     host = REDISCLUSTER_CONFIG["host"]
     ports = REDISCLUSTER_CONFIG["ports"]
 

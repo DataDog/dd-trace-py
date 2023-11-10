@@ -41,8 +41,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(langchain, "__version__", "")
 
 
@@ -65,8 +64,7 @@ class _LangChainIntegration(BaseLLMIntegration):
     def __init__(self, config, stats_url, site, api_key):
         super().__init__(config, stats_url, site, api_key)
 
-    def _set_base_span_tags(self, span, interface_type="", provider=None, model=None, api_key=None):
-        # type: (Span, str, Optional[str], Optional[str], Optional[str]) -> None
+    def _set_base_span_tags(self, span: Span, interface_type: str = "", provider: Optional[str] = None, model: Optional[str] = None, api_key: Optional[str] = None) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         span.set_tag_str(TYPE, interface_type)
         if provider is not None:
@@ -80,8 +78,7 @@ class _LangChainIntegration(BaseLLMIntegration):
                 span.set_tag_str(API_KEY, api_key)
 
     @classmethod
-    def _logs_tags(cls, span):
-        # type: (Span) -> str
+    def _logs_tags(cls, span: Span) -> str:
         api_key = span.get_tag(API_KEY) or ""
         tags = "env:%s,version:%s,%s:%s,%s:%s,%s:%s,%s:%s" % (  # noqa: E501
             (config.env or ""),
@@ -98,8 +95,7 @@ class _LangChainIntegration(BaseLLMIntegration):
         return tags
 
     @classmethod
-    def _metrics_tags(cls, span):
-        # type: (Span) -> list
+    def _metrics_tags(cls, span: Span) -> list:
         provider = span.get_tag(PROVIDER) or ""
         api_key = span.get_tag(API_KEY) or ""
         tags = [
@@ -117,8 +113,7 @@ class _LangChainIntegration(BaseLLMIntegration):
             tags.append("%s:%s" % (ERROR_TYPE, err_type))
         return tags
 
-    def record_usage(self, span, usage):
-        # type: (Span, Dict[str, Any]) -> None
+    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage or self._config.metrics_enabled is False:
             return
         for token_type in ("prompt", "completion", "total"):
@@ -131,8 +126,7 @@ class _LangChainIntegration(BaseLLMIntegration):
             self.metric(span, "incr", "tokens.total_cost", total_cost)
 
 
-def _extract_model_name(instance):
-    # type: (langchain.llm.BaseLLM) -> Optional[str]
+def _extract_model_name(instance: langchain.llm.BaseLLM) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
@@ -140,8 +134,7 @@ def _extract_model_name(instance):
     return None
 
 
-def _format_api_key(api_key):
-    # type: (str | SecretStr) -> str
+def _format_api_key(api_key: str | SecretStr) -> str:
     """Obfuscate a given LLM provider API key by returning the last four characters."""
     if hasattr(api_key, "get_secret_value"):
         api_key = api_key.get_secret_value()
@@ -151,8 +144,7 @@ def _format_api_key(api_key):
     return "...%s" % api_key[-4:]
 
 
-def _extract_api_key(instance):
-    # type: (Any) -> str
+def _extract_api_key(instance: Any) -> str:
     """
     Extract and format LLM-provider API key from instance.
     Note that langchain's LLM/ChatModel/Embeddings interfaces do not have a
@@ -167,8 +159,7 @@ def _extract_api_key(instance):
     return ""
 
 
-def _tag_openai_token_usage(span, llm_output, propagated_cost=0, propagate=False):
-    # type: (Span, Dict[str, Any], int, bool) -> None
+def _tag_openai_token_usage(span: Span, llm_output: Dict[str, Any], propagated_cost: int = 0, propagate: bool = False) -> None:
     """
     Extract token usage from llm_output, tag on span.
     Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that

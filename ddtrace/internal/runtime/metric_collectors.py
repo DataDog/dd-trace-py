@@ -16,7 +16,7 @@ from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []  # type: List[Tuple[str, str]]
+    value: List[Tuple[str, str]] = []
     periodic = True
 
 

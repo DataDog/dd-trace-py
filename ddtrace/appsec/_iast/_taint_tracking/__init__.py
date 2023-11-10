@@ -80,8 +80,7 @@ __all__ = [
 ]
 
 
-def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
-    # type: (Any, Any, Any, OriginType) -> Any
+def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin: OriginType = None) -> Any:
     # Request is not analyzed
     if not oce.request_has_quota:
         return pyobject
@@ -103,16 +102,15 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     return pyobject_newid
 
 
-def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
+def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> None:
     set_ranges(pyobject, tuple(ranges))
 
 
-def get_tainted_ranges(pyobject):  # type: (Any) -> tuple
+def get_tainted_ranges(pyobject: Any) -> tuple:
     return get_ranges(pyobject)
 
 
-def taint_ranges_as_evidence_info(pyobject):
-    # type: (Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Source]]
+def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Source]]:
     value_parts = []
     sources = []
     current_pos = 0

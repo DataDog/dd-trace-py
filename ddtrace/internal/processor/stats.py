@@ -37,8 +37,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def _is_measured(span):
-    # type: (Span) -> bool
+def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
     return span._metrics.get(SPAN_MEASURED_KEY) == 1
 
@@ -76,8 +75,7 @@ class SpanAggrStats(object):
         self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
 
-def _span_aggr_key(span):
-    # type: (Span) -> SpanAggrKey
+def _span_aggr_key(span: Span) -> SpanAggrKey:
     """Return a hashable key that can be used to aggregate similar spans."""
     service = span.service or ""
     resource = span.resource or ""
@@ -90,8 +88,7 @@ def _span_aggr_key(span):
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     """SpanProcessor for computing, collecting and submitting span metrics to the Datadog Agent."""
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
-        # type: (str, Optional[float], float, int) -> None
+    def __init__(self, agent_url: str, interval: Optional[float] = None, timeout: float = 1.0, retry_attempts: int = 3) -> None:
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
@@ -100,15 +97,15 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
-        self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(
+        self._bucket_size_ns: int = int(interval * 1e9)
+        self._buckets: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]] = defaultdict(
             lambda: defaultdict(SpanAggrStats)
-        )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
-        self._headers = {
+        )
+        self._headers: Dict[str, str] = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
-        }  # type: Dict[str, str]
+        }
         self._hostname = six.ensure_text(get_hostname())
         self._lock = Lock()
         self._enabled = True
@@ -120,12 +117,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         self.start()
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         if not self._enabled:
             return
 
@@ -151,8 +146,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             else:
                 stats.ok_distribution.add(span.duration_ns)
 
-    def _serialize_buckets(self):
-        # type: () -> List[Dict]
+    def _serialize_buckets(self) -> List[Dict]:
         """Serialize and update the buckets.
 
         The current bucket is left in case any other spans are added.
@@ -196,8 +190,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         return serialized_buckets
 
-    def _flush_stats(self, payload):
-        # type: (bytes) -> None
+    def _flush_stats(self, payload: bytes) -> None:
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("PUT", self._endpoint, payload, self._headers)
@@ -223,8 +216,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             else:
                 log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
-    def periodic(self):
-        # type: (...) -> None
+    def periodic(self) -> None:
 
         with self._lock:
             serialized_stats = self._serialize_buckets()
@@ -232,10 +224,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not serialized_stats:
             # No stats to report, short-circuit.
             return
-        raw_payload = {
+        raw_payload: Dict[str, Union[List[Dict], str]] = {
             "Stats": serialized_stats,
             "Hostname": self._hostname,
-        }  # type: Dict[str, Union[List[Dict], str]]
+        }
         if config.env:
             raw_payload["Env"] = six.ensure_text(config.env)
         if config.version:
@@ -247,7 +239,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         except Exception:
             log.error("retry limit exceeded submitting span stats to the Datadog agent at %s", self._agent_endpoint)
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         self.periodic()
         self.stop(timeout)

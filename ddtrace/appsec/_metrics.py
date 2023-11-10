@@ -11,8 +11,7 @@ log = get_logger(__name__)
 
 
 @deduplication
-def _set_waf_error_metric(msg, stack_trace, info):
-    # type: (str, str, DDWaf_info) -> None
+def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
     try:
         tags = {
             "waf_version": version(),

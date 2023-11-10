@@ -18,8 +18,7 @@ from ..flask.wrappers import get_current_app
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return flask_login.__version__
 
 

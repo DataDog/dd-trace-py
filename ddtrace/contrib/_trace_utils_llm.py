@@ -39,30 +39,25 @@ class BaseLLMIntegration:
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
 
-    def is_pc_sampled_span(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
             return False
         return self._span_pc_sampler.sample(span)
 
-    def is_pc_sampled_log(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_log(self, span: Span) -> bool:
         if not self._config.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
-    def start_log_writer(self):
-        # type: (...) -> None
+    def start_log_writer(self) -> None:
         self._log_writer.start()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span, **kwargs):
-        # type: (Span, Dict[str, Any]) -> None
+    def _set_base_span_tags(self, span: Span, **kwargs: Dict[str, Any]) -> None:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id, **kwargs):
-        # type: (Pin, str, Dict[str, Any]) -> Span
+    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -78,13 +73,11 @@ class BaseLLMIntegration:
 
     @classmethod
     @abc.abstractmethod
-    def _logs_tags(cls, span):
-        # type: (Span) -> str
+    def _logs_tags(cls, span: Span) -> str:
         """Generate ddtags from the corresponding span."""
         pass
 
-    def log(self, span, level, msg, attrs):
-        # type: (Span, str, str, Dict[str, Any]) -> None
+    def log(self, span: Span, level: str, msg: str, attrs: Dict[str, Any]) -> None:
         if not self._config.logs_enabled:
             return
         tags = self._logs_tags(span)
@@ -105,13 +98,11 @@ class BaseLLMIntegration:
 
     @classmethod
     @abc.abstractmethod
-    def _metrics_tags(cls, span):
-        # type: (Span) -> list
+    def _metrics_tags(cls, span: Span) -> list:
         """Generate a list of metrics tags from a given span."""
         return []
 
-    def metric(self, span, kind, name, val, tags=None):
-        # type: (Span, str, str, Any, Optional[List[str]]) -> None
+    def metric(self, span: Span, kind: str, name: str, val: Any, tags: Optional[List[str]] = None) -> None:
         """Set a metric using the context from the given span."""
         if not self._config.metrics_enabled:
             return
@@ -127,8 +118,7 @@ class BaseLLMIntegration:
         else:
             raise ValueError("Unexpected metric type %r" % kind)
 
-    def trunc(self, text):
-        # type: (str) -> str
+    def trunc(self, text: str) -> str:
         """Truncate the given text.
 
         Use to avoid attaching too much data to spans.

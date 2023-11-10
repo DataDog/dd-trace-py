@@ -14,9 +14,8 @@ StackTraceType = typing.List[DDFrame]
 
 
 def event_class(
-    klass,  # type: typing.Type[_T]
-):
-    # type: (...) -> typing.Type[_T]
+    klass: typing.Type[_T],
+) -> typing.Type[_T]:
     return attr.s(slots=True)(klass)
 
 
@@ -27,8 +26,7 @@ class Event(object):
     timestamp = attr.ib(factory=compat.time_ns)
 
     @property
-    def name(self):
-        # type: (...) -> str
+    def name(self) -> str:
         """Name of the event."""
         return self.__class__.__name__
 
@@ -63,10 +61,9 @@ class StackBasedEvent(SampleEvent):
 
     def set_trace_info(
         self,
-        span,  # type: typing.Optional[ddspan.Span]
-        endpoint_collection_enabled,  # type: bool
-    ):
-        # type: (...) -> None
+        span: typing.Optional[ddspan.Span],
+        endpoint_collection_enabled: bool,
+    ) -> None:
         if span:
             self.span_id = span.span_id
             if span._local_root is not None:

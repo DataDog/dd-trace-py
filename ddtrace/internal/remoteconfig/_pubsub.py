@@ -80,9 +80,9 @@ log = get_logger(__name__)
 
 
 class PubSub(object):
-    _shared_data = None  # type: PublisherSubscriberConnector
-    _publisher = None  # type: RemoteConfigPublisherBase
-    _subscriber = None  # type: RemoteConfigSubscriber
+    _shared_data: PublisherSubscriberConnector = None
+    _publisher: RemoteConfigPublisherBase = None
+    _subscriber: RemoteConfigSubscriber = None
 
     def start_subscriber(self):
         self._subscriber.start()
@@ -90,24 +90,19 @@ class PubSub(object):
     def restart_subscriber(self, join=False):
         self._subscriber.force_restart(join)
 
-    def _poll_data(self, test_tracer=None):
-        # type: (Optional[Tracer]) -> None
+    def _poll_data(self, test_tracer: Optional[Tracer] = None) -> None:
         self._subscriber._get_data_from_connector_and_exec(test_tracer=test_tracer)
 
-    def stop(self, join=False):
-        # type: (bool) -> None
+    def stop(self, join: bool = False) -> None:
         self._subscriber.stop(join=join)
 
-    def publish(self):
-        # type: () -> None
+    def publish(self) -> None:
         self._publisher.dispatch(self)
 
-    def append_and_publish(self, config_content=None, target="", config_metadata=None):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append_and_publish(self, config_content: Optional[Any] = None, target: str = "", config_metadata: Optional[Any] = None) -> None:
         """Append data to publisher and send the data to subscriber. It's a shortcut for testing purposes"""
         self.append(config_content, target, config_metadata)
         self.publish()
 
-    def append(self, config_content, target, config_metadata):
-        # type: (Optional[Any], str, Optional[Any]) -> None
+    def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any]) -> None:
         self._publisher.append(config_content, target, config_metadata)

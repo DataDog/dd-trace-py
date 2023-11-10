@@ -16,14 +16,12 @@ from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
 
-def _format_version_info(vi):
-    # type: (sys._version_info) -> str
+def _format_version_info(vi: sys._version_info) -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
-def _get_container_id():
-    # type: () -> str
+def _get_container_id() -> str:
     """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
@@ -31,8 +29,7 @@ def _get_container_id():
     return ""
 
 
-def _get_os_version():
-    # type: () -> str
+def _get_os_version() -> str:
     """Returns the os version for applications running on Mac or Windows 32-bit"""
     try:
         mver, _, _ = platform.mac_ver()
@@ -50,8 +47,7 @@ def _get_os_version():
 
 
 @cached()
-def _get_application(key):
-    # type: (Tuple[str, str, str]) -> Dict
+def _get_application(key: Tuple[str, str, str]) -> Dict:
     """
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
@@ -71,23 +67,20 @@ def _get_application(key):
     }
 
 
-def get_dependencies():
-    # type: () -> List[Dict[str, str]]
+def get_dependencies() -> List[Dict[str, str]]:
     """Returns a unique list of the names and versions of all installed packages"""
     dependencies = {(dist.name, dist.version) for dist in get_distributions()}
     return [{"name": name, "version": version} for name, version in dependencies]
 
 
-def get_application(service, version, env):
-    # type: (str, str, str) -> Dict
+def get_application(service: str, version: str, env: str) -> Dict:
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
 
 
-def _get_products():
-    # type: () -> Dict
+def _get_products() -> Dict:
     return {
         "appsec": {"version": get_version(), "enabled": asm_config._asm_enabled},
     }
@@ -96,8 +89,7 @@ def _get_products():
 _host_info = None
 
 
-def get_host_info():
-    # type: () -> Dict
+def get_host_info() -> Dict:
     """Creates a dictionary to store host data using the platform module"""
     global _host_info
     if _host_info is None:

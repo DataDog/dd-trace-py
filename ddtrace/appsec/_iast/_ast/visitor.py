@@ -178,7 +178,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return merged_set
 
-    def _is_string_node(self, node):  # type: (Any) -> bool
+    def _is_string_node(self, node: Any) -> bool:
         if PY30_37 and isinstance(node, ast.Bytes):
             return True
 
@@ -187,7 +187,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return False
 
-    def _is_numeric_node(self, node):  # type: (Any) -> bool
+    def _is_numeric_node(self, node: Any) -> bool:
         if PY30_37 and isinstance(node, ast.Num):
             return True
 
@@ -196,10 +196,10 @@ class AstVisitor(ast.NodeTransformer):
 
         return False
 
-    def _is_node_constant_or_binop(self, node):  # type: (Any) -> bool
+    def _is_node_constant_or_binop(self, node: Any) -> bool:
         return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
 
-    def _is_call_excluded(self, func_name_node):  # type: (str) -> bool
+    def _is_call_excluded(self, func_name_node: str) -> bool:
         if not self.excluded_functions:
             return False
         excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
@@ -207,8 +207,7 @@ class AstVisitor(ast.NodeTransformer):
         )
         return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
 
-    def _is_string_format_with_literals(self, call_node):
-        # type: (ast.Call) -> bool
+    def _is_string_format_with_literals(self, call_node: ast.Call) -> bool:
         return (
             self._is_string_node(call_node.func.value)  # type: ignore[attr-defined]
             and call_node.func.attr == "format"  # type: ignore[attr-defined]
@@ -216,7 +215,7 @@ class AstVisitor(ast.NodeTransformer):
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
 
-    def _get_function_name(self, call_node, is_function):  # type: (ast.Call, bool) -> str
+    def _get_function_name(self, call_node: ast.Call, is_function: bool) -> str:
         if is_function:
             return call_node.func.id  # type: ignore[attr-defined]
         # If the call is to a method
@@ -225,7 +224,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node.func.attr  # type: ignore[attr-defined]
 
-    def _should_replace_with_taint_sink(self, call_node, is_function):  # type: (ast.Call, bool) -> bool
+    def _should_replace_with_taint_sink(self, call_node: ast.Call, is_function: bool) -> bool:
         function_name = self._get_function_name(call_node, is_function)
 
         if function_name in self._taint_sink_replace_disabled:
@@ -233,7 +232,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return any(allowed in function_name for allowed in self._taint_sink_replace_any)
 
-    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+    def _add_original_function_as_arg(self, call_node: ast.Call, is_function: bool) -> Any:
         """
         Creates the arguments for the original function
         """
@@ -252,8 +251,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return new_args
 
-    def _node(self, type_, pos_from_node, **kwargs):
-        # type: (Any, Any, Any) -> Any
+    def _node(self, type_: Any, pos_from_node: Any, **kwargs: Any) -> Any:
         """
         Abstract some basic differences in node structure between versions
         """
@@ -274,8 +272,7 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node, _id, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, str, Any) -> ast.Name
+    def _name_node(self, from_node: Any, _id: str, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         return self._node(
             ast.Name,
             from_node,
@@ -283,8 +280,7 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, str, Any) -> ast.Name
+    def _attr_node(self, from_node: Any, attr: str, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -296,7 +292,7 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node, targets, value):  # type: (Any, List[Any], Any) -> Any
+    def _assign_node(self, from_node: Any, targets: List[Any], value: Any) -> Any:
         return self._node(
             ast.Assign,
             from_node,
@@ -305,7 +301,7 @@ class AstVisitor(ast.NodeTransformer):
             type_comment=None,
         )
 
-    def find_insert_position(self, module_node):  # type: (ast.Module) -> int
+    def find_insert_position(self, module_node: ast.Module) -> int:
         insert_position = 0
         from_future_import_found = False
         import_found = False
@@ -338,8 +334,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
-    def _none_constant(self, from_node, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, Any) -> Any
+    def _none_constant(self, from_node: Any, ctx: Any = ast.Load()) -> Any:  # noqa: B008
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
@@ -353,11 +348,10 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
+    def _call_node(self, from_node: Any, func: Any, args: List[Any]) -> Any:
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
-    def visit_Module(self, module_node):
-        # type: (ast.Module) -> Any
+    def visit_Module(self, module_node: ast.Module) -> Any:
         """
         Insert the import statement for the replacements module
         """
@@ -397,8 +391,7 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(module_node)
         return module_node
 
-    def visit_FunctionDef(self, def_node):
-        # type: (ast.FunctionDef) -> Any
+    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
@@ -410,7 +403,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return def_node
 
-    def visit_Call(self, call_node):  # type: (ast.Call) -> Any
+    def visit_Call(self, call_node: ast.Call) -> Any:
         """
         Replace a call or method
         """
@@ -496,7 +489,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_BinOp(self, call_node):  # type: (ast.BinOp) -> Any
+    def visit_BinOp(self, call_node: ast.BinOp) -> Any:
         """
         Replace a binary operator
         """
@@ -512,7 +505,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_FormattedValue(self, fmt_value_node):  # type: (ast.FormattedValue) -> Any
+    def visit_FormattedValue(self, fmt_value_node: ast.FormattedValue) -> Any:
         """
         Visit a FormattedValue node which are the constituent atoms for the
         JoinedStr which are used to implement f-strings.
@@ -543,7 +536,7 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
-    def visit_JoinedStr(self, joinedstr_node):  # type: (ast.JoinedStr) -> Any
+    def visit_JoinedStr(self, joinedstr_node: ast.JoinedStr) -> Any:
         """
         Replaced the JoinedStr AST node with a Call to the replacement function. Most of
         the work inside fstring is done by visit_FormattedValue above.
@@ -573,7 +566,7 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
-    def visit_AugAssign(self, augassign_node):  # type: (ast.AugAssign) -> Any
+    def visit_AugAssign(self, augassign_node: ast.AugAssign) -> Any:
         """Replace an inplace add or multiply."""
         if isinstance(augassign_node.target, ast.Subscript):
             # Can't augassign to function call, ignore this node
@@ -584,7 +577,7 @@ class AstVisitor(ast.NodeTransformer):
         # TODO: Replace an inplace add or multiply (+= / *=)
         return augassign_node
 
-    def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
+    def visit_Assign(self, assign_node: ast.Assign) -> Any:
         """
         Decompose multiple assignment into single ones and
         check if any item in the targets list is if type Subscript and if
@@ -636,7 +629,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return ret_nodes
 
-    def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
+    def visit_Delete(self, assign_node: ast.Delete) -> Any:
         # del replaced_index(foo, bar) would fail so avoid converting the right hand side
         # since it's going to be deleted anyway
 
@@ -647,7 +640,7 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(assign_node)
         return assign_node
 
-    def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
+    def visit_Subscript(self, subscr_node: ast.Subscript) -> Any:
         """
         Turn an indexes[1] and slices[0:1:2] into the replacement function call
         Optimization: dont convert if the indexes are strings

@@ -32,8 +32,7 @@ from ..grpc import constants
 from ..grpc import utils
 
 
-def create_aio_client_interceptors(pin, host, port):
-    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor, ...]
+def create_aio_client_interceptors(pin: Pin, host: str, port: int) -> Tuple[aio.ClientInterceptor, ...]:
     return (
         _UnaryUnaryClientInterceptor(pin, host, port),
         _UnaryStreamClientInterceptor(pin, host, port),
@@ -42,10 +41,8 @@ def create_aio_client_interceptors(pin, host, port):
     )
 
 
-def _done_callback(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
-    def func(call):
-        # type: (aio.Call) -> None
+def _done_callback(span: Span, code: grpc.StatusCode, details: str) -> Callable[[aio.Call], None]:
+    def func(call: aio.Call) -> None:
         try:
             span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
 
@@ -58,15 +55,13 @@ def _done_callback(span, code, details):
     return func
 
 
-def _handle_error(span, call, code, details):
-    # type: (Span, aio.Call, grpc.StatusCode, str) -> None
+def _handle_error(span: Span, call: aio.Call, code: grpc.StatusCode, details: str) -> None:
     span.error = 1
     span.set_tag_str(ERROR_MSG, details)
     span.set_tag_str(ERROR_TYPE, to_unicode(code))
 
 
-def _handle_rpc_error(span, rpc_error):
-    # type: (Span, aio.AioRpcError) -> None
+def _handle_rpc_error(span: Span, rpc_error: aio.AioRpcError) -> None:
     code = to_unicode(rpc_error.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
@@ -75,8 +70,7 @@ def _handle_rpc_error(span, rpc_error):
     span.finish()
 
 
-async def _handle_cancelled_error(call, span):
-    # type: (aio.Call, Span) -> None
+async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     code = to_unicode(await call.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
@@ -86,14 +80,12 @@ async def _handle_cancelled_error(call, span):
 
 
 class _ClientInterceptor:
-    def __init__(self, pin, host, port):
-        # type: (Pin, str, int) -> None
+    def __init__(self, pin: Pin, host: str, port: int) -> None:
         self._pin = pin
         self._host = host
         self._port = port
 
-    def _intercept_client_call(self, method_kind, client_call_details):
-        # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
+    def _intercept_client_call(self, method_kind: str, client_call_details: aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]:
         tracer = self._pin.tracer
 
         method_as_str = client_call_details.method.decode()
@@ -147,10 +139,9 @@ class _ClientInterceptor:
     # `continuation` must be called before the RPC.
     async def _wrap_stream_response(
         self,
-        call,  # type: Union[aio.StreamStreamCall, aio.UnaryStreamCall]
-        span,  # type: Span
-    ):
-        # type: (...) -> ResponseIterableType
+        call: Union[aio.StreamStreamCall, aio.UnaryStreamCall],
+        span: Span,
+    ) -> ResponseIterableType:
         try:
             async for response in call:
                 yield response
@@ -173,10 +164,9 @@ class _ClientInterceptor:
     # NOTE: `continuation` must be called inside of this function to catch exceptions.
     async def _wrap_unary_response(
         self,
-        continuation,  # type: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]]
-        span,  # type: Span
-    ):
-        # type: (...) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]
+        continuation: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]],
+        span: Span,
+    ) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]:
         try:
             call = await continuation()
             code = await call.code()
@@ -197,11 +187,10 @@ class _ClientInterceptor:
 class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInterceptor):
     async def intercept_unary_unary(
         self,
-        continuation,  # type: Callable[[aio.ClientCallDetails, RequestType], aio.UnaryUnaryCall]
-        client_call_details,  # type: aio.ClientCallDetails
-        request,  # type: RequestType
-    ):
-        # type: (...) -> Union[aio.UnaryUnaryCall, ResponseType]
+        continuation: Callable[[aio.ClientCallDetails, RequestType], aio.UnaryUnaryCall],
+        client_call_details: aio.ClientCallDetails,
+        request: RequestType,
+    ) -> Union[aio.UnaryUnaryCall, ResponseType]:
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,
@@ -213,11 +202,10 @@ class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInter
 class _UnaryStreamClientInterceptor(aio.UnaryStreamClientInterceptor, _ClientInterceptor):
     async def intercept_unary_stream(
         self,
-        continuation,  # type: Callable[[aio.ClientCallDetails, RequestType], aio.UnaryStreamCall]
-        client_call_details,  # type: aio.ClientCallDetails
-        request,  # type: RequestType
-    ):
-        # type: (...) -> Union[aio.UnaryStreamCall, ResponseIterableType]
+        continuation: Callable[[aio.ClientCallDetails, RequestType], aio.UnaryStreamCall],
+        client_call_details: aio.ClientCallDetails,
+        request: RequestType,
+    ) -> Union[aio.UnaryStreamCall, ResponseIterableType]:
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_SERVER_STREAMING,
             client_call_details,
@@ -229,11 +217,10 @@ class _UnaryStreamClientInterceptor(aio.UnaryStreamClientInterceptor, _ClientInt
 class _StreamUnaryClientInterceptor(aio.StreamUnaryClientInterceptor, _ClientInterceptor):
     async def intercept_stream_unary(
         self,
-        continuation,  # type: Callable[[aio.ClientCallDetails, RequestType], aio.StreamUnaryCall]
-        client_call_details,  # type: aio.ClientCallDetails
-        request_iterator,  # type: RequestIterableType
-    ):
-        # type: (...) -> aio.StreamUnaryCall
+        continuation: Callable[[aio.ClientCallDetails, RequestType], aio.StreamUnaryCall],
+        client_call_details: aio.ClientCallDetails,
+        request_iterator: RequestIterableType,
+    ) -> aio.StreamUnaryCall:
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
             client_call_details,
@@ -245,11 +232,10 @@ class _StreamUnaryClientInterceptor(aio.StreamUnaryClientInterceptor, _ClientInt
 class _StreamStreamClientInterceptor(aio.StreamStreamClientInterceptor, _ClientInterceptor):
     async def intercept_stream_stream(
         self,
-        continuation,  # type: Callable[[aio.ClientCallDetails, RequestType], aio.StreamStreamCall]
-        client_call_details,  # type: aio.ClientCallDetails
-        request_iterator,  # type: RequestIterableType
-    ):
-        # type: (...) -> Union[aio.StreamStreamCall, ResponseIterableType]
+        continuation: Callable[[aio.ClientCallDetails, RequestType], aio.StreamStreamCall],
+        client_call_details: aio.ClientCallDetails,
+        request_iterator: RequestIterableType,
+    ) -> Union[aio.StreamStreamCall, ResponseIterableType]:
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_BIDI_STREAMING,
             client_call_details,

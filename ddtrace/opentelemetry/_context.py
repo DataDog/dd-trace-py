@@ -21,8 +21,7 @@ log = get_logger(__name__)
 
 
 class DDRuntimeContext:
-    def attach(self, otel_context):
-        # type: (OtelContext) -> object
+    def attach(self, otel_context: OtelContext) -> object:
         """
         Converts an OpenTelemetry Span to a Datadog Span/Context then stores the
         Datadog representation in the Global DDtrace Trace Context Provider.
@@ -46,8 +45,7 @@ class DDRuntimeContext:
         # Since manually deactivating spans is not supported by ddtrace this object will never be used.
         return object()
 
-    def get_current(self):
-        # type: (...) -> OtelContext
+    def get_current(self) -> OtelContext:
         """
         Converts the active datadog span to an Opentelemetry Span and then stores it
         in a format that can be parsed by the OpenTelemetry API.
@@ -63,8 +61,7 @@ class DDRuntimeContext:
             context = set_span_in_context(span, context)
         return context
 
-    def detach(self, token):
-        # type: (object) -> None
+    def detach(self, token: object) -> None:
         """
         NOP, The otel api uses this method to deactivate spans but this operation is not supported by
         the datadog context provider.
@@ -72,8 +69,7 @@ class DDRuntimeContext:
         pass
 
     @property
-    def _ddcontext_provider(self):
-        # type: () -> DDBaseContextProvider
+    def _ddcontext_provider(self) -> DDBaseContextProvider:
         """
         Get the ddtrace context provider from the global Datadog tracer.
         This can reterive a default, gevent, or asyncio context provider.

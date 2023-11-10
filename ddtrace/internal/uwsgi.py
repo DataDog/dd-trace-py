@@ -15,8 +15,7 @@ class uWSGIMasterProcess(Exception):
     """The process is uWSGI master process."""
 
 
-def check_uwsgi(worker_callback=None, atexit=None):
-    # type: (Optional[Callable], Optional[Callable]) -> None
+def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
     """Check whetever uwsgi is running and what needs to be done.
 
     :param worker_callback: Callback function to call in uWSGI worker processes.

@@ -75,16 +75,14 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
 PATCHED_VERSIONS = {}
 
 
-def get_versions():
-    # type: () -> List[str]
+def get_versions() -> List[str]:
     return PATCHED_VERSIONS
 
 

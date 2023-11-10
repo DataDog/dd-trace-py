@@ -28,8 +28,7 @@ DBM_TRACE_INJECTED_TAG = "_dd.dbm_trace_injected"
 log = get_logger(__name__)
 
 
-def default_sql_injector(dbm_comment, sql_statement):
-    # type: (str, Union[str, bytes]) -> Union[str, bytes]
+def default_sql_injector(dbm_comment: str, sql_statement: Union[str, bytes]) -> Union[str, bytes]:
     try:
         if isinstance(sql_statement, bytes):
             return dbm_comment.encode("utf-8", errors="strict") + sql_statement
@@ -63,8 +62,7 @@ class _DBM_Propagator(object):
         args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
         return args, kwargs
 
-    def _get_dbm_comment(self, db_span):
-        # type: (Span) -> Optional[str]
+    def _get_dbm_comment(self, db_span: Span) -> Optional[str]:
         """Generate DBM trace injection comment and updates span tags
         This method will set the ``_dd.dbm_trace_injected: "true"`` tag
         on ``db_span`` if the configured injection mode is ``"full"``.

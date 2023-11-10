@@ -186,9 +186,8 @@ def test_memory_collector():
     (True, False),
 )
 def test_memory_collector_ignore_profiler(
-    ignore_profiler,  # type: bool
-):
-    # type: (...) -> None
+    ignore_profiler: bool,
+) -> None:
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, ignore_profiler=ignore_profiler)
     quit_thread = threading.Event()

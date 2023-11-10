@@ -21,8 +21,7 @@ if PY3:
     long = int
 
 
-def _maybe_slots(obj):
-    # type: (Any) -> Union[Tuple[str], List[str]]
+def _maybe_slots(obj: Any) -> Union[Tuple[str], List[str]]:
     try:
         slots = object.__getattribute__(obj, "__slots__")
         if isinstance(slots, str):
@@ -33,19 +32,16 @@ def _maybe_slots(obj):
 
 
 @cached()
-def _slots(_type):
-    # type: (Type) -> Set[str]
+def _slots(_type: Type) -> Set[str]:
     return {_ for cls in object.__getattribute__(_type, "__mro__") for _ in _maybe_slots(cls)}
 
 
-def get_slots(obj):
-    # type: (Any) -> Set[str]
+def get_slots(obj: Any) -> Set[str]:
     """Get the object's slots."""
     return _slots(type(obj))
 
 
-def _isinstance(obj, types):
-    # type: (Any, Union[Type, Tuple[Union[Type, Tuple[Any, ...]], ...]]) -> bool
+def _isinstance(obj: Any, types: Union[Type, Tuple[Union[Type, Tuple[Any, ...]], ...]]) -> bool:
     # DEV: isinstance falls back to calling __getattribute__ which could cause
     # side effects.
     return issubclass(type(obj), types)
@@ -63,33 +59,27 @@ class SafeObjectProxy(wrapt.ObjectProxy):
     calls that can also trigger side-effects.
     """
 
-    def __call__(self, *args, **kwargs):
-        # type: (Any, Any) -> Optional[Any]
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[Any]:
         raise RuntimeError("Cannot call safe object")
 
-    def __getattribute__(self, name):
-        # type: (str) -> Any
+    def __getattribute__(self, name: str) -> Any:
         if name == "__wrapped__" and not IS_312_OR_NEWER:
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
 
-    def __getattr__(self, name):
-        # type: (str) -> Any
+    def __getattr__(self, name: str) -> Any:
         if name == "__wrapped__" and IS_312_OR_NEWER:
             raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
-    def __getitem__(self, item):
-        # type: (Any) -> Any
+    def __getitem__(self, item: Any) -> Any:
         return type(self).safe(super(SafeObjectProxy, self).__getitem__(item))
 
-    def __iter__(self):
-        # type: () -> Any
+    def __iter__(self) -> Any:
         return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())
 
-    def items(self):
-        # type: () -> Iterator[Tuple[Any, Any]]
+    def items(self) -> Iterator[Tuple[Any, Any]]:
         return (
             (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()
         )
@@ -101,8 +91,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
     __repr__ = __str__
 
     @classmethod
-    def safe(cls, obj):
-        # type: (Any) -> Optional[Any]
+    def safe(cls, obj: Any) -> Optional[Any]:
         """Turn an object into a safe proxy."""
         _type = type(obj)
 

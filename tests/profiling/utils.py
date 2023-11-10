@@ -4,9 +4,8 @@ from ddtrace.profiling.exporter import pprof
 
 
 def check_pprof_file(
-    filename,  # type: str
-):
-    # type: (...) -> None
+    filename: str,
+) -> None:
     with gzip.open(filename, "rb") as f:
         content = f.read()
     p = pprof.pprof_pb2.Profile()

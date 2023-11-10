@@ -7,8 +7,7 @@ import ddtrace.internal.runtime.runtime_metrics
 
 class _RuntimeMetricsStatus(type):
     @property
-    def _enabled(_):
-        # type: () -> bool
+    def _enabled(_) -> bool:
         """Runtime metrics enabled status."""
         return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
 
@@ -27,8 +26,7 @@ class RuntimeMetrics(six.with_metaclass(_RuntimeMetricsStatus)):
     """
 
     @staticmethod
-    def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
+    def enable(tracer: Optional[ddtrace.Tracer] = None, dogstatsd_url: Optional[str] = None, flush_interval: Optional[float] = None) -> None:
         """
         Enable the runtime metrics collection service.
 
@@ -46,8 +44,7 @@ class RuntimeMetrics(six.with_metaclass(_RuntimeMetricsStatus)):
         )
 
     @staticmethod
-    def disable():
-        # type: () -> None
+    def disable() -> None:
         """
         Disable the runtime metrics collection service.
 

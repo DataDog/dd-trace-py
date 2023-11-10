@@ -38,8 +38,7 @@ log = get_logger(__name__)
 _INSIDE_QUOTES_REGEXP = re.compile(r"^(?:\s*(?:sudo|doas)\s+)?\b\S+\b\s*(.*)")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -60,8 +59,7 @@ def patch():
         subprocess._datadog_cmdi_patch = True
 
 
-def unpatch():
-    # type: () -> None
+def unpatch() -> None:
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")
@@ -104,10 +102,9 @@ class CommandInjection(VulnerabilityBase):
         super(CommandInjection, cls).report(evidence_value=evidence_value, sources=sources)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text):
-        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
+    def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]:
 
-        ret = {}  # type: Dict[int, Dict[str, Any]]
+        ret: Dict[int, Dict[str, Any]] = {}
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {
@@ -134,7 +131,7 @@ class CommandInjection(VulnerabilityBase):
         return ret, replaced
 
     @classmethod
-    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
+    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
         if not asm_config._iast_redaction_enabled:
             return report
 
@@ -174,7 +171,7 @@ class CommandInjection(VulnerabilityBase):
         if not vulns_to_tokens:
             return report
 
-        all_tokens = set()  # type: Set[str]
+        all_tokens: Set[str] = set()
         for _, value_dict in six.iteritems(vulns_to_tokens):
             all_tokens.update(value_dict["tokens"])
 
@@ -238,8 +235,7 @@ class CommandInjection(VulnerabilityBase):
         return report
 
 
-def _iast_report_cmdi(shell_args):
-    # type: (Union[str, List[str]]) -> None
+def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
     from .._metrics import _set_metric_iast_executed_sink
     from .._taint_tracking import get_tainted_ranges

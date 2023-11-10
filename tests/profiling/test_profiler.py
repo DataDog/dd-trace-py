@@ -405,8 +405,7 @@ def test_default_collectors():
     p.stop(flush=False)
 
 
-def test_profiler_serverless(monkeypatch):
-    # type: (...) -> None
+def test_profiler_serverless(monkeypatch) -> None:
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)

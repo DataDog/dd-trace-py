@@ -44,8 +44,7 @@ log = logging.getLogger(__name__)
 
 
 @cached()
-def normalize_header_name(header_name):
-    # type: (Optional[str]) -> Optional[str]
+def normalize_header_name(header_name: Optional[str]) -> Optional[str]:
     """
     Normalizes an header name to lower case, stripping all its leading and trailing white spaces.
     :param header_name: the header name to normalize
@@ -56,8 +55,7 @@ def normalize_header_name(header_name):
     return header_name.strip().lower() if header_name is not None else None
 
 
-def strip_query_string(url):
-    # type: (str) -> str
+def strip_query_string(url: str) -> str:
     """
     Strips the query string from a URL for use as tag in spans.
     :param url: The URL to be stripped
@@ -70,8 +68,7 @@ def strip_query_string(url):
     return h + fs + f
 
 
-def redact_query_string(query_string, query_string_obfuscation_pattern):
-    # type: (str, Optional[re.Pattern]) -> Union[bytes, str]
+def redact_query_string(query_string: str, query_string_obfuscation_pattern: Optional[re.Pattern]) -> Union[bytes, str]:
     if query_string_obfuscation_pattern is None:
         return query_string
 
@@ -79,8 +76,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
 
 
-def redact_url(url, query_string_obfuscation_pattern, query_string=None):
-    # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
+def redact_url(url: str, query_string_obfuscation_pattern: re.Pattern, query_string: Optional[str] = None) -> Union[str,bytes]:
 
     # Avoid further processing if obfuscation is disabled
     if query_string_obfuscation_pattern is None:
@@ -95,7 +91,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
 
     if redacted_query is not None and len(parts) >= 5:
-        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
+        redacted_parts: Tuple[Union[str, bytes], ...] = parts[:4] + (redacted_query,) + parts[5:]
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
         return urlunsplit(bytes_redacted_parts, url)
 
@@ -103,8 +99,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     return url
 
 
-def urlunsplit(components, original_url):
-    # type: (Tuple[bytes, ...], str) -> bytes
+def urlunsplit(components: Tuple[bytes, ...], original_url: str) -> bytes:
     """
     Adaptation from urlunsplit and urlunparse, using bytes components
     """
@@ -124,8 +119,7 @@ def urlunsplit(components, original_url):
     return url
 
 
-def connector(url, **kwargs):
-    # type: (str, Any) -> Connector
+def connector(url: str, **kwargs: Any) -> Connector:
     """Create a connector context manager for the given URL.
 
     This function returns a context manager that wraps a connection object to
@@ -140,8 +134,7 @@ def connector(url, **kwargs):
     """
 
     @contextmanager
-    def _connector_context():
-        # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
+    def _connector_context() -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -194,8 +187,7 @@ def w3c_get_dd_list_member(context):
 
 
 @cached()
-def w3c_encode_tag(args):
-    # type: (Tuple[Pattern, str, str]) -> str
+def w3c_encode_tag(args: Tuple[Pattern, str, str]) -> str:
     pattern, replacement, tag_val = args
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
@@ -273,8 +265,7 @@ class Response(object):
         )
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> ConnectionType
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
@@ -290,8 +281,7 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
 
-def verify_url(url):
-    # type: (str) -> parse.ParseResult
+def verify_url(url: str) -> parse.ParseResult:
     """Validates that the given URL can be used as an intake
     Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL cannot be used as an intake
@@ -311,12 +301,11 @@ def verify_url(url):
     return parsed
 
 
-_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
-_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_HTML_BLOCKED_TEMPLATE_CACHE: Optional[str] = None
+_JSON_BLOCKED_TEMPLATE_CACHE: Optional[str] = None
 
 
-def _get_blocked_template(accept_header_value):
-    # type: (str) -> str
+def _get_blocked_template(accept_header_value: str) -> str:
 
     global _HTML_BLOCKED_TEMPLATE_CACHE
     global _JSON_BLOCKED_TEMPLATE_CACHE

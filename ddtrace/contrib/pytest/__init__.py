@@ -76,8 +76,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import pytest
 
     return pytest.__version__

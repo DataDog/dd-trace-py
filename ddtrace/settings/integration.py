@@ -62,8 +62,7 @@ class IntegrationConfig(AttrDict):
             self.get_http_tag_query_string(getattr(self, "default_http_tag_query_string", None)),
         )
 
-    def _get_analytics_settings(self):
-        # type: () -> Tuple[Optional[bool], float]
+    def _get_analytics_settings(self) -> Tuple[Optional[bool], float]:
         # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
         # Inject environment variables for integration
@@ -96,8 +95,7 @@ class IntegrationConfig(AttrDict):
         return self.global_config.http.trace_query_string
 
     @property
-    def is_header_tracing_configured(self):
-        # type: (...) -> bool
+    def is_header_tracing_configured(self) -> bool:
         """Returns whether header tracing is enabled for this integration.
 
         Will return true if traced headers are configured for this integration
@@ -105,8 +103,7 @@ class IntegrationConfig(AttrDict):
         """
         return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
 
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
+    def header_is_traced(self, header_name: str) -> bool:
         """
         Returns whether or not the current header should be traced.
         :param header_name: the header name
@@ -115,8 +112,7 @@ class IntegrationConfig(AttrDict):
         """
         return self._header_tag_name(header_name) is not None
 
-    def _header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def _header_tag_name(self, header_name: str) -> Optional[str]:
         tag_name = self.http._header_tag_name(header_name)
         if tag_name is None:
             return self.global_config._header_tag_name(header_name)

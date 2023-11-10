@@ -81,9 +81,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta,  # type: Dict[str, str]
-):
-    # type: (...) -> Dict[str, str]
+    meta: Dict[str, str],
+) -> Dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -95,10 +94,9 @@ def validate_sampling_decision(
 
 
 def set_sampling_decision_maker(
-    context,  # type: Context
-    sampling_mechanism,  # type: int
-):
-    # type: (...) -> Optional[Text]
+    context: Context,
+    sampling_mechanism: int,
+) -> Optional[Text]:
     value = "-%d" % sampling_mechanism
     context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
     return value
@@ -119,10 +117,10 @@ class SpanSamplingRule:
 
     def __init__(
         self,
-        sample_rate,  # type: float
-        max_per_second,  # type: int
-        service=None,  # type: Optional[str]
-        name=None,  # type: Optional[str]
+        sample_rate: float,
+        max_per_second: int,
+        service: Optional[str] = None,
+        name: Optional[str] = None,
     ):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
@@ -134,16 +132,14 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span):
-        # type: (Span) -> bool
+    def sample(self, span: Span) -> bool:
         if self._sample(span):
             if self._limiter.is_allowed(span.start_ns):
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
-    def _sample(self, span):
-        # type: (Span) -> bool
+    def _sample(self, span: Span) -> bool:
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
@@ -151,8 +147,7 @@ class SpanSamplingRule:
 
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
 
-    def match(self, span):
-        # type: (Span) -> bool
+    def match(self, span: Span) -> bool:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -177,8 +172,7 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def apply_span_sampling_tags(self, span):
-        # type: (Span) -> None
+    def apply_span_sampling_tags(self, span: Span) -> None:
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
@@ -186,8 +180,7 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules():
-    # type: () -> List[SpanSamplingRule]
+def get_span_sampling_rules() -> List[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -216,8 +209,7 @@ def get_span_sampling_rules():
     return sampling_rules
 
 
-def _get_span_sampling_json():
-    # type: () -> List[Dict[str, Any]]
+def _get_span_sampling_json() -> List[Dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -232,8 +224,7 @@ def _get_span_sampling_json():
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -241,16 +232,14 @@ def _get_file_json():
     return None
 
 
-def _get_env_json():
-    # type: () -> Optional[List[Dict[str, Any]]]
+def _get_env_json() -> Optional[List[Dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules):
-    # type: (str) -> List[Dict[str, Any]]
+def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
@@ -261,8 +250,7 @@ def _load_span_sampling_json(raw_json_rules):
     return json_rules
 
 
-def _check_unsupported_pattern(string):
-    # type: (str) -> None
+def _check_unsupported_pattern(string: str) -> None:
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = {"[", "]", "\\"}
     for char in string:
@@ -270,13 +258,11 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def is_single_span_sampled(span):
-    # type: (Span) -> bool
+def is_single_span_sampled(span: Span) -> bool:
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
 
 
-def _set_sampling_tags(span, sampled, sample_rate, priority_category):
-    # type: (Span, bool, float, str) -> None
+def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, priority_category: str) -> None:
     mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
     if priority_category == "rule":
         span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
@@ -290,8 +276,7 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     set_sampling_decision_maker(span.context, mechanism)
 
 
-def _apply_rate_limit(span, sampled, limiter):
-    # type: (Span, bool, RateLimiter) -> bool
+def _apply_rate_limit(span: Span, sampled: bool, limiter: RateLimiter) -> bool:
     allowed = True
     if sampled:
         allowed = limiter.is_allowed(span.start_ns)
@@ -302,14 +287,12 @@ def _apply_rate_limit(span, sampled, limiter):
     return allowed
 
 
-def _set_priority(span, priority):
-    # type: (Span, int) -> None
+def _set_priority(span: Span, priority: int) -> None:
     span.context.sampling_priority = priority
     span.sampled = priority > 0  # Positive priorities mean it was kept
 
 
-def _get_highest_precedence_rule_matching(span, rules):
-    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
+def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 

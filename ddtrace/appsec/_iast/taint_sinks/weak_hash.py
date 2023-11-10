@@ -29,8 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def get_weak_hash_algorithms():
-    # type: () -> Set
+def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
     DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
@@ -45,8 +44,7 @@ class WeakHash(VulnerabilityBase):
     evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
-def unpatch_iast():
-    # type: () -> None
+def unpatch_iast() -> None:
     set_module_unpatched("hashlib", default_attr="_datadog_weak_hash_patch")
     set_module_unpatched("Crypto", default_attr="_datadog_weak_hash_patch")
 
@@ -69,13 +67,11 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -126,8 +122,7 @@ def patch():
 
 
 @WeakHash.wrap
-def wrapped_digest_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if instance.name.lower() in get_weak_hash_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
         _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
@@ -138,20 +133,17 @@ def wrapped_digest_function(wrapped, instance, args, kwargs):
 
 
 @WeakHash.wrap
-def wrapped_md5_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_md5_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, MD5_DEF, instance, args, kwargs)
 
 
 @WeakHash.wrap
-def wrapped_sha1_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_sha1_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, SHA1_DEF, instance, args, kwargs)
 
 
 @WeakHash.wrap
-def wrapped_new_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if args[0].lower() in get_weak_hash_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
         _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
@@ -161,8 +153,7 @@ def wrapped_new_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def wrapped_function(wrapped, evidence, instance, args, kwargs):
-    # type: (Callable, str, Any, Any, Any) -> Any
+def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any, kwargs: Any) -> Any:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
     _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     WeakHash.report(

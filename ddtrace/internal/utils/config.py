@@ -3,8 +3,7 @@ import sys
 import typing
 
 
-def get_application_name():
-    # type: () -> typing.Optional[str]
+def get_application_name() -> typing.Optional[str]:
     """Attempts to find the application name using system arguments."""
     try:
         import __main__

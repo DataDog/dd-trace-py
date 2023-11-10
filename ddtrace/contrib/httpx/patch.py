@@ -34,8 +34,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 HTTPX_VERSION = parse_version(httpx.__version__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(httpx, "__version__", "")
 
 
@@ -49,8 +48,7 @@ config._add(
 )
 
 
-def _url_to_str(url):
-    # type: (httpx.URL) -> str
+def _url_to_str(url: httpx.URL) -> str:
     """
     Helper to convert the httpx.URL parts from bytes to a str
     """
@@ -76,8 +74,7 @@ def _url_to_str(url):
     return ensure_text(url)
 
 
-def _get_service_name(pin, request):
-    # type: (Pin, httpx.Request) -> typing.Text
+def _get_service_name(pin: Pin, request: httpx.Request) -> typing.Text:
     if config.httpx.split_by_domain:
         if hasattr(request.url, "netloc"):
             return ensure_text(request.url.netloc, errors="backslashreplace")
@@ -89,8 +86,7 @@ def _get_service_name(pin, request):
     return ext_service(pin, config.httpx)
 
 
-def _init_span(span, request):
-    # type: (Span, httpx.Request) -> None
+def _init_span(span: Span, request: httpx.Request) -> None:
     span.set_tag(SPAN_MEASURED_KEY)
 
     if distributed_tracing_enabled(config.httpx):
@@ -101,8 +97,7 @@ def _init_span(span, request):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
 
-def _set_span_meta(span, request, response):
-    # type: (Span, httpx.Request, httpx.Response) -> None
+def _set_span_meta(span: Span, request: httpx.Request, response: httpx.Response) -> None:
     set_http_meta(
         span,
         config.httpx,
@@ -117,12 +112,11 @@ def _set_span_meta(span, request, response):
 
 
 async def _wrapped_async_send(
-    wrapped,  # type: BoundFunctionWrapper
-    instance,  # type: httpx.AsyncClient
-    args,  # type: typing.Tuple[httpx.Request]
-    kwargs,  # type: typing.Dict[typing.Str, typing.Any]
-):
-    # type: (...) -> typing.Coroutine[None, None, httpx.Response]
+    wrapped: BoundFunctionWrapper,
+    instance: httpx.AsyncClient,
+    args: typing.Tuple[httpx.Request],
+    kwargs: typing.Dict[typing.Str, typing.Any],
+) -> typing.Coroutine[None, None, httpx.Response]:
     req = get_argument_value(args, kwargs, 0, "request")
 
     pin = Pin.get_from(instance)
@@ -146,12 +140,11 @@ async def _wrapped_async_send(
 
 
 def _wrapped_sync_send(
-    wrapped,  # type: BoundFunctionWrapper
-    instance,  # type: httpx.AsyncClient
-    args,  # type: typing.Tuple[httpx.Request]
-    kwargs,  # type: typing.Dict[typing.Str, typing.Any]
-):
-    # type: (...) -> httpx.Response
+    wrapped: BoundFunctionWrapper,
+    instance: httpx.AsyncClient,
+    args: typing.Tuple[httpx.Request],
+    kwargs: typing.Dict[typing.Str, typing.Any],
+) -> httpx.Response:
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
@@ -174,8 +167,7 @@ def _wrapped_sync_send(
             _set_span_meta(span, req, resp)
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     if getattr(httpx, "_datadog_patch", False):
         return
 
@@ -195,8 +187,7 @@ def patch():
     pin.onto(httpx.Client)
 
 
-def unpatch():
-    # type: () -> None
+def unpatch() -> None:
     if not getattr(httpx, "_datadog_patch", False):
         return
 

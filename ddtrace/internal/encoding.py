@@ -29,8 +29,7 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces):
-        # type: (List[List[Span]]) -> str
+    def encode_traces(self, traces: List[List[Span]]) -> str:
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
@@ -41,8 +40,7 @@ class _EncoderBase(object):
         """
         raise NotImplementedError()
 
-    def encode(self, obj):
-        # type: (List[List[Any]]) -> str
+    def encode(self, obj: List[List[Any]]) -> str:
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal
@@ -51,8 +49,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span):
-        # type: (Span) -> Dict[str, Any]
+    def _span_to_dict(span: Span) -> Dict[str, Any]:
         d = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
@@ -126,14 +123,12 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
-    def encode_traces(self, traces):
-        # type: (List[List[Span]]) -> str
+    def encode_traces(self, traces: List[List[Span]]) -> str:
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})
 
     @staticmethod
-    def _convert_span(span):
-        # type: (Span) -> Dict[str, Any]
+    def _convert_span(span: Span) -> Dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
@@ -142,15 +137,13 @@ class JSONEncoderV2(JSONEncoder):
         return sp
 
     @staticmethod
-    def _encode_id_to_hex(dd_id):
-        # type: (Optional[int]) -> str
+    def _encode_id_to_hex(dd_id: Optional[int]) -> str:
         if not dd_id:
             return "0000000000000000"
         return "%0.16X" % int(dd_id)
 
     @staticmethod
-    def _decode_id_to_hex(hex_id):
-        # type: (Optional[str]) -> int
+    def _decode_id_to_hex(hex_id: Optional[str]) -> int:
         if not hex_id:
             return 0
         return int(hex_id, 16)

@@ -9,27 +9,27 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
 
 
-def do_fmt_value(a):  # type: (str) -> str
+def do_fmt_value(a: str) -> str:
     return f"{a:<8s}bar"
 
 
-def do_repr_fstring(a):  # type: (Any) -> str
+def do_repr_fstring(a: Any) -> str:
     return f"{a!r}"
 
 
-def do_repr_fstring_twice(a):  # type: (Any) -> str
+def do_repr_fstring_twice(a: Any) -> str:
     return f"{a!r} {a!r}"
 
 
-def do_repr_fstring_twice_different_objects(a, b):  # type: (Any, Any) -> str
+def do_repr_fstring_twice_different_objects(a: Any, b: Any) -> str:
     return f"{a!r} {b!r}"
 
 
-def do_repr_fstring_with_format(a):  # type: (Any) -> str
+def do_repr_fstring_with_format(a: Any) -> str:
     return f"{a!r:10}"
 
 
-def do_repr_fstring_with_format_twice(a):  # type: (Any) -> str
+def do_repr_fstring_with_format_twice(a: Any) -> str:
     return f"{a!r:10} {a!r:11}"
 
 
@@ -60,7 +60,7 @@ class Resolver404(Exception):
 
 
 class ResolverMatch:
-    def __init__(self, *args, **kwargs):  # type: (List[Any], List[Any]) -> None
+    def __init__(self, *args: List[Any], **kwargs: List[Any]) -> None:
         pass
 
 
@@ -74,21 +74,21 @@ class URLPattern:
     app_name = None
     namespace = None
 
-    def __init__(self, pattern=None):  # type: (URLPattern) -> None
+    def __init__(self, pattern: URLPattern = None) -> None:
         self.pattern = pattern
         self.url_patterns = [self.pattern]
 
     def _join_route(self, current_route, sub_match_route):
         return "".join([current_route, sub_match_route])
 
-    def match(self, path):  # type: (str) -> Optional[Tuple[str, str, str], bool]
+    def match(self, path: str) -> Optional[Tuple[str, str, str], bool]:
         global COUNTER
         COUNTER = COUNTER + 1
         if COUNTER > 4:
             return False
         return path, path, path
 
-    def resolve(self, path):  # type: (str) -> Optional[ResolverMatch, None]
+    def resolve(self, path: str) -> Optional[ResolverMatch, None]:
         path = str(path)  # path may be a reverse_lazy object
         tried = []
         match = self.pattern.match(path) if self.pattern else False

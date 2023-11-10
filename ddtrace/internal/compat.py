@@ -118,8 +118,7 @@ except ImportError:
         return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
 
-def is_integer(obj):
-    # type: (Any) -> bool
+def is_integer(obj: Any) -> bool:
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -134,8 +133,7 @@ try:
 except ImportError:
     from time import time as _time
 
-    def time_ns():
-        # type: () -> int
+    def time_ns() -> int:
         return int(_time() * 10e5) * 1000
 
 
@@ -149,8 +147,7 @@ try:
     from time import monotonic_ns
 except ImportError:
 
-    def monotonic_ns():
-        # type: () -> int
+    def monotonic_ns() -> int:
         return int(monotonic() * 1e9)
 
 
@@ -159,8 +156,7 @@ try:
 except ImportError:
     from time import clock as _process_time  # type: ignore[attr-defined]
 
-    def process_time_ns():
-        # type: () -> int
+    def process_time_ns() -> int:
         return int(_process_time() * 1e9)
 
 
@@ -226,8 +222,7 @@ else:
 
 
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
-def to_unicode(s):
-    # type: (AnyStr) -> Text
+def to_unicode(s: AnyStr) -> Text:
     """Return a unicode string for the given bytes or string instance."""
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
@@ -247,9 +242,8 @@ def to_unicode(s):
 
 
 def get_connection_response(
-    conn,  # type: httplib.HTTPConnection
-):
-    # type: (...) -> httplib.HTTPResponse
+    conn: httplib.HTTPConnection,
+) -> httplib.HTTPResponse:
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
@@ -283,15 +277,13 @@ except ImportError:
     from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
 
 
-def maybe_stringify(obj):
-    # type: (Any) -> Optional[str]
+def maybe_stringify(obj: Any) -> Optional[str]:
     if obj is not None:
         return stringify(obj)
     return None
 
 
-def to_bytes_py2(n, length, byteorder):
-    # type: (int, int, str) -> Text
+def to_bytes_py2(n: int, length: int, byteorder: str) -> Text:
     """
     Convert a string to bytes in the format expected by the remote config
     capabilities string, considering the byteorder, which is needed
@@ -353,8 +345,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore[misc,assignment]
 
 
-def ip_is_global(ip):
-    # type: (str) -> bool
+def ip_is_global(ip: str) -> bool:
     """
     is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
     """
@@ -453,8 +444,7 @@ except ImportError:
 
     _find_unsafe = re.compile(r"[^\w@%+=:,./-]").search
 
-    def shquote(s):
-        # type: (str) -> str
+    def shquote(s: str) -> str:
         """Return a shell-escaped version of the string *s*."""
         if not s:
             return "''"
@@ -470,8 +460,7 @@ try:
     from shlex import join as shjoin
 except ImportError:
 
-    def shjoin(args):  # type: ignore[misc]
-        # type: (Iterable[str]) -> str
+    def shjoin(args: Iterable[str]) -> str:  # type: ignore[misc]
         """Return a shell-escaped string from *args*."""
         return " ".join(shquote(arg) for arg in args)
 

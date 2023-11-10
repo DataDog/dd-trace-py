@@ -25,8 +25,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(fastapi, "__version__", "")
 
 

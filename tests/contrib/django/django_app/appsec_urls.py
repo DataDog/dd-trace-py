@@ -121,17 +121,17 @@ def taint_checking_enabled_view(request):
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
 
-        def assert_origin_path(path):  # type: (Any) -> None
+        def assert_origin_path(path: Any) -> None:
             assert is_pyobject_tainted(path)
             result = taint_ranges_as_evidence_info(path)
             assert result[1][0].origin == OriginType.PATH
 
     else:
 
-        def assert_origin_path(pyobject):  # type: (Any) -> bool
+        def assert_origin_path(pyobject: Any) -> bool:
             return True
 
-        def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
+        def is_pyobject_tainted(pyobject: Any) -> bool:
             return True
 
     # TODO: Taint request body
@@ -152,7 +152,7 @@ def taint_checking_disabled_view(request):
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
     else:
 
-        def is_pyobject_tainted(pyobject):  # type: (Any) -> bool
+        def is_pyobject_tainted(pyobject: Any) -> bool:
             return False
 
     assert not is_pyobject_tainted(request.body)

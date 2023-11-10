@@ -37,8 +37,7 @@ def tracer(request):
 
 
 @pytest.mark.snapshot()
-def test_trace_tags_multispan(tracer):
-    # type: (Tracer) -> None
+def test_trace_tags_multispan(tracer: Tracer) -> None:
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",

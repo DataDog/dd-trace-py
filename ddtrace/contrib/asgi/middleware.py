@@ -42,8 +42,7 @@ ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -82,8 +81,7 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
-def span_from_scope(scope):
-    # type: (Mapping[str, Any]) -> Optional[Span]
+def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     """Retrieve the top-level ASGI span from the scope."""
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 

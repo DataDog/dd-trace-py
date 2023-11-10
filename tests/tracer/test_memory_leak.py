@@ -17,8 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def tracer():
-    # type: (...) -> Tracer
+def tracer() -> Tracer:
     return Tracer()
 
 

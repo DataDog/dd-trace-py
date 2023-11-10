@@ -7,8 +7,7 @@ from .trace import WrappedConnect
 _connect = mongoengine.connect
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(mongoengine, "__version__", "")
 
 

@@ -17,11 +17,10 @@ class Exporter(object):
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
-    ):
-        # type: (...) -> typing.Any
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
+    ) -> typing.Any:
         """Export events.
 
         :param events: List of events to export.
@@ -37,10 +36,9 @@ class NullExporter(Exporter):
 
     def export(
         self,
-        events,  # type: recorder.EventsType
-        start_time_ns,  # type: int
-        end_time_ns,  # type: int
-    ):
-        # type: (...) -> None
+        events: recorder.EventsType,
+        start_time_ns: int,
+        end_time_ns: int,
+    ) -> None:
         """Discard events."""
         pass

@@ -259,10 +259,9 @@ class BaseTestCase(SubprocessTestCase):
 
 
 def _build_tree(
-    spans,  # type: List[Span]
-    root,  # type: Span
-):
-    # type: (...) -> TestSpanNode
+    spans: List[Span],
+    root: Span,
+) -> TestSpanNode:
     """helper to build a tree structure for the provided root span"""
     children = []
     for span in spans:
@@ -273,9 +272,8 @@ def _build_tree(
 
 
 def get_root_span(
-    spans,  # type: List[Span]
-):
-    # type: (...) -> TestSpanNode
+    spans: List[Span],
+) -> TestSpanNode:
     """
     Helper to get the root span from the list of spans in this container
 
@@ -337,8 +335,7 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self):
-        # type: (...) -> TestSpanNode
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -348,8 +345,7 @@ class TestSpanContainer(object):
         """
         return get_root_span(self.spans)
 
-    def get_root_spans(self):
-        # type: (...) -> List[Span]
+    def get_root_spans(self) -> List[Span]:
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -443,12 +439,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Required subclass method for TestSpanContainer"""
         return self.tracer.get_spans()
 
-    def pop_spans(self):
-        # type: () -> List[Span]
+    def pop_spans(self) -> List[Span]:
         return self.tracer.pop()
 
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
+    def pop_traces(self) -> List[List[Span]]:
         return self.tracer.pop_traces()
 
     def reset(self):
@@ -493,14 +487,12 @@ class DummyWriterMixin:
             self.spans += spans
             self.traces += traces
 
-    def pop(self):
-        # type: () -> List[Span]
+    def pop(self) -> List[Span]:
         s = self.spans
         self.spans = []
         return s
 
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
+    def pop_traces(self) -> List[List[Span]]:
         traces = self.traces
         self.traces = []
         return traces
@@ -565,29 +557,24 @@ class DummyTracer(Tracer):
         self.configure(*args, **kwargs)
 
     @property
-    def agent_url(self):
-        # type: () -> str
+    def agent_url(self) -> str:
         return self._writer.agent_url
 
     @property
-    def encoder(self):
-        # type: () -> Encoder
+    def encoder(self) -> Encoder:
         return self._writer.msgpack_encoder
 
-    def get_spans(self):
-        # type: () -> List[List[Span]]
+    def get_spans(self) -> List[List[Span]]:
         spans = self._writer.spans
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
         return spans
 
-    def pop(self):
-        # type: () -> List[Span]
+    def pop(self) -> List[Span]:
         spans = self._writer.pop()
         return spans
 
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
+    def pop_traces(self) -> List[List[Span]]:
         traces = self._writer.pop_traces()
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
@@ -1141,8 +1128,7 @@ def call_program(*args, **kwargs):
     return stdout, stderr, subp.wait(), subp.pid
 
 
-def request_token(request):
-    # type: (pytest.FixtureRequest) -> str
+def request_token(request: pytest.FixtureRequest) -> str:
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""

@@ -52,8 +52,7 @@ def is_module_installed(module_name):
 
 
 def cleanup_loaded_modules():
-    def drop(module_name):
-        # type: (str) -> None
+    def drop(module_name: str) -> None:
         if PY2:
             # Store a reference to deleted modules to avoid them being garbage
             # collected

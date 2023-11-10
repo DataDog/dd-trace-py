@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from typing import Tuple
 
 
-def _is_python_version_supported():  # type: () -> bool
+def _is_python_version_supported() -> bool:
     # IAST supports Python versions 3.6 to 3.11
     return (3, 6, 0) <= sys.version_info < (3, 12, 0)
 
@@ -39,7 +39,7 @@ _SOURCE_NAME_SCRUB = None
 _SOURCE_VALUE_SCRUB = None
 
 
-def _has_to_scrub(s):  # type: (str) -> bool
+def _has_to_scrub(s: str) -> bool:
     global _SOURCE_NAME_SCRUB
     global _SOURCE_VALUE_SCRUB
 
@@ -54,18 +54,17 @@ _REPLACEMENTS = string.ascii_letters
 _LEN_REPLACEMENTS = len(_REPLACEMENTS)
 
 
-def _scrub(s, has_range=False):  # type: (str, bool) -> str
+def _scrub(s: str, has_range: bool = False) -> str:
     if has_range:
         return "".join([_REPLACEMENTS[i % _LEN_REPLACEMENTS] for i in range(len(s))])
     return "*" * len(s)
 
 
-def _is_evidence_value_parts(value):  # type: (Any) -> bool
+def _is_evidence_value_parts(value: Any) -> bool:
     return isinstance(value, (set, list))
 
 
-def _scrub_get_tokens_positions(text, tokens):
-    # type: (str, Set[str]) -> List[Tuple[int, int]]
+def _scrub_get_tokens_positions(text: str, tokens: Set[str]) -> List[Tuple[int, int]]:
     token_positions = []
 
     for token in tokens:

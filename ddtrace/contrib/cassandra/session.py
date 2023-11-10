@@ -47,8 +47,7 @@ PAGE_NUMBER = "_ddtrace_page_number"
 _connect = cassandra_cluster.Cluster.connect
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 

@@ -182,7 +182,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
@@ -208,7 +208,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "cfg-service"
 
     def test_default_service(self):
@@ -223,7 +223,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "db"
 
     def test_default_service_cfg(self):
@@ -238,7 +238,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "default-svc"
 
     def test_service_cfg_and_pin(self):
@@ -253,7 +253,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.service == "pin-svc"
 
     def test_django_traced_cursor_backward_compatibility(self):
@@ -271,7 +271,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -417,7 +417,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
         assert span.name == "my_name", "Span name is respected"
@@ -443,7 +443,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -494,7 +494,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span: Span = tracer.pop()[0]
         assert span.get_metric("db.row_count") is None
 
     def test_callproc_can_handle_arbitrary_args(self):

@@ -47,7 +47,7 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-_PATCHED_SUBMODULES = set()  # type: Set[str]
+_PATCHED_SUBMODULES: Set[str] = set()
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
@@ -79,8 +79,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 
@@ -100,8 +99,7 @@ def _encode_data(trace_data):
     return json.dumps(trace_data)
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
-    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
+def inject_trace_data_to_message_attributes(trace_data: Dict[str, str], entry: Dict[str, Any], endpoint_service: Optional[str] = None) -> None:
     """
     :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
@@ -129,8 +127,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def get_topic_arn(params):
-    # type: (str) -> str
+def get_topic_arn(params: str) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -140,8 +137,7 @@ def get_topic_arn(params):
     return sns_arn
 
 
-def get_queue_name(params):
-    # type: (str) -> str
+def get_queue_name(params: str) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -152,8 +148,7 @@ def get_queue_name(params):
     return url.path.rsplit("/", 1)[-1]
 
 
-def get_stream_arn(params):
-    # type: (str) -> str
+def get_stream_arn(params: str) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -163,8 +158,7 @@ def get_stream_arn(params):
     return stream_arn
 
 
-def get_pathway(pin, endpoint_service, dsm_identifier):
-    # type: (Pin, str, str) -> str
+def get_pathway(pin: Pin, endpoint_service: str, dsm_identifier: str) -> str:
     """
     :pin: patch info for the botocore client
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
@@ -182,8 +176,7 @@ def get_pathway(pin, endpoint_service, dsm_identifier):
     return pathway.encode_b64()
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params: Any, span: Span, endpoint_service: Optional[str] = None, pin: Optional[Pin] = None, data_streams_enabled: Optional[bool] = False) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -212,8 +205,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_sqs_or_sns_message(params: Any, span: Span, endpoint_service: Optional[str] = None, pin: Optional[Pin] = None, data_streams_enabled: Optional[bool] = False) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -238,8 +230,7 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
-def inject_trace_to_eventbridge_detail(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_eventbridge_detail(params: Any, span: Span) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -273,8 +264,7 @@ def inject_trace_to_eventbridge_detail(params, span):
         entry["Detail"] = detail_json
 
 
-def get_json_from_str(data_str):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     data_obj = json.loads(data_str)
 
     if data_str.endswith(LINE_BREAK):
@@ -282,8 +272,7 @@ def get_json_from_str(data_str):
     return None, data_obj
 
 
-def get_kinesis_data_object(data):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     """
     :data: the data from a kinesis stream
 
@@ -318,8 +307,7 @@ def get_kinesis_data_object(data):
     return None, None
 
 
-def inject_trace_to_kinesis_stream_data(record, span):
-    # type: (Dict[str, Any], Span) -> None
+def inject_trace_to_kinesis_stream_data(record: Dict[str, Any], span: Span) -> None:
     """
     :record: contains args for the current botocore action, Kinesis record is at index 1
     :span: the span which provides the trace context to be propagated
@@ -371,8 +359,7 @@ def record_data_streams_path_for_kinesis_stream(pin, params, results):
         )
 
 
-def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
-    # type: (List[Any], Span, Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_kinesis_stream(params: List[Any], span: Span, pin: Optional[Pin] = None, data_streams_enabled: Optional[bool] = False) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -452,8 +439,7 @@ def unpatch():
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
-def patch_submodules(submodules):
-    # type: (Union[List[str], bool]) -> None
+def patch_submodules(submodules: Union[List[str], bool]) -> None:
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
     elif isinstance(submodules, list):
@@ -688,8 +674,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             raise
 
 
-def _set_response_metadata_tags(span, result):
-    # type: (Span, Dict[str, Any]) -> None
+def _set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
     if not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]

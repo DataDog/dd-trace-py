@@ -63,8 +63,7 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("
 
 
 @callonce
-def get_distributions():
-    # type: () -> t.Set[Distribution]
+def get_distributions() -> t.Set[Distribution]:
     """returns the name and version of all distributions in a python path"""
     try:
         import importlib.metadata as importlib_metadata
@@ -86,14 +85,12 @@ def get_distributions():
     return pkgs
 
 
-def _is_python_source_file(path):
-    # type: (pathlib.PurePath) -> bool
+def _is_python_source_file(path: pathlib.PurePath) -> bool:
     return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
 
 
 @callonce
-def _package_file_mapping():
-    # type: (...) -> t.Optional[t.Dict[str, Distribution]]
+def _package_file_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         import importlib.metadata as il_md
     except ImportError:
@@ -120,8 +117,7 @@ def _package_file_mapping():
         return None
 
 
-def filename_to_package(filename):
-    # type: (str) -> t.Optional[Distribution]
+def filename_to_package(filename: str) -> t.Optional[Distribution]:
     mapping = _package_file_mapping()
     if mapping is None:
         return None
@@ -133,6 +129,5 @@ def filename_to_package(filename):
     return mapping.get(filename)
 
 
-def is_third_party(filename):
-    # type: (str) -> bool
+def is_third_party(filename: str) -> bool:
     return filename_to_package(filename) is not None

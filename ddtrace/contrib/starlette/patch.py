@@ -30,8 +30,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(starlette, "__version__", "")
 
 
@@ -77,7 +76,7 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
+    scope: Optional[Dict[str, Any]] = get_argument_value(args, kwargs, 0, "scope")
     if not scope:
         return wrapped(*args, **kwargs)
 
@@ -94,8 +93,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
-    request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
-    resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
+    request_spans: List[Span] = scope["datadog"].get("request_spans", [])
+    resource_paths: List[str] = scope["datadog"].get("resource_paths", [])
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each

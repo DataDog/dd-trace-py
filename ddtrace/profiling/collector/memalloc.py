@@ -66,8 +66,7 @@ class MemoryCollector(collector.PeriodicCollector):
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
     _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
@@ -84,16 +83,14 @@ class MemoryCollector(collector.PeriodicCollector):
         super(MemoryCollector, self)._start_service()
 
     @staticmethod
-    def on_shutdown():
-        # type: () -> None
+    def on_shutdown() -> None:
         if _memalloc is not None:
             try:
                 _memalloc.stop()
             except RuntimeError:
                 pass
 
-    def _get_thread_id_ignore_set(self):
-        # type: () -> typing.Set[int]
+    def _get_thread_id_ignore_set(self) -> typing.Set[int]:
         # This method is not perfect and prone to race condition in theory, but very little in practice.
         # Anyhow it's not a big deal — it's a best effort feature.
         return {

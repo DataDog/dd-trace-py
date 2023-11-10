@@ -16,13 +16,11 @@ if TYPE_CHECKING:
 
 
 class TraceCiVisibilityFilter(TraceFilter):
-    def __init__(self, tags, service):
-        # type: (Dict[Union[str, bytes], str], str) -> None
+    def __init__(self, tags: Dict[Union[str, bytes], str], service: str) -> None:
         self._tags = tags
         self._service = service
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
             return trace
 

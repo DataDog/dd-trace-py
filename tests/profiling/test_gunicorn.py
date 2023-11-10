@@ -35,13 +35,11 @@ def gunicorn(monkeypatch):
     yield _run_gunicorn
 
 
-def _get_worker_pids(stdout):
-    # type: (str) -> list[int]
+def _get_worker_pids(stdout: str) -> list[int]:
     return [int(_) for _ in re.findall(r"Booting worker with pid: (\d+)", stdout)]
 
 
-def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
-    # type: (...) -> None
+def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args) -> None:
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
 
@@ -60,7 +58,6 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
-def test_gunicorn(gunicorn, tmp_path, monkeypatch):
-    # type: (...) -> None
+def test_gunicorn(gunicorn, tmp_path, monkeypatch) -> None:
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)

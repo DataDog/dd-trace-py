@@ -21,12 +21,11 @@ class PeriodicThread(threading.Thread):
 
     def __init__(
         self,
-        interval,  # type: float
-        target,  # type: typing.Callable[[], typing.Any]
-        name=None,  # type: typing.Optional[str]
-        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
-    ):
-        # type: (...) -> None
+        interval: float,
+        target: typing.Callable[[], typing.Any],
+        name: typing.Optional[str] = None,
+        on_shutdown: typing.Optional[typing.Callable[[], typing.Any]] = None,
+    ) -> None:
         """Create a periodic thread.
 
         :param interval: The interval in seconds to wait between execution of the periodic function.
@@ -67,12 +66,11 @@ class AwakeablePeriodicThread(PeriodicThread):
 
     def __init__(
         self,
-        interval,  # type: float
-        target,  # type: typing.Callable[[], typing.Any]
-        name=None,  # type: typing.Optional[str]
-        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
-    ):
-        # type: (...) -> None
+        interval: float,
+        target: typing.Callable[[], typing.Any],
+        name: typing.Optional[str] = None,
+        on_shutdown: typing.Optional[typing.Callable[[], typing.Any]] = None,
+    ) -> None:
         """Create a periodic thread that can be awakened on demand."""
         super(AwakeablePeriodicThread, self).__init__(interval, target, name, on_shutdown)
         self.request = forksafe.Event()
@@ -115,23 +113,20 @@ class PeriodicService(service.Service):
     __thread_class__ = PeriodicThread
 
     @property
-    def interval(self):
-        # type: (...) -> float
+    def interval(self) -> float:
         return self._interval
 
     @interval.setter
     def interval(
         self,
-        value,  # type: float
-    ):
-        # type: (...) -> None
+        value: float,
+    ) -> None:
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
             self._worker.interval = value
 
-    def _start_service(self, *args, **kwargs):
-        # type: (typing.Any, typing.Any) -> None
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Start the periodic service."""
         self._worker = self.__thread_class__(
             self.interval,
@@ -141,17 +136,15 @@ class PeriodicService(service.Service):
         )
         self._worker.start()
 
-    def _stop_service(self, *args, **kwargs):
-        # type: (typing.Any, typing.Any) -> None
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Stop the periodic collector."""
         self._worker.stop()
         super(PeriodicService, self)._stop_service(*args, **kwargs)
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: typing.Optional[float] = None,
+    ) -> None:
         if self._worker:
             self._worker.join(timeout)
 
@@ -159,8 +152,7 @@ class PeriodicService(service.Service):
     def on_shutdown():
         pass
 
-    def periodic(self):
-        # type: (...) -> None
+    def periodic(self) -> None:
         pass
 
 
@@ -169,6 +161,5 @@ class AwakeablePeriodicService(PeriodicService):
 
     __thread_class__ = AwakeablePeriodicThread
 
-    def awake(self):
-        # type: (...) -> None
+    def awake(self) -> None:
         self._worker.awake()

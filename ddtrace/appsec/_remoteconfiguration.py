@@ -108,7 +108,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         tracer = test_tracer
 
     if features and tracer._appsec_processor:
-        ruleset = {}  # type: dict[str, Optional[list[Any]]]
+        ruleset: dict[str, Optional[list[Any]]] = {}
         _add_rules_to_list(features, "rules_data", "rules data", ruleset)
         _add_rules_to_list(features, "custom_rules", "custom rules", ruleset)
         _add_rules_to_list(features, "rules", "Datadog rules", ruleset)

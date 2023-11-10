@@ -15,21 +15,18 @@ log = get_logger(__name__)
 _DEFAULT_ATTR = "_datadog_json_tainting_patch"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def unpatch_iast():
-    # type: () -> None
+def unpatch_iast() -> None:
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)
     try_unwrap("json", "loads")
     try_unwrap("json.encoder", "JSONEncoder.default")
     try_unwrap("simplejson.encoder", "JSONEncoder.default")
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     """Wrap functions which interact with file system."""
     if not set_and_check_module_is_patched("json", default_attr=_DEFAULT_ATTR):
         return

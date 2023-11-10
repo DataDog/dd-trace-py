@@ -19,8 +19,7 @@ else:
     _get_byte = ord
 
 
-def fnv(data, hval_init, fnv_prime, fnv_size):
-    # type: (bytes, int, int, int) -> int
+def fnv(data: bytes, hval_init: int, fnv_prime: int, fnv_size: int) -> int:
     """
     Core FNV hash algorithm used in FNV0 and FNV1.
     """
@@ -31,8 +30,7 @@ def fnv(data, hval_init, fnv_prime, fnv_size):
     return hval
 
 
-def fnv1_64(data):
-    # type: (bytes) -> int
+def fnv1_64(data: bytes) -> int:
     """
     Returns the 64 bit FNV-1 hash value for the given data.
     """

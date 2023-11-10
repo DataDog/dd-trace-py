@@ -66,23 +66,20 @@ _RE_TAGS = re.compile(r"^tags/")
 log = get_logger(__name__)
 
 
-def normalize_ref(name):
-    # type: (Optional[str]) -> Optional[str]
+def normalize_ref(name: Optional[str]) -> Optional[str]:
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
-def is_ref_a_tag(ref):
-    # type: (Optional[str]) -> bool
+def is_ref_a_tag(ref: Optional[str]) -> bool:
     return "tags/" in ref if ref else False
 
 
-def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
-    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
+def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, std_in: Optional[bytes] = None) -> str:
     """Helper for invoking the git CLI binary."""
     if isinstance(cmd, six.string_types):
         git_cmd = cmd.split(" ")
     else:
-        git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
+        git_cmd: list[str] = cmd  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
     process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
     stdout, stderr = process.communicate(input=std_in)
@@ -100,20 +97,17 @@ def _set_safe_directory():
         log.error("Error setting safe directory", exc_info=True)
 
 
-def _extract_clone_defaultremotename(cwd=None):
-    # type: (Optional[str]) -> str
+def _extract_clone_defaultremotename(cwd: Optional[str] = None) -> str:
     output = _git_subprocess_cmd("config --default origin --get clone.defaultRemoteName", cwd=cwd)
     return output
 
 
-def _extract_upstream_sha(cwd=None):
-    # type: (Optional[str]) -> str
+def _extract_upstream_sha(cwd: Optional[str] = None) -> str:
     output = _git_subprocess_cmd("rev-parse @{upstream}", cwd=cwd)
     return output
 
 
-def _is_shallow_repository(cwd=None):
-    # type: (Optional[str]) -> bool
+def _is_shallow_repository(cwd: Optional[str] = None) -> bool:
     output = _git_subprocess_cmd("rev-parse --is-shallow-repository", cwd=cwd)
     return output.strip() == "true"
 
@@ -136,8 +130,7 @@ def _unshallow_repository(cwd=None, repo=None, refspec=None):
     return _git_subprocess_cmd(cmd, cwd=cwd)
 
 
-def extract_user_info(cwd=None):
-    # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
+def extract_user_info(cwd: Optional[str] = None) -> Dict[str, Tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     stdout = _git_subprocess_cmd("show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd)
@@ -172,8 +165,7 @@ def get_rev_list_excluding_commits(commit_shas, cwd=None):
     return _get_rev_list(excluded_commit_shas=commit_shas, cwd=cwd)
 
 
-def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
-    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> str
+def _get_rev_list(excluded_commit_shas: Optional[list[str]] = None, included_commit_shas: Optional[list[str]] = None, cwd: Optional[str] = None) -> str:
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
@@ -189,47 +181,41 @@ def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None
     return commits
 
 
-def extract_repository_url(cwd=None):
-    # type: (Optional[str]) -> str
+def extract_repository_url(cwd: Optional[str] = None) -> str:
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
     repository_url = _git_subprocess_cmd("ls-remote --get-url", cwd=cwd)
     return repository_url
 
 
-def extract_commit_message(cwd=None):
-    # type: (Optional[str]) -> str
+def extract_commit_message(cwd: Optional[str] = None) -> str:
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
     return commit_message
 
 
-def extract_workspace_path(cwd=None):
-    # type: (Optional[str]) -> str
+def extract_workspace_path(cwd: Optional[str] = None) -> str:
     """Extract the root directory path from the git repository in the current directory or one specified by ``cwd``."""
     workspace_path = _git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
     return workspace_path
 
 
-def extract_branch(cwd=None):
-    # type: (Optional[str]) -> str
+def extract_branch(cwd: Optional[str] = None) -> str:
     """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
     branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
     return branch
 
 
-def extract_commit_sha(cwd=None):
-    # type: (Optional[str]) -> str
+def extract_commit_sha(cwd: Optional[str] = None) -> str:
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
     commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
 
 
-def extract_git_metadata(cwd=None):
-    # type: (Optional[str]) -> Dict[str, Optional[str]]
+def extract_git_metadata(cwd: Optional[str] = None) -> Dict[str, Optional[str]]:
     """Extract git commit metadata."""
-    tags = {}  # type: Dict[str, Optional[str]]
+    tags: Dict[str, Optional[str]] = {}
     _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
@@ -253,8 +239,7 @@ def extract_git_metadata(cwd=None):
     return tags
 
 
-def extract_user_git_metadata(env=None):
-    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
+def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> Dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
     env = os.environ if env is None else env
 
@@ -283,8 +268,7 @@ def extract_user_git_metadata(env=None):
 
 
 @contextlib.contextmanager
-def build_git_packfiles(revisions, cwd=None):
-    # type: (str, Optional[str]) -> Generator
+def build_git_packfiles(revisions: str, cwd: Optional[str] = None) -> Generator:
     basename = str(random.randint(1, 1000000))
     try:
         with TemporaryDirectory() as tempdir:

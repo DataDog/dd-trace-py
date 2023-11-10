@@ -43,8 +43,7 @@ log = get_logger(__name__)
 
 @attr.s
 class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __attrs_post_init__(self) -> None:
         """Default post initializer which logs the representation of the
         TraceProcessor at the ``logging.DEBUG`` level.
 
@@ -59,8 +58,7 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         log.debug("initialized trace processor %r", self)
 
     @abc.abstractmethod
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """Processes a trace.
 
         ``None`` can be returned to prevent the trace from being further
@@ -81,8 +79,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
     _compute_stats_enabled = attr.ib(type=bool)
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
@@ -117,8 +114,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _):
-        # type: (Span) -> None
+    def on_span_start(self, _: Span) -> None:
         pass
 
     def on_span_finish(self, span):
@@ -138,8 +134,7 @@ class TraceTagsProcessor(TraceProcessor):
         if commit_sha:
             chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
             return trace
 
@@ -171,8 +166,8 @@ class SpanAggregator(SpanProcessor):
 
     @attr.s
     class _Trace(object):
-        spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
-        num_finished = attr.ib(type=int, default=0)  # type: int
+        spans: List[Span] = attr.ib(default=attr.Factory(list))
+        num_finished: int = attr.ib(type=int, default=0)
 
     _partial_flush_enabled = attr.ib(type=bool)
     _partial_flush_min_spans = attr.ib(type=int)
@@ -199,16 +194,14 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
             self._span_metrics["spans_created"][span._span_api] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
             trace = self._traces[span.trace_id]
@@ -238,7 +231,7 @@ class SpanAggregator(SpanProcessor):
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
 
-                spans = finished  # type: Optional[List[Span]]
+                spans: Optional[List[Span]] = finished
                 for tp in self._trace_processors:
                     try:
                         if spans is None:
@@ -254,8 +247,7 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         """
         This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
         used for tracing after this method has been called. A new tracer instance is required to continue tracing.
@@ -287,8 +279,7 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
-        # type: (str, str, Optional[int]) -> None
+    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: Optional[int] = 100) -> None:
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
@@ -314,12 +305,10 @@ class SpanSamplingProcessor(SpanProcessor):
 
     rules = attr.ib(type=List[SpanSamplingRule])
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         # only sample if the span isn't already going to be sampled by trace sampler
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:

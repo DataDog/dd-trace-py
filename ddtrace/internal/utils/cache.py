@@ -25,13 +25,11 @@ class LFUCache(dict):
     cache when it grows beyond the requested size is O(log(size)).
     """
 
-    def __init__(self, maxsize=256):
-        # type: (int) -> None
+    def __init__(self, maxsize: int = 256) -> None:
         self.maxsize = maxsize
         self.lock = RLock()
 
-    def get(self, key, f):  # type: ignore[override]
-        # type: (T, F) -> Any
+    def get(self, key: T, f: F) -> Any:  # type: ignore[override]
         """Get a value from the cache.
 
         If the value with the given key is not in the cache, the expensive
@@ -62,16 +60,13 @@ class LFUCache(dict):
             return value
 
 
-def cached(maxsize=256):
-    # type: (int) -> Callable[[F], F]
+def cached(maxsize: int = 256) -> Callable[[F], F]:
     """Decorator for memoizing functions of a single argument (LFU policy)."""
 
-    def cached_wrapper(f):
-        # type: (F) -> F
+    def cached_wrapper(f: F) -> F:
         cache = LFUCache(maxsize)
 
-        def cached_f(key):
-            # type: (T) -> Any
+        def cached_f(key: T) -> Any:
             return cache.get(key, f)
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
@@ -82,38 +77,32 @@ def cached(maxsize=256):
 
 
 class CachedMethodDescriptor(object):
-    def __init__(self, method, maxsize):
-        # type: (M, int) -> None
+    def __init__(self, method: M, maxsize: int) -> None:
         self._method = method
         self._maxsize = maxsize
 
-    def __get__(self, obj, objtype=None):
-        # type: (Any, Optional[Type]) -> F
+    def __get__(self, obj: Any, objtype: Optional[Type] = None) -> F:
         cached_method = cached(self._maxsize)(self._method.__get__(obj, objtype))
         setattr(obj, self._method.__name__, cached_method)
         return cached_method
 
 
-def cachedmethod(maxsize=256):
-    # type: (int) -> Callable[[M], CachedMethodDescriptor]
+def cachedmethod(maxsize: int = 256) -> Callable[[M], CachedMethodDescriptor]:
     """Decorator for memoizing methods of a single argument (LFU policy)."""
 
-    def cached_wrapper(f):
-        # type: (M) -> CachedMethodDescriptor
+    def cached_wrapper(f: M) -> CachedMethodDescriptor:
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
 
 
-def callonce(f):
-    # type: (Callable[[], Any]) -> Callable[[], Any]
+def callonce(f: Callable[[], Any]) -> Callable[[], Any]:
     """Decorator for executing a function only the first time."""
     argspec = getfullargspec(f)
     if is_not_void_function(f, argspec):
         raise ValueError("The callonce decorator can only be applied to functions with no arguments")
 
-    def _():
-        # type: () -> Any
+    def _() -> Any:
         try:
             retval, exc = f.__callonce_result__  # type: ignore[attr-defined]
         except AttributeError:

@@ -29,8 +29,7 @@ class RateLimiter(object):
         "tokens_total",
     )
 
-    def __init__(self, rate_limit):
-        # type: (int) -> None
+    def __init__(self, rate_limit: int) -> None:
         """
         Constructor for RateLimiter
 
@@ -41,15 +40,15 @@ class RateLimiter(object):
         :type rate_limit: :obj:`int`
         """
         self.rate_limit = rate_limit
-        self.tokens = rate_limit  # type: float
+        self.tokens: float = rate_limit
         self.max_tokens = rate_limit
 
         self.last_update_ns = compat.monotonic_ns()
 
-        self.current_window_ns = 0  # type: float
+        self.current_window_ns: float = 0
         self.tokens_allowed = 0
         self.tokens_total = 0
-        self.prev_window_rate = None  # type: Optional[float]
+        self.prev_window_rate: Optional[float] = None
 
         self._lock = threading.Lock()
 
@@ -57,8 +56,7 @@ class RateLimiter(object):
     def _has_been_configured(self):
         return self.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
 
-    def is_allowed(self, timestamp_ns):
-        # type: (int) -> bool
+    def is_allowed(self, timestamp_ns: int) -> bool:
         """
         Check whether the current request is allowed or not
 
@@ -74,8 +72,7 @@ class RateLimiter(object):
         self._update_rate_counts(allowed, timestamp_ns)
         return allowed
 
-    def _update_rate_counts(self, allowed, timestamp_ns):
-        # type: (bool, int) -> None
+    def _update_rate_counts(self, allowed: bool, timestamp_ns: int) -> None:
         # No tokens have been seen yet, start a new window
         if not self.current_window_ns:
             self.current_window_ns = timestamp_ns
@@ -94,8 +91,7 @@ class RateLimiter(object):
             self.tokens_allowed += 1
         self.tokens_total += 1
 
-    def _is_allowed(self, timestamp_ns):
-        # type: (int) -> bool
+    def _is_allowed(self, timestamp_ns: int) -> bool:
         # Rate limit of 0 blocks everything
         if self.rate_limit == 0:
             return False
@@ -114,8 +110,7 @@ class RateLimiter(object):
 
             return False
 
-    def _replenish(self, timestamp_ns):
-        # type: (int) -> None
+    def _replenish(self, timestamp_ns: int) -> None:
         try:
             # If we are at the max, we do not need to add any more
             if self.tokens == self.max_tokens:
@@ -136,8 +131,7 @@ class RateLimiter(object):
             self.tokens + (elapsed * self.rate_limit),
         )
 
-    def _current_window_rate(self):
-        # type: () -> float
+    def _current_window_rate(self) -> float:
         # No tokens have been seen, effectively 100% sample rate
         # DEV: This is to avoid division by zero error
         if not self.tokens_total:
@@ -147,8 +141,7 @@ class RateLimiter(object):
         return self.tokens_allowed / self.tokens_total
 
     @property
-    def effective_rate(self):
-        # type: () -> float
+    def effective_rate(self) -> float:
         """
         Return the effective sample rate of this rate limiter
 
@@ -220,8 +213,7 @@ class BudgetRateLimiterWithJitter(object):
             self.budget = self.max_budget = 1.0
         self._on_exceed_called = False
 
-    def limit(self, f=None, *args, **kwargs):
-        # type: (Optional[Callable[..., Any]], *Any, **Any) -> Any
+    def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
@@ -249,8 +241,7 @@ class BudgetRateLimiterWithJitter(object):
         else:
             return RateLimitExceeded
 
-    def __call__(self, f):
-        # type: (Callable[..., Any]) -> Callable[..., Any]
+    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
         def limited_f(*args, **kwargs):
             return self.limit(f, *args, **kwargs)
 

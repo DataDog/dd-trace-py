@@ -22,8 +22,7 @@ from .. import trace_utils
 log = get_logger(__name__)
 
 
-def _extract_hostname(uri):
-    # type: (str) -> str
+def _extract_hostname(uri: str) -> str:
     parsed_uri = parse.urlparse(uri)
     port = None
     try:
@@ -37,8 +36,7 @@ def _extract_hostname(uri):
     return parsed_uri.hostname
 
 
-def _extract_query_string(uri):
-    # type: (str) -> Optional[str]
+def _extract_query_string(uri: str) -> Optional[str]:
     start = uri.find("?") + 1
     if start == 0:
         return None

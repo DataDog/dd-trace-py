@@ -77,17 +77,15 @@ class RuntimeWorker(periodic.PeriodicService):
     _services = attr.ib(type=Set[str], init=False, factory=set)
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: ClassVar[Optional[RuntimeWorker]] = None
     _lock = forksafe.Lock()
 
-    def __attrs_post_init__(self):
-        # type: () -> None
+    def __attrs_post_init__(self) -> None:
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls) -> None:
         with cls._lock:
             if cls._instance is None:
                 return
@@ -116,8 +114,7 @@ class RuntimeWorker(periodic.PeriodicService):
         cls.enable()
 
     @classmethod
-    def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
-        # type: (Optional[float], Optional[ddtrace.Tracer], Optional[str]) -> None
+    def enable(cls, flush_interval: Optional[float] = None, tracer: Optional[ddtrace.Tracer] = None, dogstatsd_url: Optional[str] = None) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
@@ -137,8 +134,7 @@ class RuntimeWorker(periodic.PeriodicService):
         # Report status to telemetry
         telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
-    def flush(self):
-        # type: () -> None
+    def flush(self) -> None:
         # The constant tags for the dogstatsd client needs to updated with any new
         # service(s) that may have been added.
         if self._services != self.tracer._services:
@@ -150,13 +146,11 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.distribution(key, value)
 
-    def _stop_service(self):
-        # type: (...) -> None
+    def _stop_service(self) -> None:
         # De-register span hook
         super(RuntimeWorker, self)._stop_service()
 
-    def update_runtime_tags(self):
-        # type: () -> None
+    def update_runtime_tags(self) -> None:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
         log.debug("Updating constant tags %s", tags)

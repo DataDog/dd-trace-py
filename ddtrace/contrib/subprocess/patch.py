@@ -35,14 +35,12 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def patch():
-    # type: () -> List[str]
-    patched = []  # type: List[str]
+def patch() -> List[str]:
+    patched: List[str] = []
     if not asm_config._asm_enabled:
         return patched
 
@@ -91,8 +89,8 @@ class SubprocessCmdLineCacheEntry(object):
 
 class SubprocessCmdLine(object):
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE = {}  # type: Dict[str, SubprocessCmdLineCacheEntry]
-    _CACHE_DEQUE = collections.deque()  # type: Deque[str]
+    _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
+    _CACHE_DEQUE: Deque[str] = collections.deque()
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -147,8 +145,7 @@ class SubprocessCmdLine(object):
     ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args, shell=False):
-        # type: (Union[str, List[str]], bool) -> None
+    def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -259,8 +256,7 @@ class SubprocessCmdLine(object):
 
         self.arguments = new_args
 
-    def truncate_string(self, str_):
-        # type: (str) -> str
+    def truncate_string(self, str_: str) -> str:
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
         if oversize <= 0:
@@ -272,8 +268,7 @@ class SubprocessCmdLine(object):
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self):
-        # type: () -> Tuple[list[str], str]
+    def _as_list_and_string(self) -> Tuple[list[str], str]:
 
         total_list = self.env_vars + [self.binary] + self.arguments
         truncated_str = self.truncate_string(shjoin(total_list))
@@ -299,8 +294,7 @@ class SubprocessCmdLine(object):
         return str_res
 
 
-def unpatch():
-    # type: () -> None
+def unpatch() -> None:
     trace_utils.unwrap(os, "system")
     trace_utils.unwrap(os, "_spawnvef")
     trace_utils.unwrap(subprocess.Popen, "__init__")

@@ -7,8 +7,7 @@ from .client import TracedClient
 _Client = pylibmc.Client
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(pylibmc, "__version__", "")
 
 

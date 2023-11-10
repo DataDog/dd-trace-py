@@ -90,8 +90,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 )
 
 
-def _parse_propagation_styles(name, default):
-    # type: (str, Optional[str]) -> Optional[List[str]]
+def _parse_propagation_styles(name: str, default: Optional[str]) -> Optional[List[str]]:
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -173,8 +172,7 @@ def _deepmerge(source, destination):
     return destination
 
 
-def get_error_ranges(error_range_str):
-    # type: (str) -> List[Tuple[int, int]]
+def get_error_ranges(error_range_str: str) -> List[Tuple[int, int]]:
     error_ranges = []
     error_range_str = error_range_str.strip()
     error_ranges_str = error_range_str.split(",")
@@ -218,8 +216,7 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
-    def source(self):
-        # type: () -> ConfigSource
+    def source(self) -> ConfigSource:
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
@@ -236,8 +233,7 @@ class _ConfigItem:
         )
 
 
-def _default_config():
-    # type: () -> Dict[str, _ConfigItem]
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
@@ -264,35 +260,31 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
+    _extra_services_queue: multiprocessing.Queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
         512
-    )  # type: multiprocessing.Queue
+    )
 
     class _HTTPServerConfig(object):
-        _error_statuses = "500-599"  # type: str
-        _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
+        _error_statuses: str = "500-599"
+        _error_ranges: List[Tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
-        def error_statuses(self):
-            # type: () -> str
+        def error_statuses(self) -> str:
             return self._error_statuses
 
         @error_statuses.setter
-        def error_statuses(self, value):
-            # type: (str) -> None
+        def error_statuses(self, value: str) -> None:
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
             self.is_error_code.invalidate()  # type: ignore[attr-defined]
 
         @property
-        def error_ranges(self):
-            # type: () -> List[Tuple[int, int]]
+        def error_ranges(self) -> List[Tuple[int, int]]:
             return self._error_ranges
 
         @cachedmethod()
-        def is_error_code(self, status_code):
-            # type: (int) -> bool
+        def is_error_code(self, status_code: int) -> bool:
             """Returns a boolean representing whether or not a status code is an error code.
             Error status codes by default are 500-599.
             You may also enable custom error codes::
@@ -471,7 +463,7 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
+        self._subscriptions: List[Tuple[List[str], Callable[[Config, List[str]], None]]] = []
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
@@ -492,8 +484,7 @@ class Config(object):
             except BaseException:  # nosec
                 pass
 
-    def _get_extra_services(self):
-        # type: () -> set[str]
+    def _get_extra_services(self) -> set[str]:
 
         try:
             while True:
@@ -559,8 +550,7 @@ class Config(object):
         self.http.trace_headers(whitelist)
         return self
 
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
+    def header_is_traced(self, header_name: str) -> bool:
         """
         Returns whether or not the current header should be traced.
         :param header_name: the header name
@@ -570,8 +560,7 @@ class Config(object):
         return self.http.header_is_traced(header_name)
 
     @cachedmethod()
-    def _header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def _header_tag_name(self, header_name: str) -> Optional[str]:
         return self.http._header_tag_name(header_name)
 
     def _get_service(self, default=None):
@@ -591,19 +580,16 @@ class Config(object):
         integrations = ", ".join(self._integration_config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
-    def _subscribe(self, items, handler):
-        # type: (List[str], Callable[[Config, List[str]], None]) -> None
+    def _subscribe(self, items: List[str], handler: Callable[[Config, List[str]], None]) -> None:
         self._subscriptions.append((items, handler))
 
-    def _notify_subscribers(self, changed_items):
-        # type: (List[str]) -> None
+    def _notify_subscribers(self, changed_items: List[str]) -> None:
         for sub_items, sub_handler in self._subscriptions:
             sub_updated_items = [i for i in changed_items if i in sub_items]
             if sub_updated_items:
                 sub_handler(self, sub_updated_items)
 
-    def __setattr__(self, key, value):
-        # type: (str, Any) -> None
+    def __setattr__(self, key: str, value: Any) -> None:
         if key == "_config":
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
@@ -613,10 +599,8 @@ class Config(object):
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _reset(self):
-        # type: () -> None
+    def _reset(self) -> None:
         self._config = _default_config()
 
-    def _get_source(self, item):
-        # type: (str) -> str
+    def _get_source(self, item: str) -> str:
         return self._config[item].source()

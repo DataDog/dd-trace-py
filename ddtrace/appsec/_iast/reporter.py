@@ -24,10 +24,10 @@ def _only_if_true(value):
 
 @attr.s(eq=False, hash=False)
 class Evidence(object):
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
-    valueParts = attr.ib(type=list, default=None)  # type: Optional[List[Dict[str, Any]]]
-    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
+    value: Optional[str] = attr.ib(type=str, default=None)
+    pattern: Optional[str] = attr.ib(type=str, default=None)
+    valueParts: Optional[List[Dict[str, Any]]] = attr.ib(type=list, default=None)
+    redacted: bool = attr.ib(type=bool, default=False, converter=_only_if_true)
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -55,17 +55,17 @@ class Evidence(object):
 
 @attr.s(eq=True, hash=True)
 class Location(object):
-    spanId = attr.ib(type=int, eq=False, hash=False, repr=False)  # type: int
-    path = attr.ib(type=str, default=None)  # type: Optional[str]
-    line = attr.ib(type=int, default=None)  # type: Optional[int]
+    spanId: int = attr.ib(type=int, eq=False, hash=False, repr=False)
+    path: Optional[str] = attr.ib(type=str, default=None)
+    line: Optional[int] = attr.ib(type=int, default=None)
 
 
 @attr.s(eq=True, hash=True)
 class Vulnerability(object):
-    type = attr.ib(type=str)  # type: str
-    evidence = attr.ib(type=Evidence, repr=False)  # type: Evidence
-    location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)  # type: Location
-    hash = attr.ib(init=False, eq=False, hash=False, repr=False)  # type: int
+    type: str = attr.ib(type=str)
+    evidence: Evidence = attr.ib(type=Evidence, repr=False)
+    location: Location = attr.ib(type=Location, hash="PYTEST_CURRENT_TEST" in os.environ)
+    hash: int = attr.ib(init=False, eq=False, hash=False, repr=False)
 
     def __attrs_post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
@@ -75,17 +75,17 @@ class Vulnerability(object):
 
 @attr.s(eq=True, hash=True)
 class Source(object):
-    origin = attr.ib(type=str)  # type: str
-    name = attr.ib(type=str)  # type: str
-    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
-    value = attr.ib(type=str, default=None)  # type: Optional[str]
-    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
+    origin: str = attr.ib(type=str)
+    name: str = attr.ib(type=str)
+    redacted: bool = attr.ib(type=bool, default=False, converter=_only_if_true)
+    value: Optional[str] = attr.ib(type=str, default=None)
+    pattern: Optional[str] = attr.ib(type=str, default=None)
 
 
 @attr.s(eq=False, hash=False)
 class IastSpanReporter(object):
-    sources = attr.ib(type=List[Source], factory=list)  # type: List[Source]
-    vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
+    sources: List[Source] = attr.ib(type=List[Source], factory=list)
+    vulnerabilities: Set[Vulnerability] = attr.ib(type=Set[Vulnerability], factory=set)
 
     def __hash__(self):
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))

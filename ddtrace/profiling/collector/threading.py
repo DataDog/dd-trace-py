@@ -30,12 +30,10 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_original(self):
-        # type: (...) -> typing.Any
+    def _get_original(self) -> typing.Any:
         return threading.Lock
 
     def _set_original(
-        self, value  # type: typing.Any
-    ):
-        # type: (...) -> None
+        self, value: typing.Any
+    ) -> None:
         threading.Lock = value  # type: ignore[misc]

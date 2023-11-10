@@ -9,8 +9,7 @@ ddtrace works with Gunicorn.
 """
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
