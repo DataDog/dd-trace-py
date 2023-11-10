@@ -190,9 +190,9 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _higher_order_is_valid(upper_64_bits):
+        # type: (str) -> bool
         try:
-            int(upper_64_bits, 16)
-            if len(upper_64_bits) != 16 or not (upper_64_bits.islower()):
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
                 raise ValueError
         except ValueError:
             return False
