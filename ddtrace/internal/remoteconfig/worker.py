@@ -80,7 +80,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             self.start()
-            forksafe.register(self.start_subscribers)
+
             atexit.register(self.disable)
             return True
         return False
@@ -121,7 +121,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        forksafe.unregister(self.start_subscribers)
         atexit.unregister(self.disable)
 
         self.stop(join=join)
