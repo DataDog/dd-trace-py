@@ -228,7 +228,7 @@ class TraceMiddleware:
             async def wrapped_blocked_send(message):
                 status, headers, content = core.dispatch("asgi.block.started", ctx, url)[0][0]
                 if span and message.get("type") == "http.response.start":
-                    message["headers"] = [(k.encode(), v.encode()) for k, v in headers]
+                    message["headers"] = headers
                     message["status"] = status
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
