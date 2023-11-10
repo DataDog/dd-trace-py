@@ -1,4 +1,5 @@
 import abc
+from enum import Enum
 from threading import Thread
 import time
 from types import FrameType
@@ -12,7 +13,6 @@ from typing import cast
 from uuid import uuid4
 
 import attr
-import six
 
 from ddtrace.context import Context
 from ddtrace.debugging import _safety
@@ -31,8 +31,7 @@ class EvaluationError(object):
     message = attr.ib(type=str)
 
 
-# TODO: make this an Enum once Python 2 support is dropped.
-class SignalState(object):
+class SignalState(str, Enum):
     NONE = "NONE"
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
@@ -42,7 +41,7 @@ class SignalState(object):
 
 
 @attr.s
-class Signal(six.with_metaclass(abc.ABCMeta)):
+class Signal(abc.ABC):
     """Debugger signal base class.
 
     Used to model the data carried by the signal emitted by a probe when it is
@@ -72,10 +71,11 @@ class Signal(six.with_metaclass(abc.ABCMeta)):
                 return True
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
-            if probe.condition_error_limiter.limit() is RateLimitExceeded:
-                self.state = SignalState.SKIP_COND_ERROR
-            else:
-                self.state = SignalState.COND_ERROR
+            self.state = (
+                SignalState.SKIP_COND_ERROR
+                if probe.condition_error_limiter.limit() is RateLimitExceeded
+                else SignalState.COND_ERROR
+            )
         else:
             self.state = SignalState.SKIP_COND
 
