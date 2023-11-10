@@ -84,7 +84,7 @@ async def coro_2(request):
 
 
 async def delayed_handler(request):
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.01)
     return web.Response(text="Done")
 
 
