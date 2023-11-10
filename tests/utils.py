@@ -1112,11 +1112,6 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
-class AnyStringWithText(str):
-    def __eq__(self, other):
-        return self in other
-
-
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
