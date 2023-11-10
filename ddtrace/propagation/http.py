@@ -837,8 +837,7 @@ class HTTPPropagator(object):
         """Extract a Context from HTTP headers into a new Context.
         We have a special case for tracecontext propagation to extract tracestate headers for
         propagation even if another propagation style is specified before tracecontext.
-        This is skipped if tracecontext isn't configured as a propagation style,
-        or tracer is configured to take the first style it matches.
+        This is skipped if the tracer is configured to take the first style it matches.
 
         Here is an example from a web endpoint::
 
@@ -860,39 +859,41 @@ class HTTPPropagator(object):
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            # if tracecontext propagation style is configured and isn't the first,
             # or tracer configured to extract first only
-            if (
-                _PROPAGATION_STYLE_W3C_TRACECONTEXT not in config._propagation_style_extract
-                or config._propagation_style_extract[0] == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                or config._propagation_extract_first
-            ):
+            if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
                     if context is not None:
                         return context
+            # loop through all extract propagation styles
             else:
-                primary_context = None
+                contexts = []
+                styles_w_ctx = []
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
-                    primary_context = propagator._extract(normalized_headers)  # type: ignore
-                    if primary_context is not None:
-                        if prop_style == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
-                            return primary_context
-                        break
+                    context = propagator._extract(normalized_headers)  # type: ignore
+                    if context:
+                        contexts.append(context)
+                        styles_w_ctx.append(prop_style)
 
-                tracecontext_context = _PROP_STYLES[_PROPAGATION_STYLE_W3C_TRACECONTEXT]._extract(normalized_headers)  # type: ignore
-                # trace id of tracecontext context and other primary context match
-                # add the tracestate to the primary context
-                if primary_context:
-                    if tracecontext_context and tracecontext_context.trace_id == primary_context.trace_id:
-                        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
-                        if ts:
-                            # add the raw tracestate value to the context, no validation needed
-                            primary_context._meta[W3C_TRACESTATE_KEY] = ts
-
+                if contexts:
+                    primary_context = contexts[0]
+                    # if tracecontext context and it's not the first, we should compare trace_id's
+                    # to potentially add tracestate to primary_context
+                    if (
+                        _PROPAGATION_STYLE_W3C_TRACECONTEXT in styles_w_ctx
+                        and not styles_w_ctx[0] == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                    ):
+                        if (
+                            contexts[styles_w_ctx.index(_PROPAGATION_STYLE_W3C_TRACECONTEXT)].trace_id
+                            == primary_context.trace_id
+                        ):
+                            # extract and add the raw ts value to the primary_context
+                            ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
+                            if ts:
+                                primary_context._meta[W3C_TRACESTATE_KEY] = ts
                     return primary_context
 
         except Exception:
