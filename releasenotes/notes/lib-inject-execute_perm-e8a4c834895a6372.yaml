@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib injection: Fix permissions error raised when non-root users copy single step instrumentation files.
