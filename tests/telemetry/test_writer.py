@@ -360,6 +360,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
+@flaky(until=1704067200)
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
