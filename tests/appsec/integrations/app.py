@@ -28,8 +28,9 @@ def submit_file():
 
 @app.route("/test-body-hang", methods=["POST"])
 def appsec_body_hang():
-    # If you uncomment this, it will also hang even without ddtrace:
-    # print("request.data: %s" % request.stream.readlines())
+    # This will hang with or without appsec if you sent a POST request with Content-Length > 0 but without
+    # any real data:
+    print("request.data: %s" % request.data)
     return "OK_test-body-hang", 200
 
 
