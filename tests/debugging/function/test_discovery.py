@@ -5,14 +5,7 @@ import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import _undecorate
-from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
-
-
-def _f(f):
-    if PY2:
-        return f.im_func
-    return f
 
 
 @pytest.fixture
@@ -96,7 +89,7 @@ def test_function_module_method(stuff_discovery):
 def test_function_instance_method(stuff_discovery):
     cls = stuff.Stuff
     (original_func,) = stuff_discovery.at_line(36)
-    assert _f(cls.instancestuff) is original_func
+    assert cls.instancestuff is original_func
 
 
 def test_function_decorated_method(stuff_discovery):
@@ -108,7 +101,7 @@ def test_function_decorated_method(stuff_discovery):
 def test_function_mangled(stuff_discovery):
     original_method = stuff.Stuff._Stuff__mangledstuff
     (original_func,) = stuff_discovery.at_line(75)
-    assert _f(original_method) is original_func
+    assert original_method is original_func
 
 
 def test_discovery_after_external_wrapping(stuff):
