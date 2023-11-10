@@ -25,7 +25,7 @@ _app = app.get_app()
 
 
 def _aux_appsec_prepare_tracer(tracer, appsec_enabled=True):
-    tracer._appsec_enabled = appsec_enabled
+    tracer._asm_enabled = appsec_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
 
@@ -67,7 +67,7 @@ def fastapi_ipblock_nomatch_200_json(client, tracer, test_spans, ip):
 
     _aux_appsec_prepare_tracer(tracer)
     for ip in [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT]:
-        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             resp = client.get("/", headers={"X-Real-Ip": ip})
             root_span = test_spans.pop_traces()[0][0]
             assert resp.status_code == 200

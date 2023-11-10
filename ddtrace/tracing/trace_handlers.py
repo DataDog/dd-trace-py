@@ -497,6 +497,7 @@ def _on_django_after_request_headers_post(
 
 def listen():
     core.on("wsgi.block.started", _make_block_content)
+    core.on("asgi.block.started", _make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)

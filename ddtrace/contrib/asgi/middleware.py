@@ -140,6 +140,7 @@ class TraceMiddleware:
             span=span,
         ) as ctx:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+            ctx.set_item("req_span", span)
 
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
@@ -227,7 +228,7 @@ class TraceMiddleware:
             async def wrapped_blocked_send(message):
                 status, headers, content = core.dispatch("asgi.block.started", ctx, url)[0][0]
                 if span and message.get("type") == "http.response.start":
-                    message["headers"] = headers
+                    message["headers"] = [(k.encode(), v.encode()) for k, v in headers]
                     message["status"] = status
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
@@ -242,7 +243,8 @@ class TraceMiddleware:
                     )
 
             try:
-                if core.get_item(HTTP_REQUEST_BLOCKED):
+                core.dispatch("asgi.start_response", "asgi")
+                if core.get_item(HTTP_REQUEST_BLOCKED, span=span):
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 res = await self.app(scope, receive, wrapped_send)
                 if core.get_item(HTTP_REQUEST_BLOCKED):

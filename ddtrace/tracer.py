@@ -129,7 +129,6 @@ def _default_span_processors_factory(
 
     span_processors = []  # type: List[SpanProcessor]
     span_processors += [TopLevelSpanProcessor()]
-
     if appsec_enabled:
         if asm_config._api_security_enabled:
             from ddtrace.appsec._api_security.api_manager import APIManager
