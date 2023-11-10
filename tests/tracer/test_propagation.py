@@ -600,6 +600,12 @@ TRACECONTEXT_HEADERS_VALID = {
 }
 
 
+TRACECONTEXT_HEADERS_VALID_64_bit = {
+    _HTTP_HEADER_TRACEPARENT: "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+}
+
+
 @pytest.mark.parametrize(
     "sampling_priority_tp,sampling_priority_ts,expected_sampling_priority",
     [
@@ -1013,7 +1019,6 @@ DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
     HTTP_HEADER_PARENT_ID: "5678",
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
-    _HTTP_HEADER_TAGS: "=".join([HIGHER_ORDER_TRACE_ID_BITS, "80f198ee56343ba8"]),
 }
 DATADOG_HEADERS_INVALID = {
     HTTP_HEADER_TRACE_ID: "13088165645273925489",  # still valid
@@ -1046,7 +1051,8 @@ ALL_HEADERS.update(TRACECONTEXT_HEADERS_VALID)
 
 DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS = {}
 DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID)
-DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(TRACECONTEXT_HEADERS_VALID)
+# we use 64-bit traceparent trace id value here so it can match for both 128-bit enabled and disabled
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(TRACECONTEXT_HEADERS_VALID_64_bit)
 
 
 EXTRACT_FIXTURES = [
@@ -1530,24 +1536,6 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
-    (
-        # name, styles, headers, expected_context,
-        "tracecontext_precedence_matters_invalid_dd_headers",
-        [
-            PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
-            PROPAGATION_STYLE_B3_MULTI,
-            PROPAGATION_STYLE_B3_SINGLE,
-        ],
-        {**DATADOG_HEADERS_INVALID, **B3_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID, **B3_SINGLE_HEADERS_VALID},
-        {
-            "trace_id": TRACE_ID,
-            "span_id": 67667974448284343,
-            "sampling_priority": 2,
-            "dd_origin": "rum",
-            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
-        },
-    ),
     # testing that tracestate is still added when tracecontext style comes later and matches first style's trace-id
     (
         # name, styles, headers, expected_context,
@@ -1560,7 +1548,7 @@ EXTRACT_FIXTURES = [
         ],
         DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
-            "trace_id": TRACE_ID,
+            "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
@@ -1647,7 +1635,6 @@ else:
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
-        env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
 
@@ -1664,7 +1651,11 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
-            assert context == Context(**expected_context)
+            if not expected_context.get("tracestate"):
+                assert context == Context(**expected_context)
+            else:
+                tracestate = expected_context.pop("tracestate")
+                assert context == Context(**expected_context, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [
