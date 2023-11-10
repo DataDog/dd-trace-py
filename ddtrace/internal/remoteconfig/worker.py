@@ -90,7 +90,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # type: () -> None
         """Client Id needs to be refreshed when application forks"""
         self._enable = False
-        log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
+        log.debug("[%s][P: %s] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
         self._client.renew_id()
 
     def start_subscribers_by_product(self, products_list):
