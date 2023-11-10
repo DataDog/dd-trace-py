@@ -5,9 +5,6 @@ from typing import NamedTuple
 
 import pytest
 
-from tests.utils import override_env
-from tests.utils import override_global_config
-
 
 try:
     from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
