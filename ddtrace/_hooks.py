@@ -39,10 +39,9 @@ class Hooks(object):
 
     def register(
         self,
-        hook,  # type: Any
-        func=None,  # type: Optional[Callable]
-    ):
-        # type: (...) -> Optional[Callable[..., Any]]
+        hook: Any,
+        func: Optional[Callable] = None,
+    ) -> Optional[Callable[..., Any]]:
         """
         Function used to register a hook for the provided name.
 
@@ -86,10 +85,9 @@ class Hooks(object):
 
     def deregister(
         self,
-        hook,  # type: Any
-        func,  # type: Callable
-    ):
-        # type: (...) -> None
+        hook: Any,
+        func: Callable,
+    ) -> None:
         """
         Function to deregister a function from a hook it was registered under
 
@@ -114,11 +112,10 @@ class Hooks(object):
 
     def emit(
         self,
-        hook,  # type: Any
-        *args,  # type: Any
-        **kwargs,  # type: Any
-    ):
-        # type: (...) -> None
+        hook: Any,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Function used to call registered hook functions.
 

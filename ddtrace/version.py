@@ -1,5 +1,4 @@
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         from ._version import version
 

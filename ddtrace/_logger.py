@@ -13,8 +13,7 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
 
-def configure_ddtrace_logger():
-    # type: () -> None
+def configure_ddtrace_logger() -> None:
     """Configures ddtrace log levels and file paths.
 
     Customization is possible with the environment variables:

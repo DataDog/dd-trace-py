@@ -71,8 +71,7 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span: Span, allow_false: bool = True) -> bool:
         return not allow_false or True
 
 
@@ -83,8 +82,7 @@ class RateSampler(BaseSampler):
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
-    def __init__(self, sample_rate=1.0):
-        # type: (float) -> None
+    def __init__(self, sample_rate: float = 1.0) -> None:
         if sample_rate < 0.0:
             raise ValueError("sample_rate of {} is negative".format(sample_rate))
         elif sample_rate > 1.0:
@@ -94,13 +92,11 @@ class RateSampler(BaseSampler):
 
         log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
-    def set_sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span: Span, allow_false: bool = True) -> bool:
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
         # NB allow_false has weird functionality here, doing something other than "allowing false" to be returned
         # this is an artifact of this library's sampler abstractions having fallen out of alignment
@@ -123,28 +119,25 @@ class RateByServiceSampler(BasePrioritySampler):
 
     @staticmethod
     def _key(
-        service=None,  # type: Optional[str]
-        env=None,  # type: Optional[str]
-    ):
-        # type: (...) -> str
+        service: Optional[str] = None,
+        env: Optional[str] = None,
+    ) -> str:
         """Compute a key with the same format used by the Datadog agent API."""
         service = service or ""
         env = env or ""
         return "service:" + service + ",env:" + env
 
-    def __init__(self, sample_rate=1.0):
-        # type: (float) -> None
+    def __init__(self, sample_rate: float = 1.0) -> None:
         self.sample_rate = sample_rate
         self._default_sampler = RateSampler(self.sample_rate)
-        self._by_service_samplers = {}  # type: Dict[str, RateSampler]
+        self._by_service_samplers: Dict[str, RateSampler] = {}
 
     def set_sample_rate(
         self,
-        sample_rate,  # type: float
-        service="",  # type: str
-        env="",  # type: str
-    ):
-        # type: (...) -> None
+        sample_rate: float,
+        service: str = "",
+        env: str = "",
+    ) -> None:
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
     def sample(self, span, allow_false=True):
@@ -157,22 +150,19 @@ class RateByServiceSampler(BasePrioritySampler):
         )
         return not allow_false or sampled
 
-    def _choose_priority_category(self, default_was_used):
-        # type: (bool) -> str
+    def _choose_priority_category(self, default_was_used: bool) -> str:
         if default_was_used:
             return _PRIORITY_CATEGORY.DEFAULT
         return _PRIORITY_CATEGORY.AUTO
 
-    def _make_sampling_decision(self, span):
-        # type: (Span) -> Tuple[bool, BaseSampler]
+    def _make_sampling_decision(self, span: Span) -> Tuple[bool, BaseSampler]:
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span, allow_false=False)
         return sampled, sampler
 
-    def update_rate_by_service_sample_rates(self, rate_by_service):
-        # type: (Dict[str, float]) -> None
+    def update_rate_by_service_sample_rates(self, rate_by_service: Dict[str, float]) -> None:
         samplers = {}
         for key, sample_rate in iteritems(rate_by_service):
             samplers[key] = RateSampler(sample_rate)
@@ -215,11 +205,10 @@ class DatadogSampler(RateByServiceSampler):
 
     def __init__(
         self,
-        rules=None,  # type: Optional[List[SamplingRule]]
-        default_sample_rate=None,  # type: Optional[float]
-        rate_limit=None,  # type: Optional[int]
-    ):
-        # type: (...) -> None
+        rules: Optional[List[SamplingRule]] = None,
+        default_sample_rate: Optional[float] = None,
+        rate_limit: Optional[int] = None,
+    ) -> None:
         """
         Constructor for DatadogSampler sampler
 
@@ -271,8 +260,7 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _parse_rules_from_env_variable(self, rules):
-        # type: (str) -> List[SamplingRule]
+    def _parse_rules_from_env_variable(self, rules: str) -> List[SamplingRule]:
         sampling_rules = []
         try:
             json_rules = json.loads(rules)
@@ -295,8 +283,7 @@ class DatadogSampler(RateByServiceSampler):
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span: Span, allow_false: bool = True) -> bool:
         """
         If allow_false is False, this function will return True regardless of the sampling decision
         """
@@ -319,8 +306,7 @@ class DatadogSampler(RateByServiceSampler):
             return True
         return not cleared_rate_limit or sampled
 
-    def _choose_priority_category(self, matched_rule):
-        # type: (bool) -> str
+    def _choose_priority_category(self, matched_rule: bool) -> str:
         if matched_rule:
             return _PRIORITY_CATEGORY.RULE
         if self.limiter._has_been_configured:

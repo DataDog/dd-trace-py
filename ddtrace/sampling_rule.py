@@ -27,13 +27,12 @@ class SamplingRule(object):
 
     def __init__(
         self,
-        sample_rate,  # type: float
-        service=NO_RULE,  # type: Any
-        name=NO_RULE,  # type: Any
-        resource=NO_RULE,  # type: Any
-        tags=NO_RULE,  # type: Any
-    ):
-        # type: (...) -> None
+        sample_rate: float,
+        service: Any = NO_RULE,
+        name: Any = NO_RULE,
+        resource: Any = NO_RULE,
+        tags: Any = NO_RULE,
+    ) -> None:
         """
         Configure a new :class:`SamplingRule`
 
@@ -81,13 +80,11 @@ class SamplingRule(object):
         self.tags = tags
 
     @property
-    def sample_rate(self):
-        # type: () -> float
+    def sample_rate(self) -> float:
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def sample_rate(self, sample_rate: float) -> None:
         self._sample_rate = sample_rate
         self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
 
@@ -121,8 +118,7 @@ class SamplingRule(object):
         return prop == pattern
 
     @cachedmethod()
-    def _matches(self, key):
-        # type: (Tuple[Optional[str], str, Optional[str]]) -> bool
+    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
@@ -131,8 +127,7 @@ class SamplingRule(object):
         else:
             return True
 
-    def matches(self, span):
-        # type: (Span) -> bool
+    def matches(self, span: Span) -> bool:
         """
         Return if this span matches this rule
 
@@ -144,8 +139,7 @@ class SamplingRule(object):
         glob_match = self.glob_matches(span)
         return glob_match and self._matches((span.service, span.name, span.resource))
 
-    def glob_matches(self, span):
-        # type: (Span) -> bool
+    def glob_matches(self, span: Span) -> bool:
         tag_match = True
         if self._tag_value_matchers:
             tag_match = self.tag_match(span.get_tags())
@@ -165,8 +159,7 @@ class SamplingRule(object):
                 return False
         return tag_match
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span: Span, allow_false: bool = True) -> bool:
         """
         Return if this rule chooses to sample the span
 
@@ -200,8 +193,7 @@ class SamplingRule(object):
 
     __str__ = __repr__
 
-    def __eq__(self, other):
-        # type: (Any) -> bool
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
             raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
 

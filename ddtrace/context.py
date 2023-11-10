@@ -52,19 +52,19 @@ class Context(object):
 
     def __init__(
         self,
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        dd_origin=None,  # type: Optional[str]
-        sampling_priority=None,  # type: Optional[float]
-        meta=None,  # type: Optional[_MetaDictType]
-        metrics=None,  # type: Optional[_MetricDictType]
-        lock=None,  # type: Optional[threading.RLock]
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
+        meta: Optional[_MetaDictType] = None,
+        metrics: Optional[_MetricDictType] = None,
+        lock: Optional[threading.RLock] = None,
     ):
-        self._meta = meta if meta is not None else {}  # type: _MetaDictType
-        self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
+        self._meta: _MetaDictType = meta if meta is not None else {}
+        self._metrics: _MetricDictType = metrics if metrics is not None else {}
 
-        self.trace_id = trace_id  # type: Optional[int]
-        self.span_id = span_id  # type: Optional[int]
+        self.trace_id: Optional[int] = trace_id
+        self.span_id: Optional[int] = span_id
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
@@ -79,8 +79,7 @@ class Context(object):
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
 
-    def __getstate__(self):
-        # type: () -> _ContextState
+    def __getstate__(self) -> _ContextState:
         return (
             self.trace_id,
             self.span_id,
@@ -89,21 +88,18 @@ class Context(object):
             # Note: self._lock is not serializable
         )
 
-    def __setstate__(self, state):
-        # type: (_ContextState) -> None
+    def __setstate__(self, state: _ContextState) -> None:
         self.trace_id, self.span_id, self._meta, self._metrics = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
-    def _with_span(self, span):
-        # type: (Span) -> Context
+    def _with_span(self, span: Span) -> Context:
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
             trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
         )
 
-    def _update_tags(self, span):
-        # type: (Span) -> None
+    def _update_tags(self, span: Span) -> None:
         with self._lock:
             for tag in self._meta:
                 span._meta.setdefault(tag, self._meta[tag])
@@ -111,14 +107,12 @@ class Context(object):
                 span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
-    def sampling_priority(self):
-        # type: () -> Optional[NumericType]
+    def sampling_priority(self) -> Optional[NumericType]:
         """Return the context sampling priority for the trace."""
         return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
-    def sampling_priority(self, value):
-        # type: (Optional[NumericType]) -> None
+    def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:
             if value is None:
                 if SAMPLING_PRIORITY_KEY in self._metrics:
@@ -127,8 +121,7 @@ class Context(object):
             self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
-    def _traceparent(self):
-        # type: () -> str
+    def _traceparent(self) -> str:
         tp = self._meta.get(W3C_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
             # if we only have a traceparent then we'll forward it
@@ -145,13 +138,11 @@ class Context(object):
         return "00-{}-{:016x}-{}".format(trace_id, self.span_id, self._traceflags)
 
     @property
-    def _traceflags(self):
-        # type: () -> str
+    def _traceflags(self) -> str:
         return "01" if self.sampling_priority and self.sampling_priority > 0 else "00"
 
     @property
-    def _tracestate(self):
-        # type: () -> str
+    def _tracestate(self) -> str:
         dd_list_member = _w3c_get_dd_list_member(self)
 
         # if there's a preexisting tracestate we need to update it to preserve other vendor data
@@ -169,14 +160,12 @@ class Context(object):
         return ts
 
     @property
-    def dd_origin(self):
-        # type: () -> Optional[Text]
+    def dd_origin(self) -> Optional[Text]:
         """Get the origin of the trace."""
         return self._meta.get(ORIGIN_KEY)
 
     @dd_origin.setter
-    def dd_origin(self, value):
-        # type: (Optional[Text]) -> None
+    def dd_origin(self, value: Optional[Text]) -> None:
         """Set the origin of the trace."""
         with self._lock:
             if value is None:
@@ -186,8 +175,7 @@ class Context(object):
             self._meta[ORIGIN_KEY] = value
 
     @property
-    def dd_user_id(self):
-        # type: () -> Optional[Text]
+    def dd_user_id(self) -> Optional[Text]:
         """Get the user ID of the trace."""
         user_id = self._meta.get(USER_ID_KEY)
         if user_id:
@@ -198,8 +186,7 @@ class Context(object):
         return None
 
     @dd_user_id.setter
-    def dd_user_id(self, value):
-        # type: (Optional[Text]) -> None
+    def dd_user_id(self, value: Optional[Text]) -> None:
         """Set the user ID of the trace."""
         with self._lock:
             if value is None:
@@ -212,8 +199,7 @@ class Context(object):
                 value = str(base64.b64encode(bytes(value)))
             self._meta[USER_ID_KEY] = value
 
-    def __eq__(self, other):
-        # type: (Any) -> bool
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Context):
             with self._lock:
                 return (
@@ -224,8 +210,7 @@ class Context(object):
                 )
         return False
 
-    def __repr__(self):
-        # type: () -> str
+    def __repr__(self) -> str:
         return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
             self.trace_id,
             self.span_id,

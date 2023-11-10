@@ -34,26 +34,24 @@ class Pin(object):
 
     def __init__(
         self,
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
         tracer=None,
-        _config=None,  # type: Optional[Dict[str, Any]]
-    ):
-        # type: (...) -> None
+        _config: Optional[Dict[str, Any]] = None,
+    ) -> None:
         tracer = tracer or ddtrace.tracer
         self.tags = tags
         self.tracer = tracer
-        self._target = None  # type: Optional[int]
+        self._target: Optional[int] = None
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config = _config or {}  # type: Dict[str, Any]
+        self._config: Dict[str, Any] = _config or {}
         # [Backward compatibility]: service argument updates the `Pin` config
         self._config["service_name"] = service
         self._initialized = True
 
     @property
-    def service(self):
-        # type: () -> str
+    def service(self) -> str:
         """Backward compatibility: accessing to `pin.service` returns the underlying
         configuration value.
         """
@@ -68,8 +66,7 @@ class Pin(object):
         return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
 
     @staticmethod
-    def _find(*objs):
-        # type: (Any) -> Optional[Pin]
+    def _find(*objs: Any) -> Optional[Pin]:
         """
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
@@ -88,8 +85,7 @@ class Pin(object):
         return None
 
     @staticmethod
-    def get_from(obj):
-        # type: (Any) -> Optional[Pin]
+    def get_from(obj: Any) -> Optional[Pin]:
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -116,12 +112,11 @@ class Pin(object):
     @classmethod
     def override(
         cls,
-        obj,  # type: Any
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
+        obj: Any,
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
         tracer=None,
-    ):
-        # type: (...) -> None
+    ) -> None:
         """Override an object with the given attributes.
 
         That's the recommended way to customize an already instrumented client, without
@@ -140,13 +135,11 @@ class Pin(object):
         else:
             pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
 
-    def enabled(self):
-        # type: () -> bool
+    def enabled(self) -> bool:
         """Return true if this pin's tracer is enabled."""
         return bool(self.tracer) and self.tracer.enabled
 
-    def onto(self, obj, send=True):
-        # type: (Any, bool) -> None
+    def onto(self, obj: Any, send: bool = True) -> None:
         """Patch this pin onto the given object. If send is true, it will also
         queue the metadata to be sent to the server.
         """
@@ -165,8 +158,7 @@ class Pin(object):
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 
-    def remove_from(self, obj):
-        # type: (Any) -> None
+    def remove_from(self, obj: Any) -> None:
         # Remove pin from the object.
         try:
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -179,11 +171,10 @@ class Pin(object):
 
     def clone(
         self,
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
         tracer=None,
-    ):
-        # type: (...) -> Pin
+    ) -> Pin:
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:

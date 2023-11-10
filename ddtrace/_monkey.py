@@ -153,8 +153,7 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(module: str, prefix: str = "ddtrace.contrib", raise_errors: bool = True, patch_indicator: Union[bool, List[str]] = True) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -191,8 +190,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     return on_import
 
 
-def patch_all(**patch_modules):
-    # type: (bool) -> None
+def patch_all(**patch_modules: bool) -> None:
     """Automatically patches all available modules.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -227,8 +225,7 @@ def patch_all(**patch_modules):
         patch_iast()
 
 
-def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
-    # type: (bool, str, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, patch_modules_prefix: str = DEFAULT_MODULES_PREFIX, **patch_modules: Union[List[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -263,8 +260,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
     )
 
 
-def _get_patched_modules():
-    # type: () -> List[str]
+def _get_patched_modules() -> List[str]:
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
