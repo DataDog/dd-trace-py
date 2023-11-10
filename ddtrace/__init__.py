@@ -45,6 +45,29 @@ __version__ = get_version()
 
 # a global tracer instance with integration settings
 tracer = Tracer()
+config._subscribe(["logs_injection", "_trace_sample_rate"], tracer._on_global_config_update)
+
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+
+
+remoteconfig_poller.enable()
+
+
+class _GlobalConfigPubSub(PubSub):
+    __publisher_class__ = RemoteConfigPublisher
+    __subscriber_class__ = RemoteConfigSubscriber
+    __shared_data__ = PublisherSubscriberConnector()
+
+    def __init__(self, callback):
+        self._publisher = self.__publisher_class__(self.__shared_data__, None)
+        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "GlobalConfig")
+
+
+remoteconfig_poller.register("APM_TRACING", _GlobalConfigPubSub(callback=config._handle_remoteconfig))
 
 __all__ = [
     "patch",

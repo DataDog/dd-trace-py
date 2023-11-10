@@ -228,6 +228,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
+        self._user_sampler = None  # type: Optional[BaseSampler]
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -416,6 +417,7 @@ class Tracer(object):
         if iast_enabled is not None:
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
+        self._user_sampler = sampler
         if sampler is not None:
             self._sampler = sampler
 
@@ -1053,3 +1055,27 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+    def _on_global_config_update(self, config, items):
+        if "logs_injection" in items:
+            if config.logs_injection:
+                from ddtrace.contrib.logging import patch
+
+                patch()
+            else:
+                from ddtrace.contrib.logging import unpatch
+
+                unpatch()
+
+        if "_trace_sample_rate" in items:
+            # Reset the user sampler if one exists
+            if config._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
+                self.configure(sampler=self._user_sampler)
+                return
+
+            sample_rate = None
+            if config._get_source("_trace_sample_rate") != "default":
+                sample_rate = config._trace_sample_rate
+            sampler = DatadogSampler(default_sample_rate=sample_rate)
+            self._sampler = sampler
+            self.configure()
