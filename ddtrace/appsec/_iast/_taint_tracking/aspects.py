@@ -3,9 +3,9 @@ from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
 from types import BuiltinFunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import iteritems
 
@@ -270,7 +270,7 @@ def format_aspect(
     orig_function,  # type: Callable
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
@@ -289,7 +289,7 @@ def format_aspect(
         new_template = as_formatted_evidence(
             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
         )
-        fun = (
+        fun = (  # noqa: E731
             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
             if isinstance(arg, TEXT_TYPES)
             else arg
@@ -378,7 +378,6 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
         new_text = str_aspect(element)
     elif options == 114:

@@ -17,8 +17,8 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...internal.logger import get_logger
+from .. import trace_utils
 
 
 log = get_logger(__name__)

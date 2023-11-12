@@ -110,7 +110,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     async def execute(self, query, *args, **kwargs):
@@ -128,7 +128,7 @@ class TracedAsyncCursor(TracedCursor):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
 
