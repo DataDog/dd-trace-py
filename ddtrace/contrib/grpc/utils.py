@@ -2,8 +2,8 @@ import logging
 
 from ddtrace.internal.compat import parse
 
-from . import constants
 from ...ext import net
+from . import constants
 
 
 log = logging.getLogger(__name__)

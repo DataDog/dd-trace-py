@@ -55,7 +55,7 @@ class TraceBottleTest(TracerTestCase):
         # make a request
         resp = self.app.get("/hi/dougie" + fqs)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 1
@@ -304,6 +304,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -314,7 +315,7 @@ class TraceBottleTest(TracerTestCase):
         with self.override_global_config(dict(analytics_enabled=True)):
             resp = self.app.get("/hi/dougie")
             assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == u"hi dougie"
+            assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -335,6 +336,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -346,7 +348,7 @@ class TraceBottleTest(TracerTestCase):
             with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get("/hi/dougie")
                 assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == u"hi dougie"
+                assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -367,6 +369,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -377,7 +380,7 @@ class TraceBottleTest(TracerTestCase):
         with self.override_global_config(dict(analytics_enabled=False)):
             resp = self.app.get("/hi/dougie")
             assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == u"hi dougie"
+            assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -393,6 +396,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -404,7 +408,7 @@ class TraceBottleTest(TracerTestCase):
             with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get("/hi/dougie")
                 assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == u"hi dougie"
+                assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -434,7 +438,7 @@ class TraceBottleTest(TracerTestCase):
             resp = self.app.get("/hi/dougie")
 
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 2

@@ -13,9 +13,8 @@ if TYPE_CHECKING:
 def ast_funcion(
     func,  # type: Callable
     *args,  # type: Any
-    **kwargs  # type: Any
+    **kwargs,  # type: Any
 ):  # type: (...) -> Any
-
     cls = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""

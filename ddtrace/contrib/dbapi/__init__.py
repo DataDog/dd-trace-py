@@ -71,7 +71,6 @@ class TracedCursor(wrapt.ObjectProxy):
         return self.__wrapped__.__next__()
 
     if PY2:
-
         # Python 2 iterators use `next`
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
@@ -149,7 +148,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def execute(self, query, *args, **kwargs):
@@ -167,7 +166,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def callproc(self, proc, *args):

@@ -211,7 +211,7 @@ def zfill_aspect(candidate_text, *args, **kwargs):
 def format_aspect(
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format(*args, **kwargs)
@@ -224,7 +224,7 @@ def format_aspect(
         new_template = as_formatted_evidence(
             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
         )
-        fun = (
+        fun = (  # noqa: E731
             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
             if isinstance(arg, TEXT_TYPES)
             else arg
@@ -302,7 +302,6 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
         new_text = str_aspect(element)
     elif options == 114:
