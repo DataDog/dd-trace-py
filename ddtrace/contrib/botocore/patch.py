@@ -238,6 +238,46 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
+def inject_trace_to_stepfunction_input(params, span):
+    # type: (Any, Span) -> None
+    """
+    :params: contains the params for the current botocore action
+    :span: the span which provides the trace context to be propagated
+
+    Inject the trace headers into the StepFunction input if the input is a JSON string
+    """
+    if "input" not in params:
+        log.warning("Unable to inject context. The StepFunction input had no input.")
+        return
+
+    if params["input"] is None:
+        log.warning("Unable to inject context. The StepFunction input was None.")
+        return
+
+    if isinstance(params["input"], dict):
+        if "_datadog" in params["input"]:
+            log.warning("Input already has trace context.")
+            return
+        params["input"]["_datadog"] = {}
+        HTTPPropagator.inject(span.context, params["input"]["_datadog"])
+        return
+
+    if isinstance(params["input"], str):
+        try:
+            input_obj = json.loads(params["input"])
+        except ValueError:
+            log.warning("Input is not a valid JSON string")
+            return
+
+        input_obj["_datadog"] = {}
+        HTTPPropagator.inject(span.context, input_obj["_datadog"])
+        input_json = json.dumps(input_obj)
+
+        params["input"] = input_json
+
+    log.warning("Unable to inject context. The StepFunction input was not a dict or a JSON string.")
+
+
 def inject_trace_to_eventbridge_detail(params, span):
     # type: (Any, Span) -> None
     """
@@ -580,7 +620,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "stepfunctions" and (
                         operation == "start-execution" or operation == "start-sync-execution"
                     ):
-                        # TODO: add inject_trace method
+                        inject_trace_to_stepfunction_input(params, span)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",
