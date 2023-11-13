@@ -451,8 +451,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=None):
-        # type: (int) -> None
+    def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
         """
