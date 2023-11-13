@@ -7,6 +7,8 @@ from typing import Text
 from typing import Tuple
 from typing import cast
 
+from tracing._span_link import SpanLink
+
 from ddtrace import config
 
 from ..constants import AUTO_KEEP
@@ -870,6 +872,7 @@ class HTTPPropagator(object):
                         return context
             # loop through all extract propagation styles
             else:
+                links = []
                 contexts = []
                 styles_w_ctx = []
                 for prop_style in config._propagation_style_extract:
@@ -881,6 +884,18 @@ class HTTPPropagator(object):
 
                 if contexts:
                     primary_context = contexts[0]
+                    for context in contexts[1:]:
+                        if context.trace_id != primary_context.trace_id:
+                            # Need to generate span link here https://docs.google.com/document/d/1IKYOIKdiTcsHwICt4p0flpG3E7jGv2Da3RsOGviLDeI/edit
+                            #  attributes reason: terminated_context and context_headers: <headers that were terminated>.
+
+                            links.append(
+                                SpanLink(
+                                    context.trace_id,
+                                    context.span_id,
+                                    attributes={"reason": "terminated_context", "context_headers": headers},
+                                )
+                            )
                     # if tracecontext context and it's not the first, we should compare trace_id's
                     # to potentially add tracestate to primary_context
                     if (
@@ -895,7 +910,7 @@ class HTTPPropagator(object):
                             ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                             if ts:
                                 primary_context._meta[W3C_TRACESTATE_KEY] = ts
-                    return primary_context
+                    return primary_context, links
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
