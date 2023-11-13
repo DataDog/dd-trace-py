@@ -1,6 +1,8 @@
 from envier import En
 
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.agent import get_trace_url
+from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import _config as ddconfig
@@ -16,7 +18,10 @@ def _derive_tags(c):
     _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
     _tags.update(ddconfig.tags)
 
-    return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
+    # Add git metadata tags, if available
+    gitmetadata.add_tags(_tags)
+    # ensure_str is needed for Python 2 compatibility
+    return ensure_str(",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None]))
 
 
 class DynamicInstrumentationConfig(En):

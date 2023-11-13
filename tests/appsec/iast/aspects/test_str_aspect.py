@@ -112,6 +112,14 @@ class TestOperatorsReplacement(BaseReplacement):
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
 
+    def test_aspect_ljust_error_and_no_log_metric(self, mock_telemetry_lifecycle_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_ljust(string_input, "aaaaa")
+
+        list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 0
+
     def test_zfill(self):
         # Not tainted
         string_input = "-1234"
@@ -130,6 +138,14 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-012-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == "00:+-012-+:34"
+
+    def test_aspect_zfill_error_and_no_log_metric(self, mock_telemetry_lifecycle_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_zfill(string_input, "aaaaa")
+
+        list_metrics_logs = list(mock_telemetry_lifecycle_writer._logs)
+        assert len(list_metrics_logs) == 0
 
     def test_format(self):
         # type: () -> None
