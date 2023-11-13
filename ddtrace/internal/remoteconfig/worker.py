@@ -147,10 +147,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def register(self, product, pubsub_instance, skip_enabled=False):
         # type: (str, PubSub, bool) -> None
-
-        if not isinstance(pubsub_instance, PubSub):
-            raise TypeError("%s is not a PubSub instance" % str(pubsub_instance))
-
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
