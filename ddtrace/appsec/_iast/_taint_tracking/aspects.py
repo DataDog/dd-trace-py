@@ -137,7 +137,11 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
     ):
         return candidate_text[start:stop:step]
     try:
-        return _slice_aspect(candidate_text, start, stop, step)
+        result = _slice_aspect(candidate_text, start, stop, step)
+        expected_result = candidate_text[start:stop:step]
+        if result != expected_result:
+            return expected_result
+        return result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e))
         return candidate_text[start:stop:step]
@@ -270,7 +274,7 @@ def format_aspect(
     orig_function,  # type: Callable
     candidate_text,  # type: str
     *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(orig_function, BuiltinFunctionType):
         return orig_function(*args, **kwargs)
@@ -289,7 +293,7 @@ def format_aspect(
         new_template = as_formatted_evidence(
             candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
         )
-        fun = (
+        fun = (  # noqa: E731
             lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
             if isinstance(arg, TEXT_TYPES)
             else arg
@@ -378,7 +382,6 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
         new_text = str_aspect(element)
     elif options == 114:
