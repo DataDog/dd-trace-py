@@ -154,7 +154,9 @@ class CIVisibility(Service):
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
         self._git_client = None
 
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
+        if (
+            self._code_coverage_enabled_by_api or self._test_skipping_enabled_by_api
+        ) and ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
@@ -230,14 +232,12 @@ class CIVisibility(Service):
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:
             log.warning("Request timeout while fetching enabled features")
-            sw.stop()
             record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.TIMEOUT)
             return False, False
         if response.status >= 400:
             log.warning(
                 "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
             )
-            sw.stop()
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
             record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.CODE_4XX)
             return False, False
@@ -248,10 +248,8 @@ class CIVisibility(Service):
                 parsed = json.loads(response.body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
-            sw.stop()
             record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.BAD_JSON)
             return False, False
-        sw.stop()
 
         if "errors" in parsed and parsed["errors"][0] == "Not found":
             log.warning("Settings request contained an error, disabling Intelligent Test Runner")

@@ -4,7 +4,7 @@ from enum import Enum
 CIVISIBILITY_TELEMETRY_NAMESPACE = "civisibility"
 
 
-class ERROR_TYPES(Enum):
+class ERROR_TYPES(str, Enum):
     TIMEOUT = "timeout"
     NETWORK = "network"
     CODE_4XX = "status_code_4xx_response"
@@ -13,7 +13,7 @@ class ERROR_TYPES(Enum):
     UNKNOWN = "unknown"
 
 
-class GIT_TELEMETRY_COMMANDS(Enum):
+class GIT_TELEMETRY_COMMANDS(str, Enum):
     GET_REPOSITORY = "get_repository"
     GET_BRANCH = "get_branch"
     CHECK_SHALLOW = "check_shallow"
@@ -23,7 +23,7 @@ class GIT_TELEMETRY_COMMANDS(Enum):
     PACK_OBJECTS = "pack_objects"
 
 
-class GIT_TELEMETRY(Enum):
+class GIT_TELEMETRY(str, Enum):
     COMMAND_COUNT = "git.command"
     COMMAND_MS = "git.command_ms"
     COMMAND_ERRORS = "git.command_errors"

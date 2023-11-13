@@ -34,6 +34,7 @@ from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
 from .constants import GIT_API_BASE_PATH
 from .constants import REQUESTS_MODE
+from .telemetry.constants import ERROR_TYPES
 from .telemetry.constants import GIT_TELEMETRY_COMMANDS
 from .telemetry.git import record_git_command
 from .telemetry.git import record_objects_pack
@@ -47,6 +48,8 @@ RESPONSE = None
 
 # we're only interested in uploading .pack files
 PACK_EXTENSION = ".pack"
+
+DEFAULT_TIMEOUT = 20
 
 
 class CIVisibilityGitClient(object):
@@ -142,18 +145,44 @@ class CIVisibilityGitClient(object):
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
         # type: (int, str, str, List[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[List[str]]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
-        response = _response or cls._do_request(requests_mode, base_url, "/search_commits", payload, serializer)
-        if response.status >= 400:
-            log.warning("Response status: %s", response.status)
-            log.warning("Response body: %s", response.body)
-            return None
-        result = serializer.search_commits_decode(response.body)
-        return result
+        request_error = None
+        with StopWatch() as stopwatch:
+            try:
+                try:
+                    response = _response or cls._do_request(
+                        requests_mode, base_url, "/search_commits", payload, serializer
+                    )
+                except TimeoutError:
+                    request_error = ERROR_TYPES.TIMEOUT
+                    log.warning("Timeout searching commits")
+                    return None
+
+                if response.status >= 400:
+                    log.warning(payload)
+                    log.warning(base_url)
+                    request_error = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+                    log.warning(
+                        "Error searching commits, response status code: %s , response body: %s",
+                        (response.status, response.body),
+                    )
+                    log.debug("Response body: %s", response.body)
+                    return None
+
+                try:
+                    result = serializer.search_commits_decode(response.body)
+                    return result
+                except JSONDecodeError:
+                    request_error = ERROR_TYPES.BAD_JSON
+                    log.warning("Error searching commits, response not parsable: %s", response.body)
+                    return None
+            finally:
+                stopwatch.stop()
+                record_search_commits(stopwatch.elapsed() * 1000, error=request_error)
 
     @classmethod
     @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
-    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
+    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None, timeout=DEFAULT_TIMEOUT):
+        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict], int) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
@@ -165,7 +194,7 @@ class CIVisibilityGitClient(object):
         if headers is not None:
             _headers.update(headers)
         try:
-            conn = get_connection(url)
+            conn = get_connection(url, timeout=timeout)
             log.debug("Sending request: %s %s %s %s", "POST", url, payload, _headers)
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
@@ -218,40 +247,38 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _unshallow_repository(cls, cwd=None):
         # type () -> None
-        stopwatch = StopWatch()
-        stopwatch.start()
-        error_exit_code = None
-        try:
-            remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
-            if exit_code != 0:
+        with StopWatch() as stopwatch:
+            error_exit_code = None
+            try:
+                remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
+                if exit_code != 0:
+                    error_exit_code = exit_code
+                    log.debug("Failed to get default remote: %s", stderr)
+                    return
+
+                try:
+                    CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
+                    return
+                except ValueError as e:
+                    log.debug("Could not unshallow repository to local head: %s", e)
+
+                try:
+                    CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
+                    return
+                except ValueError as e:
+                    log.debug("Could not unshallow to upstream: %s", e)
+
+                log.debug("Unshallowing to default")
+                _, unshallow_error, _, exit_code = _unshallow_repository_with_details(cwd=cwd, repo=remote)
+                if exit_code == 0:
+                    log.debug("Unshallowing to default successful")
+                    return
+                log.debug("Unshallowing failed: %s", unshallow_error)
                 error_exit_code = exit_code
-                log.debug("Failed to get default remote: %s", e)
                 return
-
-            try:
-                CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
-                return
-            except ValueError as e:
-                log.debug("Could not unshallow repository to local head: %s", e)
-
-            try:
-                CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
-                return
-            except ValueError as e:
-                log.debug("Could not unshallow to upstream: %s", e)
-
-            log.debug("Unshallowing to default")
-            _, unshallow_error, _, exit_code = _unshallow_repository_with_details(cwd=cwd, repo=remote)
-            if exit_code == 0:
-                log.debug("Unshallowing to default successful")
-                return
-            log.debug("Unshallowing failed: %s", unshallow_error)
-            error_exit_code = exit_code
-            return
-        finally:
-            stopwatch.stop()
-            duration = stopwatch.elapsed() * 1000  # StopWatch measures elapsed time in seconds
-            record_git_command(GIT_TELEMETRY_COMMANDS.UNSHALLOW, duration, error_exit_code)
+            finally:
+                duration = stopwatch.elapsed() * 1000  # StopWatch measures elapsed time in seconds
+                record_git_command(GIT_TELEMETRY_COMMANDS.UNSHALLOW, duration, error_exit_code)
 
     @classmethod
     def _unshallow_repository_to_local_head(cls, remote, cwd=None):

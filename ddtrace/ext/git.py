@@ -7,6 +7,7 @@ import os
 import random
 import re
 import subprocess
+import typing
 from typing import Dict
 from typing import Generator
 from typing import MutableMapping
@@ -66,6 +67,10 @@ _RE_TAGS = re.compile(r"^tags/")
 
 log = get_logger(__name__)
 
+_GitSubprocessDetails = typing.NamedTuple(
+    "_GitSubprocessDetails", [("stdout", str), ("stderr", str), ("duration", float), ("returncode", int)]
+)
+
 
 def normalize_ref(name):
     # type: (Optional[str]) -> Optional[str]
@@ -78,7 +83,7 @@ def is_ref_a_tag(ref):
 
 
 def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
-    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> Tuple[str, str, float, int]
+    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> _GitSubprocessDetails
     """Helper for invoking the git CLI binary
 
     Returns a tuple containing:
@@ -93,15 +98,13 @@ def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
         git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
 
-    stopwatch = StopWatch()
-    stopwatch.start()
+    with StopWatch() as stopwatch:
+        process = subprocess.Popen(
+            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd
+        )
+        stdout, stderr = process.communicate(input=std_in)
 
-    process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd)
-    stdout, stderr = process.communicate(input=std_in)
-
-    stopwatch.stop()
-
-    return (
+    return _GitSubprocessDetails(
         compat.ensure_text(stdout).strip(),
         compat.ensure_text(stderr).strip(),
         stopwatch.elapsed() * 1000,  # StopWatch measures elapsed time in seconds
@@ -129,7 +132,7 @@ def _set_safe_directory():
 
 
 def _extract_clone_defaultremotename_with_details(cwd):
-    # type: (Optional[str]) -> Tuple[str, str, float, int]
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details("config --default origin --get clone.defaultRemoteName", cwd=cwd)
 
 
@@ -157,7 +160,7 @@ def _is_shallow_repository(cwd=None):
 
 
 def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
-    # type (Optional[str], Optional[str], Optional[str]) -> Tuple[str, str, float, int]
+    # type (Optional[str], Optional[str], Optional[str]) -> _GitSubprocessDetails
     cmd = [
         "fetch",
         '--shallow-since="1 month ago"',
@@ -224,7 +227,7 @@ def get_rev_list_excluding_commits(commit_shas, cwd=None):
 
 
 def _get_rev_list_with_details(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
-    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> Tuple[str, str, float, int]
+    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> _GitSubprocessDetails
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
