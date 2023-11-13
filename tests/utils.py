@@ -1244,7 +1244,7 @@ def _get_skipped_item(item, skip_reason):
     if not hasattr(item, "pytestmark"):
         item.pytestmark = []
 
-    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
 
     return item
 
