@@ -5,6 +5,7 @@ from typing import Generator
 
 import mock
 import pytest
+import openai as openai_module
 
 import ddtrace
 from ddtrace import patch
@@ -15,10 +16,9 @@ from tests.contrib.openai.utils import iswrapped
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
-
 TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
-    parse_version(sys.modules["openai"].version.VERSION) < (1, 0, 0), reason="This module only tests openai >= 1.0"
+    parse_version(openai_module.version.VERSION) < (1, 0, 0), reason="This module only tests openai >= 1.0"
 )
 
 
