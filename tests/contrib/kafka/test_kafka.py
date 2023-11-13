@@ -695,7 +695,7 @@ def test_data_streams_default_context_propagation(dummy_tracer, consumer, produc
 
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
-def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kafka_topic):
+def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
@@ -730,3 +730,42 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     # None of these spans are part of the same trace
     assert produce_span.trace_id != consume_span1.trace_id
     assert consume_span1.trace_id != consume_span2.trace_id
+
+
+# Propagation should work when enabled
+def test_tracing_context_is_propagated_when_enabled(dummy_tracer, consumer, producer, kafka_topic):
+    os.environ["DD_KAFKA_DISTRIBUTED_TRACING_ENABLED"] = "true"
+
+    dummy_tracer = dummy_tracer()
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "context test"
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == b"context test"
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span1 = traces[1][0]
+    consume_span2 = traces[2][0]
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+
+    # One of the kafka.consume spans has a parent
+    assert consume_span1.name == "kafka.consume"
+    assert consume_span1.parent_id is not None or consume_span2.parent_id is not None
+    assert consume_span2.name == "kafka.consume"
+
+    # Two of these spans are part of the same trace
+    assert produce_span.trace_id == consume_span1.trace_id or produce_span.trace_id == consume_span2.trace_id
