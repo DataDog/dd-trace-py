@@ -450,13 +450,15 @@ class _RetrieveHook(_EndpointHook):
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "retrieveModel"
-            span.set_tag_str("openai.request.model", args[1])
+            span.set_tag_str("openai.request.model", args[1] if len(args) >= 2 else kwargs.get("model", ""))
         elif endpoint.endswith("/files"):
             span.resource = "retrieveFile"
-            span.set_tag_str("openai.request.file_id", args[1])
+            span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
         elif endpoint.endswith("/fine-tunes"):
             span.resource = "retrieveFineTune"
-            span.set_tag_str("openai.request.fine_tune_id", args[1])
+            span.set_tag_str(
+                "openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", "")
+            )
         span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
         return
 
@@ -503,7 +505,7 @@ class _ModelRetrieveHook(_RetrieveHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.model", args[1])
+        span.set_tag_str("openai.request.model", args[1] if len(args) >= 2 else kwargs.get("model", ""))
         return
 
 
@@ -517,7 +519,7 @@ class _FileRetrieveHook(_RetrieveHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.file_id", args[1])
+        span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
         return
 
 
@@ -531,7 +533,7 @@ class _FineTuneRetrieveHook(_RetrieveHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1])
+        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
         return
 
 
@@ -549,10 +551,10 @@ class _DeleteHook(_EndpointHook):
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "deleteModel"
-            span.set_tag_str("openai.request.model", args[1])
+            span.set_tag_str("openai.request.model", args[1] if len(args) >= 2 else kwargs.get("model", ""))
         elif endpoint.endswith("/files"):
             span.resource = "deleteFile"
-            span.set_tag_str("openai.request.file_id", args[1])
+            span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
         span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
         return
 
@@ -693,12 +695,8 @@ class _ImageEditHook(_ImageHook):
         super()._record_request(pin, integration, span, args, kwargs)
         if not integration.is_pc_sampled_span:
             return
-        if len(args) <= 1:
-            image = kwargs.get("image")
-            mask = kwargs.get("mask")
-        else:
-            image = args[1]
-            mask = args[2]
+        image = args[1] if len(args) >= 2 else kwargs.get("image", "")
+        mask = args[2] if len(args) >= 3 else kwargs.get("mask", "")
         if image:
             if hasattr(image, "name"):
                 span.set_tag_str("openai.request.image", integration.trunc(image.name.split("/")[-1]))
@@ -722,10 +720,7 @@ class _ImageVariationHook(_ImageHook):
         super()._record_request(pin, integration, span, args, kwargs)
         if not integration.is_pc_sampled_span:
             return
-        if len(args) <= 1:
-            image = kwargs.get("image")
-        else:
-            image = args[1]
+        image = args[1] if len(args) >= 2 else kwargs.get("image", "")
         if image:
             if hasattr(image, "name"):
                 span.set_tag_str("openai.request.image", integration.trunc(image.name.split("/")[-1]))
@@ -743,10 +738,7 @@ class _BaseAudioHook(_EndpointHook):
         super()._record_request(pin, integration, span, args, kwargs)
         if not integration.is_pc_sampled_span:
             return
-        if len(args) >= 3:
-            audio_file = args[2]
-        else:
-            audio_file = kwargs.get("file")
+        audio_file = args[2] if len(args) >= 3 else kwargs.get("file", "")
         if audio_file and hasattr(audio_file, "name"):
             span.set_tag_str("openai.request.filename", integration.trunc(audio_file.name.split("/")[-1]))
         else:
@@ -871,10 +863,7 @@ class _FileCreateHook(_BaseFileHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        if len(args) >= 2:
-            fp = args[1]
-        else:
-            fp = kwargs.get("file")
+        fp = args[1] if len(args) >= 2 else kwargs.get("file", "")
         if fp and hasattr(fp, "name"):
             span.set_tag_str("openai.request.filename", fp.name.split("/")[-1])
         else:
@@ -901,7 +890,7 @@ class _FileDownloadHook(_BaseFileHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.file_id", args[1])
+        span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         if not resp:
@@ -980,7 +969,7 @@ class _FineTuneCancelHook(_BaseFineTuneHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1])
+        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
         return
 
 
@@ -992,7 +981,7 @@ class _FineTuneListEventsHook(_BaseFineTuneHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1])
+        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
         return
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
