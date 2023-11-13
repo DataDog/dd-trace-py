@@ -399,6 +399,7 @@ class _ModelListHook(_ListHook):
     """
 
     ENDPOINT_NAME = "models"
+    OPERATION_ID = "listModels"
 
 
 class _FileListHook(_ListHook):
@@ -407,6 +408,7 @@ class _FileListHook(_ListHook):
     """
 
     ENDPOINT_NAME = "files"
+    OPERATION_ID = "listFiles"
 
 
 class _FineTuneListHook(_ListHook):
@@ -415,6 +417,7 @@ class _FineTuneListHook(_ListHook):
     """
 
     ENDPOINT_NAME = "fine-tunes"
+    OPERATION_ID = "listFineTunes"
 
 
 class _RetrieveHook(_EndpointHook):
@@ -476,10 +479,9 @@ class _RetrieveHook(_EndpointHook):
                     span.set_tag_str("openai.response.permission.%s" % k, str(v))
 
         if hasattr(resp, "hyperparams"):
-            if isinstance(resp.hyperparams, dict):
-                hyperparams = resp.hyperparams
-            else:
-                hyperparams = resp.hyperparams.__dict__
+            hyperparams = resp.hyperparams
+            if hasattr(hyperparams, "model_dump"):
+                hyperparams = resp.hyperparams.model_dump()
             for hyperparam in ("batch_size", "learning_rate_multiplier", "n_epochs", "prompt_loss_weight"):
                 val = hyperparams.get(hyperparam)
                 span.set_tag_str("openai.response.hyperparams.%s" % hyperparam, str(val))
@@ -497,6 +499,12 @@ class _ModelRetrieveHook(_RetrieveHook):
     """
 
     ENDPOINT_NAME = "models"
+    OPERATION_ID = "retrieveModel"
+
+    def _record_request(self, pin, integration, span, args, kwargs):
+        super()._record_request(pin, integration, span, args, kwargs)
+        span.set_tag_str("openai.request.model", args[1])
+        return
 
 
 class _FileRetrieveHook(_RetrieveHook):
@@ -505,6 +513,12 @@ class _FileRetrieveHook(_RetrieveHook):
     """
 
     ENDPOINT_NAME = "files"
+    OPERATION_ID = "retrieveFile"
+
+    def _record_request(self, pin, integration, span, args, kwargs):
+        super()._record_request(pin, integration, span, args, kwargs)
+        span.set_tag_str("openai.request.file_id", args[1])
+        return
 
 
 class _FineTuneRetrieveHook(_RetrieveHook):
@@ -513,6 +527,12 @@ class _FineTuneRetrieveHook(_RetrieveHook):
     """
 
     ENDPOINT_NAME = "fine-tunes"
+    OPERATION_ID = "retrieveFineTune"
+
+    def _record_request(self, pin, integration, span, args, kwargs):
+        super()._record_request(pin, integration, span, args, kwargs)
+        span.set_tag_str("openai.request.fine_tune_id", args[1])
+        return
 
 
 class _DeleteHook(_EndpointHook):
@@ -809,11 +829,11 @@ class _ModerationHook(_EndpointHook):
         if results:
             results = results[0]
             categories = results.categories
-            if not isinstance(categories, dict):
-                categories = categories.__dict__
+            if hasattr(categories, "model_dump"):
+                categories = categories.model_dump()
             scores = results.category_scores
-            if not isinstance(scores, dict):
-                scores = scores.__dict__
+            if hasattr(scores, "model_dump"):
+                scores = scores.model_dump()
             flagged = results.flagged
             mod_id = resp.id
             model = resp.model
@@ -911,10 +931,9 @@ class _BaseFineTuneHook(_EndpointHook):
         span.set_metric("openai.response.training_files_count", len(resp.training_files))
         span.set_metric("openai.response.validation_files_count", len(resp.validation_files))
 
-        if isinstance(resp.hyperparams, dict):
-            hyperparams = resp.hyperparams
-        else:
-            hyperparams = resp.hyperparams.__dict__
+        hyperparams = resp.hyperparams
+        if hasattr(hyperparams, "model_dump"):
+            hyperparams = hyperparams.model_dump()
         for hyperparam in ("batch_size", "learning_rate_multiplier", "n_epochs", "prompt_loss_weight"):
             val = hyperparams.get(hyperparam)
             span.set_tag_str("openai.response.hyperparams.%s" % hyperparam, str(val))
