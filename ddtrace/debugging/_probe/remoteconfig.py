@@ -1,6 +1,5 @@
 from itertools import count
 import os
-import sys
 import time
 from typing import Any
 from typing import Callable
@@ -8,8 +7,6 @@ from typing import Dict
 from typing import Iterable
 from typing import Optional
 from typing import Type
-
-import six
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
@@ -238,7 +235,7 @@ def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe
     try:
         return [build_probe(config)]
     except InvalidProbeConfiguration:
-        six.reraise(*sys.exc_info())
+        raise
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
