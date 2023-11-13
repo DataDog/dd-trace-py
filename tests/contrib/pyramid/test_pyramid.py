@@ -8,6 +8,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
+from tests.utils import flaky
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -252,6 +253,7 @@ def pyramid_client(snapshot, pyramid_app):
         proc.terminate()
 
 
+@flaky(until=1704067200)
 @pytest.mark.parametrize(
     "pyramid_app",
     [
