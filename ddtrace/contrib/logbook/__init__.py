@@ -30,14 +30,16 @@ The trace values are patched to every log at the top level of the record. In ord
 logs, it is highly recommended to use JSON logs which can be achieved by using a handler with
 a proper formatting::
 
-    handler = FileHandler(format_string='{{\"message\": "{record.message}", '
-                                        '\"dd.trace_id\": "{record.dd.trace_id}", '
-                                        '\"dd.span_id\": "{record.dd.span_id}", '
-                                        '\"dd.env\": "{record.dd.env}", '
-                                        '\"dd.service\": "{record.dd.service}", '
-                                        '\"dd.version\": "{record.dd.version}"}}')
-
+    handler = FileHandler('output.log', format_string='{{\"message\": "{record.message}",'
+                                                          '\"dd.trace_id\": "{record.extra[dd.trace_id]}",'
+                                                          '\"dd.span_id\": "{record.extra[dd.span_id]}",'
+                                                          '\"dd.env\": "{record.extra[dd.env]}",'
+                                                          '\"dd.service\": "{record.extra[dd.service]}",'
+                                                          '\"dd.version\": "{record.extra[dd.version]}"}}')
     handler.push_application()
+
+Note that the ``extra`` field does not have a ``dd`` object but rather only a ``dd.trace_id``, ``dd.span_id``, etc.
+To access the trace values inside extra, please use the ``[]`` operator.
 
 This will create a handler for the application that formats the logs in a way that is JSON with all the
 Datadog trace values in a JSON format that can be automatically parsed by the Datadog backend.
