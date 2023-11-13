@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+from types import CoroutineType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
@@ -15,10 +16,9 @@ from typing import Set
 from typing import Tuple
 from typing import cast
 
-from six import PY3
-
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace.debugging._async import dd_coroutine_wrapper
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
 from ddtrace.debugging._encoding import BatchJsonEncoder
@@ -71,14 +71,6 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
 from ddtrace.tracer import Tracer
 
-
-# Coroutine support
-if PY3:
-    from types import CoroutineType
-
-    from ddtrace.debugging._async import dd_coroutine_wrapper
-else:
-    CoroutineType = dd_coroutine_wrapper = None
 
 log = get_logger(__name__)
 
@@ -409,7 +401,7 @@ class Debugger(Service):
                 # DEV: We do not unwind generators here as they might result in
                 # tight loops. We return the result as a generator object
                 # instead.
-                if PY3 and _isinstance(retval, CoroutineType):
+                if _isinstance(retval, CoroutineType):
                     return dd_coroutine_wrapper(retval, open_contexts)
 
             for context in open_contexts:
@@ -490,15 +482,12 @@ class Debugger(Service):
         for source in {probe.source_file for probe in probes if probe.source_file is not None}:
             try:
                 self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
-            except Exception:
-                exc_info = sys.exc_info()
+            except Exception as exc:
                 for probe in probes:
                     if probe.source_file != source:
                         continue
-                    exc_type, exc, _ = exc_info
-                    self._probe_registry.set_error(
-                        probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
-                    )
+                    exc_type = type(exc)
+                    self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
     def _eject_probes(self, probes_to_eject: List[LineProbe]) -> None:
@@ -604,11 +593,9 @@ class Debugger(Service):
             try:
                 assert probe.module is not None  # nosec
                 self.__watchdog__.register_module_hook(probe.module, self._probe_wrapping_hook)
-            except Exception:
-                exc_type, exc, _ = sys.exc_info()
-                self._probe_registry.set_error(
-                    probe, exc_type.__name__ if exc_type is not None else type(exc).__name__, str(exc)
-                )
+            except Exception as exc:
+                exc_type = type(exc)
+                self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
     def _unwrap_functions(self, probes: List[FunctionProbe]) -> None:

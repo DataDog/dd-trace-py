@@ -1,4 +1,5 @@
 import abc
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
@@ -9,7 +10,6 @@ from typing import Tuple
 from typing import Union
 
 import attr
-import six
 
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
@@ -63,7 +63,7 @@ DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
 @attr.s
-class Probe(six.with_metaclass(abc.ABCMeta)):
+class Probe(abc.ABC):
     probe_id = attr.ib(type=str)
     version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
@@ -85,7 +85,7 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 
 
 @attr.s
-class RateLimitMixin(six.with_metaclass(abc.ABCMeta)):
+class RateLimitMixin(abc.ABC):
     rate = attr.ib(type=float, eq=False)
     limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
 
@@ -141,8 +141,7 @@ class LineLocationMixin(ProbeLocationMixin):
         return (str(self.source_file) if self.source_file is not None else None, self.line)
 
 
-# TODO: make this an Enum once Python 2 support is dropped.
-class ProbeEvaluateTimingForMethod(object):
+class ProbeEvaluateTimingForMethod(str, Enum):
     DEFAULT = "DEFAULT"
     ENTER = "ENTER"
     EXIT = "EXIT"
@@ -158,8 +157,7 @@ class FunctionLocationMixin(ProbeLocationMixin):
         return (self.module, self.func_qname)
 
 
-# TODO: make this an Enum once Python 2 support is dropped.
-class MetricProbeKind(object):
+class MetricProbeKind(str, Enum):
     COUNTER = "COUNT"
     GAUGE = "GAUGE"
     HISTOGRAM = "HISTOGRAM"
@@ -184,7 +182,7 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeC
 
 
 @attr.s
-class TemplateSegment(six.with_metaclass(abc.ABCMeta)):
+class TemplateSegment(abc.ABC):
     @abc.abstractmethod
     def eval(self, _locals: Dict[str, Any]) -> str:
         pass
@@ -213,7 +211,7 @@ class StringTemplate(object):
 
     def render(self, _locals: Dict[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
-            return value if _isinstance(value, six.string_types) else serializer(value)
+            return value if _isinstance(value, str) else serializer(value)
 
         return "".join([_to_str(s.eval(_locals)) for s in self.segments])
 

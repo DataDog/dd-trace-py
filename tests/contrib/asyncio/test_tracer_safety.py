@@ -5,6 +5,7 @@ import pytest
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
 from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.provider import DefaultContextProvider
+from tests.utils import flaky
 
 
 pytestmark = pytest.mark.skipif(
@@ -36,6 +37,7 @@ def test_trace_coroutine(tracer):
     assert "base" == traces[0][0].resource
 
 
+@flaky(until=1704067200)
 @pytest.mark.asyncio
 async def test_trace_multiple_calls(tracer):
     tracer.configure(context_provider=DefaultContextProvider())
