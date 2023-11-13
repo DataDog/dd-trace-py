@@ -102,7 +102,8 @@ def serialize(
     elif type(value) is set:
         return _serialize_collection(value, r"{}", level, maxsize, maxlen, maxfields) if value else "set()"
 
-    raise TypeError("Unhandled type: %s", type(value))
+    msg = f"Unhandled type: {type(value)}"
+    raise TypeError(msg)
 
 
 def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:

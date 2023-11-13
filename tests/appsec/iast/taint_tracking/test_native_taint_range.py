@@ -127,10 +127,10 @@ def test_collisions_str():
         t4 = random.choice(tainted)
         mixed_tainted_ids.append(id(t4))
 
-        t5 = format_aspect(n1.format, n1, t4)
+        t5 = format_aspect(n1.format, 1, n1, t4)
         mixed_tainted_ids.append(id(t5))
 
-        t6 = join_aspect(t5.join, t5, [t2, n3])
+        t6 = join_aspect(t5.join, 1, t5, [t2, n3])
         mixed_tainted_ids.append(id(t6))
 
     for t in mixed_tainted_and_nottainted:
@@ -146,9 +146,9 @@ def test_collisions_str():
 
         n4 = random.choice(not_tainted)
 
-        n5 = format_aspect(n1.format, n1, [n4])
+        n5 = format_aspect(n1.format, 1, n1, [n4])
 
-        n6 = join_aspect(n5.join, n5, [n2, n3])
+        n6 = join_aspect(n5.join, 1, n5, [n2, n3])
 
         mixed_nottainted.append(n6)
 
@@ -196,10 +196,10 @@ def test_collisions_bytes():
         t4 = random.choice(tainted)
         mixed_tainted_ids.append(id(t4))
 
-        t5 = join_aspect(n1.join, t2, [n1, t4])
+        t5 = join_aspect(n1.join, 1, t2, [n1, t4])
         mixed_tainted_ids.append(id(t5))
 
-        t6 = join_aspect(t5.join, t5, [t2, n3])
+        t6 = join_aspect(t5.join, 1, t5, [t2, n3])
         mixed_tainted_ids.append(id(t6))
 
     for t in mixed_tainted_and_nottainted:
@@ -215,9 +215,9 @@ def test_collisions_bytes():
 
         n4 = random.choice(not_tainted)
 
-        n5 = join_aspect(n1.join, n1, [n2, n4])
+        n5 = join_aspect(n1.join, 1, n1, [n2, n4])
 
-        n6 = join_aspect(n5.join, n5, [n2, n3])
+        n6 = join_aspect(n5.join, 1, n5, [n2, n3])
 
         mixed_nottainted.append(n6)
 
@@ -260,18 +260,18 @@ def test_collisions_bytearray():
     # Do extend operations mixing tainted and untainted bytearrays, store in mixed_tainted_and_nottainted
     for _ in range(10000):
         n1 = bytearray(add_aspect(b"_", random.choice(not_tainted)))
-        extend_aspect(bytearray(b"").extend, n1, b"{}_")
+        extend_aspect(bytearray(b"").extend, 1, n1, b"{}_")
 
         n3 = random.choice(not_tainted)
 
         t4 = random.choice(tainted)
 
         t5 = bytearray(add_aspect(b"_", random.choice(not_tainted)))
-        extend_aspect(bytearray(b"").extend, t5, t4)
+        extend_aspect(bytearray(b"").extend, 1, t5, t4)
         mixed_tainted_ids.append(id(t5))
 
         t6 = bytearray(add_aspect(b"_", random.choice(not_tainted)))
-        extend_aspect(bytearray(b"").extend, t6, n3)
+        extend_aspect(bytearray(b"").extend, 1, t6, n3)
         mixed_tainted_ids.append(id(t6))
 
     for t in mixed_tainted_and_nottainted:
@@ -280,7 +280,7 @@ def test_collisions_bytearray():
     # Do extend operations with only untainted bytearrays, store in mixed_nottainted
     for i in range(10):
         n1 = bytearray(not_tainted[i])
-        extend_aspect(bytearray(b"").extend, n1, b"===")
+        extend_aspect(bytearray(b"").extend, 1, n1, b"===")
         mixed_nottainted.append(n1)
 
         n2 = random.choice(not_tainted)
@@ -288,11 +288,11 @@ def test_collisions_bytearray():
         n4 = bytearray(random.choice(not_tainted))
 
         n5 = bytearray(not_tainted[i])
-        extend_aspect(bytearray(b"").extend, n5, n4)
+        extend_aspect(bytearray(b"").extend, 1, n5, n4)
         mixed_nottainted.append(n5)
 
         n6 = bytearray(not_tainted[i])
-        extend_aspect(bytearray(b"").extend, n6, n2)
+        extend_aspect(bytearray(b"").extend, 1, n6, n2)
 
         mixed_nottainted.append(n6)
 

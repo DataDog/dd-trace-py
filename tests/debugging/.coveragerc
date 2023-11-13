@@ -4,5 +4,4 @@ include = ddtrace/debugging/*
 [report]
 include = ddtrace/debugging/*
 
-# Ignore warnings when we run as Python 2.7 and have a Python 3.x file
-# disable_warnings = couldnt-parse
+disable_warnings = couldnt-parse
