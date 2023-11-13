@@ -1,8 +1,9 @@
-import loguru
+import logbook
 
 import ddtrace
 from ddtrace import config
 
+from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
@@ -15,14 +16,14 @@ from ..trace_utils import unwrap as _u
 
 
 config._add(
-    "loguru",
+    "logbook",
     dict(),
 )
 
 
 def get_version():
     # type: () -> str
-    return getattr(loguru, "__version__", "")
+    return getattr(logbook, "__version__", "")
 
 
 def _tracer_injection(event_dict):
@@ -36,7 +37,7 @@ def _tracer_injection(event_dict):
         if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
             trace_id = span._trace_id_64bits
 
-    # add ids to loguru event dictionary
+    # add ids to logbook event dictionary
     event_dict[RECORD_ATTR_TRACE_ID] = str(trace_id or RECORD_ATTR_VALUE_ZERO)
     event_dict[RECORD_ATTR_SPAN_ID] = str(span_id or RECORD_ATTR_VALUE_ZERO)
     # add the env, service, and version configured for the tracer
@@ -47,26 +48,27 @@ def _tracer_injection(event_dict):
     return event_dict
 
 
-def _w_add(func, instance, args, kwargs):
+def _w_process_record(func, instance, args, kwargs):
     # patch logger to include datadog info before logging
-    instance.configure(patcher=lambda record: record.update(_tracer_injection(record["extra"])))
+    record = get_argument_value(args, kwargs, 0, "record")
+    _tracer_injection(record.extra)
     return func(*args, **kwargs)
 
 
 def patch():
     """
-    Patch ``loguru`` module for injection of tracer information
-    by appending a patcher before the add function ``loguru.add``
+    Patch ``logbook`` module for injection of tracer information
+    by editing a log record created via ``logbook.base.RecordDispatcher.process_record``
     """
-    if getattr(loguru, "_datadog_patch", False):
+    if getattr(logbook, "_datadog_patch", False):
         return
-    loguru._datadog_patch = True
+    logbook._datadog_patch = True
 
-    _w(loguru.logger, "add", _w_add)
+    _w(logbook.base.RecordDispatcher, "process_record", _w_process_record)
 
 
 def unpatch():
-    if getattr(loguru, "_datadog_patch", False):
-        loguru._datadog_patch = False
+    if getattr(logbook, "_datadog_patch", False):
+        logbook._datadog_patch = False
 
-        _u(loguru.logger, "add")
+        _u(logbook.base.RecordDispatcher, "process_record")
