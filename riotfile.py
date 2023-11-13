@@ -2027,13 +2027,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": [latest],
+                        "openai[datalib]": [latest],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
