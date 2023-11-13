@@ -184,13 +184,12 @@ class _DatadogMultiHeader:
         return meta
 
     @staticmethod
-    def _put_together_trace_id(trace_id_hob_hex, low_64_bits):
+    def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
         # combine highest and lowest order hex values to create a 128 bit trace_id
         return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
 
     @staticmethod
-    def _higher_order_is_valid(upper_64_bits):
-        # type: (str) -> bool
+    def _higher_order_is_valid(upper_64_bits: str) -> bool:
         try:
             if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
                 raise ValueError
