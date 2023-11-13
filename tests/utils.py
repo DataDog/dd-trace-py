@@ -1110,11 +1110,6 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
-class AnyStringWithText(str):
-    def __eq__(self, other):
-        return self in other
-
-
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
@@ -1249,7 +1244,7 @@ def _get_skipped_item(item, skip_reason):
     if not hasattr(item, "pytestmark"):
         item.pytestmark = []
 
-    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
 
     return item
 

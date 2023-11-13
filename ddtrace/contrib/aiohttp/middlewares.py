@@ -1,3 +1,5 @@
+from aiohttp import web
+
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -69,6 +71,8 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = await handler(request)
+            if isinstance(response, web.StreamResponse):
+                request.task.add_done_callback(lambda _: finish_request_span(request, response))
             return response
         except Exception:
             request_span.set_traceback()
@@ -77,11 +81,7 @@ async def trace_middleware(app, handler):
     return attach_context
 
 
-async def on_prepare(request, response):
-    """
-    The on_prepare signal is used to close the request span that is created during
-    the trace middleware execution.
-    """
+def finish_request_span(request, response):
     # safe-guard: discard if we don't have a request span
     request_span = request.get(REQUEST_SPAN_KEY, None)
     if not request_span:
@@ -124,6 +124,18 @@ async def on_prepare(request, response):
     )
 
     request_span.finish()
+
+
+async def on_prepare(request, response):
+    """
+    The on_prepare signal is used to close the request span that is created during
+    the trace middleware execution.
+    """
+    # NB isinstance is not appropriate here because StreamResponse is a parent of the other
+    # aiohttp response types
+    if type(response) is web.StreamResponse and not response.task.done():
+        return
+    finish_request_span(request, response)
 
 
 def trace_app(app, tracer, service="aiohttp-web"):

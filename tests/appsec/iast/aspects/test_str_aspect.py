@@ -36,7 +36,7 @@ def setup():
 def test_str_aspect(obj, kwargs):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    assert ddtrace_aspects.str_aspect(str, obj, **kwargs) == str(obj, **kwargs)
+    assert ddtrace_aspects.str_aspect(str, 0, obj, **kwargs) == str(obj, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -66,7 +66,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
             obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
         )
 
-    result = ddtrace_aspects.str_aspect(str, obj, **kwargs)
+    result = ddtrace_aspects.str_aspect(str, 0, obj, **kwargs)
     assert is_pyobject_tainted(result) == should_be_tainted
 
     assert result == str(obj, **kwargs)
@@ -94,7 +94,7 @@ def test_repr_aspect_tainting(obj, expected_result):
         obj, source_name="test_repr_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
     )
 
-    result = ddtrace_aspects.repr_aspect(repr, obj)
+    result = ddtrace_aspects.repr_aspect(repr, 0, obj)
     assert is_pyobject_tainted(result) is True
 
 
@@ -111,6 +111,14 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
+
+    def test_aspect_ljust_error_and_no_log_metric(self, telemetry_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_ljust(string_input, "aaaaa")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
     def test_zfill(self):
         # Not tainted
@@ -130,6 +138,14 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-012-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == "00:+-012-+:34"
+
+    def test_aspect_zfill_error_and_no_log_metric(self, telemetry_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_zfill(string_input, "aaaaa")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
     def test_format(self):
         # type: () -> None
