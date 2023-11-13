@@ -116,7 +116,7 @@ wsgi_invalid_tags_header:
 full_t_id_datadog_headers: &datadog_128_bit_headers
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=0f198ee56343ba8"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8"}
   styles: "datadog"
 
 tracecontext_headers: &tracecontext_128_bit_headers
@@ -146,18 +146,18 @@ none_propagation_style: &none_propagation_style
 datadog_tracecontext_tracestate_propagated_on_trace_id_match:
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=0f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
   styles: "datadog,tracecontext"
 
 datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match:
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "7277407061855694838", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=0f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+    {"x-datadog-trace-id": "7277407061855694838", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
   styles: "datadog,tracecontext"
 
 
 all_styles_all_headers:
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=0f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE","x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1", "b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE","x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1", "b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
   styles: "tracecontext,datadog,b3multi,b3"

@@ -12,8 +12,6 @@ class HTTPPropagationExtract(bm.Scenario):
     extra_headers = bm.var(type=int)
     wsgi_style = bm.var(type=bool)
     styles = bm.var(type=str)
-    if styles:
-        config._propagation_style_extract = styles.split(",")
 
     def generate_headers(self):
         headers = json.loads(self.headers)
@@ -29,6 +27,8 @@ class HTTPPropagationExtract(bm.Scenario):
         return headers
 
     def run(self):
+        config._propagation_style_extract = self.styles.split(",") if ("," in self.styles) else [self.styles]
+
         headers = self.generate_headers()
 
         def _(loops):
