@@ -12,8 +12,6 @@ class HTTPPropagationExtract(bm.Scenario):
     extra_headers = bm.var(type=int)
     wsgi_style = bm.var(type=bool)
     styles = bm.var(type=str)
-    traceid128 = bm.var_bool()
-    propagation_extract_first = bm.var_bool()
 
     def generate_headers(self):
         headers = json.loads(self.headers)
@@ -29,9 +27,8 @@ class HTTPPropagationExtract(bm.Scenario):
         return headers
 
     def run(self):
-        config._128_bit_trace_id_enabled = self.traceid128
-        config._propagation_extract_first = self.propagation_extract_first
-        config._propagation_style_extract = self.styles.split(",") if ("," in self.styles) else [self.styles]
+        if self.styles:
+            config._propagation_style_extract = self.styles.split(",") if ("," in self.styles) else [self.styles]
 
         headers = self.generate_headers()
 

@@ -3,36 +3,18 @@ empty_headers: &default_values
   headers: "{}"
   extra_headers: 0
   wsgi_style: False
-  styles: "tracecontext,datadog"
-  traceid128: True
-  propagation_extract_first: False
-
-empty_headers_64: &default_values_64
-  headers: "{}"
-  extra_headers: 0
-  wsgi_style: False
-  styles: "tracecontext,datadog"
-  traceid128: True
-  propagation_extract_first: False
 
 # 20 headers, but none that we expect
 medium_header_no_matches: &medium_header_no_matches
   headers: "{}"
   extra_headers: 20
   wsgi_style: False
-  styles: "tracecontext,datadog"
-  traceid128: True
-  propagation_extract_first: False
-
 
 # 100 headers, but none that we expect
 large_header_no_matches: &large_header_no_matches
   headers: "{}"
   extra_headers: 100
   wsgi_style: False
-  styles: "tracecontext,datadog"
-  traceid128: True
-  propagation_extract_first: False
 
 
 # Only trace id/span id/priority
@@ -40,14 +22,12 @@ valid_headers_basic: &valid_headers_basic
   <<: *default_values
   headers: |
     {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
-  traceid128: True
 
 # All possible headers we expect
 valid_headers_all: &valid_headers_all
   <<: *default_values
   headers: |
     {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=-2"}
-  traceid128: True
 
 # All valid/possible headers but 20 additional unrelated headers
 medium_valid_headers_all: &medium_valid_headers_all
@@ -130,61 +110,52 @@ wsgi_invalid_tags_header:
   wsgi_style: True
 
 
-# More advanced testing for all styles, 128-bit vs 64-bit, special cases like tracestate propagation, multiple valid contexts
+# More advanced testing for all styles, 128-bit ids, special cases like tracestate propagation, multiple valid contexts
 
-full_t_id_datadog_headers_128: &datadog_128_bit_headers
-  <<: *default_values_128
+full_t_id_datadog_headers: &datadog_128_bit_headers
+  <<: *default_values
   headers: |
     {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8"}
   styles: "datadog"
-  traceid128: True
 
-tracecontext_headers_128: &tracecontext_128_bit_headers
-  <<: *default_values_128
+tracecontext_headers: &tracecontext_128_bit_headers
+  <<: *default_values
   headers: |
     {"traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
   styles: "tracecontext"
 
-b3_headers_128: &b3_headers
-  <<: *default_values_128
+b3_headers: &b3_headers
+  <<: *default_values
   headers: |
     {"x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1"}
   styles: "b3multi"
 
-b3_single_headers_128: &b3_single_header_headers
-  <<: *default_values_128
+b3_single_headers: &b3_single_header_headers
+  <<: *default_values
   headers: |
     {"b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
   styles: "b3"
 
-none_propagation_style_128: &none_propagation_style
-  <<: *default_values_128
+none_propagation_style: &none_propagation_style
+  <<: *default_values
   headers: |
     {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
   styles: "none"
 
-datadog_tracecontext_tracestate_propagated_on_trace_id_match_128:
-  <<: *default_values_128
+datadog_tracecontext_tracestate_propagated_on_trace_id_match:
+  <<: *default_values
   headers: |
     {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
   styles: "datadog,tracecontext"
 
-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match_128:
-  <<: *default_values_128
+datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match:
+  <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "7277407061855694838", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+    {"x-datadog-trace-id": "1234567891011121314", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
   styles: "datadog,tracecontext"
 
-all_styles_all_headers_loop_through_all:
-  <<: *default_values_128
+all_styles_all_headers:
+  <<: *default_values
   headers: |
     {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE","x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1", "b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
   styles: "tracecontext,datadog,b3multi,b3"
-  propagation_extract_first: False
-
-all_styles_all_headers_extract_first:
-  <<: *default_values_128
-  headers: |
-    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE","x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1", "b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
-  styles: "tracecontext,datadog,b3multi,b3"
-  propagation_extract_first: True
