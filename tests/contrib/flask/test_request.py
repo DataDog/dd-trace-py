@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import subprocess
+import signal
+import sys
 
 import flask
 from flask import abort
@@ -1166,3 +1169,23 @@ if __name__ == "__main__":
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
     assert err == b"", (out, err)
+
+
+def test_sigint(ddtrace_run_python_code_in_subprocess):
+    code = """
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(port=8082)
+    """
+    subp = subprocess.Popen(["ddtrace-run", sys.executable, str(code)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=sys.platform != "win32")
+    subp.send_signal(signal.SIGINT)
+    out, err = subp.communicate()
+    status = subp.wait()
+    assert status == 0, (out, err)
+    assert err == b""
