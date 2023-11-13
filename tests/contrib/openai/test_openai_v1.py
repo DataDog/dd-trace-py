@@ -1,6 +1,7 @@
 import os
 import sys
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator
+from typing import Generator
 
 import mock
 import openai as openai_module
@@ -10,8 +11,11 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
-from tests.contrib.openai.utils import get_openai_vcr, iswrapped
-from tests.utils import override_global_config, snapshot_context
+from tests.contrib.openai.utils import get_openai_vcr
+from tests.contrib.openai.utils import iswrapped
+from tests.utils import override_global_config
+from tests.utils import snapshot_context
+
 
 TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
