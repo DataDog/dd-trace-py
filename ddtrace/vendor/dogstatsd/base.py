@@ -32,7 +32,10 @@ from .context import (
 )
 from .route import get_default_route
 from .container import ContainerID
+from .compat import text
 from .format import normalize_tags
+
+__version__ = "0.47.0"
 
 # Logging
 log = logging.getLogger("datadog.dogstatsd")
@@ -361,6 +364,8 @@ class DogStatsd(object):
         if constant_tags is None:
             constant_tags = []
         self.constant_tags = constant_tags + env_tags
+        if namespace is not None:
+            namespace = text(namespace)
         self.namespace = namespace
         self.use_ms = use_ms
         self.default_sample_rate = default_sample_rate
@@ -376,6 +381,7 @@ class DogStatsd(object):
         # init telemetry version
         self._client_tags = [
             "client:py",
+            "client_version:{}".format(__version__),
             "client_transport:{}".format(transport),
         ]
         self._reset_telemetry()
@@ -883,7 +889,7 @@ class DogStatsd(object):
             metric,
             value,
             metric_type,
-            ("|@" + sample_rate) if sample_rate != 1 else "",
+            ("|@" + text(sample_rate)) if sample_rate != 1 else "",
             ("|#" + ",".join(normalize_tags(tags))) if tags else "",
             ("|c:" + self._container_id if self._container_id else "")
         )
