@@ -50,7 +50,7 @@ for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
         callees_module_str="tests.appsec.iast.fixtures.aspects.callees",
     )
 
-patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", "."))
+patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", ".")[0:-3])
 # This import needs to be done after the file is created (previous line)
 # pylint: disable=[wrong-import-position],[no-name-in-module]
 from tests.appsec.iast.fixtures.aspects import unpatched_callers  # type: ignore[attr-defined] # noqa: E402
