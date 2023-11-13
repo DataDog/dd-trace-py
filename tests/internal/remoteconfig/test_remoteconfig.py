@@ -146,7 +146,7 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
 
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    class MockPubsub:
+    class MockPubsub(PubSub):
         def stop(self, *args, **kwargs):
             pass
 
@@ -165,10 +165,15 @@ def test_remote_config_register_auto_enable(remote_config_worker):
 
 def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     remoteconfig_poller.disable()
+
+    class MockPubsub(PubSub):
+        def stop(self, *args, **kwargs):
+            pass
+
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
+        remoteconfig_poller.register("LIVE_DEBUGGER", MockPubsub())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
