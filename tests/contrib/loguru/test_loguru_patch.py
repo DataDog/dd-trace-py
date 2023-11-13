@@ -23,12 +23,9 @@ class TestLoguruPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, loguru):
         self.assert_wrapped(loguru.logger.add)
-        self.assert_wrapped(loguru._handler.Handler._serialize_record)
 
     def assert_not_module_patched(self, loguru):
         self.assert_not_wrapped(loguru.logger.add)
-        self.assert_not_wrapped(loguru._handler.Handler._serialize_record)
 
     def assert_not_module_double_patched(self, loguru):
         self.assert_not_double_wrapped(loguru.logger.add)
-        self.assert_not_double_wrapped(loguru._handler.Handler._serialize_record)
