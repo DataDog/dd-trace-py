@@ -46,6 +46,8 @@ class TaintedObject
                             RANGE_LENGTH max_length = -1,
                             RANGE_START orig_offset = -1);
 
+    std::string toString();
+
     explicit operator string();
 
     void move_ranges_to_stack();
