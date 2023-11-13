@@ -704,10 +704,21 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(dummy_tracer, consumer, producer, kafka_topic):
-    os.environ["DD_KAFKA_DISTRIBUTED_TRACING_ENABLED"] = "true"
+def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
+    code = """
+import six
+import sys
+import pytest
 
-    dummy_tracer = dummy_tracer()
+from ddtrace import Pin
+
+from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import dummy_tracer
+from tests.contrib.kafka.test_kafka import kafka_topic
+from tests.contrib.kafka.test_kafka import producer
+from tests.contrib.kafka.test_kafka import tracer
+
+def test(dummy_tracer, consumer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
@@ -740,3 +751,13 @@ def test_tracing_context_is_propagated_when_enabled(dummy_tracer, consumer, prod
 
     # Two of these spans are part of the same trace
     assert produce_span.trace_id == consume_span1.trace_id or produce_span.trace_id == consume_span2.trace_id
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+
+    env = os.environ.copy()
+    env["DD_KAFKA_DISTRIBUTED_TRACING_ENABLED"] = "true"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode() + err.decode()
+    assert err == b"", err.decode()
