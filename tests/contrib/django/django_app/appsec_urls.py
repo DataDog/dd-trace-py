@@ -196,7 +196,7 @@ def sqli_http_request_body(request):
     if key in request.POST:
         value = request.POST[key]
     else:
-        value = decode_aspect(None, request.body)
+        value = decode_aspect(bytes.decode, 1, request.body)
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_body
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
