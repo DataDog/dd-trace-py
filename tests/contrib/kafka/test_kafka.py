@@ -670,10 +670,11 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
-    test_string = "context test"
+    test_string = "context test no propagation"
+    test_key = "context test key no propagation"
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
-    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
     message = None
@@ -681,51 +682,57 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
         message = consumer.poll(1.0)
 
     # message comes back with expected test string
-    assert message.value() == b"context test"
+    assert message.value() == b"context test no propagation"
 
+    consume_span = None
     traces = dummy_tracer.pop_traces()
     produce_span = traces[0][0]
-    consume_span1 = traces[1][0]
-    consume_span2 = traces[2][0]
+    for trace in traces:
+        for span in trace:
+            if span.get_tag("kafka.received_message") == "True":
+                if span.get_tag("kafka.message_key") == test_key:
+                    consume_span = span
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
 
     # None of the kafka.consume spans have parents
-    assert consume_span1.name == "kafka.consume"
-    assert consume_span1.parent_id is None
-    assert consume_span2.name == "kafka.consume"
-    assert consume_span2.parent_id is None
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id is None
 
     # None of these spans are part of the same trace
-    assert produce_span.trace_id != consume_span1.trace_id
-    assert consume_span1.trace_id != consume_span2.trace_id
+    assert produce_span.trace_id != consume_span.trace_id
 
 
 # Propagation should work when enabled
 def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
     code = """
+import pytest
 import six
 import sys
-import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
-from tests.contrib.kafka.test_kafka import dummy_tracer
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
+from tests.utils import DummyTracer
 
-def test(dummy_tracer, consumer, producer, kafka_topic):
-    Pin.override(producer, tracer=dummy_tracer)
-    Pin.override(consumer, tracer=dummy_tracer)
+def test(consumer, producer, kafka_topic):
+    patch()
+    dummyTracer = DummyTracer()
+    Pin.override(producer, tracer=dummyTracer)
+    Pin.override(consumer, tracer=dummyTracer)
 
-    test_string = "context test"
+
+    test_string = "context propagation enabled test"
+    test_key = "context propagation key"
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
-    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
     message = None
@@ -733,24 +740,28 @@ def test(dummy_tracer, consumer, producer, kafka_topic):
         message = consumer.poll(1.0)
 
     # message comes back with expected test string
-    assert message.value() == b"context test"
+    assert message.value() == b"context propagation enabled test"
 
-    traces = dummy_tracer.pop_traces()
+    consume_span = None
+    traces = dummyTracer.pop_traces()
     produce_span = traces[0][0]
-    consume_span1 = traces[1][0]
-    consume_span2 = traces[2][0]
+    for trace in traces:
+        for span in trace:
+            if span.get_tag('kafka.received_message') == 'True':
+                if span.get_tag('kafka.message_key') == test_key:
+                    consume_span = span
+                    break
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
 
     # One of the kafka.consume spans has a parent
-    assert consume_span1.name == "kafka.consume"
-    assert consume_span1.parent_id is not None or consume_span2.parent_id is not None
-    assert consume_span2.name == "kafka.consume"
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id is not None
 
     # Two of these spans are part of the same trace
-    assert produce_span.trace_id == consume_span1.trace_id or produce_span.trace_id == consume_span2.trace_id
+    assert produce_span.trace_id == consume_span.trace_id
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))

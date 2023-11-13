@@ -182,7 +182,7 @@ def traced_poll(func, instance, args, kwargs):
 
     message = func(*args, **kwargs)
     parent = None
-    if message is not None and config.distributed_tracing_enabled:
+    if message is not None and config.kafka.distributed_tracing_enabled:
         parent = extract_parent_context(message.headers())
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
@@ -233,13 +233,14 @@ def extract_parent_context(carrier):
     trace_id = None
     span_id = None
     sp = None
-    for key, value in carrier:
-        if key == "x-datadog-trace-id":
-            trace_id = int(value)
-        elif key == "x-datadog-parent-id":
-            span_id = int(value)
-        elif key == "x-datadog-sampling-priority":
-            sp = float(value)
+    if carrier:
+        for key, value in carrier:
+            if key == "x-datadog-trace-id":
+                trace_id = int(value)
+            elif key == "x-datadog-parent-id":
+                span_id = int(value)
+            elif key == "x-datadog-sampling-priority":
+                sp = float(value)
     if trace_id and span_id:
         return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sp)
     else:
