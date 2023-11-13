@@ -26,15 +26,13 @@ except ImportError:
 from typing import Optional, List, Text, Union
 
 # Datadog libraries
-from datadog.dogstatsd.context import (
+from .context import (
     TimedContextManagerDecorator,
     DistributedContextManagerDecorator,
 )
-from datadog.dogstatsd.route import get_default_route
-from datadog.dogstatsd.container import ContainerID
-from datadog.util.compat import is_p3k, text
-from datadog.util.format import normalize_tags
-from datadog.version import __version__
+from .route import get_default_route
+from .container import ContainerID
+from .format import normalize_tags
 
 # Logging
 log = logging.getLogger("datadog.dogstatsd")
@@ -363,8 +361,6 @@ class DogStatsd(object):
         if constant_tags is None:
             constant_tags = []
         self.constant_tags = constant_tags + env_tags
-        if namespace is not None:
-            namespace = text(namespace)
         self.namespace = namespace
         self.use_ms = use_ms
         self.default_sample_rate = default_sample_rate
@@ -380,7 +376,6 @@ class DogStatsd(object):
         # init telemetry version
         self._client_tags = [
             "client:py",
-            "client_version:{}".format(__version__),
             "client_transport:{}".format(transport),
         ]
         self._reset_telemetry()
@@ -888,7 +883,7 @@ class DogStatsd(object):
             metric,
             value,
             metric_type,
-            ("|@" + text(sample_rate)) if sample_rate != 1 else "",
+            ("|@" + sample_rate) if sample_rate != 1 else "",
             ("|#" + ",".join(normalize_tags(tags))) if tags else "",
             ("|c:" + self._container_id if self._container_id else "")
         )
@@ -1086,13 +1081,6 @@ class DogStatsd(object):
         """
         title = DogStatsd._escape_event_content(title)
         message = DogStatsd._escape_event_content(message)
-
-        # pylint: disable=undefined-variable
-        if not is_p3k():
-            if not isinstance(title, unicode):                                       # noqa: F821
-                title = unicode(DogStatsd._escape_event_content(title), 'utf8')      # noqa: F821
-            if not isinstance(message, unicode):                                     # noqa: F821
-                message = unicode(DogStatsd._escape_event_content(message), 'utf8')  # noqa: F821
 
         # Append all client level tags to every event
         tags = self._add_constant_tags(tags)

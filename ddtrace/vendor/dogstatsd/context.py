@@ -10,8 +10,8 @@ except ImportError:
     from time import time as monotonic
 
 # datadog
-from datadog.dogstatsd.context_async import _get_wrapped_co
-from datadog.util.compat import iscoroutinefunction
+from .context_async import _get_wrapped_co
+from .compat import iscoroutinefunction
 
 
 class TimedContextManagerDecorator(object):
