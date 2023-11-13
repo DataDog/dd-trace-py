@@ -1,18 +1,11 @@
 from functools import wraps
-from os.path import abspath
+from pathlib import Path
 
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import _undecorate
-from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
-
-
-def _f(f):
-    if PY2:
-        return f.im_func
-    return f
 
 
 @pytest.fixture
@@ -96,7 +89,7 @@ def test_function_module_method(stuff_discovery):
 def test_function_instance_method(stuff_discovery):
     cls = stuff.Stuff
     (original_func,) = stuff_discovery.at_line(36)
-    assert _f(cls.instancestuff) is original_func
+    assert cls.instancestuff is original_func
 
 
 def test_function_decorated_method(stuff_discovery):
@@ -108,11 +101,11 @@ def test_function_decorated_method(stuff_discovery):
 def test_function_mangled(stuff_discovery):
     original_method = stuff.Stuff._Stuff__mangledstuff
     (original_func,) = stuff_discovery.at_line(75)
-    assert _f(original_method) is original_func
+    assert original_method is original_func
 
 
 def test_discovery_after_external_wrapping(stuff):
-    import wrapt as wrapt
+    import ddtrace.vendor.wrapt as wrapt
 
     def wrapper(wrapped, inst, args, kwargs):
         pass
@@ -151,7 +144,7 @@ def test_undecorate():
     dddf = d(ddf)
     assert dddf is not ddf
 
-    name, path = f.__code__.co_name, abspath(__file__)
+    name, path = f.__code__.co_name, Path(__file__).resolve()
     assert f is _undecorate(dddf, name, path)
     assert f is _undecorate(ddf, name, path)
     assert f is _undecorate(df, name, path)
@@ -169,9 +162,9 @@ def test_discovery_class_decoration():
     def f():
         pass
 
-    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
-    assert code.co_filename == abspath(__file__)
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()
 
 
 def test_discovery_wrapped_decoration():
@@ -179,6 +172,6 @@ def test_discovery_wrapped_decoration():
     def f():
         pass
 
-    code = _undecorate(f, name="f", path=abspath(__file__)).__code__
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
-    assert code.co_filename == abspath(__file__)
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()

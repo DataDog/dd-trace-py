@@ -70,7 +70,6 @@ def _get_64_highest_order_bits_as_hex(large_int):
 
 
 class Span(object):
-
     __slots__ = [
         # Public span attributes
         "service",
@@ -326,7 +325,7 @@ class Span(object):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2 ** 53:
+        if value is not None and val_is_an_int and abs(value) <= 2**53:
             self.set_metric(key, value)
             return
 
@@ -409,9 +408,8 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
-        # This method sets a numeric tag value for the given key.
-
-        # Enforce a specific connstant for `_dd.measured`
+        """This method sets a numeric tag value for the given key."""
+        # Enforce a specific constant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
@@ -440,6 +438,9 @@ class Span(object):
         self._metrics[key] = value
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
+        """Set a dictionary of metrics on the given span. Keys must be
+        must be strings (or stringable). Values must be numeric.
+        """
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
@@ -510,7 +511,7 @@ class Span(object):
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
+            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
             for (k, v) in data
         )
 

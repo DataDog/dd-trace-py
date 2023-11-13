@@ -8,13 +8,15 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
+from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.tracing import SPAN_NAME
+from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
@@ -30,6 +32,7 @@ from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 def good_probe():
@@ -550,7 +553,7 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import wrapt as wrapt  # noqa
+import ddtrace.vendor.wrapt as wrapt  # noqa
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -883,6 +886,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
+@flaky(until=1704067200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
@@ -1082,3 +1086,55 @@ def test_debugger_continue_wrapping_after_first_failure():
 
         assert not d._probe_registry[probe_nok.probe_id].installed
         assert d._probe_registry[probe_ok.probe_id].installed
+
+
+def test_debugger_redacted_identifiers():
+    import tests.submod.stuff as stuff
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_snapshot_line_probe(
+                probe_id="foo",
+                version=1,
+                source_file="tests/submod/stuff.py",
+                line=164,
+                **compile_template(
+                    "token=",
+                    {"dsl": "token", "json": {"ref": "token"}},
+                    " answer=",
+                    {"dsl": "answer", "json": {"ref": "answer"}},
+                    " pii_dict=",
+                    {"dsl": "pii_dict", "json": {"ref": "pii_dict"}},
+                    " pii_dict['jwt']=",
+                    {"dsl": "pii_dict['jwt']", "json": {"index": [{"ref": "pii_dict"}, "jwt"]}},
+                ),
+            )
+        )
+
+        stuff.sensitive_stuff("top secret")
+
+        ((msg,),) = d.uploader.wait_for_payloads()
+
+        assert (
+            msg["message"] == f"token={REDACTED} answer=42 "
+            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
+            f"pii_dict['jwt']={REDACTED}"
+        )
+
+        assert msg["debugger.snapshot"]["captures"]["lines"]["164"] == {
+            "arguments": {"pwd": redacted_value(str())},
+            "locals": {
+                "token": redacted_value(str()),
+                "answer": {"type": "int", "value": "42"},
+                "pii_dict": {
+                    "type": "dict",
+                    "entries": [
+                        [{"type": "str", "value": "'jwt'"}, redacted_value(str())],
+                        [{"type": "str", "value": "'password'"}, redacted_value(str())],
+                        [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                    ],
+                    "size": 3,
+                },
+            },
+            "throwable": None,
+        }

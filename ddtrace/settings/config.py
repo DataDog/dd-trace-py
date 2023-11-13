@@ -10,11 +10,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.appsec._constants import API_SECURITY
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import IAST_ENV
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -208,7 +203,7 @@ class _ConfigItem:
         self._env_value = None
         self._code_value = None
         self._envs = envs
-        for (env_var, parser) in envs:
+        for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
@@ -428,11 +423,11 @@ class Config(object):
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
-        if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
+        if x_datadog_tags_max_length < 0:
             raise ValueError(
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values less than or equal to 512 allowed"
+                    "only non-negative values allowed"
                 ).format(x_datadog_tags_max_length)
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
@@ -448,23 +443,6 @@ class Config(object):
             )
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
-        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
-        self._automatic_login_events_mode = os.getenv(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "safe")
-        self._user_model_login_field = os.getenv(APPSEC.USER_MODEL_LOGIN_FIELD, default="")
-        self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
-        self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
-        self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
-        self._api_security_enabled = asbool(os.getenv(API_SECURITY.ENV_VAR_ENABLED, False))
-        self._api_security_sample_rate = 0.1
-        try:
-            self._api_security_sample_rate = min(1.0, max(0.0, os.getenv(API_SECURITY.SAMPLE_RATE)))
-        except BaseException:  # nosec
-            pass
-        self._waf_timeout = DEFAULT.WAF_TIMEOUT
-        try:
-            self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
-        except (TypeError, ValueError):
-            pass
 
         dd_trace_obfuscation_query_string_regexp = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -496,19 +474,6 @@ class Config(object):
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
-        self._iast_redaction_enabled = asbool(os.getenv("DD_IAST_REDACTION_ENABLED", default=True))
-        self._iast_redaction_name_pattern = os.getenv(
-            "DD_IAST_REDACTION_NAME_PATTERN",
-            default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
-            + r"public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
-            + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
-        )
-        self._iast_redaction_value_pattern = os.getenv(
-            "DD_IAST_REDACTION_VALUE_PATTERN",
-            default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|"
-            + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
-            + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
-        )
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):

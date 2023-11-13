@@ -1,10 +1,6 @@
 import abc
-from os.path import abspath
-from os.path import isfile
-from os.path import normcase
-from os.path import normpath
-from os.path import sep
-from os.path import splitdrive
+from enum import Enum
+from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -14,7 +10,6 @@ from typing import Tuple
 from typing import Union
 
 import attr
-import six
 
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
@@ -32,22 +27,20 @@ DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
 @cached()
-def _resolve_source_file(path: str) -> Optional[str]:
+def _resolve_source_file(_path: str) -> Optional[Path]:
     """Resolve the source path for the given path.
 
     This recursively strips parent directories until it finds a file that
     exists according to sys.path.
     """
-    npath = abspath(normpath(normcase(path)))
-    if isfile(npath):
-        return npath
+    path = Path(_path)
+    if path.is_file():
+        return path.resolve()
 
-    _, relpath = splitdrive(npath)
-    while relpath:
+    for relpath in (path.relative_to(_) for _ in path.parents):
         resolved_path = _resolve(relpath)
         if resolved_path is not None:
-            return abspath(resolved_path)
-        _, _, relpath = relpath.partition(sep)
+            return resolved_path
 
     return None
 
@@ -70,7 +63,7 @@ DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
 @attr.s
-class Probe(six.with_metaclass(abc.ABCMeta)):
+class Probe(abc.ABC):
     probe_id = attr.ib(type=str)
     version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
@@ -92,7 +85,7 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 
 
 @attr.s
-class RateLimitMixin(six.with_metaclass(abc.ABCMeta)):
+class RateLimitMixin(abc.ABC):
     rate = attr.ib(type=float, eq=False)
     limiter = attr.ib(type=RateLimiter, init=False, repr=False, eq=False)
 
@@ -132,24 +125,23 @@ class ProbeConditionMixin(object):
 
 @attr.s
 class ProbeLocationMixin(object):
-    def location(self) -> Tuple[str, str]:
-        """return a turple of (location,sublocation) for the probe.
+    def location(self) -> Tuple[Optional[str], Optional[Union[str, int]]]:
+        """return a tuple of (location,sublocation) for the probe.
         For example, line probe returns the (file,line) and method probe return (module,method)
         """
-        return ("", "")
+        return (None, None)
 
 
 @attr.s
 class LineLocationMixin(ProbeLocationMixin):
-    source_file = attr.ib(type=str, converter=_resolve_source_file, eq=False)  # type: ignore[misc]
+    source_file = attr.ib(type=Path, converter=_resolve_source_file, eq=False)  # type: ignore[misc]
     line = attr.ib(type=int, eq=False)
 
     def location(self):
-        return (self.source_file, self.line)
+        return (str(self.source_file) if self.source_file is not None else None, self.line)
 
 
-# TODO: make this an Enum once Python 2 support is dropped.
-class ProbeEvaluateTimingForMethod(object):
+class ProbeEvaluateTimingForMethod(str, Enum):
     DEFAULT = "DEFAULT"
     ENTER = "ENTER"
     EXIT = "EXIT"
@@ -165,8 +157,7 @@ class FunctionLocationMixin(ProbeLocationMixin):
         return (self.module, self.func_qname)
 
 
-# TODO: make this an Enum once Python 2 support is dropped.
-class MetricProbeKind(object):
+class MetricProbeKind(str, Enum):
     COUNTER = "COUNT"
     GAUGE = "GAUGE"
     HISTOGRAM = "HISTOGRAM"
@@ -191,7 +182,7 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeC
 
 
 @attr.s
-class TemplateSegment(six.with_metaclass(abc.ABCMeta)):
+class TemplateSegment(abc.ABC):
     @abc.abstractmethod
     def eval(self, _locals: Dict[str, Any]) -> str:
         pass
@@ -220,7 +211,7 @@ class StringTemplate(object):
 
     def render(self, _locals: Dict[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
-            return value if _isinstance(value, six.string_types) else serializer(value)
+            return value if _isinstance(value, str) else serializer(value)
 
         return "".join([_to_str(s.eval(_locals)) for s in self.segments])
 

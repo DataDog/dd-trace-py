@@ -143,6 +143,7 @@ venv = Venv(
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -154,6 +155,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
+                "psycopg2": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -558,10 +560,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # celery added support for Python 3.10 in 5.2, no official support for 3.11 yet
-                    # Billiard dependency is incompatible with Python 3.11
-                    # https://github.com/celery/billiard/issues/377
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
@@ -1379,7 +1378,10 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_PATCH_MODULES": "unittest:true"},
+            env={
+                "DD_PATCH_MODULES": "unittest:true",
+                "DD_AGENT_PORT": "9126",
+            },
             pys=select_pys(),
         ),
         Venv(

@@ -24,6 +24,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -42,7 +43,7 @@ def get_version():
 def patch():
     # type: () -> List[str]
     patched = []  # type: List[str]
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return patched
 
     import os

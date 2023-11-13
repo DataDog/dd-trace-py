@@ -9,11 +9,13 @@ from typing import Union
 
 import six
 
-from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
+from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._metrics import increment_iast_span_metric
 from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
@@ -42,7 +44,7 @@ def get_version():
 
 
 def patch():
-    if not config._iast_enabled:
+    if not asm_config._iast_enabled:
         return
 
     if not getattr(os, "_datadog_cmdi_patch", False):
@@ -133,7 +135,7 @@ class CommandInjection(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report
@@ -246,11 +248,12 @@ def _iast_report_cmdi(shell_args):
     if isinstance(shell_args, (list, tuple)):
         for arg in shell_args:
             if get_tainted_ranges(arg):
-                report_cmdi = join_aspect(" ".join, " ", shell_args)
+                report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
                 break
     elif get_tainted_ranges(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
         _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)

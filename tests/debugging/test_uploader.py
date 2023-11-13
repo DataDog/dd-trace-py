@@ -5,8 +5,12 @@ import pytest
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import Queue
+
+
+# DEV: Using float('inf') with lock wait intervals may cause an OverflowError
+# so we use a large enough integer as an approximation instead.
+LONG_INTERVAL = 2147483647.0
 
 
 class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
@@ -33,7 +37,7 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
 
 
 def test_uploader_batching():
-    with ActiveBatchJsonEncoder(interval=float("inf")) as uploader:
+    with ActiveBatchJsonEncoder(interval=LONG_INTERVAL) as uploader:
         for _ in range(5):
             uploader._encoder.put("hello")
             uploader._encoder.put("world")
@@ -43,10 +47,9 @@ def test_uploader_batching():
             assert uploader.queue.get(timeout=1) == "[hello,world]", "iteration %d" % _
 
 
-@pytest.mark.xfail(condition=PY2, reason="This test is flaky on Python 2")
 def test_uploader_full_buffer():
     size = 1 << 8
-    with ActiveBatchJsonEncoder(size=size, interval=float("inf")) as uploader:
+    with ActiveBatchJsonEncoder(size=size, interval=LONG_INTERVAL) as uploader:
         item = "hello" * 10
         n = size // len(item)
         assert n
