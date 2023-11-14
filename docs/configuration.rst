@@ -361,6 +361,17 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
+     type: Boolean
+     default: False
+     description: |
+        Whether the propagator stops after extracting the first header.
+
+        Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+        headers into outbound requests.
+     version_added:
+        v1.17.0:
+
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
      default: 512
