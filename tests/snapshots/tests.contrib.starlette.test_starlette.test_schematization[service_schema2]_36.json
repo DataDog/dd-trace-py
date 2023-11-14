@@ -9,6 +9,7 @@
     "type": "http",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "_dd.peer.service.source": "out.host",
       "component": "requests",
       "http.method": "GET",
@@ -40,6 +41,7 @@
        "parent_id": 1,
        "type": "web",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "starlette",
          "http.method": "GET",
          "http.status_code": "200",
@@ -60,6 +62,7 @@
           "parent_id": 2,
           "type": "web",
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "starlette",
             "http.method": "GET",
             "http.status_code": "200",

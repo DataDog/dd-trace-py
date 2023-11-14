@@ -49,6 +49,8 @@ Generate release notes for next patch version of 2.13: `BASE=2.13 PATCH=1 python
 Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 """  # noqa
 
+MAX_GH_RELEASE_NOTES_LENGTH = 125000
+
 
 def create_release_draft(dd_repo, base, rc, patch, latest_branch):
     # make sure we're up to date
@@ -218,7 +220,12 @@ def create_draft_release(
         )
     else:
         dd_repo.create_git_release(
-            name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
+            name=name,
+            tag=tag,
+            prerelease=prerelease,
+            draft=True,
+            target_commitish=base_branch,
+            message=rn[:MAX_GH_RELEASE_NOTES_LENGTH],
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 

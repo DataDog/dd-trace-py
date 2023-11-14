@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "app-svc",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
