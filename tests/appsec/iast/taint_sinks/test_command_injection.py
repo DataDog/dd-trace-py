@@ -12,6 +12,7 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
 from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -39,7 +40,7 @@ def setup():
 
 
 def test_ossystem(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -78,7 +79,7 @@ def test_ossystem(tracer, iast_span_defaults):
 
 
 def test_communicate(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -118,7 +119,7 @@ def test_communicate(tracer, iast_span_defaults):
 
 
 def test_run(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -156,7 +157,7 @@ def test_run(tracer, iast_span_defaults):
 
 
 def test_popen_wait(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -195,7 +196,7 @@ def test_popen_wait(tracer, iast_span_defaults):
 
 
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -248,7 +249,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
     ],
 )
 def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments, tag):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -296,7 +297,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_multiple_cmdi(tracer, iast_span_defaults):
-    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = taint_pyobject(
             pyobject="forbidden_dir/",
@@ -318,3 +319,30 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
         assert span_report
 
         assert len(list(span_report.vulnerabilities)) == 2
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_cmdi_deduplication(num_vuln_expected, tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)), override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        patch()
+        _BAD_DIR = "forbidden_dir/"
+        _BAD_DIR = taint_pyobject(
+            pyobject=_BAD_DIR,
+            source_name="test_ossystem",
+            source_value=_BAD_DIR,
+            source_origin=OriginType.PARAMETER,
+        )
+        assert is_pyobject_tainted(_BAD_DIR)
+        for _ in range(0, 5):
+            with tracer.trace("ossystem_test"):
+                # label test_ossystem
+                os.system(add_aspect("dir -l ", _BAD_DIR))
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+
+            assert len(span_report.vulnerabilities) == num_vuln_expected

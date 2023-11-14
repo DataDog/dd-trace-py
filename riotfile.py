@@ -147,6 +147,7 @@ venv = Venv(
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -560,10 +561,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # celery added support for Python 3.10 in 5.2, no official support for 3.11 yet
-                    # Billiard dependency is incompatible with Python 3.11
-                    # https://github.com/celery/billiard/issues/377
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
@@ -2030,13 +2028,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": [latest],
+                        "openai[datalib]": [latest],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2222,6 +2220,14 @@ venv = Venv(
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
+            },
+        ),
+        Venv(
+            name="logbook",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/logbook",
+            pkgs={
+                "logbook": ["~=1.0.0", latest],
             },
         ),
         Venv(
