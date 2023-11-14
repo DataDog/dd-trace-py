@@ -1,6 +1,5 @@
 import pytest
 
-from benchmarks.bm.utils import override_env
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast
@@ -11,6 +10,7 @@ from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfi
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
