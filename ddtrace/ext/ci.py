@@ -338,7 +338,7 @@ def extract_github_actions(env):
     """Extract CI tags from Github environ."""
 
     github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
-    github_repository =  env.get("GITHUB_REPOSITORY")
+    github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
@@ -362,9 +362,7 @@ def extract_github_actions(env):
         git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
-        JOB_URL: "{0}/{1}/commit/{2}/checks".format(
-            github_server_url, github_repository, git_commit_sha
-        ),
+        JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
         PIPELINE_ID: github_run_id,
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
