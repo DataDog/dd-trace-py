@@ -12,6 +12,7 @@
       "_dd.appsec.waf.version": "1.15.0",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "_dd.runtime_family": "python",
       "component": "flask",
       "flask.endpoint": "run_subcommunicateshell",
@@ -54,6 +55,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "run_subcommunicateshell",
          "flask.url_rule": "/executions/subcommunicateshell"
@@ -70,6 +72,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 37792,
@@ -84,6 +87,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 7326709,
@@ -98,6 +102,7 @@
              "parent_id": 5,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
              "duration": 7279916,
@@ -112,7 +117,8 @@
                 "parent_id": 9,
                 "type": "system",
                 "meta": {
-                  "_dd.base_service": ""
+                  "_dd.base_service": "",
+                  "_dd.p.tid": "654a694400000000"
                 },
                 "duration": 43667,
                 "start": 1692722833376451673
@@ -127,6 +133,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -144,6 +151,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.p.tid": "654a694400000000",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "subprocess"
@@ -160,6 +168,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 49750,
@@ -174,6 +183,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 23000,
@@ -188,6 +198,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 12375,
@@ -202,6 +213,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },
        "duration": 500417,
