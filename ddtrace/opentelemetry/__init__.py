@@ -73,8 +73,8 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - ``spanID``
       -
     * - ``trace_state``
-      - ``meta["_sampling_priority_v1"]``, ``meta["_dd.origin"]``
-      -
+      - ``meta["_sampling_priority_v1"]``, ``meta["_dd.origin"]``, ...
+      - Datadog vendor-specific data is set in trace state using the ``dd=`` prefix
     * - ``parent_span_id``
       - ``parentID``
       -
@@ -90,9 +90,9 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
     * - ``end_time_unix_nano``
       - ``duration``
       - Derived from start and end time
-    * - ``attributes[]``
-      - ``meta[]``
-      -
+    * - ``attributes[<key>]``
+      - ``meta[<key>]``
+      - Datadog tags (``meta``) are set for each OpenTelemetry attribute
     * - ``links[]``
       - ``meta["_dd.span_links"]``
       -
