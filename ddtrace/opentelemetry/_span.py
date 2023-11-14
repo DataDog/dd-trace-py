@@ -152,14 +152,13 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        # Note - The OpenTelemetry API supports setting service names and service versions using `service.name` and
-        # `service.version` attributes. This functionality is supported by Span.set_tag and NOT Span.set_tag_str().
-        self._ddspan.set_tag(key, value)
-
         # Override reserved OTel span attributes
         ddattribute = _OTelDatadogMapping.get(key)
         if ddattribute is not None:
             _ddmap(self._ddspan, ddattribute, value)
+            return
+
+        self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None

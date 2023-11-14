@@ -9,16 +9,15 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "3a2e96365296443496b13d6efce0cad5"
+      "runtime-id": "2fe461d5fb3a4eef9fe1e1517236403a"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_dd1.sr.eausr": 0.5,
       "_sampling_priority_v1": 1,
-      "analytics.event": 0.5,
-      "process_id": 3948
+      "process_id": 4171
     },
-    "duration": 71667,
-    "start": 1699975745241531013
+    "duration": 80666,
+    "start": 1699977005931231097
   }]]
