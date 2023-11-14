@@ -30,7 +30,10 @@ log = get_logger(__name__)
 
 
 class Span(OtelSpan):
-    """Initializes an Open Telemetry compatible shim for a datadog span"""
+    """Initializes an OpenTelemetry compatible shim for a Datadog span
+
+    TODO: Add mapping table from otel to datadog
+    """
 
     _RECORD_EXCEPTION_KEY = "_dd.otel.record_exception"
     _SET_EXCEPTION_STATUS_KEY = "_dd.otel.set_status_on_exception"
@@ -140,8 +143,9 @@ class Span(OtelSpan):
         """Updates the name of a span"""
         if not self.is_recording():
             return
-        # Open Telemetry spans have one name while Datadog spans can have two different names (operation and resource).
-        # Ensure the resource and operation names are equal for Open Telemetry spans
+        # OpenTelemetry spans have one name while Datadog spans can have two different names (operation and resource).
+        # Ensure the resource and operation names are equal for OpenTelemetry spans
+        #
         self._ddspan.name = name
         self._ddspan.resource = name
 
