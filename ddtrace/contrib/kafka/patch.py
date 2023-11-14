@@ -22,6 +22,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.pin import Pin
+from ddtrace.propagation.http import HTTPPropagator as Propagator
 
 
 _Producer = confluent_kafka.Producer
@@ -167,12 +168,13 @@ def traced_produce(func, instance, args, kwargs):
         if config.kafka.distributed_tracing_enabled:
             # inject headers with Datadog tags:
             try:
-                kwargs["headers"] = inject_parent_context(span, kwargs["headers"])
+                Propagator.inject(span.context, kwargs["headers"])
             except KeyError:
                 try:
-                    args[6] = inject_parent_context(span, args[6])
+                    Propagator.inject(span.context, args[6])
                 except IndexError:
-                    kwargs["headers"] = inject_parent_context(span, {})
+                    kwargs["headers"] = {}
+                    Propagator.inject(span.context, kwargs["headers"])
         return func(*args, **kwargs)
 
 
@@ -182,14 +184,14 @@ def traced_poll(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     message = func(*args, **kwargs)
-    parent = None
+    ctx = None
     if message is not None and config.kafka.distributed_tracing_enabled:
-        parent = extract_parent_context(message.headers())
+        ctx = Propagator.extract(dict(message.headers()))
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
-        child_of=parent,
+        child_of=ctx,
     ) as span:
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
