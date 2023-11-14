@@ -7,9 +7,8 @@ from typing import Text
 from typing import Tuple
 from typing import cast
 
-from tracing._span_link import SpanLink
-
 from ddtrace import config
+from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
