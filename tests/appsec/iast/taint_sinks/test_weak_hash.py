@@ -258,7 +258,7 @@ def test_weak_check_repeated(iast_span_defaults):
     assert len(span_report.vulnerabilities) == 1
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="hmac has a weak hash vulnerability until Python 3.10")
+@pytest.mark.skipif(sys.version_info > (3, 10, 0), reason="hmac has a weak hash vulnerability until Python 3.10")
 def test_weak_hash_check_hmac(iast_span_defaults):
     import hashlib
     import hmac
