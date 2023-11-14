@@ -1,11 +1,14 @@
 from importlib.machinery import ModuleSpec
+from pathlib import Path
 from types import ModuleType
 
-from ddtrace.internal.symbols import Scope
-from ddtrace.internal.symbols import ScopeContext
-from ddtrace.internal.symbols import ScopeType
-from ddtrace.internal.symbols import Symbol
-from ddtrace.internal.symbols import SymbolType
+import pytest
+
+from ddtrace.internal.symbol_db.symbols import Scope
+from ddtrace.internal.symbol_db.symbols import ScopeData
+from ddtrace.internal.symbol_db.symbols import ScopeType
+from ddtrace.internal.symbol_db.symbols import Symbol
+from ddtrace.internal.symbol_db.symbols import SymbolType
 
 
 def test_symbol_from_code():
@@ -60,12 +63,12 @@ def test_symbols_class():
     assert field.name == "_foo"
 
     assert {s.name for s in class_scope.scopes if s.scope_type == ScopeType.FUNCTION} == {
-        "test_symbols_class.<locals>.Sym.__init__",
-        "test_symbols_class.<locals>.Sym.bar",
-        "test_symbols_class.<locals>.Sym.baz",
-        "test_symbols_class.<locals>.Sym.coro",
-        "test_symbols_class.<locals>.Sym.foo",
-        "test_symbols_class.<locals>.Sym.gen",
+        "__init__",
+        "bar",
+        "baz",
+        "coro",
+        "foo",
+        "gen",
     }
 
 
@@ -87,7 +90,7 @@ def test_symbols_decorators():
     scope = Scope.from_module(module)
 
     (foo_scope,) = scope.scopes
-    assert foo_scope.name == "test_symbols_decorators.<locals>.foo"
+    assert foo_scope.name == "foo"
 
 
 def test_symbols_decorators_included():
@@ -106,10 +109,7 @@ def test_symbols_decorators_included():
 
     scope = Scope.from_module(module)
 
-    assert {_.name for _ in scope.scopes} == {
-        "test_symbols_decorators_included.<locals>.foo",
-        "test_symbols_decorators_included.<locals>.deco",
-    }
+    assert {_.name for _ in scope.scopes} == {"foo", "deco"}
 
 
 def test_symbols_decorated_methods():
@@ -126,9 +126,9 @@ def test_symbols_decorated_methods():
         def bar(self):
             pass
 
-    scope = Scope._get_from(Foo)
+    scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
     (bar_scope,) = scope.scopes
-    assert bar_scope.name == "test_symbols_decorated_methods.<locals>.Foo.bar"
+    assert bar_scope.name == "bar"
 
 
 def test_symbols_to_json():
@@ -163,12 +163,41 @@ def test_symbols_to_json():
     }
 
 
-def test_symbols_scope_context():
-    import ddtrace.debugging._debugger as d
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
+def test_symbols_upload_enabled():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    context = ScopeContext([Scope.from_module(d)])
-    import json
+    assert not SymbolDatabaseUploader.is_installed()
+    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
 
-    print(json.dumps(context.to_json(), indent=2))
 
-    assert 200 <= context.upload().status < 300
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1",
+        _DD_SYMBOL_DATABASE_FORCE_UPLOAD="1",
+        DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff",
+    ),
+)
+def test_symbols_force_upload():
+    from ddtrace.internal.symbol_db.symbols import ScopeType
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    assert SymbolDatabaseUploader.is_installed()
+
+    contexts = []
+
+    def _upload_context(context):
+        contexts.append(context)
+
+    SymbolDatabaseUploader._upload_context = staticmethod(_upload_context)
+
+    import tests.submod.stuff  # noqa
+    import tests.submod.traced_stuff  # noqa
+
+    (context,) = contexts
+
+    (scope,) = context.to_json()["scopes"]
+    assert scope["scope_type"] == ScopeType.MODULE
+    assert scope["name"] == "tests.submod.stuff"

@@ -18,8 +18,11 @@ import typing as t
 
 from ddtrace import config
 from ddtrace.internal import compat
+from ddtrace.internal import packages
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.runtime import get_runtime_id
@@ -28,7 +31,10 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.settings.symbol_db import config as symdb_config
 
+
+log = get_logger(__name__)
 
 SOF = 0
 EOF = 2147483647
@@ -44,7 +50,10 @@ def is_from_stdlib(obj: t.Any) -> t.Optional[bool]:
 
 
 def func_origin(f: FunctionType) -> t.Optional[str]:
-    filename = f.__code__.co_filename
+    try:
+        filename = f.__code__.co_filename
+    except AttributeError:
+        return None
     return filename if Path(filename).exists() else None
 
 
@@ -419,3 +428,43 @@ class ScopeContext:
             conn.request("POST", "/symdb/v1/input", body, {"Content-Type": f"multipart/form-data; boundary={boundary}"})
 
             return compat.get_connection_response(conn)
+
+
+def is_module_included(module: ModuleType) -> bool:
+    return (
+        module.__name__ in symdb_config.includes
+        or getattr(packages.module_to_package(module), "name", None) in symdb_config.includes
+    )
+
+
+class SymbolDatabaseUploader(BaseModuleWatchdog):
+    def __init__(self) -> None:
+        super().__init__()
+
+        # Look for all the modules that are already imported when this is
+        # installed and upload the symbols that are marked for inclusion.
+        context = ScopeContext()
+        for module in [_ for _ in sys.modules.values() if is_module_included(_)]:
+            scope = Scope.from_module(module)
+            if scope is not None:
+                context.add_scope(scope)
+        self._upload_context(context)
+
+    def after_import(self, module: ModuleType) -> None:
+        if not is_module_included(module):
+            return
+
+        scope = Scope.from_module(module)
+        if scope is not None:
+            self._upload_context(ScopeContext([scope]))
+
+    @staticmethod
+    def _upload_context(context: ScopeContext) -> None:
+        try:
+            result = context.upload()
+            if result.status // 100 != 2:
+                print(result.status)
+                log.error("Bad response while uploading symbols: %s", result.status)
+        except Exception as e:
+            print("exception", e)
+            log.exception("Failed to upload symbols")

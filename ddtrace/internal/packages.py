@@ -3,8 +3,10 @@ import os
 from pathlib import Path
 import sys
 import sysconfig
+from types import ModuleType
 import typing as t
 
+from ddtrace.internal.module import origin
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
@@ -134,6 +136,11 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
+
+
+def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
+    """Returns the package distribution for a module"""
+    return filename_to_package(str(origin(module)))
 
 
 def is_third_party(filename):

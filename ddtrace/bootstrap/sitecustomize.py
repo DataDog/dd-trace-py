@@ -22,6 +22,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.settings.asm import config as asm_config  # noqa
+from ddtrace.settings.symbol_db import config as symdb_config
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config.logs_injection:
@@ -134,6 +135,11 @@ try:
     if profiling:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
+
+    if symdb_config.enabled:
+        from ddtrace.internal import symbol_db
+
+        symbol_db.bootstrap()
 
     if di_config.enabled or ed_config.enabled:
         from ddtrace.debugging import DynamicInstrumentation
