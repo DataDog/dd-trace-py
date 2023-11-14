@@ -175,8 +175,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def __exit__(self, *args):
         # type: (...) -> None
-        self.stop_subscribers(True)
-        self.disable()
+        self.disable(join=True)
 
 
 remoteconfig_poller = RemoteConfigPoller()
