@@ -432,21 +432,20 @@ def test_logger_no_dummy_thread_name_after_module_cleanup():
 def test_logger_adds_handler_as_default():
     import logging
 
-    ddtrace_logger = logging.getLogger("ddtrace")
     import ddtrace  # noqa
 
+    ddtrace_logger = logging.getLogger("ddtrace")
+
     assert len(ddtrace_logger.handlers) == 1
-    assert ddtrace_logger.handlers[0] == [logging.StreamHandler]
+    assert type(ddtrace_logger.handlers[0]) == logging.StreamHandler
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env=dict(DD_TRACE_LOG_STREAM_HANDLER="false"))
 def test_logger_does_not_add_handler_when_configured():
-    with override_env({"DD_TRACE_LOG_STREAM_HANDLER": "false"}):
-        import logging
-        from tests.utils import override_env
+    import logging
 
-        import ddtrace  # noqa
+    import ddtrace  # noqq
 
-        ddtrace_logger = logging.getLogger("ddtrace")
-        assert len(ddtrace_logger.handlers) == 0
-        assert ddtrace_logger.handlers == []
+    ddtrace_logger = logging.getLogger("ddtrace")
+    assert len(ddtrace_logger.handlers) == 0
+    assert ddtrace_logger.handlers == []
