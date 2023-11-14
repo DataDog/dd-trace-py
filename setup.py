@@ -335,7 +335,7 @@ class CMakeBuild(build_ext):
         extension_basename = os.path.basename(self.get_ext_fullpath(ext.name))
 
         # The cmake build directory will be a subset of this extension's lib build directory
-        cmake_build_dir = os.path.abspath(os.path.join(self.build_lib, "cmake"))
+        cmake_build_dir = os.path.abspath(os.path.join("cmake", self.build_lib))
         os.makedirs(cmake_build_dir, exist_ok=True)
 
         # Which commands are passed to _every_ cmake invocation
