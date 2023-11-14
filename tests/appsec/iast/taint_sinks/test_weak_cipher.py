@@ -1,5 +1,6 @@
 import pytest
 
+from benchmarks.bm.utils import override_env
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast
@@ -165,3 +166,19 @@ def test_weak_cipher_rc4_unpatched(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert span_report is None
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_weak_cipher_deduplication(num_vuln_expected, iast_span_defaults):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        for _ in range(0, 5):
+            cryptography_algorithm("Blowfish")
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+
+            assert len(span_report.vulnerabilities) == num_vuln_expected
