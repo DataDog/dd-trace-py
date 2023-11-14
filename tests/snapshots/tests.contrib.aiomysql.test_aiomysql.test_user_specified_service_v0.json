@@ -9,6 +9,7 @@
     "type": "sql",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "aiomysql",
       "db.name": "test",
       "db.system": "mysql",
