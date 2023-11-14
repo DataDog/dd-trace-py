@@ -170,13 +170,13 @@ class TraceMiddleware:
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
                 elif key == b"cookie":
-                    c = cookies.SimpleCookie(value.decode())
+                    c = cookies.SimpleCookie(bytes_to_str(value))
                     request_cookies = {k: v.value for k, v in c.items()}
 
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
-            parsed_query = parse.parse_qs(scope.get("query_string", b"").decode())
+            parsed_query = bytes_to_str(parse.parse_qs(scope.get("query_string", b"")))
             full_path = scope.get("root_path", "") + scope.get("path", "")
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
@@ -195,7 +195,7 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             if "raw_path" in scope:
-                raw_uri = scope["raw_path"].decode()
+                raw_uri = bytes_to_str(scope["raw_path"])
             else:
                 raw_uri = None
             trace_utils.set_http_meta(
