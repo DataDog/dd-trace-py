@@ -689,3 +689,7 @@ def extract_netloc_and_query_info_from_url(url):
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information
     return netloc, query
+
+
+class InterruptException(Exception):
+    pass

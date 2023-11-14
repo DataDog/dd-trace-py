@@ -1,7 +1,9 @@
+from http import cookies
 import sys
 from typing import Any
 from typing import Mapping
 from typing import Optional
+from urllib import parse
 
 import ddtrace
 from ddtrace import Span
@@ -158,6 +160,7 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
+            request_cookies = None
             for key, value in scope["headers"]:
                 if key == b"host":
                     try:
@@ -166,11 +169,14 @@ class TraceMiddleware:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
-                    break
+                elif key == b"cookie":
+                    c = cookies.SimpleCookie(value.decode())
+                    request_cookies = {k: v.value for k, v in c.items()}
 
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
+            parsed_query = parse.parse_qs(scope.get("query_string", b"").decode())
             full_path = scope.get("root_path", "") + scope.get("path", "")
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
@@ -188,28 +194,41 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
+            if "raw_path" in scope:
+                raw_uri = scope["raw_path"].decode()
+            else:
+                raw_uri = None
             trace_utils.set_http_meta(
-                span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
+                span,
+                self.integration_config,
+                method=method,
+                url=url,
+                query=query_string,
+                request_headers=headers,
+                raw_uri=raw_uri,
+                request_cookies=request_cookies,
+                parsed_query=parsed_query,
             )
 
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
 
             async def wrapped_send(message):
-                if span and message.get("type") == "http.response.start" and "status" in message:
-                    status_code = message["status"]
-                else:
-                    status_code = None
-
                 try:
                     response_headers = _extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
 
-                trace_utils.set_http_meta(
-                    span, self.integration_config, status_code=status_code, response_headers=response_headers
-                )
+                if span and message.get("type") == "http.response.start" and "status" in message:
+                    status_code = message["status"]
+                    trace_utils.set_http_meta(
+                        span, self.integration_config, status_code=status_code, response_headers=response_headers
+                    )
+                    core.dispatch("asgi.start_response", "asgi")
+
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    return
                 try:
                     return await send(message)
                 finally:
@@ -243,13 +262,12 @@ class TraceMiddleware:
                         span.finish()
 
             try:
-                core.dispatch("asgi.start_response", "asgi")
+                core.dispatch("asgi.start_request", "asgi")
                 if core.get_item(HTTP_REQUEST_BLOCKED, span=span):
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-                res = await self.app(scope, receive, wrapped_send)
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-                return res
+                return await self.app(scope, receive, wrapped_send)
+            except trace_utils.InterruptException:
+                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
