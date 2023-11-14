@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
       "http.status_code": "200",
       "language": "python",
@@ -36,6 +37,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "app_tag": "app test tag set",
          "component": "wsgi"
        },
@@ -54,6 +56,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "response_tag": "resp test tag set"
        },
