@@ -558,6 +558,8 @@ def test_ddtrace_auto_sitecustomize():
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_ddtrace_run_and_auto_sitecustomize():
     """When using ddtrace-run and import ddtrace.auto we don't double import sitecustomize"""
+    import sys
+
     assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
 
     # Setting this to false, and confirming that importing auto doesn't set it to True (sitecustomize code ran)
