@@ -845,7 +845,9 @@ class HTTPPropagator(object):
                         context.trace_id,
                         context.span_id,
                         flags=1 if context.sampling_priority else 0,
-                        tracestate=context.tracestate if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None,
+                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
+                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                        else None,
                         attributes={
                             "reason": "terminated_context",
                             "context_headers": style_w_ctx,
@@ -859,7 +861,7 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
-        primary_context.span_links = links
+        primary_context._span_links = links
         return primary_context
 
     @staticmethod
