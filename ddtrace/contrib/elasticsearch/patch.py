@@ -1,8 +1,6 @@
 from importlib import import_module
 from typing import List
 
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace import config
 from ddtrace._tracing import _limits
 from ddtrace.contrib.trace_utils import ext_service
@@ -10,6 +8,7 @@ from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -50,7 +49,9 @@ def _es_modules():
     )
     for module_name in module_names:
         try:
-            yield import_module(module_name)
+            module = import_module(module_name)
+            versions[module_name] = getattr(module, "__versionstr__", "")
+            yield module
         except ImportError:
             pass
 
@@ -59,8 +60,6 @@ versions = {}
 
 
 def get_version_tuple(elasticsearch):
-    if getattr(elasticsearch, "__name__", None):
-        versions[elasticsearch.__name__] = getattr(elasticsearch, "__versionstr__", "")
     return getattr(elasticsearch, "__version__", "")
 
 

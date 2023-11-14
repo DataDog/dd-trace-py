@@ -8,10 +8,13 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._utils import _safe_userid
 from ddtrace.contrib.trace_utils import set_user
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -41,17 +44,26 @@ def _track_user_login_common(
     if span:
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
-        span.set_tag_str("%s.track" % tag_prefix, "true")
+
+        if success:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_SUCCESS_TRACK, "true")
+        else:
+            span.set_tag_str(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
-        else:
-            span.set_tag_str("%s.auto.mode" % tag_prefix, str(login_events_mode))
 
+        mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
+        auto_tag_mode = (
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else asm_config._automatic_login_events_mode
+        )
+        span.set_tag_str(mode_tag, auto_tag_mode)
+
+        tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
             for k, v in metadata.items():
-                span.set_tag_str("%s.%s" % (tag_prefix, k), str(v))
+                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str(v))
 
         if login:
             span.set_tag_str("%s.login" % tag_prefix, login)
@@ -103,13 +115,19 @@ def track_user_login_success_event(
     if not span:
         return
 
-    # usr.id will be set by set_user
+    if (
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
+    ):
+        user_id = _safe_userid(user_id)
+
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
 
 
 def track_user_login_failure_event(
     tracer: Tracer,
-    user_id: str,
+    user_id: Optional[str],
     exists: bool,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
@@ -122,13 +140,21 @@ def track_user_login_failure_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
+    if (
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
+    ):
+        user_id = _safe_userid(user_id)
+
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
         return
 
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.ID), str(user_id))
+    if user_id:
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     exists_str = "true" if exists else "false"
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, user.EXISTS), exists_str)
+    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
 
 
 def track_user_signup_event(
@@ -198,7 +224,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
     :param userid: the ID of the user as registered by `set_user`
     """
 
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning(
             "One click blocking of user ids is disabled. To use this feature please enable "
             "Application Security Monitoring"
@@ -230,7 +256,7 @@ def block_request() -> None:
     could be different among frameworks, but it usually involves raising some kind of internal Exception,
     meaning that if you capture the exception the request blocking could not work.
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
         return
 
@@ -245,7 +271,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
         return
 
@@ -254,3 +280,64 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
         if span:
             span.set_tag_str(user.ID, str(userid))
         _asm_request_context.block_request()
+
+
+def _on_django_login(
+    pin,
+    request,
+    user,
+    mode,
+    info_retriever,
+):
+    if not asm_config._asm_enabled:
+        return
+
+    if user:
+        if str(user) != "AnonymousUser":
+            user_id, user_extra = info_retriever.get_user_info()
+
+            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+                from ddtrace.contrib.django.compat import user_is_authenticated
+
+                if user_is_authenticated(user):
+                    session_key = getattr(request, "session_key", None)
+                    track_user_login_success_event(
+                        pin.tracer,
+                        user_id=user_id,
+                        session_id=session_key,
+                        propagate=True,
+                        login_events_mode=mode,
+                        **user_extra,
+                    )
+                else:
+                    # Login failed but the user exists
+                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+        else:
+            # Login failed and the user is unknown
+            user_id = info_retriever.get_userid()
+            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+
+
+def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
+    if not asm_config._asm_enabled:
+        return True, result_user
+
+    extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
+    userid_list = info_retriever.possible_user_id_fields if mode == "safe" else extended_userid_fields
+
+    for possible_key in userid_list:
+        if possible_key in kwargs:
+            user_id = kwargs[possible_key]
+            break
+    else:
+        user_id = None
+
+    if not result_user:
+        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+
+    return False, None
+
+
+core.on("django.login", _on_django_login)
+core.on("django.auth", _on_django_auth)

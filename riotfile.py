@@ -132,18 +132,66 @@ venv = Venv(
         Venv(
             name="appsec",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/appsec",
+            command="pytest {cmdargs} tests/appsec/appsec/",
+        ),
+        Venv(
+            name="appsec_iast",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
-                "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
+            name="appsec_integrations",
+            command="pytest {cmdargs} tests/appsec/integrations/",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "psycopg2": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
+                # Flask 2.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                # Flask 3.x.x
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",
@@ -513,10 +561,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # celery added support for Python 3.10 in 5.2, no official support for 3.11 yet
-                    # Billiard dependency is incompatible with Python 3.11
-                    # https://github.com/celery/billiard/issues/377
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
@@ -1046,6 +1091,14 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="structlog",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/structlog",
+            pkgs={
+                "structlog": ["~=20.2.0", latest],
+            },
+        ),
+        Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
@@ -1205,7 +1258,7 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
+            command="pytest {cmdargs} tests/contrib/pyramid",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
@@ -1326,7 +1379,10 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_PATCH_MODULES": "unittest:true"},
+            env={
+                "DD_PATCH_MODULES": "unittest:true",
+                "DD_AGENT_PORT": "9126",
+            },
             pys=select_pys(),
         ),
         Venv(
@@ -1972,13 +2028,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": [latest],
+                        "openai[datalib]": [latest],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2164,6 +2220,22 @@ venv = Venv(
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
+            },
+        ),
+        Venv(
+            name="logbook",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/logbook",
+            pkgs={
+                "logbook": ["~=1.0.0", latest],
+            },
+        ),
+        Venv(
+            name="loguru",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/loguru",
+            pkgs={
+                "loguru": ["~=0.4.0", latest],
             },
         ),
         Venv(

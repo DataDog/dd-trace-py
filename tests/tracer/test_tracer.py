@@ -42,11 +42,11 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
+from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
-from ..appsec.test_processor import tracer_appsec
 from ..utils import override_env
 
 
@@ -612,9 +612,9 @@ class TracerTestCases(TracerTestCase):
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == user_id_string
+        assert span.get_tag(user.ID) is None
         assert span.context.dd_user_id is None
-        assert user_id == user_id_string
+        assert not user_id
 
     @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
     def test_tracer_set_user_propagation_string_error_py3(self):
@@ -650,7 +650,7 @@ class TracerTestCases(TracerTestCase):
             propagate=True,
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
-        assert span.get_tag(user.ID) == u"ユーザーID"
+        assert span.get_tag(user.ID) == "ユーザーID"
         assert span.context.dd_user_id == "ユーザーID"
         assert user_id == "44Om44O844K244O8SUQ="
 
@@ -788,7 +788,6 @@ def test_tracer_fork():
     def task(t, errors):
         # Start a new span to trigger process checking
         with t.trace("test", service="test"):
-
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
@@ -1402,7 +1401,7 @@ class TestPartialFlush(TracerTestCase):
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
 
-    with override_global_config(dict(version=u"😇", env=u"😇")):
+    with override_global_config(dict(version="😇", env="😇")):
         with t.trace("1"):
             pass
     t.shutdown()

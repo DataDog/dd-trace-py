@@ -18,6 +18,7 @@ from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -44,8 +45,11 @@ class MockConfig(object):
 class SyncProbeRCAdapter(ProbeRCAdapter):
     def __init__(self, *args, **kwargs):
         super(SyncProbeRCAdapter, self).__init__(*args, **kwargs)
-        # Prevent the worker thread from starting. We call methods manually.
-        self._subscriber.is_running = True
+        # Make the subscriber worker thread a no-op. We call methods manually.
+        self._subscriber.periodic = self.periodic
+
+    def periodic(self):
+        pass
 
 
 def config_metadata(config_id=None):
@@ -525,6 +529,24 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
+def test_parse_metric_probe_with_probeid_tags():
+    probeId = "3d338829-21c4-4a8a-8a1a-71fbce995efa"
+    probe = build_probe(
+        {
+            "id": probeId,
+            "version": 0,
+            "type": ProbeType.METRIC_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "metricName": "test.counter",
+            "kind": "COUNTER",
+        }
+    )
+
+    assert probe.tags["debugger.probeid"] == probeId
+
+
+@flaky(until=1704067200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 

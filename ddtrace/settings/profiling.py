@@ -21,7 +21,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
         return 0
 
     try:
-        import psutil
+        from ddtrace.vendor import psutil
 
         total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
     except Exception:
@@ -33,7 +33,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
         return default_heap_sample_size
 
     # This is TRACEBACK_ARRAY_MAX_COUNT
-    max_samples = 2 ** 16
+    max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 

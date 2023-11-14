@@ -27,6 +27,7 @@ from ddtrace.provider import CIContextProvider
 from .. import agent
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
+from .constants import CUSTOM_CONFIGURATIONS_PREFIX
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -68,6 +69,16 @@ def _extract_repository_name_from_url(repository_url):
 def _get_git_repo():
     # this exists only for the purpose of patching in tests
     return None
+
+
+def _get_custom_configurations():
+    # type () -> dict
+    custom_configurations = {}
+    for tag, value in ddconfig.tags.items():
+        if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
+            custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
+
+    return custom_configurations
 
 
 def _do_request(method, url, payload, headers):
@@ -269,7 +280,7 @@ class CIVisibility(Service):
 
     @classmethod
     def test_skipping_enabled(cls):
-        if not cls.enabled:
+        if not cls.enabled or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)):
             return False
         return cls._instance and cls._instance._test_skipping_enabled_by_api
 
@@ -280,6 +291,11 @@ class CIVisibility(Service):
             self._git_client.shutdown()
             self._git_client = None
 
+        configurations = ci._get_runtime_and_os_metadata()
+        custom_configurations = _get_custom_configurations()
+        if custom_configurations:
+            configurations["custom"] = custom_configurations
+
         payload = {
             "data": {
                 "type": "test_params",
@@ -288,7 +304,7 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": ci._get_runtime_and_os_metadata(),
+                    "configurations": configurations,
                     "test_level": skipping_mode,
                 },
             }
@@ -319,7 +335,7 @@ class CIVisibility(Service):
         self._test_suites_to_skip = []
 
         if response.status >= 400:
-            log.warning("Test skips request responded with status %d", response.status)
+            log.warning("Skippable tests request responded with status %d", response.status)
             return
         try:
             if isinstance(response.body, bytes):
@@ -327,18 +343,27 @@ class CIVisibility(Service):
             else:
                 parsed = json.loads(response.body)
         except json.JSONDecodeError:
-            log.warning("Test skips request responded with invalid JSON '%s'", response.body)
+            log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
             return
 
-        for item in parsed["data"]:
-            if item["type"] == skipping_mode and "suite" in item["attributes"]:
-                module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
-                path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+        if "data" not in parsed:
+            log.warning("Skippable tests request missing data, no tests will be skipped")
+            return
 
-                if skipping_mode == SUITE:
-                    self._test_suites_to_skip.append(path)
-                else:
-                    self._tests_to_skip[path].append(item["attributes"]["name"])
+        try:
+            for item in parsed["data"]:
+                if item["type"] == skipping_mode and "suite" in item["attributes"]:
+                    module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
+                    path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+
+                    if skipping_mode == SUITE:
+                        self._test_suites_to_skip.append(path)
+                    else:
+                        self._tests_to_skip[path].append(item["attributes"]["name"])
+        except Exception:
+            log.warning("Error processing skippable test data, no tests will be skipped", exc_info=True)
+            self._test_suites_to_skip = []
+            self._tests_to_skip = defaultdict(list)
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         if test_skipping_mode is None:

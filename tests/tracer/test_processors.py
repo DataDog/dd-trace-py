@@ -6,15 +6,15 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -325,9 +325,9 @@ def test_trace_top_level_span_processor_orphan_span():
 @pytest.mark.parametrize(
     "trace_id",
     [
-        2 ** 128 - 1,
-        2 ** 64 + 1,
-        2 ** 96 - 1,
+        2**128 - 1,
+        2**64 + 1,
+        2**96 - 1,
     ],
 )
 def test_trace_128bit_processor(trace_id):
@@ -335,14 +335,14 @@ def test_trace_128bit_processor(trace_id):
     When 128bit trace ids are generated, ensure the TraceTagsProcessor tags stores
     the higher order bits on the chunk root span.
     """
-    ctx = Context(trace_id=trace_id, span_id=2 ** 64 - 1)
+    ctx = Context(trace_id=trace_id, span_id=2**64 - 1)
     spans = [Span("hello", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id) for _ in range(10)]
 
     spans = TraceTagsProcessor().process_trace(spans)
 
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
-    assert chunk_root.trace_id >= 2 ** 64
+    assert chunk_root.trace_id >= 2**64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
@@ -379,7 +379,7 @@ def test_span_creation_metrics():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
-    with mock.patch("ddtrace.internal.processor.trace.telemetry_writer.add_count_metric") as mock_tm:
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
         for _ in range(300):
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)

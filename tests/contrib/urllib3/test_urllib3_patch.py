@@ -9,6 +9,7 @@ class TestUrllib3Patch(PatchTestCase.Base):
     __module_name__ = "urllib3"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, urllib3):
         self.assert_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
@@ -18,8 +19,3 @@ class TestUrllib3Patch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, urllib3):
         self.assert_not_double_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

@@ -36,7 +36,7 @@ def generate_patch_test_source(contrib):
     if not required_modules_node:
         print(
             f"WARNING: failed to generate patch test for {contrib},"
-            " required_modules not found in ddtrace.contrib.{contrib}.__init__"
+            f" required_modules not found in ddtrace.contrib.{contrib}.__init__"
         )
         return
 
@@ -45,7 +45,7 @@ def generate_patch_test_source(contrib):
     if not required_modules:
         print(
             f"WARNING: failed to generate patch test for {contrib},"
-            " ddtrace.contrib.{contrib}.required_modules could not be parsed"
+            f" ddtrace.contrib.{contrib}.required_modules could not be parsed"
         )
         return
 
@@ -76,6 +76,7 @@ def generate_patch_test_source(contrib):
                 __module_name__ = "{module}"
                 __patch_func__ = patch
                 __unpatch_func__ = unpatch
+                __get_version__ = get_version
 
                 def assert_module_patched(self, {module.replace(".", "_")}):
                     pass
@@ -85,11 +86,6 @@ def generate_patch_test_source(contrib):
 
                 def assert_not_module_double_patched(self, {module.replace(".", "_")}):
                     pass
-
-                def assert_module_implements_get_version(self):
-                    version = get_version()
-                    assert type(version) == str
-                    assert version != ''
             """
         ).lstrip()
     )

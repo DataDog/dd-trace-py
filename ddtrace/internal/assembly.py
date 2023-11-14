@@ -257,7 +257,7 @@ class Assembly:
         return self.bind(bind_args, lineno=lineno).to_code()
 
     def _label_ident(self, label: bc.Label) -> str:
-        return next(ident for ident, l in self._labels.items() if l is label)
+        return next(ident for ident, l in self._labels.items() if l is label)  # noqa: E741
 
     def dis(self) -> None:
         for entry in self._instrs:

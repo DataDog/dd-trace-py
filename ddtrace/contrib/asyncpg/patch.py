@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING
 
 import asyncpg
-import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY

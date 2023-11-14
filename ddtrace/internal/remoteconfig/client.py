@@ -5,13 +5,13 @@ import json
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 import uuid
 
 import attr
@@ -27,6 +27,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
@@ -254,7 +255,7 @@ class RemoteConfigClient(object):
     def is_subscriber_running(self, pubsub_to_check):
         # type: (PubSub) -> bool
         for pubsub in self.get_pubsubs():
-            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
+            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.status == ServiceStatus.RUNNING:
                 return True
         return False
 

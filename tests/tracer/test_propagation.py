@@ -6,17 +6,12 @@ import os
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
+from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
@@ -25,6 +20,11 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
+from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 
 from ..utils import override_global_config
@@ -61,7 +61,7 @@ def test_inject_128bit_trace_id_datadog():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
         trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
         ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
@@ -87,7 +87,7 @@ def test_inject_128bit_trace_id_b3multi():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -109,7 +109,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -131,7 +131,7 @@ def test_inject_128bit_trace_id_tracecontext():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -146,7 +146,7 @@ def test_inject_128bit_trace_id_tracecontext():
 def test_inject_tags_unicode(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.test": u"unicode"}
+    meta = {"_dd.p.test": "unicode"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -167,7 +167,7 @@ def test_inject_tags_bytes(tracer):
         "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
     }
     with override_global_config(overrides):
-        meta = {u"_dd.p.test": b"bytes"}
+        meta = {"_dd.p.test": b"bytes"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -181,7 +181,7 @@ def test_inject_tags_bytes(tracer):
 
 def test_inject_tags_unicode_error(tracer):
     """Unicode characters are not allowed"""
-    meta = {u"_dd.p.test": u"unicode value ☺️"}
+    meta = {"_dd.p.test": "unicode value ☺️"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -282,31 +282,36 @@ def test_extract(tracer):
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_extract_128bit_trace_ids_datadog():
+    from ddtrace import config
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         # Get the hex representation of the 64 most signicant bits
-        trace_id_64bit = trace_id & 2 ** 64 - 1
+        trace_id_64bit = trace_id & 2**64 - 1
         headers = {
             "x-datadog-trace-id": str(trace_id_64bit),
             "x-datadog-parent-id": str(span_id),
             "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
         }
-
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
         with tracer.trace("local_root_span") as span:
-            assert span.trace_id == trace_id
+            # for venv tracer-128-bit-traceid-disabled
+            # check 64-bit configuration functions correctly with 128-bit headers
+            if not config._128_bit_trace_id_enabled:
+                expected_trace_id = trace_id_64bit
+            else:
+                expected_trace_id = trace_id
+            assert span.trace_id == expected_trace_id
             assert span.parent_id == span_id
-            assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
             with tracer.trace("child_span") as child_span:
-                assert child_span.trace_id == trace_id
+                assert child_span.trace_id == expected_trace_id
 
 
 @pytest.mark.subprocess(
@@ -318,7 +323,7 @@ def test_extract_128bit_trace_ids_b3multi():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)
@@ -345,7 +350,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)
@@ -371,7 +376,7 @@ def test_extract_128bit_trace_ids_tracecontext():
 
     tracer = DummyTracer()
 
-    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
+    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)
@@ -401,11 +406,11 @@ def test_extract_unicode(tracer):
     lost.
     """
     headers = {
-        u"x-datadog-trace-id": u"1234",
-        u"x-datadog-parent-id": u"5678",
-        u"x-datadog-sampling-priority": u"1",
-        u"x-datadog-origin": u"synthetics",
-        u"x-datadog-tags": u"_dd.p.test=value,any=tag",
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "_dd.p.test=value,any=tag",
     }
 
     context = HTTPPropagator.extract(headers)
