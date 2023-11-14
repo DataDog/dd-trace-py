@@ -421,6 +421,8 @@ class Config(object):
         if propagation_style_inject is not None:
             self._propagation_style_inject = propagation_style_inject
 
+        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
+
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0:
