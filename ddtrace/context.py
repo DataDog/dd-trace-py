@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Text
-from typing import Tuple
 
 from ddtrace.tracing._span_link import SpanLink
 
@@ -18,17 +17,21 @@ from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
 from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
-from .span import Span
-from .span import _MetaDictType
-from .span import _MetricDictType
 
 
-_ContextState = Tuple[
-    Optional[int],  # trace_id
-    Optional[int],  # span_id
-    _MetaDictType,  # _meta
-    _MetricDictType,  # _metrics
-]
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
+    from .span import Span
+    from .span import _MetaDictType
+    from .span import _MetricDictType
+
+    _ContextState = Tuple[
+        Optional[int],  # trace_id
+        Optional[int],  # span_id
+        _MetaDictType,  # _meta
+        _MetricDictType,  # _metrics
+    ]
 
 
 _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
@@ -45,14 +48,14 @@ class Context(object):
 
     def __init__(
         self,
-        trace_id: Optional[int] = None,
-        span_id: Optional[int] = None,
-        dd_origin: Optional[str] = None,
-        sampling_priority: Optional[float] = None,
-        meta: Optional[_MetaDictType] = None,
-        metrics: Optional[_MetricDictType] = None,
-        lock: Optional[threading.RLock] = None,
-        span_links: list[SpanLink] = [],
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+        sampling_priority=None,  # type: Optional[float]
+        meta=None,  # type: Optional[_MetaDictType]
+        metrics=None,  # type: Optional[_MetricDictType]
+        lock=None,  # type: Optional[threading.RLock]
+        span_links=[],  # type: list[SpanLink]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
