@@ -264,7 +264,7 @@ def format_aspect(
     orig_function,  # type: Callable
     flag_added_args,  # type: int
     *args,  # type: Any
-    **kwargs,  # type: Dict[str, Any]
+    **kwargs  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
