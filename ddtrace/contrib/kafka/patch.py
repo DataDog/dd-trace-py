@@ -164,14 +164,15 @@ def traced_produce(func, instance, args, kwargs):
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-        # inject headers with Datadog tags:
-        try:
-            kwargs["headers"] = inject_parent_context(span, kwargs["headers"])
-        except KeyError:
+        if config.kafka.distributed_tracing_enabled:
+            # inject headers with Datadog tags:
             try:
-                args[6] = inject_parent_context(span, args[6])
-            except IndexError:
-                kwargs["headers"] = inject_parent_context(span, {})
+                kwargs["headers"] = inject_parent_context(span, kwargs["headers"])
+            except KeyError:
+                try:
+                    args[6] = inject_parent_context(span, args[6])
+                except IndexError:
+                    kwargs["headers"] = inject_parent_context(span, {})
         return func(*args, **kwargs)
 
 
