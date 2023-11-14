@@ -709,6 +709,7 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import pytest
+import random
 import six
 import sys
 
@@ -729,8 +730,8 @@ def test(consumer, producer, kafka_topic):
     Pin.override(consumer, tracer=dummyTracer)
 
 
-    test_string = "context propagation enabled test"
-    test_key = "context propagation key"
+    test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+    test_key = "context propagation key " + str(random.randint(0, 1000))
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
@@ -741,7 +742,7 @@ def test(consumer, producer, kafka_topic):
         message = consumer.poll(1.0)
 
     # message comes back with expected test string
-    assert message.value() == b"context propagation enabled test"
+    assert str(message.value()) == str(PAYLOAD)
 
     consume_span = None
     traces = dummyTracer.pop_traces()
