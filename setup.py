@@ -332,7 +332,10 @@ class CMakeBuild(build_ext):
     def build_extension_cmake(self, ext):
         # Define the build and output directories
         output_dir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        cmake_build_dir = os.path.abspath(os.path.join("cmake_build", ext.name))
+        extension_basename = os.path.basename(self.get_ext_fullpath(ext.name))
+
+        # The cmake build directory will be a subset of this extension's lib build directory
+        cmake_build_dir = os.path.abspath(os.path.join(self.build_lib, "cmake"))
         os.makedirs(cmake_build_dir, exist_ok=True)
 
         # Which commands are passed to _every_ cmake invocation
@@ -344,6 +347,7 @@ class CMakeBuild(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
+            "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
         # Arguments to the cmake --build command
