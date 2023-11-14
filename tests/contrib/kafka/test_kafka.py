@@ -724,6 +724,7 @@ from tests.utils import DummyTracer
 def test(consumer, producer, kafka_topic):
     patch()
     dummyTracer = DummyTracer()
+    dummyTracer.flush()
     Pin.override(producer, tracer=dummyTracer)
     Pin.override(consumer, tracer=dummyTracer)
 
