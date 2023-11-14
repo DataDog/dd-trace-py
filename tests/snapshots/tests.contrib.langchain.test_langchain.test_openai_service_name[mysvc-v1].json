@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "text-davinci-003",
       "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -50,6 +51,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -90,6 +92,7 @@
           "parent_id": 2,
           "type": "http",
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "_dd.peer.service.source": "out.host",
             "component": "requests",
             "http.method": "POST",

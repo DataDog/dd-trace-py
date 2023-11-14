@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "cherrypy",
       "http.method": "GET",
       "http.request.headers.host": "127.0.0.1:54583",
@@ -37,6 +38,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "a": "b"
        },
        "duration": 87000,
