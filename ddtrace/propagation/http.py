@@ -835,7 +835,7 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
-
+        primary_context.span_links = links
         return primary_context
 
     @staticmethod
