@@ -181,7 +181,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "flask": "~=2.3",
+                        "flask": "~=2.2",
                     },
                 ),
                 # Flask 3.x.x
