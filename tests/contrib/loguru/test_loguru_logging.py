@@ -19,7 +19,7 @@ captured_logs = []
 def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
-    if dd_trace_id != 0 and config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+    if dd_trace_id != 0 and not config._128_bit_trace_id_logging_enabled:
         dd_trace_id = span._trace_id_64bits
 
     assert "Hello" in json.loads(output[0])["text"]
@@ -28,8 +28,6 @@ def _test_logging(output, span, env, service, version):
     assert json.loads(output[0])["record"]["extra"]["dd.env"] == env or ""
     assert json.loads(output[0])["record"]["extra"]["dd.service"] == service or ""
     assert json.loads(output[0])["record"]["extra"]["dd.version"] == version or ""
-
-    output.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -46,15 +44,13 @@ def patch_loguru():
 def global_config():
     with override_global_config({"service": "logging", "env": "global.env", "version": "global.version"}):
         yield
+    captured_logs.clear()
 
 
 def test_log_trace_global_values():
     """
     Check trace info includes global values over local span values
     """
-
-    captured_logs.clear()
-
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
@@ -66,8 +62,6 @@ def test_log_trace_global_values():
 
 
 def test_log_no_trace():
-    captured_logs.clear()
-
     logger.info("Hello!")
 
     _test_logging(captured_logs, None, config.env, config.service, config.version)
