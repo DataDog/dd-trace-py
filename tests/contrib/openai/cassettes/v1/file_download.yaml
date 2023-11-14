@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: GET
+    uri: https://api.openai.com/v1/files/file-xC22NUuYBkXvzRt2fLREcGde/content
+  response:
+    content: "{\"prompt\":\"@united was that English? I'll DM though I don't think
+      you'll make a plane appear.\\n\\n###\\n\\n\",\"completion\":\" negative\"}\n{\"prompt\":\"@united
+      Thank you. Mention that before I boarded she asked 1other person to measure
+      their bag, and it was another woman. Men not asked.\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81bd191b3d264252-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/octet-stream
+      Date:
+      - Wed, 25 Oct 2023 20:09:35 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-disposition:
+      - attachment; filename="file"
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '83'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 9170870b8a2a70ada0682ff7d746f053
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

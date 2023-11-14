@@ -12,6 +12,7 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -487,10 +488,10 @@ class TestUrllib3(BaseUrllib3TestCase):
             spans = self.pop_spans()
             s = spans[0]
             expected_headers = {
-                "x-datadog-trace-id": str(s.trace_id),
+                "x-datadog-trace-id": str(s._trace_id_64bits),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0",
+                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
                 "traceparent": s.context._traceparent,
                 "tracestate": s.context._tracestate,
             }

@@ -38,7 +38,7 @@ def aspect_function(internal_loop, tainted):
     value = ""
     res = value
     for _ in range(internal_loop):
-        res = add_aspect(res, join_aspect("_", (tainted, "_", tainted)))
+        res = add_aspect(res, join_aspect(str.join, 1, "_", (tainted, "_", tainted)))
         value = res
         res = add_aspect(res, tainted)
         value = res

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
       "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
       "langchain.request.type": "chain",
@@ -35,6 +36,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
          "langchain.request.inputs.stop": "['```output']",
          "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
@@ -58,6 +60,7 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.cohere.parameters.frequency_penalty": "0.0",
             "langchain.request.cohere.parameters.k": "0",

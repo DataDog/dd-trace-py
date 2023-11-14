@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
       "langchain.request.type": "chain",
       "langchain.response.outputs.final_output": "\\nI've convinced my mind, no physical world's there, no sky, no earth, no minds, no bodies there. Does this mean I don't exist, ...",
@@ -38,6 +39,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.prompt": "Paraphrase this text:\\n\\n        {input_text}\\n\\n        Paraphrase: ",
          "langchain.request.type": "chain",
@@ -62,6 +64,7 @@
           "span_id": 4,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -98,6 +101,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
          "langchain.request.inputs.paraphrased_output": "\\nI have convinced myself that there is no physical world - no sky, earth, minds, or bodies. Does this mean that I don't exist e...",
          "langchain.request.prompt": "Make this text rhyme:\\n\\n        {paraphrased_output}\\n\\n        Rhyme: ",
@@ -123,6 +127,7 @@
           "span_id": 5,
           "parent_id": 3,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",
