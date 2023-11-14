@@ -166,19 +166,6 @@ def test_weak_hash_md5_builtin_py3_only_sha1_configured(iast_span_only_sha1):
     assert span_report is None
 
 
-def test_weak_hash_md5_builtin_py2(iast_span_defaults):
-    import md5
-
-    m = md5.md5()
-    m.update(b"Nobody inspects")
-    m.update(b" the spammish repetition")
-    m.digest()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
-
-
 def test_weak_hash_pycryptodome_hashes_md5(iast_span_defaults):
     from Crypto.Hash import MD5
 
