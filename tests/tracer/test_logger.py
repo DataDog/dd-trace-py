@@ -6,7 +6,6 @@ import pytest
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from tests.utils import BaseTestCase
-from tests.utils import override_env
 
 
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")
@@ -444,6 +443,7 @@ def test_logger_adds_handler_as_default():
 def test_logger_does_not_add_handler_when_configured():
     with override_env({"DD_TRACE_LOG_STREAM_HANDLER": "false"}):
         import logging
+        from tests.utils import override_env
 
         import ddtrace  # noqa
 
