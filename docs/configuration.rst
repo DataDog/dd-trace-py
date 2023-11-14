@@ -367,8 +367,7 @@ The following environment variables for the tracer are supported:
      description: |
         Whether the propagator stops after extracting the first header.
 
-        Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
-        headers into outbound requests.
+        Example: ``DD_TRACE_PROPAGATION_EXTRACT_FIRST=True`` to stop extracting after first context found from headers.
      version_added:
         v2.3.0:
 
