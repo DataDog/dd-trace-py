@@ -347,8 +347,8 @@ def extract_github_actions(env):
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
     env_vars = {
-        "GITHUB_SERVER_URL": env.get("GITHUB_SERVER_URL"),
-        "GITHUB_REPOSITORY": env.get("GITHUB_REPOSITORY"),
+        "GITHUB_SERVER_URL": _filter_sensitive_info(env.get("GITHUB_SERVER_URL")),
+        "GITHUB_REPOSITORY": _filter_sensitive_info(env.get("GITHUB_REPOSITORY")),
         "GITHUB_RUN_ID": env.get("GITHUB_RUN_ID"),
     }
     if env.get("GITHUB_RUN_ATTEMPT") is not None:
