@@ -18,6 +18,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -416,8 +417,8 @@ class GrpcTestCase(TracerTestCase):
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
-
-        assert "x-datadog-trace-id={}".format(client_span.trace_id) in response.message
+        assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
+        assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
