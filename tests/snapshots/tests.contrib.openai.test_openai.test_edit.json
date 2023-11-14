@@ -13,6 +13,7 @@
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
+      "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/edits",
       "openai.request.input": "thsi si a spelilgn imstkae.",
