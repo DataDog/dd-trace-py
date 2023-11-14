@@ -197,7 +197,7 @@ class TraceMiddleware:
             if "raw_path" in scope:
                 raw_uri = bytes_to_str(scope["raw_path"])
             else:
-                raw_uri = None
+                raw_uri = url
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,

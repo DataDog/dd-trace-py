@@ -25,8 +25,8 @@ from tests.utils import override_global_config
 from . import app as fastapi_app
 
 
-def _aux_appsec_prepare_tracer(tracer, appsec_enabled=True):
-    tracer._asm_enabled = appsec_enabled
+def _aux_appsec_prepare_tracer(tracer, asm_enabled=True):
+    tracer._asm_enabled = asm_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
 
@@ -142,7 +142,7 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
         assert get_response_body(resp) == "Ok: ytrace"
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/index.html?toto=xtrace")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok: xtrace"
@@ -174,7 +174,7 @@ def test_request_suspicious_request_block_match_uri(app, client, tracer, test_sp
         assert resp.status_code == 404
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/.git")
         assert resp.status_code == 200
         assert get_response_body(resp) == "git file"
@@ -212,7 +212,7 @@ def test_request_suspicious_request_block_match_header(app, client, tracer, test
         assert resp.status_code == 200
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
 
         resp = client.get("/", headers={"User-Agent": "01972498723465"})
         assert resp.status_code == 200
@@ -241,7 +241,7 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
         assert resp.status_code == 200
     # GET must pass if appsec disabled
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
 
         resp = client.get("/")
         assert resp.status_code == 200
@@ -268,7 +268,7 @@ def test_request_suspicious_request_block_match_cookies(app, client, tracer, tes
         assert resp.status_code == 200
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/", cookies={"keyname": "jdfoSDGFkivRG_234"})
         assert resp.status_code == 200
 
@@ -295,7 +295,7 @@ def test_request_suspicious_request_block_match_path_params(app, client, tracer,
         assert get_response_body(resp) == "Anything"
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
-        _aux_appsec_prepare_tracer(tracer, appsec_enabled=False)
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/params/AiKfOeRcvG45")
         assert resp.status_code == 200
         assert get_response_body(resp) == "AiKfOeRcvG45"
