@@ -33,6 +33,16 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert "GET /" == request_span.resource
 
 
+async def test_stream_request(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    async with await aiohttp_client(app) as client:
+        response = await client.request("GET", "/stream/")
+        await response.text()
+    traces = tracer.pop_traces()
+    request_span = traces[0][0]
+    assert abs(0.5 - request_span.duration) < 0.05
+
+
 async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)

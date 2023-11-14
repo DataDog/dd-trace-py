@@ -79,6 +79,7 @@ PATCH_MODULES = {
     "pylons": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    "logbook": config.logs_injection,
     "logging": config.logs_injection,
     "loguru": config.logs_injection,
     "structlog": config.logs_injection,

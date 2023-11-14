@@ -1,4 +1,6 @@
 import re
+from typing import AsyncGenerator
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -78,3 +80,27 @@ def _format_openai_api_key(openai_api_key):
     if not openai_api_key:
         return None
     return "sk-...%s" % openai_api_key[-4:]
+
+
+def _is_generator(resp):
+    # type: (...) -> bool
+    import openai
+
+    # In OpenAI v1, the response is type `openai.Stream` instead of Generator.
+    if isinstance(resp, Generator):
+        return True
+    if hasattr(openai, "Stream") and isinstance(resp, openai.Stream):
+        return True
+    return False
+
+
+def _is_async_generator(resp):
+    # type: (...) -> bool
+    import openai
+
+    # In OpenAI v1, the response is type `openai.AsyncStream` instead of AsyncGenerator.
+    if isinstance(resp, AsyncGenerator):
+        return True
+    if hasattr(openai, "AsyncStream") and isinstance(resp, openai.AsyncStream):
+        return True
+    return False
