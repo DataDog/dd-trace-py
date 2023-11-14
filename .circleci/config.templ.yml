@@ -1195,6 +1195,13 @@ jobs:
           pattern: "langchain"
           snapshot: true
 
+  logbook:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'logbook'
+          snapshot: true
+
   loguru:
     <<: *machine_executor
     steps:

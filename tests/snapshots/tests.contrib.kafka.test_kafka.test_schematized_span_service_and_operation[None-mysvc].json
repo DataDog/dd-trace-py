@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "kafka",
       "kafka.group_id": "test_group",
       "kafka.message_key": "test_key",
@@ -46,6 +47,7 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "kafka",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",

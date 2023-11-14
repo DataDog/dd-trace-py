@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "35dbf249-04f7-4614-a196-6a59fe593928",
@@ -39,6 +40,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
          "component": "rq",
          "job.id": "35dbf249-04f7-4614-a196-6a59fe593928",
          "job.origin": "q",
@@ -68,6 +70,7 @@
           "error": 1,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "error.message": "error",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",

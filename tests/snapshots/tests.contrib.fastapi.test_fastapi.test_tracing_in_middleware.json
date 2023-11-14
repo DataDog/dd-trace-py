@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/",
@@ -38,7 +39,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000"
        },
        "duration": 555750,
        "start": 1692709947308808003
@@ -51,7 +53,8 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
-            "_dd.base_service": ""
+            "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000"
           },
           "duration": 60375,
           "start": 1692709947309071295

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "text-davinci-003",
       "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -50,6 +51,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -65,7 +67,6 @@
          "openai.request.temperature": "0.7",
          "openai.request.top_p": "1",
          "openai.response.choices.0.finish_reason": "stop",
-         "openai.response.choices.0.logprobs": "returned",
          "openai.response.choices.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
          "openai.response.id": "cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP",
          "openai.response.model": "text-davinci-003",
@@ -91,6 +92,7 @@
           "parent_id": 2,
           "type": "http",
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "_dd.peer.service.source": "out.host",
             "component": "requests",
             "http.method": "POST",

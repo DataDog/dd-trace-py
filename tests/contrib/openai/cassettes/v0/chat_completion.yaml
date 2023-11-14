@@ -1,0 +1,90 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo", "messages": [{"role": "system", "content": "You
+      are a helpful assistant."}, {"role": "user", "content": "Who won the world series
+      in 2020?"}, {"role": "assistant", "content": "The Los Angeles Dodgers won the
+      World Series in 2020."}, {"role": "user", "content": "Where was it played?"}],
+      "top_p": 0.9, "n": 2}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '335'
+      Content-Type:
+      - application/json
+      Cookie:
+      - _cfuvid=z_X6itPJxPTjTduN0U3MMsBzJjHeKT9Fdq0egODXUAA-1681852797547-0-604800000
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.2
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
+        "3.8.13", "platform": "macOS-13.2-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.3.0 Darwin Kernel Version 22.3.0: Thu Jan  5 20:48:54
+        PST 2023; root:xnu-8792.81.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA6zOsW7CMBSF4b1PYd3ZQQlpAnjrAgtbqVqpqpCxL4lbx9eyL4IK5d0rpJYuDB26
+        /tI5+s7gLCgwvWYzRF/M2tD0mOjppW0t18cVH2PJyyXa9foAEmj3joa/FxNDQ/TIjgJIMAk1owVV
+        tfNq3tTldCFhIIseFHSRi3rSFHxIOyrKuqxAwiHrDkGdISYaIm+ZPjBkUM1Mwu/1Ndf3EphY+2tZ
+        VKME05MzmEG9nmHA/POZyCMo0Dm7zDrwRUiBMVz0mx7FtJyW4pmSt+IRk8MsjjqL6PUnWuGCeEje
+        hY4pSLHBk85Cs1h52qFYuz2KpUNvJzBK2Lvgcr9NqDMFUJCZIkhwweIJVDnKf3TdMNyy/sFVjW/j
+        3RcAAAD//wMAYmTRJv8BAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7b9ff89aaf7a4350-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 18 Apr 2023 21:23:50 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - _cfuvid=rivrQHfY2JgyNPaGS5BuAQSWVT_3vQbN5A2pkVcwXT0-1681853030671-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0301
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1070'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999929'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-request-id:
+      - 6eabc80b7d44ae16e36dfd9a4ce83f73
+    status:
+      code: 200
+      message: OK
+version: 1
