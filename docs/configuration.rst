@@ -370,7 +370,7 @@ The following environment variables for the tracer are supported:
         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
         headers into outbound requests.
      version_added:
-        v1.17.0:
+        v2.3.0:
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
