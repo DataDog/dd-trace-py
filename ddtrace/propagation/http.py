@@ -797,6 +797,34 @@ class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
     @staticmethod
+    def _extract_configured_contexts_avail(normalized_headers):
+        contexts = []
+        styles_w_ctx = []
+        for prop_style in config._propagation_style_extract:
+            propagator = _PROP_STYLES[prop_style]
+            context = propagator._extract(normalized_headers)
+            if context:
+                contexts.append(context)
+                styles_w_ctx.append(prop_style)
+        return contexts, styles_w_ctx
+
+    @staticmethod
+    def _resolve_tracestate_context(contexts, styles_w_ctx, normalized_headers):
+        primary_context = contexts[0]
+        # if tracecontext context and it's not the first, we should compare trace_id's
+        # to potentially add tracestate to primary_context
+        if (
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT in styles_w_ctx
+            and not styles_w_ctx[0] == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+        ):
+            if contexts[styles_w_ctx.index(_PROPAGATION_STYLE_W3C_TRACECONTEXT)].trace_id == primary_context.trace_id:
+                # extract and add the raw ts value to the primary_context
+                ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
+                if ts:
+                    primary_context._meta[W3C_TRACESTATE_KEY] = ts
+        return primary_context
+
+    @staticmethod
     def inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
@@ -860,7 +888,7 @@ class HTTPPropagator(object):
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            # or tracer configured to extract first only
+            # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
@@ -870,32 +898,10 @@ class HTTPPropagator(object):
                         return context
             # loop through all extract propagation styles
             else:
-                contexts = []
-                styles_w_ctx = []
-                for prop_style in config._propagation_style_extract:
-                    propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)  # type: ignore
-                    if context:
-                        contexts.append(context)
-                        styles_w_ctx.append(prop_style)
+                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
-                    primary_context = contexts[0]
-                    # if tracecontext context and it's not the first, we should compare trace_id's
-                    # to potentially add tracestate to primary_context
-                    if (
-                        _PROPAGATION_STYLE_W3C_TRACECONTEXT in styles_w_ctx
-                        and not styles_w_ctx[0] == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                    ):
-                        if (
-                            contexts[styles_w_ctx.index(_PROPAGATION_STYLE_W3C_TRACECONTEXT)].trace_id
-                            == primary_context.trace_id
-                        ):
-                            # extract and add the raw ts value to the primary_context
-                            ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
-                            if ts:
-                                primary_context._meta[W3C_TRACESTATE_KEY] = ts
-                    return primary_context
+                    return HTTPPropagator._resolve_tracestate_context(contexts, styles_w_ctx, normalized_headers)
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
