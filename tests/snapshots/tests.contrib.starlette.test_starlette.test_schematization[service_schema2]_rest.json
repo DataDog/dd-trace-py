@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/sub-app/hello/{name}",
@@ -38,6 +39,7 @@
        "parent_id": 1,
        "type": "web",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "starlette",
          "http.method": "GET",
          "http.status_code": "200",

@@ -282,6 +282,7 @@ def test_extract(tracer):
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_extract_128bit_trace_ids_datadog():
+    from ddtrace import config
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
@@ -298,15 +299,19 @@ def test_extract_128bit_trace_ids_datadog():
             "x-datadog-parent-id": str(span_id),
             "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
         }
-
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
         with tracer.trace("local_root_span") as span:
-            assert span.trace_id == trace_id
+            # for venv tracer-128-bit-traceid-disabled
+            # check 64-bit configuration functions correctly with 128-bit headers
+            if not config._128_bit_trace_id_enabled:
+                expected_trace_id = trace_id_64bit
+            else:
+                expected_trace_id = trace_id
+            assert span.trace_id == expected_trace_id
             assert span.parent_id == span_id
-            assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
             with tracer.trace("child_span") as child_span:
-                assert child_span.trace_id == trace_id
+                assert child_span.trace_id == expected_trace_id
 
 
 @pytest.mark.subprocess(
