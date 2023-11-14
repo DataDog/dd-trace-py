@@ -65,7 +65,6 @@
          "openai.request.temperature": "0.7",
          "openai.request.top_p": "1",
          "openai.response.choices.0.finish_reason": "stop",
-         "openai.response.choices.0.logprobs": "returned",
          "openai.response.choices.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
          "openai.response.id": "cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP",
          "openai.response.model": "text-davinci-003",

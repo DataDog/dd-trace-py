@@ -95,6 +95,7 @@ exclude = '''
   | ddtrace/internal/datadog/profiling/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/
+  | ddtrace/_version.py
   | \.eggs
   | \.git
   | \.hg

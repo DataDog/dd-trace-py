@@ -8,6 +8,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.internal import core
+from tests.utils import override_env
 
 
 def test_insecure_cookies(iast_span_defaults):
@@ -104,3 +105,18 @@ def test_nosamesite_cookies_strict_no_error(iast_span_defaults):
     asm_check_cookies(cookies)
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert not span_report
+
+
+@pytest.mark.parametrize("num_vuln_expected", [3, 0, 0])
+def test_insecure_cookies_deduplication(num_vuln_expected, iast_span_defaults):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        cookies = {"foo": "bar"}
+        asm_check_cookies(cookies)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+
+            assert len(span_report.vulnerabilities) == num_vuln_expected
