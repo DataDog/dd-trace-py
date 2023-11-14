@@ -218,19 +218,17 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if config.health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
-    def _metrics_reset(self):
-        # type: () -> None
-        self._metrics = defaultdict(int)
-
     def _set_drop_rate(self):
         # type: () -> None
         accepted = self._metrics["accepted_traces"]
         sent = self._metrics["sent_traces"]
         encoded = sum([len(client.encoder) for client in self._clients])
         # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
-        # This calculation is a best effort. Due to race conditions it will likely result in a slight overestimate.
-        dropped = accepted - sent - encoded
+        # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
+        dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
+        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
+        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
     def _set_keep_rate(self, trace):
         if trace:
@@ -380,7 +378,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
-            self._metrics_reset()
 
     def _flush_queue_with_client(self, client, raise_exc=False):
         # type: (WriterClientBase, bool) -> None
