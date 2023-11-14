@@ -49,7 +49,7 @@ def test_otel_span_attributes(oteltracer):
 )
 def test_otel_span_attributes_overrides(oteltracer, override):
     otel, value = override
-    with oteltracer.start_span("otel-attribute-override") as span:
+    with oteltracer.start_span("set-{}".format(otel)) as span:
         span.set_attribute(otel, value)
 
 
