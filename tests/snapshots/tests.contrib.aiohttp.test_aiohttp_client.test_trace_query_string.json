@@ -9,6 +9,7 @@
     "type": "http",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "aiohttp_client",
       "http.method": "GET",
       "http.query.string": "k1=v1&k2=v2&k3=v3&k4=v4",
@@ -37,6 +38,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "aiohttp"
        },
        "duration": 1119517,
