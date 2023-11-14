@@ -19,6 +19,9 @@ captured_logs = []
 def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
+    if dd_trace_id != 0 and config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+        dd_trace_id = span._trace_id_64bits
+
     assert "Hello" in json.loads(output[0])["text"]
     assert json.loads(output[0])["record"]["extra"]["dd.trace_id"] == str(dd_trace_id)
     assert json.loads(output[0])["record"]["extra"]["dd.span_id"] == str(dd_span_id)
@@ -50,6 +53,8 @@ def test_log_trace_global_values():
     Check trace info includes global values over local span values
     """
 
+    captured_logs.clear()
+
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
@@ -61,6 +66,8 @@ def test_log_trace_global_values():
 
 
 def test_log_no_trace():
+    captured_logs.clear()
+
     logger.info("Hello!")
 
     _test_logging(captured_logs, None, config.env, config.service, config.version)
@@ -215,7 +222,7 @@ def test_log_DD_TAGS():
     span.finish()
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span._trace_id_64bits)
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "ddenv"
     assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "ddtagservice"
@@ -271,7 +278,7 @@ def test_configured_format():
     span.finish()
 
     assert "Hello" in json.loads(captured_logs[0])["text"]
-    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["dd.trace_id"] == str(span._trace_id_64bits)
     assert json.loads(captured_logs[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(captured_logs[0])["dd.env"] == "global.env"
     assert json.loads(captured_logs[0])["dd.service"] == "logging"

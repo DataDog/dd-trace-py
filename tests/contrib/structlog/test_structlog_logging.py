@@ -19,6 +19,9 @@ cf = structlog.testing.CapturingLoggerFactory()
 def _test_logging(output, span, env, service, version):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
+    if dd_trace_id != 0 and config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+        dd_trace_id = span._trace_id_64bits
+
     assert json.loads(output[0].args[0])["event"] == "Hello!"
     assert json.loads(output[0].args[0])["dd.trace_id"] == str(dd_trace_id)
     assert json.loads(output[0].args[0])["dd.span_id"] == str(dd_span_id)
@@ -53,6 +56,8 @@ def test_log_trace_global_values():
     Check trace info includes global values over local span values
     """
 
+    cf.logger.calls.clear()
+
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
@@ -67,6 +72,8 @@ def test_log_trace_global_values():
 
 
 def test_log_no_trace():
+    cf.logger.calls.clear()
+
     structlog.get_logger().info("Hello!")
     output = cf.logger.calls
 
@@ -251,7 +258,7 @@ def test_log_DD_TAGS():
     output = cf.logger.calls
 
     assert json.loads(output[0].args[0])["event"] == "Hello!"
-    assert json.loads(output[0].args[0])["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(span._trace_id_64bits)
     assert json.loads(output[0].args[0])["dd.span_id"] == str(span.span_id)
     assert json.loads(output[0].args[0])["dd.env"] == "ddenv"
     assert json.loads(output[0].args[0])["dd.service"] == "ddtagservice"
