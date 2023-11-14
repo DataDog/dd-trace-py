@@ -3,16 +3,23 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
+from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import initializer_size
+from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
+from ddtrace.appsec._iast._taint_tracking import reset_context
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.internal import core
+from ddtrace.vendor import psutil
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.fixtures.propagation_path import propagation_memory_check
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -30,16 +37,6 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
     ],
 )
 def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import initializer_size
-    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import reset_context
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.vendor import psutil
-    from tests.appsec.iast.fixtures.propagation_path import propagation_memory_check
-
     expected_result = propagation_memory_check(origin1, origin2)
 
     start_memory = psutil.Process(os.getpid()).memory_info().rss

@@ -156,7 +156,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "psycopg2": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -179,9 +179,9 @@ venv = Venv(
                 ),
                 # Flask 2.x.x
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "flask": "~=2.2",
+                        "flask": "~=2.3.3",
                     },
                 ),
                 # Flask 3.x.x
