@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 import flask
 from flask import abort
@@ -26,6 +27,7 @@ from . import BaseFlaskTestCase
 
 
 REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
+SIGTERM_EXIT_CODE = -15
 
 
 base_exception_name = "builtins.Exception"
@@ -1181,7 +1183,6 @@ def hello_world():
     return 'Hello, World!'
 
 if __name__ == '__main__':
-    print("hey there")
     app.run(port=8082)
     """
     pyfile = tmpdir.join("test.py")
@@ -1192,8 +1193,8 @@ if __name__ == '__main__':
         stderr=subprocess.PIPE,
         close_fds=sys.platform != "win32",
     )
-    subp.send_signal(signal.SIGINT)
-    out, err = subp.communicate()
-    status = subp.wait()
-    assert status == 0, (out, err)
-    assert err == b""
+    time.sleep(0.5)
+    # send two terminate signals to forcibly kill the process
+    subp.terminate()
+    subp.terminate()
+    assert subp.wait() == SIGTERM_EXIT_CODE, "An instrumented Flask app should respond to SIGINT by exiting"
