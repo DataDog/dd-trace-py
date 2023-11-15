@@ -59,7 +59,7 @@ def _ensure_current_checkout():
 
 
 def _decide_next_release_number(base: str, candidate: bool = False) -> int:
-    """Return the next number to use as a patch or release candidate version, based on existing tags on the remote repo"""
+    """Return the next number to use as a patch or release candidate version, based on existing tags on the remote"""
     search = r"v%s.0\.?rc((\d+$))" % base if candidate else r"v%s.((\d+))" % base
     tags = dd_repo.get_tags()
     latest_version = 0
@@ -221,15 +221,13 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
     return release_parameters.name, release_parameters.rn
 
 
-def setup_gh():
-    # get dd-trace-py repo
+def get_ddtrace_repo():
     gh_token = os.getenv("GH_TOKEN")
     if not gh_token:
         raise ValueError(
             "We need a Github token to generate the release notes. Please follow the instructions in the script."
         )
-    g = Github(gh_token)
-    return g.get_repo(full_name_or_id="DataDog/dd-trace-py")
+    return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
 def create_notebook(dd_repo, name, rn, base, latest_branch):
@@ -431,7 +429,7 @@ if __name__ == "__main__":
     if ".x" in base:
         raise ValueError("Base branch must be a fully qualified semantic version.")
 
-    dd_repo = setup_gh()
+    dd_repo = get_ddtrace_repo()
     name, rn = create_release_draft(dd_repo, base, rc, patch, latest_branch)
 
     if rc:
