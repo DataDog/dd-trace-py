@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Needs to update the pubsub instance when the application forks because the probe 
+    mechanism should run in the child process. For that, DI needs the callback as the method of an instance of 
+    Debugger, which lives in the child process.
