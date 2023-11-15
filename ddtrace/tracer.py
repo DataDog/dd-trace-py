@@ -271,11 +271,11 @@ class Tracer(object):
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
