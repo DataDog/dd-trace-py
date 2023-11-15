@@ -287,8 +287,7 @@ class Span(object):
             if key in self._local_root._metrics:
                 del self._local_root._metrics[key]
 
-    def set_tag(self, key, value=None):
-        # type: (_TagNameType, Any) -> None
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -373,8 +372,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_tag_str(self, key, value):
-        # type: (_TagNameType, Text) -> None
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -386,23 +384,19 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key):
-        # type: (_TagNameType) -> None
+    def _remove_tag(self, key: _TagNameType) -> None:
         if key in self._meta:
             del self._meta[key]
 
-    def get_tag(self, key):
-        # type: (_TagNameType) -> Optional[Text]
+    def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self):
-        # type: () -> _MetaDictType
+    def get_tags(self) -> _MetaDictType:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags):
-        # type: (_MetaDictType) -> None
+    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -410,8 +404,7 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    def set_metric(self, key, value):
-        # type: (_TagNameType, NumericType) -> None
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         # This method sets a numeric tag value for the given key.
 
         # Enforce a specific connstant for `_dd.measured`
@@ -442,19 +435,16 @@ class Span(object):
             del self._meta[key]
         self._metrics[key] = value
 
-    def set_metrics(self, metrics):
-        # type: (_MetricDictType) -> None
+    def set_metrics(self, metrics: _MetricDictType) -> None:
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
 
-    def get_metric(self, key):
-        # type: (_TagNameType) -> Optional[NumericType]
+    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def get_metrics(self):
-        # type: () -> _MetricDictType
+    def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
         return self._metrics.copy()
 
