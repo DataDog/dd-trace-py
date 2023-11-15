@@ -134,6 +134,7 @@ def override_global_config(values):
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
         "_span_traceback_max_size",
+        "_data_streams_enabled",
     ]
 
     asm_config_keys = [
