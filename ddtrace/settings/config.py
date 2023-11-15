@@ -264,9 +264,9 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
-        512
-    )  # type: multiprocessing.Queue
+    _extra_services_connections = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Pipe(
+        False
+    )  # type: tuple[multiprocessing.connection.Connection, multiprocessing.connection.Connection]
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -490,16 +490,16 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._remote_config_enabled and service_name != self.service:
             try:
-                self._extra_services_queue.put_nowait(service_name)
+                self._extra_services_connections[1].send(service_name)
             except BaseException:  # nosec
                 pass
 
     def _get_extra_services(self):
         # type: () -> set[str]
-
+        socket = self._extra_services_connections[0]
         try:
-            while True:
-                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+            while socket.poll():
+                self._extra_services.add(socket.recv())
                 if len(self._extra_services) > 64:
                     self._extra_services.pop()
         except BaseException:  # nosec
