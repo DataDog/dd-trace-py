@@ -48,17 +48,14 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     topic_name = request.node.name.replace("[", "_").replace("]", "")
-    yield get_kafka_topic(topic_name)
 
-
-def get_kafka_topic(topic_name):
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
         try:
             future.result()
         except KafkaException:
             pass  # The topic likely already exists
-    return topic_name
+    yield topic_name
 
 
 @pytest.fixture()
@@ -85,10 +82,6 @@ def empty_kafka_topic(request):
 
 @pytest.fixture
 def dummy_tracer():
-    yield get_dummy_tracer()
-
-
-def get_dummy_tracer():
     patch()
     yield DummyTracer()
     unpatch()
@@ -96,10 +89,6 @@ def get_dummy_tracer():
 
 @pytest.fixture
 def tracer():
-    yield get_tracer()
-
-
-def get_tracer():
     patch()
     t = Tracer()
     t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
@@ -120,10 +109,6 @@ def dsm_processor(tracer):
 
 @pytest.fixture
 def producer(tracer):
-    return get_producer(tracer)
-
-
-def get_producer(tracer):
     _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     Pin.override(_producer, tracer=tracer)
     return _producer
@@ -131,10 +116,6 @@ def get_producer(tracer):
 
 @pytest.fixture
 def consumer(tracer, kafka_topic):
-    yield get_consumer(tracer, kafka_topic)
-
-
-def get_consumer(tracer, kafka_topic):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -743,17 +724,17 @@ from tests.utils import DummyTracer
 
 def test(consumer, producer, kafka_topic):
     patch()
-    dummyTracer = DummyTracer()
-    dummyTracer.flush()
-    Pin.override(producer, tracer=dummyTracer)
-    Pin.override(consumer, tracer=dummyTracer)
+    dummy_tracer = DummyTracer()
+    dummy_tracer.flush()
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
 
-
+    # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
-    producer.produce(topic, PAYLOAD, key=test_key)
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
     message = None
