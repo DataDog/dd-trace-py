@@ -11,8 +11,7 @@
       "_dd.p.dm": "-0",
       "language": "python",
       "real_string_tag": "rstr",
-      "runtime-id": "8d35d684fb45476e9eefce2af7928f52",
-      "service.name": "moons-service-str",
+      "runtime-id": "2fe461d5fb3a4eef9fe1e1517236403a",
       "tag1": "one",
       "tag2": "two",
       "tag3": "3",
@@ -22,10 +21,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 500
+      "process_id": 4171
     },
-    "duration": 399583,
-    "start": 1692985766943625752
+    "duration": 1216333,
+    "start": 1699977005889436597
   }],
 [
   {
@@ -39,8 +38,7 @@
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "8d35d684fb45476e9eefce2af7928f52",
-      "service.name": "moons-service-num"
+      "runtime-id": "2fe461d5fb3a4eef9fe1e1517236403a"
     },
     "metrics": {
       "_dd.top_level": 1,
@@ -48,11 +46,11 @@
       "_sampling_priority_v1": 1,
       "float_tag": 2.111,
       "int_tag": 1,
-      "process_id": 500,
+      "process_id": 4171,
       "tag1": 1,
       "tag2": 2,
       "tag3": 3.1415
     },
-    "duration": 79417,
-    "start": 1692985766944131835
+    "duration": 186125,
+    "start": 1699977005890878222
   }]]
