@@ -24,8 +24,10 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-style = [
+black_check = [
     "black --check -q {args:.}",
+]
+style = [
     "ruff check {args:.}",
     "cython-lint {args:.}",
 ]
