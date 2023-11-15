@@ -1748,6 +1748,11 @@ else:
 
     result = json.loads(stdout.decode())
     assert result == expected_context
+    
+
+def test_span_links_added_to_context_when_non_matching_trace_ids(): 
+    context = HTTPPropagator.extract(ALL_HEADERS)
+    import pdb; pdb.set_trace()
 
 
 VALID_DATADOG_CONTEXT = {
