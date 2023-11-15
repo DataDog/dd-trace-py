@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
@@ -36,7 +37,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000"
        },
        "duration": 39386375,
        "start": 1692712724983815803
@@ -53,6 +55,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
@@ -79,7 +82,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "_dd.base_service": ""
+         "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000"
        },
        "duration": 38914250,
        "start": 1692712725078909886
