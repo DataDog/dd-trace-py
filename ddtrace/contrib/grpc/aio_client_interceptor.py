@@ -15,7 +15,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ... import Pin
 from ... import Span
 from ... import config
@@ -28,6 +27,7 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 from ..grpc import constants
 from ..grpc import utils
 

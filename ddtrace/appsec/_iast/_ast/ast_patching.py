@@ -126,7 +126,7 @@ def _remove_flask_run(text):  # type (str) -> str
 def astpatch_module(module, remove_flask_run=False):
     # type: (ModuleType, bool) -> Tuple[str, str]
     module_name = module.__name__
-    module_path = origin(module)
+    module_path = str(origin(module))
     try:
         if os.stat(module_path).st_size == 0:
             # Don't patch empty files like __init__.py

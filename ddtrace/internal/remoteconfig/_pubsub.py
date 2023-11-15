@@ -87,8 +87,8 @@ class PubSub(object):
     def start_subscriber(self):
         self._subscriber.start()
 
-    def restart_subscriber(self):
-        self._subscriber.force_restart()
+    def restart_subscriber(self, join=False):
+        self._subscriber.force_restart(join)
 
     def _poll_data(self, test_tracer=None):
         # type: (Optional[Tracer]) -> None

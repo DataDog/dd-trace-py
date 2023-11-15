@@ -178,9 +178,9 @@ The following environment variables for the tracer are supported:
          ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
          Domain Socket.
 
-         Example for UDP url: ``DD_TRACE_AGENT_URL=udp://localhost:8125``
+         Example for UDP url: ``DD_DOGSTATSD_URL=udp://localhost:8125``
 
-         Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
+         Example for UDS: ``DD_DOGSTATSD_URL=unix:///var/run/datadog/dsd.socket``
 
    DD_TRACE_AGENT_TIMEOUT_SECONDS:
      type: Float
@@ -211,8 +211,12 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_SAMPLE_RATE:
      type: Float
-     default: 1.0
-     description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+     description: |
+        A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled. By default, this configuration is unset
+        and sampling is controlled by other configuration options and/or the Datadog Agent. See
+        `this page <https://docs.datadoghq.com/tracing/trace_pipeline/ingestion_mechanisms/?tab=python#in-the-agent>`_
+        for more details about Agent-based sampling.
+
 
    DD_TRACE_RATE_LIMIT:
      type: int
@@ -275,7 +279,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.5`` if priority sampling is enabled, else ``v0.3``
+         ``v0.4``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
@@ -283,6 +287,7 @@ The following environment variables for the tracer are supported:
      version_added:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
+       v1.19.1: default reverted to ``v0.4``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
@@ -356,6 +361,13 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_EXTRACT_FIRST:
+     type: Boolean
+     default: False
+     description: Whether the propagator stops after extracting the first header.
+     version_added:
+       v2.3.0:
+
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
      default: 512
@@ -420,6 +432,15 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.16.2: added with default of False
        v1.19.0: default changed to True
+
+   DD_TRACE_METHODS:
+     type: String
+     default: ""
+     description: |
+        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Note that this setting is only compatible with ``ddtrace-run``.
+     version_added:
+       v2.1.0:
 
    DD_IAST_ENABLED:
      type: Boolean
@@ -522,9 +543,9 @@ The following environment variables for the tracer are supported:
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
          the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
-         set to ``true`` to work.  
+         set to ``true`` to work.
       version_added:
-         v1.15.0:
+         v1.17.0: Added support to the Django integration. No other integrations support this configuration.
 
    DD_USER_MODEL_LOGIN_FIELD:
       type: String
@@ -552,6 +573,13 @@ The following environment variables for the tracer are supported:
       version_added:
          v1.15.0:
 
+   DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
+      type: Integer
+      default: 30
+      description: |
+         The maximum length of a traceback included in a span.
+      version_added:
+         v2.3.0:
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

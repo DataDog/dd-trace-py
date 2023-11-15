@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import contextmanager
+import datetime as dt
 import inspect
 import json
 import os
@@ -11,7 +12,6 @@ from typing import List
 import attr
 import pkg_resources
 import pytest
-import wrapt
 
 import ddtrace
 from ddtrace import Span
@@ -25,11 +25,14 @@ from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -112,19 +115,11 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
-        "_appsec_enabled",
-        "_api_security_enabled",
-        "_waf_timeout",
-        "_iast_enabled",
         "_obfuscation_query_string_pattern",
         "global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_subexec_sensitive_user_wildcards",
-        "_automatic_login_events_mode",
-        "_user_model_login_field",
-        "_user_model_email_field",
-        "_user_model_name_field",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
         "_sampling_rules",
@@ -138,21 +133,40 @@ def override_global_config(values):
         "_trace_writer_interval_seconds",
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
+        "_span_traceback_max_size",
+    ]
+
+    asm_config_keys = [
+        "_asm_enabled",
+        "_api_security_enabled",
+        "_api_security_sample_rate",
+        "_waf_timeout",
+        "_iast_enabled",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
     ]
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
+    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
             setattr(ddtrace.config, key, value)
+        elif key in asm_config_keys:
+            setattr(ddtrace.settings.asm.config, key, value)
     try:
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        for key, value in asm_originals.items():
+            setattr(ddtrace.settings.asm.config, key, value)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -172,6 +186,7 @@ def override_config(integration, values):
         yield
     finally:
         options.update(original)
+        ddtrace.config._reset()
 
 
 @contextlib.contextmanager
@@ -1117,10 +1132,14 @@ def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
-    if PY2:
-        # Python 2 doesn't support timeout
-        stdout, stderr = subp.communicate()
-    else:
+    try:
+        if PY2:
+            # Python 2 doesn't support timeout
+            stdout, stderr = subp.communicate()
+        else:
+            stdout, stderr = subp.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
     return stdout, stderr, subp.wait(), subp.pid
 
@@ -1219,3 +1238,53 @@ def add_dd_env_variables_to_headers(headers):
         headers["X-Datadog-Trace-Env-Variables"] = dd_env_vars_string
 
     return headers
+
+
+def get_128_bit_trace_id_from_headers(headers):
+    tags_value = _DatadogMultiHeader._get_tags_value(headers)
+    meta = _DatadogMultiHeader._extract_meta(tags_value)
+    return _DatadogMultiHeader._put_together_trace_id(
+        meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
+    )
+
+
+def _get_skipped_item(item, skip_reason):
+    if not inspect.isfunction(item) and not inspect.isclass(item):
+        raise ValueError(f"Unexpected skipped object: {item}")
+
+    if not hasattr(item, "pytestmark"):
+        item.pytestmark = []
+
+    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
+
+    return item
+
+
+def _should_skip(condition=None, until: int = None):
+    if until is None:
+        until = dt.datetime(3000, 1, 1)
+    else:
+        until = dt.datetime.fromtimestamp(until)
+    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+        return True
+    if condition is not None and not condition:
+        return False
+    return True
+
+
+def flaky(until: int = None, condition: bool = None, reason: str = None):
+    return skip_if_until(until, condition=condition, reason=reason)
+
+
+def skip_if_until(until: int, condition=None, reason=None):
+    """Conditionally skip the test until the given epoch timestamp"""
+    skip = _should_skip(condition=condition, until=until)
+
+    def decorator(function_or_class):
+        if not skip:
+            return function_or_class
+
+        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
+        return _get_skipped_item(function_or_class, full_reason)
+
+    return decorator

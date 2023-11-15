@@ -98,9 +98,6 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 try:
                     a(bar % m)
                 except ValueError:
-                    # this would act differently for PY2 and PY3
-                    # PY3 would chain those KeyError to ValueError exc and we will have a single exc_id
-                    # PY2 would not chain those and have 2 exc_ids
                     raise KeyError("chain it")
 
         def c(foo=42):
@@ -122,12 +119,8 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
             snapshots = {str(s.uuid): s for s in d.test_queue}
 
-            if PY < (3, 0):
-                stacks = [["c", "b_chain"], ["b_chain"], ["a"]]
-                number_of_exc_ids = 2
-            else:
-                stacks = [["b_chain", "a", "c", "b_chain"], ["b_chain", "a"], ["a"]]
-                number_of_exc_ids = 1
+            stacks = [["b_chain", "a", "c", "b_chain"], ["b_chain", "a"], ["a"]]
+            number_of_exc_ids = 1
 
             for n, span in enumerate(self.spans):
                 assert span.get_tag("error.debug_info_captured") == "true"

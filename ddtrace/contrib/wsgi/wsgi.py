@@ -17,16 +17,20 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.settings import Config
 
 from six.moves.urllib.parse import quote
-import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.tracing import trace_handlers
+from ddtrace.vendor import wrapt
 
 from ...internal import core
 
@@ -34,8 +38,6 @@ from ...internal import core
 log = get_logger(__name__)
 
 propagator = HTTPPropagator
-
-trace_handlers.listen()
 
 config._add(
     "wsgi",
@@ -58,14 +60,16 @@ class _DDWSGIMiddlewareBase(object):
     :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
     :param int_config: Integration specific configuration object.
     :param pin: Set tracing metadata on a particular traced connection
+    :param app_is_iterator: Boolean indicating whether the wrapped app is a Python iterator
     """
 
-    def __init__(self, application, tracer, int_config, pin):
-        # type: (Iterable, Tracer, Config, Pin) -> None
+    def __init__(self, application, tracer, int_config, pin, app_is_iterator=False):
+        # type: (Iterable, Tracer, Config, Pin, bool) -> None
         self.app = application
         self.tracer = tracer
         self._config = int_config
         self._pin = pin
+        self.app_is_iterator = app_is_iterator
 
     @property
     def _request_span_name(self):
@@ -88,20 +92,27 @@ class _DDWSGIMiddlewareBase(object):
     def __call__(self, environ, start_response):
         # type: (Iterable, Callable) -> wrapt.ObjectProxy
         headers = get_request_headers(environ)
-        closing_iterator = ()
+        closing_iterable = ()
         not_blocked = True
         with core.context_with_data(
             "wsgi.__call__",
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
             headers_case_sensitive=True,
+            service=trace_utils.int_service(self._pin, self._config),
+            span_type=SpanTypes.WEB,
+            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
+            middleware_config=self._config,
+            distributed_headers_config=self._config,
+            distributed_headers=environ,
             environ=environ,
             middleware=self,
+            call_key="req_span",
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
                 start_response(str(status), headers)
-                closing_iterator = [content]
+                closing_iterable = [content]
                 not_blocked = False
 
             def blocked_view():
@@ -113,17 +124,17 @@ class _DDWSGIMiddlewareBase(object):
             if not_blocked:
                 core.dispatch("wsgi.request.prepare", ctx, start_response)
                 try:
-                    closing_iterator = self.app(environ, ctx.get_item("intercept_start_response"))
+                    closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
                     core.dispatch("wsgi.app.exception", ctx)
                     raise
                 else:
-                    core.dispatch("wsgi.app.success", ctx, closing_iterator)
+                    core.dispatch("wsgi.app.success", ctx, closing_iterable)
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     _, _, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
-                    closing_iterator = [content]
+                    closing_iterable = [content]
 
-            return core.dispatch("wsgi.request.complete", ctx, closing_iterator)[0][0]
+            return core.dispatch("wsgi.request.complete", ctx, closing_iterable, self.app_is_iterator)[0][0]
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
@@ -132,10 +143,14 @@ class _DDWSGIMiddlewareBase(object):
             "wsgi.response",
             middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            service=trace_utils.int_service(None, self._config),
             start_span=False,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            call_key="response_span",
         ):
             return start_response(status, environ, exc_info)
 
@@ -203,15 +218,18 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
     :param span_modifier: Span modifier that can add tags to the root span.
                             Defaults to using the request method and url in the resource.
+    :param app_is_iterator: Boolean indicating whether the wrapped WSGI app is a Python iterator
     """
 
     _request_span_name = schematize_url_operation("wsgi.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_span_name = "wsgi.application"
     _response_span_name = "wsgi.response"
 
-    def __init__(self, application, tracer=None, span_modifier=default_wsgi_span_modifier):
-        # type: (Iterable, Optional[Tracer], Callable[[Span, Dict[str, str]], None]) -> None
-        super(DDWSGIMiddleware, self).__init__(application, tracer or ddtrace.tracer, config.wsgi, None)
+    def __init__(self, application, tracer=None, span_modifier=default_wsgi_span_modifier, app_is_iterator=False):
+        # type: (Iterable, Optional[Tracer], Callable[[Span, Dict[str, str]], None], bool) -> None
+        super(DDWSGIMiddleware, self).__init__(
+            application, tracer or ddtrace.tracer, config.wsgi, None, app_is_iterator=app_is_iterator
+        )
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
@@ -219,10 +237,15 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             "wsgi.response",
             middleware=self,
             request_span=request_span,
-            app_span=app_span,
+            parent_call=app_span,
             status=status,
             environ=environ,
+            span_type=SpanTypes.WEB,
+            span_name="wsgi.start_response",
+            service=trace_utils.int_service(None, self._config),
             start_span=True,
+            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            call_key="response_span",
         ) as ctx, ctx.get_item("response_span"):
             return start_response(status, environ, exc_info)
 

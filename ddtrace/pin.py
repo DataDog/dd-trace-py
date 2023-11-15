@@ -1,17 +1,12 @@
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import TYPE_CHECKING
-
-import wrapt
 
 import ddtrace
 
 from .internal.logger import get_logger
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from .tracer import Tracer
+from .vendor import wrapt
 
 
 log = get_logger(__name__)
@@ -41,7 +36,7 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
@@ -124,7 +119,7 @@ class Pin(object):
         obj,  # type: Any
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
     ):
         # type: (...) -> None
         """Override an object with the given attributes.
@@ -164,6 +159,8 @@ class Pin(object):
 
             # set the target reference; any get_from, clones and retarget the new PIN
             self._target = id(obj)
+            if self.service:
+                ddtrace.config._add_extra_service(self.service)
             return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
@@ -184,7 +181,7 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
     ):
         # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""

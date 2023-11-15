@@ -11,20 +11,20 @@ import re
 import sys
 import threading
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Optional
+from typing import Text
 
 from six import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
     from typing import Callable
     from typing import Dict
     from typing import Generator
     from typing import Iterable
     from typing import List
-    from typing import Optional
     from typing import Sequence
-    from typing import Text
     from typing import Tuple
 
 
@@ -159,8 +159,7 @@ def do_translate(s, translate_dict):
     return s.translate(translate_dict)
 
 
-def do_decode_simple(s):
-    # type: (bytes, str, str) -> str
+def do_decode_simple(s: bytes) -> str:
     return s.decode()
 
 
@@ -698,8 +697,8 @@ def no_effect_using_wraps(func):
     return wrapper
 
 
-def do_upper(s):  # type: (str) -> str
-    return s.upper()
+def do_upper(sss):  # type: (str) -> str
+    return sss.upper()
 
 
 def do_lower(s):  # type: (str) -> str
@@ -845,6 +844,10 @@ def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
     return template.format_map(mapping)
 
 
+def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
+    return "Test {param1}, {param2}".format(param1=param1)
+
+
 def do_join(s, iterable):
     # type: (str, Iterable) -> str
     return s.join(iterable)
@@ -943,15 +946,21 @@ def do_format_fill(a):  # type: (Any) -> str
     return "{:10}".format(a)
 
 
-def do_slice_2(s, first, second, third):  # type: (str, int, int, int) -> str
+def do_slice_2_and_two_strings(
+    s1: Text, s2: Text, first: Optional[int], second: Optional[int], third: Optional[int]
+) -> Text:
+    return (s1 + s2)[first:second:third]
+
+
+def do_slice_2(s: Text, first: Optional[int], second: Optional[int], third: Optional[int]) -> Text:
     return s[first:second:third]
 
 
-def do_slice_condition(s, first, second):  # type: (str, int, int) -> str
+def do_slice_condition(s: str, first, second):
     return s[first : second or 0]
 
 
-def do_namedtuple(s):  # type: (str) -> Any
+def do_namedtuple(s: Text) -> Any:
     PathInfo = namedtuple("PathInfo", "name surname")
     my_string = PathInfo(name=s, surname=None)
     return my_string
@@ -990,7 +999,7 @@ def do_rstrip_2(s):  # type: (str) -> str
     return s.rstrip()
 
 
-def do_index(c, i):  # type: (str, int) -> str
+def do_index(c: str, i: int) -> str:
     return c[i]
 
 

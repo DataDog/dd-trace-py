@@ -9,6 +9,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "openai",
       "error.message": "Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.",
       "error.stack": "Traceback (most recent call last):\n  openai.error.AuthenticationError: Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.\n",
@@ -16,6 +17,7 @@
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
+      "openai.base_url": "https://api.openai.com/v1/",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.max_tokens": "150",
       "openai.request.method": "POST",

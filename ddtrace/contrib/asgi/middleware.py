@@ -13,12 +13,13 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
-from .. import trace_utils
 from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal import core
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
+from .. import trace_utils
 from .utils import guarantee_single_callable
 
 
@@ -88,7 +89,7 @@ def span_from_scope(scope):
 
 
 def _request_blocked(span):
-    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
+    return span and asm_config._asm_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):
@@ -193,14 +194,13 @@ class TraceMiddleware:
                 url = "{}://{}{}".format(scheme, server_host, full_path)
             else:
                 url = None
-
-            if self.integration_config.trace_query_string:
-                query_string = scope.get("query_string")
-                if len(query_string) > 0:
-                    query_string = bytes_to_str(query_string)
-            else:
+            query_string = scope.get("query_string")
+            if query_string:
+                query_string = bytes_to_str(query_string)
+                if url:
+                    url = f"{url}?{query_string}"
+            if not self.integration_config.trace_query_string:
                 query_string = None
-
             trace_utils.set_http_meta(
                 span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
             )

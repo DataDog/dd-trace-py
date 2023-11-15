@@ -4,8 +4,11 @@ from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 
+from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
+from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_unwrap
@@ -126,6 +129,8 @@ def patch():
 def wrapped_digest_function(wrapped, instance, args, kwargs):
     # type: (Callable, Any, Any, Any) -> Any
     if instance.name.lower() in get_weak_hash_algorithms():
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+        _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
         WeakHash.report(
             evidence_value=instance.name,
         )
@@ -148,6 +153,8 @@ def wrapped_sha1_function(wrapped, instance, args, kwargs):
 def wrapped_new_function(wrapped, instance, args, kwargs):
     # type: (Callable, Any, Any, Any) -> Any
     if args[0].lower() in get_weak_hash_algorithms():
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+        _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
         WeakHash.report(
             evidence_value=args[0].lower(),
         )
@@ -156,6 +163,8 @@ def wrapped_new_function(wrapped, instance, args, kwargs):
 
 def wrapped_function(wrapped, evidence, instance, args, kwargs):
     # type: (Callable, str, Any, Any, Any) -> Any
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+    _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
     WeakHash.report(
         evidence_value=evidence,
     )

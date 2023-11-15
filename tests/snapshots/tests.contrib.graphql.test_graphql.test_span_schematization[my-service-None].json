@@ -9,6 +9,7 @@
     "type": "graphql",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "graphql",
       "language": "python",
       "runtime-id": "17d840cf6c7242d3998ac029d0b647e4"
@@ -32,6 +33,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -47,6 +49,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -62,6 +65,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",

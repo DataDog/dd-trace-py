@@ -12,7 +12,7 @@ from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_str
-from ddtrace.internal.datadog.profiling.ddup import sanitize_string
+from ddtrace.internal.datadog.profiling.utils import sanitize_string
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter

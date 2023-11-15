@@ -1,13 +1,13 @@
 import grpc
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ..trace_utils import unwrap as _u
 from . import constants
 from . import utils
-from ..trace_utils import unwrap as _u
 from .client_interceptor import create_client_interceptor
 from .client_interceptor import intercept_channel
 from .server_interceptor import create_server_interceptor

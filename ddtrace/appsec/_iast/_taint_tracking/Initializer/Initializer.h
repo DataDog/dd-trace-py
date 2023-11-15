@@ -63,6 +63,8 @@ class Initializer
      */
     static int num_objects_tainted();
 
+    string debug_taint_map();
+
     /**
      * Gets the size of the Initializer object.
      *
@@ -150,7 +152,7 @@ class Initializer
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(int start, int length, Source source);
+    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source source);
 
     void release_taint_range(TaintRangePtr rangeptr);
 };

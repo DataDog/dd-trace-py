@@ -6,7 +6,7 @@ Usage
 ~~~~~
 
 The rq integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
@@ -86,12 +86,12 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 
 
 __all__ = ["patch", "unpatch", "get_version"]

@@ -10,6 +10,7 @@ from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfi
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
@@ -165,3 +166,19 @@ def test_weak_cipher_rc4_unpatched(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert span_report is None
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_weak_cipher_deduplication(num_vuln_expected, iast_span_defaults):
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        for _ in range(0, 5):
+            cryptography_algorithm("Blowfish")
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+
+            assert len(span_report.vulnerabilities) == num_vuln_expected

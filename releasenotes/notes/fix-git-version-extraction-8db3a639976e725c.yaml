@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes incorrect Git version extraction

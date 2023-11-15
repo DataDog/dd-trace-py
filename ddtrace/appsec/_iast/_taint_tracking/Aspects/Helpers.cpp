@@ -97,7 +97,7 @@ range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
 // TODO OPTIMIZATION: Remove py::types once this isn't used in Python
 template<class StrType>
 StrType
-as_formatted_evidence(const StrType& text,
+as_formatted_evidence(StrType& text,
                       optional<TaintRangeRefs>& text_ranges,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges)
@@ -161,11 +161,11 @@ split_taints(const string& str_to_split)
 }
 
 py::bytearray
-_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
     py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
-    std::tuple result = _convert_escaped_text_to_taint_text_impl<py::bytes>(bytes_text, ranges_orig);
+    std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     py::bytearray result_new_id = copy_string_new_id(py::bytearray() + get<0>(result));
     set_ranges(result_new_id.ptr(), get<1>(result));
     return result_new_id;
@@ -173,9 +173,9 @@ _convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, 
 
 template<class StrType>
 StrType
-_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-    std::tuple result = _convert_escaped_text_to_taint_text_impl<StrType>(taint_escaped_text, ranges_orig);
+    std::tuple result = _convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     StrType result_text = get<0>(result);
     TaintRangeRefs result_ranges = get<1>(result);
     StrType result_new_id = copy_string_new_id(result_text);
@@ -201,7 +201,7 @@ getNum(std::string s)
 
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
-_convert_escaped_text_to_taint_text_impl(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
+_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
     string result{ u8"" };
     string startswith_element{ ":" };
@@ -334,15 +334,15 @@ pyexport_aspect_helpers(py::module& m)
           "tag_mapping_function"_a = nullopt,
           "new_ranges"_a = nullopt);
     m.def("_convert_escaped_text_to_tainted_text",
-          &_convert_escaped_text_to_taint_text<py::bytes>,
+          &api_convert_escaped_text_to_taint_text<py::bytes>,
           "taint_escaped_text"_a,
           "ranges_orig"_a);
     m.def("_convert_escaped_text_to_tainted_text",
-          &_convert_escaped_text_to_taint_text<py::str>,
+          &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
           "ranges_orig"_a);
     m.def("_convert_escaped_text_to_tainted_text",
-          &_convert_escaped_text_to_taint_text_ba,
+          &api_convert_escaped_text_to_taint_text_ba,
           "taint_escaped_text"_a,
           "ranges_orig"_a);
     m.def("parse_params", &parse_params);

@@ -226,7 +226,6 @@ try:
             yield self.outer_executor()
             self.write("OK")
 
-
 except TypeError:
     # the class definition fails because Tornado 4.0 and 4.1 don't support
     # `run_on_executor` with params. Because it's just this case, we can
@@ -312,12 +311,17 @@ def make_app(settings=None):
         settings = {}
     settings["ui_modules"] = uimodules
 
+    nested_application = tornado.web.Application(
+        [(r"/nested_app/handler1/", SuccessHandler), (r"/nested_app/handler2/", SuccessHandler)], **settings
+    )
+
     return tornado.web.Application(
         [
             # custom handlers
             (r"/success/", SuccessHandler),
             (r"/status_code/([0-9]+)", ResponseStatusHandler),
-            (r"/nested/", NestedHandler),
+            (r"/nested/.*", NestedHandler),
+            (r"/nested_app/.*", nested_application),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),
             (r"/exception/", ExceptionHandler),
@@ -344,5 +348,5 @@ def make_app(settings=None):
             (r"/sync_nested_wrap/", SyncNestedWrapHandler),
             (r"/sync_nested_exception_wrap/", SyncNestedExceptionWrapHandler),
         ],
-        **settings
+        **settings,
     )

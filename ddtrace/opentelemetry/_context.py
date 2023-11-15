@@ -6,26 +6,16 @@ from opentelemetry.context.context import Context as OtelContext
 from opentelemetry.trace import NonRecordingSpan as OtelNonRecordingSpan
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext as OtelSpanContext
-import opentelemetry.version
+from opentelemetry.trace import get_current_span
+from opentelemetry.trace import set_span_in_context
 
 from ddtrace import tracer as ddtracer
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.opentelemetry._span import Span
 from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
 from ddtrace.span import Span as DDSpan
 
-
-# opentelemetry.trace.use_span() uses SPAN_KEY to store active spans to a Context Dictionary.
-# This context dictionary is then used to activate and get the current span.
-# To fully support the otel api we must use SPAN_KEY to add otel spans to otel context objects.
-# https://github.com/open-telemetry/opentelemetry-python/blob/v1.15.0/opentelemetry-api/src/opentelemetry/trace/__init__.py#L571
-if parse_version(opentelemetry.version.__version__) >= (1, 4):
-    from opentelemetry.trace.propagation import _SPAN_KEY
-else:
-    # opentelemetry-api<1.4 uses SPAN_KEY instead of _SPAN_KEY
-    from opentelemetry.trace.propagation import SPAN_KEY as _SPAN_KEY
 
 log = get_logger(__name__)
 
@@ -34,12 +24,10 @@ class DDRuntimeContext:
     def attach(self, otel_context):
         # type: (OtelContext) -> object
         """
-        Activates an OpenTelemetry Span by storing its corresponding Datadog Span/Context in the
-        Datadog Context Provider.
+        Converts an OpenTelemetry Span to a Datadog Span/Context then stores the
+        Datadog representation in the Global DDtrace Trace Context Provider.
         """
-        # Get Otel Span from the context object. Otelspan can be none if the context
-        # only contains baggage or some other propagated object.
-        otel_span = otel_context.get(_SPAN_KEY, None)
+        otel_span = get_current_span(otel_context)
         if otel_span:
             if isinstance(otel_span, Span):
                 self._ddcontext_provider.activate(otel_span._ddspan)
@@ -50,8 +38,7 @@ class DDRuntimeContext:
             else:
                 log.error(
                     "Programming ERROR: ddtrace does not support activiting spans with the type: %s. Please open a "
-                    "github issue at: https://github.com/Datadog/dd-trace-py and avoid "
-                    "setting the ddtrace OpenTelemetry TracerProvider.",
+                    "github issue at: https://github.com/Datadog/dd-trace-py and set DD_TRACE_OTEL_ENABLED=True.",
                     type(otel_span),
                 )
 
@@ -66,13 +53,15 @@ class DDRuntimeContext:
         in a format that can be parsed by the OpenTelemetry API.
         """
         ddactive = self._ddcontext_provider.active()
+        context = OtelContext()
         if isinstance(ddactive, DDSpan):
-            return OtelContext({_SPAN_KEY: Span(ddactive)})
+            span = Span(ddactive)
+            context = set_span_in_context(span, context)
         elif isinstance(ddactive, DDContext):
-            otel_span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True)
-            return OtelContext({_SPAN_KEY: OtelNonRecordingSpan(otel_span_context)})
-        else:
-            return OtelContext()
+            span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True)
+            span = OtelNonRecordingSpan(span_context)
+            context = set_span_in_context(span, context)
+        return context
 
     def detach(self, token):
         # type: (object) -> None

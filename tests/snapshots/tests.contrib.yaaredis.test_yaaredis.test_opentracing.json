@@ -9,6 +9,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "language": "python",
       "runtime-id": "4d0d479c17be4095b8e0dee5a0839596"
     },
@@ -24,13 +25,14 @@
      {
        "name": "redis.command",
        "service": "redis",
-       "resource": "GET cheese",
+       "resource": "GET",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "yaaredis",
          "db.system": "redis",
          "out.host": "localhost",
