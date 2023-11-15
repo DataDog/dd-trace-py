@@ -224,7 +224,7 @@ class TraceMiddleware:
                     core.dispatch("asgi.start_response", "asgi")
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
-                    return
+                    raise trace_utils.InterruptException("wrapped_send")
                 try:
                     return await send(message)
                 finally:
