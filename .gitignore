@@ -33,7 +33,6 @@ ddtrace/internal/datadog/profiling/libdatadog/
 .Python
 env/
 build/
-cmake_build/
 develop-eggs/
 dist/
 downloads/
@@ -145,3 +144,7 @@ ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
 
 # CircleCI generated config
 .circleci/config.gen.yml
+
+# Automatically generated fixtures
+tests/appsec/iast/fixtures/aspects/callers.py
+tests/appsec/iast/fixtures/aspects/unpatched_callers.py

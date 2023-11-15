@@ -1,6 +1,8 @@
 import os
 import sys
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
 from typing import Optional
 
 from openai import version
@@ -13,6 +15,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
 
 from ...pin import Pin
@@ -39,50 +42,109 @@ config._add(
     },
 )
 
-_RESOURCES = {
-    "model.Model": {
-        "list": _endpoint_hooks._ListHook,
-        "retrieve": _endpoint_hooks._RetrieveHook,
-    },
-    "completion.Completion": {
-        "create": _endpoint_hooks._CompletionHook,
-    },
-    "chat_completion.ChatCompletion": {
-        "create": _endpoint_hooks._ChatCompletionHook,
-    },
-    "edit.Edit": {
-        "create": _endpoint_hooks._EditHook,
-    },
-    "image.Image": {
-        "create": _endpoint_hooks._ImageCreateHook,
-        "create_edit": _endpoint_hooks._ImageEditHook,
-        "create_variation": _endpoint_hooks._ImageVariationHook,
-    },
-    "audio.Audio": {
-        "transcribe": _endpoint_hooks._AudioTranscriptionHook,
-        "translate": _endpoint_hooks._AudioTranslationHook,
-    },
-    "embedding.Embedding": {
-        "create": _endpoint_hooks._EmbeddingHook,
-    },
-    "moderation.Moderation": {
-        "create": _endpoint_hooks._ModerationHook,
-    },
-    "file.File": {
-        "create": _endpoint_hooks._FileCreateHook,
-        "delete": _endpoint_hooks._DeleteHook,
-        "download": _endpoint_hooks._FileDownloadHook,
-    },
-    "fine_tune.FineTune": {
-        "create": _endpoint_hooks._FineTuneCreateHook,
-        "cancel": _endpoint_hooks._FineTuneCancelHook,
-    },
-}
-
 
 def get_version():
     # type: () -> str
     return version.VERSION
+
+
+OPENAI_VERSION = parse_version(get_version())
+
+
+if OPENAI_VERSION >= (1, 0, 0):
+    _RESOURCES = {
+        "models.Models": {
+            "list": _endpoint_hooks._ModelListHook,
+            "retrieve": _endpoint_hooks._ModelRetrieveHook,
+            "delete": _endpoint_hooks._ModelDeleteHook,
+        },
+        "completions.Completions": {
+            "create": _endpoint_hooks._CompletionHook,
+        },
+        "chat.Completions": {
+            "create": _endpoint_hooks._ChatCompletionHook,
+        },
+        "edits.Edits": {
+            "create": _endpoint_hooks._EditHook,
+        },
+        "images.Images": {
+            "generate": _endpoint_hooks._ImageCreateHook,
+            "edit": _endpoint_hooks._ImageEditHook,
+            "create_variation": _endpoint_hooks._ImageVariationHook,
+        },
+        "audio.Transcriptions": {
+            "create": _endpoint_hooks._AudioTranscriptionHook,
+        },
+        "audio.Translations": {
+            "create": _endpoint_hooks._AudioTranslationHook,
+        },
+        "embeddings.Embeddings": {
+            "create": _endpoint_hooks._EmbeddingHook,
+        },
+        "moderations.Moderations": {
+            "create": _endpoint_hooks._ModerationHook,
+        },
+        "files.Files": {
+            "create": _endpoint_hooks._FileCreateHook,
+            "retrieve": _endpoint_hooks._FileRetrieveHook,
+            "list": _endpoint_hooks._FileListHook,
+            "delete": _endpoint_hooks._FileDeleteHook,
+            "retrieve_content": _endpoint_hooks._FileDownloadHook,
+        },
+        "fine_tunes.FineTunes": {
+            "create": _endpoint_hooks._FineTuneCreateHook,
+            "retrieve": _endpoint_hooks._FineTuneRetrieveHook,
+            "list": _endpoint_hooks._FineTuneListHook,
+            "cancel": _endpoint_hooks._FineTuneCancelHook,
+            "list_events": _endpoint_hooks._FineTuneListEventsHook,
+        },
+    }
+else:
+    _RESOURCES = {
+        "model.Model": {
+            "list": _endpoint_hooks._ListHook,
+            "retrieve": _endpoint_hooks._RetrieveHook,
+        },
+        "completion.Completion": {
+            "create": _endpoint_hooks._CompletionHook,
+        },
+        "chat_completion.ChatCompletion": {
+            "create": _endpoint_hooks._ChatCompletionHook,
+        },
+        "edit.Edit": {
+            "create": _endpoint_hooks._EditHook,
+        },
+        "image.Image": {
+            "create": _endpoint_hooks._ImageCreateHook,
+            "create_edit": _endpoint_hooks._ImageEditHook,
+            "create_variation": _endpoint_hooks._ImageVariationHook,
+        },
+        "audio.Audio": {
+            "transcribe": _endpoint_hooks._AudioTranscriptionHook,
+            "translate": _endpoint_hooks._AudioTranslationHook,
+        },
+        "embedding.Embedding": {
+            "create": _endpoint_hooks._EmbeddingHook,
+        },
+        "moderation.Moderation": {
+            "create": _endpoint_hooks._ModerationHook,
+        },
+        "file.File": {
+            # File.list() and File.retrieve() share the same underlying method as Model.list() and Model.retrieve()
+            # which means they are already wrapped
+            "create": _endpoint_hooks._FileCreateHook,
+            "delete": _endpoint_hooks._DeleteHook,
+            "download": _endpoint_hooks._FileDownloadHook,
+        },
+        "fine_tune.FineTune": {
+            # FineTune.list()/retrieve() share the same underlying method as Model.list() and Model.retrieve()
+            # FineTune.delete() share the same underlying method as File.delete()
+            # which means they are already wrapped
+            # FineTune.list_events does not have an async version, so have to wrap it separately
+            "create": _endpoint_hooks._FineTuneCreateHook,
+            "cancel": _endpoint_hooks._FineTuneCancelHook,
+        },
+    }
 
 
 class _OpenAIIntegration(BaseLLMIntegration):
@@ -95,18 +157,24 @@ class _OpenAIIntegration(BaseLLMIntegration):
         # object that is strongly linked with configuration.
         super().__init__(config, stats_url, site, api_key)
         self._openai = openai
+        self._user_api_key = None
+        self._client = None
+        if self._openai.api_key is not None:
+            self.user_api_key = self._openai.api_key
 
     @property
-    def _user_api_key(self):
+    def user_api_key(self):
         # type: () -> Optional[str]
         """Get a representation of the user API key for tagging."""
-        # Match the API key representation that OpenAI uses in their UI.
-        if self._openai.api_key is None:
-            return
-        return "sk-...%s" % self._openai.api_key[-4:]
+        return self._user_api_key
 
-    def _set_base_span_tags(self, span):
-        # type: (Span) -> None
+    @user_api_key.setter
+    def user_api_key(self, value):
+        # Match the API key representation that OpenAI uses in their UI.
+        self._user_api_key = "sk-...%s" % value[-4:]
+
+    def _set_base_span_tags(self, span, **kwargs):
+        # type: (Span, Dict[str, Any]) -> None
         span.set_tag_str(COMPONENT, self._config.integration_name)
         if self._user_api_key is not None:
             span.set_tag_str("openai.user.api_key", self._user_api_key)
@@ -114,13 +182,19 @@ class _OpenAIIntegration(BaseLLMIntegration):
         # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
         # organization_id is only returned by a few endpoints, grab it when we can.
-        for attr in ("api_base", "api_version", "api_type", "organization"):
-            v = getattr(self._openai, attr, None)
+        if OPENAI_VERSION >= (1, 0, 0):
+            source = self._client
+            base_attrs = ("base_url", "organization")
+        else:
+            source = self._openai
+            base_attrs = ("api_base", "api_version", "api_type", "organization")
+        for attr in base_attrs:
+            v = getattr(source, attr, None)
             if v is not None:
                 if attr == "organization":
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
-                    span.set_tag_str("openai.%s" % attr, v)
+                    span.set_tag_str("openai.%s" % attr, str(v))
 
     @classmethod
     def _logs_tags(cls, span):
@@ -164,7 +238,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
         tags = self._metrics_tags(span)
         tags.append("openai.estimated:false")
         for token_type in ("prompt", "completion", "total"):
-            num_tokens = usage.get(token_type + "_tokens")
+            num_tokens = getattr(usage, token_type + "_tokens", None)
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
@@ -199,24 +273,43 @@ def patch():
             raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
         integration.start_log_writer()
 
-    import openai.api_requestor
+    if OPENAI_VERSION >= (1, 0, 0):
+        wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
+        wrap(openai.OpenAI.__init__, _patched_client_init(openai, integration))
+        wrap(openai.AsyncOpenAI.__init__, _patched_client_init(openai, integration))
+        wrap(openai.AzureOpenAI.__init__, _patched_client_init(openai, integration))
+        wrap(openai.AsyncAzureOpenAI.__init__, _patched_client_init(openai, integration))
 
-    wrap(openai.api_requestor._make_session, _patched_make_session)
-    wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
+        for resource, method_hook_dict in _RESOURCES.items():
+            if deep_getattr(openai.resources, resource) is None:
+                continue
+            for method_name, endpoint_hook in method_hook_dict.items():
+                sync_method = deep_getattr(openai.resources, "%s.%s" % (resource, method_name))
+                async_method = deep_getattr(
+                    openai.resources, "%s.%s" % (".Async".join(resource.split(".")), method_name)
+                )
+                wrap(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
+                wrap(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
+    else:
+        import openai.api_requestor
 
-    for resource, method_hook_dict in _RESOURCES.items():
-        if deep_getattr(openai.api_resources, resource) is not None:
+        wrap(openai.api_requestor._make_session, _patched_make_session)
+        wrap(openai.util.convert_to_openai_object, _patched_convert(openai, integration))
+
+        for resource, method_hook_dict in _RESOURCES.items():
+            if deep_getattr(openai.api_resources, resource) is None:
+                continue
             for method_name, endpoint_hook in method_hook_dict.items():
                 sync_method = deep_getattr(openai.api_resources, "%s.%s" % (resource, method_name))
                 async_method = deep_getattr(openai.api_resources, "%s.a%s" % (resource, method_name))
                 _wrap_classmethod(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
                 _wrap_classmethod(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
 
-    # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
-    _wrap_classmethod(
-        openai.api_resources.fine_tune.FineTune.list_events,
-        _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
-    )
+        # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
+        _wrap_classmethod(
+            openai.api_resources.fine_tune.FineTune.list_events,
+            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
+        )
 
     openai.__datadog_patch = True
 
@@ -225,6 +318,25 @@ def unpatch():
     # FIXME: add unpatching. The current wrapping.unwrap method requires
     #        the wrapper function to be provided which we don't keep a reference to.
     pass
+
+
+def _patched_client_init(openai, integration):
+    """
+    Patch for `openai.OpenAI/AsyncOpenAI` client init methods to add the client object to the OpenAIIntegration object.
+    """
+
+    def patched_client_init(func, args, kwargs):
+        func(*args, **kwargs)
+        client = args[0]
+        integration._client = client
+        api_key = kwargs.get("api_key")
+        if api_key is None:
+            api_key = client.api_key
+        if api_key is not None:
+            integration.user_api_key = api_key
+        return
+
+    return patched_client_init
 
 
 def _patched_make_session(func, args, kwargs):
@@ -275,6 +387,12 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
 
 def _patched_endpoint(openai, integration, patch_hook):
     def patched_endpoint(func, args, kwargs):
+        # FIXME: this is a temporary workaround for the fact that our bytecode wrapping seems to modify
+        #        a function keyword argument into a cell when it shouldn't. This is only an issue on
+        #        Python 3.11+.
+        if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
+            kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
+
         pin = Pin._find(openai, args[0])
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
@@ -302,6 +420,12 @@ def _patched_endpoint(openai, integration, patch_hook):
 def _patched_endpoint_async(openai, integration, patch_hook):
     # Same as _patched_endpoint but async
     async def patched_endpoint(func, args, kwargs):
+        # FIXME: this is a temporary workaround for the fact that our bytecode wrapping seems to modify
+        #        a function keyword argument into a cell when it shouldn't. This is only an issue on
+        #        Python 3.11+.
+        if sys.version_info >= (3, 11) and kwargs.get("encoding_format", None):
+            kwargs["encoding_format"] = kwargs["encoding_format"].cell_contents
+
         pin = Pin._find(openai, args[0])
         if not pin or not pin.enabled():
             return await func(*args, **kwargs)
@@ -336,41 +460,45 @@ def _patched_convert(openai, integration):
         if not span:
             return func(*args, **kwargs)
 
-        val = args[0]
-        if not isinstance(val, openai.openai_response.OpenAIResponse):
-            return func(*args, **kwargs)
+        if OPENAI_VERSION < (1, 0, 0):
+            resp = args[0]
+            if not isinstance(resp, openai.openai_response.OpenAIResponse):
+                return func(*args, **kwargs)
+            headers = resp._headers
+        else:
+            resp = kwargs.get("response", {})
+            headers = resp.headers
 
         # This function is called for each chunk in the stream.
         # To prevent needlessly setting the same tags for each chunk, short-circuit here.
         if span.get_tag("openai.organization.name") is not None:
             return func(*args, **kwargs)
-
-        val = val._headers
-        if val.get("openai-organization"):
-            org_name = val.get("openai-organization")
+        if headers.get("openai-organization"):
+            org_name = headers.get("openai-organization")
             span.set_tag_str("openai.organization.name", org_name)
 
         # Gauge total rate limit
-        if val.get("x-ratelimit-limit-requests"):
-            v = val.get("x-ratelimit-limit-requests")
+        if headers.get("x-ratelimit-limit-requests"):
+            v = headers.get("x-ratelimit-limit-requests")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.requests", int(v))
-        if val.get("x-ratelimit-limit-tokens"):
-            v = val.get("x-ratelimit-limit-tokens")
+        if headers.get("x-ratelimit-limit-tokens"):
+            v = headers.get("x-ratelimit-limit-tokens")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.tokens", int(v))
 
         # Gauge and set span info for remaining requests and tokens
-        if val.get("x-ratelimit-remaining-requests"):
-            v = val.get("x-ratelimit-remaining-requests")
+        if headers.get("x-ratelimit-remaining-requests"):
+            v = headers.get("x-ratelimit-remaining-requests")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.remaining.requests", int(v))
                 span.set_metric("openai.organization.ratelimit.requests.remaining", int(v))
-        if val.get("x-ratelimit-remaining-tokens"):
-            v = val.get("x-ratelimit-remaining-tokens")
+        if headers.get("x-ratelimit-remaining-tokens"):
+            v = headers.get("x-ratelimit-remaining-tokens")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.remaining.tokens", int(v))
                 span.set_metric("openai.organization.ratelimit.tokens.remaining", int(v))
+
         return func(*args, **kwargs)
 
     return patched_convert
