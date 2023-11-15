@@ -95,17 +95,18 @@ def test_collect_once():
         pytest.fail("Unable to find MainThread")
 
 
-def _find_sleep_event(events, class_name):
+def _find_sleep_event(events):
     class_method_found = False
     class_classmethod_found = False
 
+    sleep_class_name = "sleep_class" if not class_name else class_name + ".sleep_class"
+    sleep_instance_name = "sleep_instance" if not class_name else class_name + ".sleep_instance"
+
     for e in events:
         for frame in e.frames:
-            if frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_class" and frame[3] == class_name:
+            if frame[0] == __file__.replace(".pyc", ".py") and frame[2] == sleep_class_name:
                 class_method_found = True
-            elif (
-                frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_instance" and frame[3] == class_name
-            ):
+            elif frame[0] == __file__.replace(".pyc", ".py") and frame[2] == sleep_instance_name:
                 class_classmethod_found = True
 
         if class_method_found and class_classmethod_found:
@@ -428,7 +429,7 @@ def test_exception_collection_threads():
     assert e.sampling_period > 0
     assert e.thread_id in {t.ident for t in threads}
     assert isinstance(e.thread_name, str)
-    assert e.frames == [("<string>", 5, "_f30", "")]
+    assert e.frames == [("<string>", 5, "_f30")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     for t in threads:
@@ -452,9 +453,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [
-        (__file__, test_exception_collection.__code__.co_firstlineno + 8, "test_exception_collection", "")
-    ]
+    assert e.frames == [(__file__, test_exception_collection.__code__.co_firstlineno + 8, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -487,7 +486,7 @@ def test_exception_collection_trace(
     assert e.thread_id == _thread.get_ident()
     assert e.thread_name == "MainThread"
     assert e.frames == [
-        (__file__, test_exception_collection_trace.__code__.co_firstlineno + 13, "test_exception_collection_trace", "")
+        (__file__, test_exception_collection_trace.__code__.co_firstlineno + 13, "test_exception_collection_trace")
     ]
     assert e.nframes == 1
     assert e.exc_type == ValueError

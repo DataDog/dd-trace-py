@@ -55,7 +55,6 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_trace_type(const char *trace_type)
         void ddup_push_trace_resource_container(const char *trace_resource_container)
         void ddup_push_exceptioninfo(const char *exception_type, int64_t count)
-        void ddup_push_class_name(const char *class_name)
         void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line)
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
@@ -140,10 +139,6 @@ IF UNAME_SYSNAME == "Linux":
         if exc_type is not None:
             exc_name = exc_type.__module__ + "." + exc_type.__name__
             ddup_push_exceptioninfo(ensure_binary(exc_name), count)
-
-    def push_class_name(class_name: str) -> None:
-        class_name = class_name if class_name is not None else ""
-        ddup_push_class_name(ensure_binary(class_name))
 
     def push_span(span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
         if not span:

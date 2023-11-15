@@ -85,21 +85,19 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
         # This assertion does not work reliably on Python < 3.7
         if _asyncio_compat.PY37_AND_LATER:
             first_line_this_test_class = test_asyncio.__code__.co_firstlineno
-            co_filename, lineno, co_name, class_name = event.frames[0]
+            co_filename, lineno, co_name = event.frames[0]
             if event.task_name == "main":
                 assert event.thread_name == "MainThread"
                 assert len(event.frames) == 1
                 assert co_filename == __file__
                 assert first_line_this_test_class + 9 <= lineno <= first_line_this_test_class + 15
                 assert co_name == "hello"
-                assert class_name == ""
                 assert event.nframes == 1
             elif event.task_name in (t1_name, t2_name):
                 assert event.thread_name == "MainThread"
                 assert co_filename == __file__
                 assert first_line_this_test_class + 4 <= lineno <= first_line_this_test_class + 9
                 assert co_name == "stuff"
-                assert class_name == ""
                 assert event.nframes == 1
 
         if event.thread_name == "MainThread" and event.task_name is None:

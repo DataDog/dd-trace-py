@@ -52,7 +52,6 @@ class Uploader;
   X(trace_type, "trace type")                                                  \
   X(trace_resource_container, "trace resource container")                      \
   X(trace_endpoint, "trace endpoint")                                          \
-  X(class_name, "class name")                                                  \
   X(lock_name, "lock name")
 
 #define X_ENUM(a, b) a,
@@ -202,7 +201,6 @@ public:
   bool push_trace_type(std::string_view trace_type);
   bool push_trace_resource_container(std::string_view trace_resource_container);
   bool push_exceptioninfo(std::string_view exception_type, int64_t count);
-  bool push_class_name(std::string_view class_name);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(std::string_view name,     // for ddog_prof_Function

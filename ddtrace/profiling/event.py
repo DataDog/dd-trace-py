@@ -9,7 +9,7 @@ from ddtrace.internal import compat
 
 _T = typing.TypeVar("_T")
 
-DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name", "class_name"])
+DDFrame = namedtuple("DDFrame", ["file_name", "lineno", "function_name"])
 StackTraceType = typing.List[DDFrame]
 
 
