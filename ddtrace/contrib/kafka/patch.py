@@ -137,15 +137,14 @@ def traced_produce(func, instance, args, kwargs):
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
         value = None
-    message_key = kwargs.get("key", "")
+    message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
-    core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer)])
-
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer), span])
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -180,7 +179,7 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
             core.set_item("kafka_topic", message.topic())
-            core.dispatch("kafka.consume.start", [instance, message])
+            core.dispatch("kafka.consume.start", [instance, message, span])
 
             message_key = message.key() or ""
             message_offset = message.offset() or -1

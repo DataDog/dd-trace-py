@@ -219,6 +219,15 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
 
 
+def test_produce_none_key(dummy_tracer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=None)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
+
+
 def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
     Pin.override(producer, tracer=dummy_tracer)
@@ -691,6 +700,7 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
+    assert produce_span.get_tag("pathway.hash") is not None
 
     # None of the kafka.consume spans have parents
     assert consume_span1.name == "kafka.consume"
@@ -701,3 +711,32 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     # None of these spans are part of the same trace
     assert produce_span.trace_id != consume_span1.trace_id
     assert consume_span1.trace_id != consume_span2.trace_id
+
+
+def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    test_string = "payload hash test"
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_payload_hash_key")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == b"payload hash test"
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span = traces[len(traces) - 1][0]
+
+    # kafka.produce and kafka.consume span have payload hash
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.get_tag("pathway.hash") is not None
+
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.get_tag("pathway.hash") is not None

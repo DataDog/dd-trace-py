@@ -1,0 +1,23 @@
+[[
+  {
+    "name": "set-span.type",
+    "service": null,
+    "resource": "set-span.type",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "type-override",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "1c857ba7ed0a49508c60687b4a8cf74f"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 4394
+    },
+    "duration": 73834,
+    "start": 1699977766040078795
+  }]]

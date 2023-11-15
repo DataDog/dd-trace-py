@@ -355,6 +355,8 @@ class Config(object):
         self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
 
+        self._span_traceback_max_size = int(os.getenv("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", default=30))
+
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
@@ -420,6 +422,8 @@ class Config(object):
         propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
         if propagation_style_inject is not None:
             self._propagation_style_inject = propagation_style_inject
+
+        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
