@@ -706,30 +706,26 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
-    code = """
-import pytest
-import random
-import six
-import sys
+@pytest.mark.subprocess(env=dict(DD_KAFKA_DISTRIBUTED_TRACING_ENABLED="True"))
+def test_tracing_context_is_propagated_when_enabled():
+    import random
 
-from ddtrace import Pin
-from ddtrace.contrib.kafka.patch import patch
+    import six
 
-from tests.contrib.kafka.test_kafka import consumer
-from tests.contrib.kafka.test_kafka import kafka_topic
-from tests.contrib.kafka.test_kafka import producer
-from tests.contrib.kafka.test_kafka import tracer
-from tests.utils import DummyTracer
+    from ddtrace import Pin
+    from ddtrace.contrib.kafka.patch import patch
+    from tests.contrib.kafka.test_kafka import consumer
+    from tests.contrib.kafka.test_kafka import kafka_topic
+    from tests.contrib.kafka.test_kafka import producer
+    from tests.utils import DummyTracer
 
-def test(consumer, producer, kafka_topic):
     patch()
     dummyTracer = DummyTracer()
     dummyTracer.flush()
     Pin.override(producer, tracer=dummyTracer)
     Pin.override(consumer, tracer=dummyTracer)
 
-
+    # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
@@ -749,8 +745,8 @@ def test(consumer, producer, kafka_topic):
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
-            if span.get_tag('kafka.received_message') == 'True':
-                if span.get_tag('kafka.message_key') == test_key:
+            if span.get_tag("kafka.received_message") == "True":
+                if span.get_tag("kafka.message_key") == test_key:
                     consume_span = span
                     break
 
@@ -764,13 +760,3 @@ def test(consumer, producer, kafka_topic):
 
     # Two of these spans are part of the same trace
     assert produce_span.trace_id == consume_span.trace_id
-
-if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
-    """
-
-    env = os.environ.copy()
-    env["DD_KAFKA_DISTRIBUTED_TRACING_ENABLED"] = "true"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, out.decode() + err.decode()
-    assert err == b"", err.decode()

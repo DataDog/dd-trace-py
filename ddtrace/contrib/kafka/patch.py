@@ -224,27 +224,3 @@ def traced_commit(func, instance, args, kwargs):
     core.dispatch("kafka.commit.start", [instance, args, kwargs])
 
     return func(*args, **kwargs)
-
-
-def inject_parent_context(span, carrier):
-    carrier["x-datadog-trace-id"] = bytes(str(span.trace_id), "utf-8")
-    carrier["x-datadog-parent-id"] = bytes(str(span.span_id), "utf-8")
-    return carrier
-
-
-def extract_parent_context(carrier):
-    trace_id = None
-    span_id = None
-    sp = None
-    if carrier:
-        for key, value in carrier:
-            if key == "x-datadog-trace-id":
-                trace_id = int(value)
-            elif key == "x-datadog-parent-id":
-                span_id = int(value)
-            elif key == "x-datadog-sampling-priority":
-                sp = float(value)
-    if trace_id and span_id:
-        return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sp)
-    else:
-        return None
