@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import signal
+import subprocess
+import sys
+import time
 
 import flask
 from flask import abort
@@ -23,6 +27,7 @@ from . import BaseFlaskTestCase
 
 
 REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
+SIGTERM_EXIT_CODE = -15
 
 
 base_exception_name = "builtins.Exception"
@@ -1166,3 +1171,30 @@ if __name__ == "__main__":
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
     assert err == b"", (out, err)
+
+
+def test_sigint(tmpdir):
+    code = """
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(port=8082)
+    """
+    pyfile = tmpdir.join("test.py")
+    pyfile.write(code)
+    subp = subprocess.Popen(
+        ["ddtrace-run", sys.executable, str(pyfile)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=sys.platform != "win32",
+    )
+    time.sleep(0.5)
+    # send two terminate signals to forcibly kill the process
+    subp.terminate()
+    subp.terminate()
+    assert subp.wait() == SIGTERM_EXIT_CODE, "An instrumented Flask app should respond to SIGINT by exiting"
