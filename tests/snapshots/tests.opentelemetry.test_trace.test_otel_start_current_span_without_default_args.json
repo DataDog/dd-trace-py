@@ -8,21 +8,21 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "655535da00000000",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "process_id": 7703
     },
-    "duration": 445750,
-    "start": 1700080043780180259
+    "duration": 472708,
+    "start": 1700083162392162508
   },
      {
-       "name": "rename-start-current-span",
+       "name": "server",
        "service": null,
        "resource": "rename-start-current-span",
        "trace_id": 0,

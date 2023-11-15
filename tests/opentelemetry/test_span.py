@@ -141,7 +141,7 @@ def test_otel_update_span_name(oteltracer):
     with oteltracer.start_span("otel-server") as server:
         assert server._ddspan.name == "otel-server"
         server.update_name("renamed-otel-server")
-    assert server._ddspan.name == "renamed-otel-server"
+    assert server._ddspan.resource == "renamed-otel-server"
 
 
 def test_otel_span_is_recording(oteltracer):

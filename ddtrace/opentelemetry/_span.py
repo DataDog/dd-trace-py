@@ -87,9 +87,6 @@ class Span(OtelSpan):
         if attributes:
             self.set_attributes(attributes)
 
-        # Used to respect https://opentelemetry.io/docs/specs/otel/trace/api/#updatename
-        self._update_name_called = False
-
     @property
     def _record_exception(self):
         # type: () -> bool
@@ -176,12 +173,7 @@ class Span(OtelSpan):
         """Updates the name of a span"""
         if not self.is_recording():
             return
-        # OpenTelemetry spans have one name while Datadog spans can have two different names (operation and resource).
-        # Ensure the resource and operation names are equal for OpenTelemetry spans
-        #
-        self._ddspan.name = name
         self._ddspan.resource = name
-        self._update_name_called = True
 
     def is_recording(self):
         # type: () -> bool
@@ -245,10 +237,6 @@ class Span(OtelSpan):
         # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107
         ddspan = self._ddspan
         span_kind = self.kind
-
-        # Respect UpdateName rather than any override
-        if self._update_name_called:
-            return
 
         operation_name = ddspan.get_tag("operation.name")
         if operation_name:
