@@ -611,6 +611,7 @@
             "@contrib",
             "@appsec",
             "@asgi",
+            "@wsgi",
             "@django",
             "@dbapi",
             "@pg",
@@ -1057,6 +1058,7 @@
             "@tracing",
             "@wsgi",
             "tests/contrib/wsgi/*",
+            "tests/contrib/django/test_django_wsgi.py",
             "tests/contrib/uwsgi/__init__.py",
             "tests/snapshots/tests.contrib.wsgi.*"
         ],
