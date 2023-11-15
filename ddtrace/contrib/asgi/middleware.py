@@ -248,7 +248,7 @@ class TraceMiddleware:
                 status, headers, content = core.dispatch("asgi.block.started", ctx, url)[0][0]
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
-                    message["status"] = status
+                    message["status"] = int(status)
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
                     message["more_body"] = False
