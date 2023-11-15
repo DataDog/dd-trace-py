@@ -453,11 +453,13 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=30):
-        # type: (int) -> None
+    def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
-        relevant error info. If not, set the span to the current python stack.
+        relevant error info. If not, tag it with the current python stack.
         """
+        if limit is None:
+            limit = config._span_traceback_max_size
+
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
