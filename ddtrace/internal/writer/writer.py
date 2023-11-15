@@ -422,15 +422,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
                 namespace = self.STATSD_NAMESPACE
-                # Note that we cannot use the batching functionality of dogstatsd because
-                # it's not thread-safe.
-                # https://github.com/DataDog/datadogpy/issues/439
-                # This really isn't ideal as now we're going to do a ton of socket calls.
+                self.dogstatsd.open_buffer()  # using `with self.dogstatsd as batch` here breaks mocking done in tests
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
                 for name, metric_tags in self._metrics.items():
                     for tags, count in metric_tags.items():
                         self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
+                self.dogstatsd.close_buffer()
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
