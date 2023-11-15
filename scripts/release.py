@@ -124,7 +124,7 @@ def create_release_draft(dd_repo, base, rc, patch, latest_branch):
 
     create_draft_release_github(parameters)
 
-    return name, rn
+    return parameters.name, parameters.rn
 
 
 def clean_release_notes(rn_raw: str) -> str:
