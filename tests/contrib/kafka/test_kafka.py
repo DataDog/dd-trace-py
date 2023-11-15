@@ -219,6 +219,15 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
 
 
+def test_produce_none_key(dummy_tracer, producer, kafka_topic):
+    Pin.override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=None)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
+
+
 def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
     Pin.override(producer, tracer=dummy_tracer)
