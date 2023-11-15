@@ -185,7 +185,7 @@ def traced_poll(func, instance, args, kwargs):
 
     message = func(*args, **kwargs)
     ctx = None
-    if message is not None and config.kafka.distributed_tracing_enabled:
+    if message is not None and config.kafka.distributed_tracing_enabled and message.headers() is not None:
         ctx = Propagator.extract(dict(message.headers()))
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),

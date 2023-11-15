@@ -48,14 +48,17 @@ class KafkaConsumerPollFilter(TraceFilter):
 @pytest.fixture()
 def kafka_topic(request):
     topic_name = request.node.name.replace("[", "_").replace("]", "")
+    yield get_kafka_topic(topic_name)
 
+
+def get_kafka_topic(topic_name):
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
         try:
             future.result()
         except KafkaException:
             pass  # The topic likely already exists
-    yield topic_name
+    return topic_name
 
 
 @pytest.fixture()
@@ -82,6 +85,10 @@ def empty_kafka_topic(request):
 
 @pytest.fixture
 def dummy_tracer():
+    yield get_dummy_tracer()
+
+
+def get_dummy_tracer():
     patch()
     yield DummyTracer()
     unpatch()
@@ -89,6 +96,10 @@ def dummy_tracer():
 
 @pytest.fixture
 def tracer():
+    yield get_tracer()
+
+
+def get_tracer():
     patch()
     t = Tracer()
     t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
@@ -109,6 +120,10 @@ def dsm_processor(tracer):
 
 @pytest.fixture
 def producer(tracer):
+    return get_producer(tracer)
+
+
+def get_producer(tracer):
     _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     Pin.override(_producer, tracer=tracer)
     return _producer
@@ -116,6 +131,10 @@ def producer(tracer):
 
 @pytest.fixture
 def consumer(tracer, kafka_topic):
+    yield get_consumer(tracer, kafka_topic)
+
+
+def get_consumer(tracer, kafka_topic):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -713,24 +732,29 @@ def test_tracing_context_is_propagated_when_enabled():
     import six
 
     from ddtrace import Pin
-    from ddtrace.contrib.kafka.patch import patch
-    from tests.contrib.kafka.test_kafka import consumer
-    from tests.contrib.kafka.test_kafka import kafka_topic
-    from tests.contrib.kafka.test_kafka import producer
-    from tests.utils import DummyTracer
+    from tests.contrib.kafka.test_kafka import get_consumer
+    from tests.contrib.kafka.test_kafka import get_dummy_tracer
+    from tests.contrib.kafka.test_kafka import get_kafka_topic
+    from tests.contrib.kafka.test_kafka import get_producer
+    from tests.contrib.kafka.test_kafka import get_tracer
 
-    patch()
-    dummyTracer = DummyTracer()
-    dummyTracer.flush()
-    Pin.override(producer, tracer=dummyTracer)
-    Pin.override(consumer, tracer=dummyTracer)
+    dummy_tracer = next(get_dummy_tracer())
+    dummy_tracer.flush()
+
+    producer = get_producer(dummy_tracer)
+    topic_name = "test_tracing_context_is_propagated_when_enabled"
+    topic = get_kafka_topic(topic_name)
+    consumer = next(get_consumer(dummy_tracer, topic))
+
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
 
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
-    producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.produce(topic, PAYLOAD, key=test_key)
     producer.flush()
 
     message = None
@@ -741,7 +765,7 @@ def test_tracing_context_is_propagated_when_enabled():
     assert str(message.value()) == str(PAYLOAD)
 
     consume_span = None
-    traces = dummyTracer.pop_traces()
+    traces = dummy_tracer.pop_traces()
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
