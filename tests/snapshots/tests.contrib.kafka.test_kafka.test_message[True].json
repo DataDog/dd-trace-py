@@ -19,6 +19,7 @@
       "kafka.topic": "test_message_True",
       "language": "python",
       "messaging.system": "kafka",
+      "pathway.hash": "6989450886678805289",
       "runtime-id": "28c848057ff14e2182d0d6fc1e31d7e0",
       "span.kind": "consumer"
     },
@@ -54,6 +55,7 @@
       "language": "python",
       "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
+      "pathway.hash": "6989450886678805289",
       "runtime-id": "28c848057ff14e2182d0d6fc1e31d7e0",
       "span.kind": "producer"
     },
