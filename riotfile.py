@@ -316,6 +316,7 @@ venv = Venv(
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-asyncio": latest,
+                "vcrpy": latest
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),

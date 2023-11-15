@@ -9,6 +9,7 @@ from typing import Optional
 
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.log_writer import V2LogWriter
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config, stats_url, site, api_key):
+    def __init__(self, config, stats_url, site, api_key, app_key=None):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
@@ -35,6 +36,13 @@ class BaseLLMIntegration:
             api_key=api_key,
             interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
             timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+        )
+        self._llmobs_writer = LLMObsWriter(
+            site=site,
+            api_key=api_key,
+            app_key=app_key,
+            interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+            timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
         )
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
@@ -54,6 +62,10 @@ class BaseLLMIntegration:
     def start_log_writer(self):
         # type: (...) -> None
         self._log_writer.start()
+
+    def start_llm_writer(self):
+        # type: (...) -> None
+        self._llmobs_writer.start()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span, **kwargs):
@@ -139,3 +151,15 @@ class BaseLLMIntegration:
         if len(text) > self._config.span_char_limit:
             text = text[: self._config.span_char_limit] + "..."
         return text
+
+    def llm_record(self, span, attrs):
+        # type: (Span, Dict[str, Any]) -> None
+        """Create a LLM record to send to the LLM Obs intake."""
+        if not self._config.llmobs_enabled:
+            return
+        llm_record = {}
+        if span is not None:
+            llm_record["dd.trace_id"] = str(span.trace_id)
+            llm_record["dd.span_id"] = str(span.span_id)
+        llm_record.update(attrs)
+        self._llmobs_writer.enqueue(llm_record)
