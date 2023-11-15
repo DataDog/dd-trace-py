@@ -16,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
+    from typing import Callable
     from typing import Mapping
     from typing import Optional
     from typing import Union
@@ -23,10 +24,31 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes
     from opentelemetry.util.types import AttributeValue
 
+    from ddtrace.internal.compat import NumericType
     from ddtrace.span import Span as DDSpan
 
 
 log = get_logger(__name__)
+
+
+def _ddmap(span, attribute, value):
+    # type: (DDSpan, str, Union[bytes, NumericType]) -> DDSpan
+    if attribute.startswith("meta") or attribute.startswith("metrics"):
+        meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
+        if meta_key:
+            span.set_tag(meta_key, value)
+    else:
+        setattr(span, attribute, value)
+    return span
+
+
+_OTelDatadogMapping = {
+    "operation.name": "name",
+    "service.name": "service",
+    "resource.name": "resource",
+    "span.type": "span_type",
+    "analytics.event": "metrics['_dd1.sr.eausr']",
+}
 
 
 class Span(OtelSpan):
@@ -129,8 +151,13 @@ class Span(OtelSpan):
         """Sets an attribute or service name on a tag"""
         if not self.is_recording():
             return
-        # Note - The OpenTelemetry API supports setting service names and service versions using `service.name` and
-        # `service.version` attributes. This functionality is supported by Span.set_tag and NOT Span.set_tag_str().
+
+        # Override reserved OTel span attributes
+        ddattribute = _OTelDatadogMapping.get(key)
+        if ddattribute is not None:
+            _ddmap(self._ddspan, ddattribute, value)
+            return
+
         self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
