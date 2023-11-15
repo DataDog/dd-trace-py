@@ -1,15 +1,18 @@
 import sys
 
+from mock import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.taint_sinks._base import taint_sink_deduplication
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
 from ddtrace.internal import core
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_week_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 
 
 WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
@@ -255,8 +258,8 @@ def test_weak_check_repeated(iast_span_defaults):
     assert len(span_report.vulnerabilities) == 1
 
 
-@pytest.mark.skip(reason="FIXME: does not work with Python 3.10+")
-def test_weak_check_hmac(iast_span_defaults):
+@pytest.mark.skipif(sys.version_info > (3, 10, 0), reason="hmac has a weak hash vulnerability until Python 3.10")
+def test_weak_hash_check_hmac(iast_span_defaults):
     import hashlib
     import hmac
 
@@ -274,3 +277,56 @@ def test_weak_check_hmac_secure(iast_span_defaults):
     mac.digest()
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert span_report is None
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_weak_hash_deduplication(num_vuln_expected, iast_span_defaults):
+    import hashlib
+
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        for _ in range(0, 5):
+            m = hashlib.new("md5")
+            m.digest()
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+
+            assert len(span_report.vulnerabilities) == num_vuln_expected
+
+
+@mock.patch.object(taint_sink_deduplication, "get_last_time_reported")
+def test_weak_hash_deduplication_expired_cache(mock_get_last_time_reported, iast_span_defaults):
+    """CAVEAT: this test will fail at Wednesday, July 20, 5127"""
+    import hashlib
+
+    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+        mock_get_last_time_reported.return_value = 0.0
+        m = hashlib.new("md5")
+        m.digest()
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert len(span_report.vulnerabilities) == 1
+
+        mock_get_last_time_reported.return_value = 99642544540.0
+        m = hashlib.new("md5")
+        m.digest()
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert len(span_report.vulnerabilities) == 1
+
+        m = hashlib.new("md5")
+        m.digest()
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert len(span_report.vulnerabilities) == 1
+
+        mock_get_last_time_reported.return_value = 1142544540.0
+        m = hashlib.new("md5")
+        m.digest()
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert len(span_report.vulnerabilities) == 2

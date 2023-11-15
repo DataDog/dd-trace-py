@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: GET
+    uri: https://api.openai.com/v1/files/file-xC22NUuYBkXvzRt2fLREcGde/content
+  response:
+    body:
+      string: "{\"prompt\":\"@united was that English? I'll DM though I don't think
+        you'll make a plane appear.\\n\\n###\\n\\n\",\"completion\":\" negative\"}\n{\"prompt\":\"@united
+        Thank you. Mention that before I boarded she asked 1other person to measure
+        their bag, and it was another woman. Men not asked.\\n\\n###\\n\\n\",\"completion\":\"
+        negative\"}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d0a97e85dbb0f7b-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/octet-stream
+      Date:
+      - Thu, 01 Jun 2023 21:36:40 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-disposition:
+      - attachment; filename="file"
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '27'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 528dfe1071f01f10689b6d7bb6f86419
+    status:
+      code: 200
+      message: OK
+version: 1

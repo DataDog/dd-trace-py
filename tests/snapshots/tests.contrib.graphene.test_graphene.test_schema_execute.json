@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "graphql",
       "language": "python",
       "runtime-id": "bd29f6239b6740229c13f18d5b0d3f74"
@@ -34,6 +35,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -50,6 +52,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -66,6 +69,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"

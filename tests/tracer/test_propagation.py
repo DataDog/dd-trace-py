@@ -8,6 +8,7 @@ import pytest
 from ddtrace.context import Context
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -26,6 +27,7 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.span import _get_64_lowest_order_bits_as_int
 
 from ..utils import override_global_config
 
@@ -282,6 +284,7 @@ def test_extract(tracer):
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_extract_128bit_trace_ids_datadog():
+    from ddtrace import config
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
@@ -298,15 +301,19 @@ def test_extract_128bit_trace_ids_datadog():
             "x-datadog-parent-id": str(span_id),
             "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
         }
-
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
         with tracer.trace("local_root_span") as span:
-            assert span.trace_id == trace_id
+            # for venv tracer-128-bit-traceid-disabled
+            # check 64-bit configuration functions correctly with 128-bit headers
+            if not config._128_bit_trace_id_enabled:
+                expected_trace_id = trace_id_64bit
+            else:
+                expected_trace_id = trace_id
+            assert span.trace_id == expected_trace_id
             assert span.parent_id == span_id
-            assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
             with tracer.trace("child_span") as child_span:
-                assert child_span.trace_id == trace_id
+                assert child_span.trace_id == expected_trace_id
 
 
 @pytest.mark.subprocess(
@@ -594,6 +601,12 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 
 TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+}
+
+
+TRACECONTEXT_HEADERS_VALID_64_bit = {
+    _HTTP_HEADER_TRACEPARENT: "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
 
@@ -1006,6 +1019,12 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
 }
+DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
+    HTTP_HEADER_TRACE_ID: str(_get_64_lowest_order_bits_as_int(TRACE_ID)),
+    HTTP_HEADER_PARENT_ID: "5678",
+    HTTP_HEADER_SAMPLING_PRIORITY: "1",
+    HTTP_HEADER_ORIGIN: "synthetics",
+}
 DATADOG_HEADERS_INVALID = {
     HTTP_HEADER_TRACE_ID: "13088165645273925489",  # still valid
     HTTP_HEADER_PARENT_ID: "parent_id",
@@ -1033,6 +1052,13 @@ ALL_HEADERS = {}
 ALL_HEADERS.update(DATADOG_HEADERS_VALID)
 ALL_HEADERS.update(B3_HEADERS_VALID)
 ALL_HEADERS.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS.update(TRACECONTEXT_HEADERS_VALID)
+
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS = {}
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID)
+# we use 64-bit traceparent trace id value here so it can match for both 128-bit enabled and disabled
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(TRACECONTEXT_HEADERS_VALID_64_bit)
+
 
 EXTRACT_FIXTURES = [
     # Datadog headers
@@ -1334,17 +1360,23 @@ EXTRACT_FIXTURES = [
         None,
         ALL_HEADERS,
         {
-            "trace_id": 13088165645273925489,
-            "span_id": 5678,
-            "sampling_priority": 1,
-            "dd_origin": "synthetics",
+            "trace_id": TRACE_ID,
+            "span_id": 67667974448284343,
+            "sampling_priority": 2,
+            "dd_origin": "rum",
+            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         },
     ),
     (
         # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI,
         #  PROPAGATION_STYLE_B3_SINGLE] we use it
         "valid_all_headers_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         ALL_HEADERS,
         {
             "trace_id": 13088165645273925489,
@@ -1355,7 +1387,12 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_all_styles_wsgi",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 13088165645273925489,
@@ -1468,7 +1505,12 @@ EXTRACT_FIXTURES = [
     ),
     (
         "order_matters_B3_first",
-        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE, PROPAGATION_STYLE_DATADOG],
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         B3_HEADERS_VALID,
         {
             "trace_id": TRACE_ID,
@@ -1499,6 +1541,37 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
+    # testing that tracestate is still added when tracecontext style comes later and matches first style's trace-id
+    (
+        # name, styles, headers, expected_context,
+        "additional_tracestate_support_when_present_and_matches_first_styles_trace_id",
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+        ],
+        DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
+        {
+            "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+        },
+    ),
+    # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
+    (
+        "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+    ),
     (
         "valid_all_headers_no_style",
         [],
@@ -1527,6 +1600,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
+            "tracestate": "dd=s:2;o:rum",
         },
     ),
 ]
@@ -1545,12 +1619,21 @@ context = HTTPPropagator.extract({!r})
 if context is None:
     print("null")
 else:
-    print(json.dumps({{
-      "trace_id": context.trace_id,
-      "span_id": context.span_id,
-      "sampling_priority": context.sampling_priority,
-      "dd_origin": context.dd_origin,
-    }}))
+    if context._meta.get("tracestate"):
+        print(json.dumps({{
+        "trace_id": context.trace_id,
+        "span_id": context.span_id,
+        "sampling_priority": context.sampling_priority,
+        "dd_origin": context.dd_origin,
+        "tracestate": context._meta.get("tracestate")
+        }}))
+    else:
+        print(json.dumps({{
+        "trace_id": context.trace_id,
+        "span_id": context.span_id,
+        "sampling_priority": context.sampling_priority,
+        "dd_origin": context.dd_origin,
+        }}))
     """.format(
         headers
     )
@@ -1573,7 +1656,11 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
-            assert context == Context(**expected_context)
+            if not expected_context.get("tracestate"):
+                assert context == Context(**expected_context)
+            else:
+                tracestate = expected_context.pop("tracestate")
+                assert context == Context(**expected_context, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [

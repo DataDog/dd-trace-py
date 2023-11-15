@@ -1,3 +1,4 @@
+import abc
 from collections import defaultdict
 from pathlib import Path
 import sys
@@ -213,48 +214,17 @@ class _ImportHookChainedLoader(Loader):
             callback(module)
 
 
-class ModuleWatchdog(object):
-    """Module watchdog.
+class BaseModuleWatchdog(abc.ABC):
+    """Base module watchdog.
 
-    Hooks into the import machinery to detect when modules are loaded/unloaded.
-    This is also responsible for triggering any registered import hooks.
-
-    Subclasses might customize the default behavior by overriding the
-    ``after_import`` method, which is triggered on every module import, once
-    the subclass is installed.
+    Invokes ``after_import`` every time a new module is imported.
     """
 
-    _instance = None  # type: Optional[ModuleWatchdog]
+    _instance = None  # type: Optional[BaseModuleWatchdog]
 
     def __init__(self):
         # type: () -> None
-        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
-        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
-
-    @property
-    def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
-        def modules_with_origin(modules):
-            result = wvdict({str(origin(m)): m for m in modules})
-            try:
-                del result[None]
-            except KeyError:
-                pass
-            return result
-
-        if self._om is None:
-            try:
-                self._om = modules_with_origin(sys.modules.values())
-            except RuntimeError:
-                # The state of sys.modules might have been mutated by another
-                # thread. We try to build the full mapping at the next occasion.
-                # For now we take the more expensive route of building a list of
-                # the current values, which might be incomplete.
-                return modules_with_origin(list(sys.modules.values()))
-
-        return self._om
 
     def _add_to_meta_path(self):
         # type: () -> None
@@ -278,49 +248,8 @@ class ModuleWatchdog(object):
 
         sys.meta_path.pop(i)
 
-    def after_import(self, module):
-        # type: (ModuleType) -> None
-        module_path = origin(module)
-        path = str(module_path) if module_path is not None else None
-        if path is not None:
-            self._origin_map[path] = module
-
-        # Collect all hooks by module origin and name
-        hooks = []
-        if path is not None and path in self._hook_map:
-            hooks.extend(self._hook_map[path])
-        if module.__name__ in self._hook_map:
-            hooks.extend(self._hook_map[module.__name__])
-
-        if hooks:
-            log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
-            for hook in hooks:
-                hook(module)
-
-    @classmethod
-    def get_by_origin(cls, _origin):
-        # type: (Path) -> Optional[ModuleType]
-        """Lookup a module by its origin."""
-        cls._check_installed()
-
-        instance = cast(ModuleWatchdog, cls._instance)
-
-        resolved_path = _resolve(_origin)
-        if resolved_path is not None:
-            path = str(resolved_path)
-            module = instance._origin_map.get(path)
-            if module is not None:
-                return module
-
-            # Check if this is the __main__ module
-            main_module = sys.modules.get("__main__")
-            if main_module is not None and origin(main_module) == path:
-                # Register for future lookups
-                instance._origin_map[path] = main_module
-
-                return main_module
-
-        return None
+    def after_import(self, module: ModuleType) -> None:
+        raise NotImplementedError()
 
     def find_module(self, fullname, path=None):
         # type: (str, Optional[str]) -> Union[Loader, None]
@@ -381,6 +310,129 @@ class ModuleWatchdog(object):
 
         finally:
             self._finding.remove(fullname)
+
+    @classmethod
+    def _check_installed(cls):
+        # type: () -> None
+        if not cls.is_installed():
+            raise RuntimeError("%s is not installed" % cls.__name__)
+
+    @classmethod
+    def install(cls):
+        # type: () -> None
+        """Install the module watchdog."""
+        if cls.is_installed():
+            raise RuntimeError("%s is already installed" % cls.__name__)
+
+        cls._instance = cls()
+        cls._instance._add_to_meta_path()
+        log.debug("%s installed", cls)
+
+    @classmethod
+    def is_installed(cls):
+        """Check whether this module watchdog class is installed."""
+        return cls._instance is not None and type(cls._instance) is cls
+
+    @classmethod
+    def uninstall(cls):
+        # type: () -> None
+        """Uninstall the module watchdog.
+
+        This will uninstall only the most recently installed instance of this
+        class.
+        """
+        cls._check_installed()
+        cls._remove_from_meta_path()
+
+        cls._instance = None
+
+        log.debug("%s uninstalled", cls)
+
+
+class ModuleWatchdog(BaseModuleWatchdog):
+    """Module watchdog.
+
+    Hooks into the import machinery to detect when modules are loaded/unloaded.
+    This is also responsible for triggering any registered import hooks.
+
+    Subclasses might customize the default behavior by overriding the
+    ``after_import`` method, which is triggered on every module import, once
+    the subclass is installed.
+    """
+
+    def __init__(self):
+        # type: () -> None
+        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
+        self._om = None  # type: Optional[wvdict[str, ModuleType]]
+        self._finding = set()  # type: Set[str]
+        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
+
+    @property
+    def _origin_map(self):
+        # type: () -> wvdict[str, ModuleType]
+        def modules_with_origin(modules):
+            result = wvdict({str(origin(m)): m for m in modules})
+            try:
+                del result[None]
+            except KeyError:
+                pass
+            return result
+
+        if self._om is None:
+            try:
+                self._om = modules_with_origin(sys.modules.values())
+            except RuntimeError:
+                # The state of sys.modules might have been mutated by another
+                # thread. We try to build the full mapping at the next occasion.
+                # For now we take the more expensive route of building a list of
+                # the current values, which might be incomplete.
+                return modules_with_origin(list(sys.modules.values()))
+
+        return self._om
+
+    def after_import(self, module):
+        # type: (ModuleType) -> None
+        module_path = origin(module)
+        path = str(module_path) if module_path is not None else None
+        if path is not None:
+            self._origin_map[path] = module
+
+        # Collect all hooks by module origin and name
+        hooks = []
+        if path is not None and path in self._hook_map:
+            hooks.extend(self._hook_map[path])
+        if module.__name__ in self._hook_map:
+            hooks.extend(self._hook_map[module.__name__])
+
+        if hooks:
+            log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
+            for hook in hooks:
+                hook(module)
+
+    @classmethod
+    def get_by_origin(cls, _origin):
+        # type: (Path) -> Optional[ModuleType]
+        """Lookup a module by its origin."""
+        cls._check_installed()
+
+        instance = cast(ModuleWatchdog, cls._instance)
+
+        resolved_path = _resolve(_origin)
+        if resolved_path is not None:
+            path = str(resolved_path)
+            module = instance._origin_map.get(path)
+            if module is not None:
+                return module
+
+            # Check if this is the __main__ module
+            main_module = sys.modules.get("__main__")
+            if main_module is not None and origin(main_module) == path:
+                # Register for future lookups
+                instance._origin_map[path] = main_module
+
+                return main_module
+
+        return None
 
     @classmethod
     def register_origin_hook(cls, origin, hook):
@@ -516,40 +568,3 @@ class ModuleWatchdog(object):
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = cast(ModuleWatchdog, cls._instance)
         instance._pre_exec_module_hooks.append((cond, hook))
-
-    @classmethod
-    def _check_installed(cls):
-        # type: () -> None
-        if not cls.is_installed():
-            raise RuntimeError("%s is not installed" % cls.__name__)
-
-    @classmethod
-    def install(cls):
-        # type: () -> None
-        """Install the module watchdog."""
-        if cls.is_installed():
-            raise RuntimeError("%s is already installed" % cls.__name__)
-
-        cls._instance = cls()
-        cls._instance._add_to_meta_path()
-        log.debug("%s installed", cls)
-
-    @classmethod
-    def is_installed(cls):
-        """Check whether this module watchdog class is installed."""
-        return cls._instance is not None and type(cls._instance) is cls
-
-    @classmethod
-    def uninstall(cls):
-        # type: () -> None
-        """Uninstall the module watchdog.
-
-        This will uninstall only the most recently installed instance of this
-        class.
-        """
-        cls._check_installed()
-        cls._remove_from_meta_path()
-
-        cls._instance = None
-
-        log.debug("%s uninstalled", cls)
