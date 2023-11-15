@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix addresses AST patching issues where custom functions or methods could be replaced by aspects with differing argument numbers, causing runtime errors as a result. Furthermore, it addresses a case during patching where the module is inadvertently passed as the first argument to the aspect.
