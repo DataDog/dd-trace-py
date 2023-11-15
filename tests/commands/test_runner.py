@@ -541,18 +541,11 @@ def test_ddtrace_auto_sitecustomize():
     """When import ddtrace.auto we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
     import sys
 
-    starting_modules = set(sys.modules.keys())
-
     import ddtrace.auto  # noqa: F401
 
     assert "ddtrace.bootstrap.sitecustomize" in sys.modules
 
     assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
-
-    # Compare the list of imported modules before/after ddtrace.auto to show it is a no-op with
-    # no additional modules imported / side-effects
-    final_modules = set(sys.modules.keys())
-    assert final_modules - starting_modules == set(["ddtrace.auto"])
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
@@ -562,9 +555,20 @@ def test_ddtrace_run_and_auto_sitecustomize():
 
     assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
 
+    # Capture the list of all loaded modules
+    starting_modules = set(sys.modules.keys())
+
+    assert "ddtrace.auto" not in starting_modules
+
     # Setting this to false, and confirming that importing auto doesn't set it to True (sitecustomize code ran)
     sys.modules["ddtrace.bootstrap.sitecustomize"].loaded = False
 
     import ddtrace.auto  # noqa: F401
 
+    # Ensure we didn't re-load our sitecustomize module, which sets loaded = True
     assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded is False
+
+    # Compare the list of imported modules before/after ddtrace.auto to show it is a no-op with
+    # no additional modules imported / side-effects
+    final_modules = set(sys.modules.keys())
+    assert final_modules - starting_modules == set(["ddtrace.auto"])
