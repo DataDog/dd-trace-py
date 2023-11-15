@@ -254,14 +254,6 @@ ddup_push_exceptioninfo(const char* exception_type, int64_t count)
 }
 
 void
-ddup_push_class_name(const char* class_name)
-{
-    if (!class_name)
-        return;
-    g_profile->push_class_name(class_name);
-}
-
-void
 ddup_push_frame(const char* name, const char* fname, uint64_t address, int64_t line)
 {
     g_profile->push_frame(name, fname, address, line);

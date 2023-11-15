@@ -42,7 +42,6 @@ void ddup_push_local_root_span_id(int64_t local_root_span_id);
 void ddup_push_trace_type(const char *trace_type);
 void ddup_push_trace_resource_container(const char *trace_resource_container);
 void ddup_push_exceptioninfo(const char *exception_type, int64_t count);
-void ddup_push_class_name(const char *class_name);
 void ddup_push_frame(const char *_name, const char *_filename, uint64_t address,
                      int64_t line);
 void ddup_flush_sample();

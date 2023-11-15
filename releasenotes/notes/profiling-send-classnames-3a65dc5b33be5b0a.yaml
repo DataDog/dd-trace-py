@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: adds the class name to each frame, when possible

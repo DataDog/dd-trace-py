@@ -29,6 +29,15 @@ cpdef _extract_class_name(frame):
             return ""
     return ""
 
+cpdef _get_qualname(frame):
+    # type: (...) -> str
+    cdef object code = frame.f_code
+
+    # If the class_name is nonempty, then prepend the classname like class.function
+    cdef str class_name = _extract_class_name(frame)
+    if class_name:
+        return class_name + "." + code.co_name
+    return code.co_name
 
 cpdef traceback_to_frames(traceback, max_nframes):
     """Serialize a Python traceback object into a list of tuple of (filename, lineno, function_name).
@@ -45,7 +54,7 @@ cpdef traceback_to_frames(traceback, max_nframes):
             frame = tb.tb_frame
             code = frame.f_code
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.insert(0, DDFrame(code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+            frames.append(DDFrame(code.co_filename, lineno, _get_qualname(frame)))
         nframes += 1
         tb = tb.tb_next
     return frames, nframes
@@ -89,7 +98,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
                     return [], 0
 
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.append(DDFrame(code.co_filename, lineno, code.co_name, _extract_class_name(frame)))
+            frames.append(DDFrame(code.co_filename, lineno, _get_qualname(frame)))
         nframes += 1
         frame = frame.f_back
     return frames, nframes

@@ -347,7 +347,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_task_id(task_id)
                 ddup.push_task_name(task_name)
-                ddup.push_class_name(frames[0].class_name)
                 for frame in frames:
                     ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 ddup.flush_sample()
@@ -373,7 +372,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             ddup.push_cputime(cpu_time, 1)
             ddup.push_walltime(wall_time, 1)
             ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-            ddup.push_class_name(frames[0].class_name)
             for frame in frames:
                 ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
             ddup.push_span(span, collect_endpoint)
@@ -404,7 +402,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 ddup.start_sample(nframes)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_exceptioninfo(exc_type, 1)
-                ddup.push_class_name(frames[0].class_name)
                 for frame in frames:
                     ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 ddup.push_span(span, collect_endpoint)
