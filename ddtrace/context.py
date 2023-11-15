@@ -55,7 +55,7 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
-        span_links=[],  # type: list[SpanLink]
+        span_links=None,  # type: Optional[list[SpanLink]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -67,8 +67,10 @@ class Context(object):
             self._meta[ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
-
-        self._span_links = span_links
+        if span_links is not None:
+            self._span_links = span_links
+        else:
+            self._span_links = []
 
         if lock is not None:
             self._lock = lock

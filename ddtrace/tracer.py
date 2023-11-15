@@ -674,7 +674,6 @@ class Tracer(object):
                 if k != SAMPLING_DECISION_TRACE_TAG_KEY:
                     span._meta[k] = v
         else:
-            # this is the root span of a new trace
             span = Span(
                 name=name,
                 context=context,
@@ -682,6 +681,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
+                links=context._span_links,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span

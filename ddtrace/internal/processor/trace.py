@@ -151,8 +151,6 @@ class TraceTagsProcessor(TraceProcessor):
         ctx._update_tags(chunk_root)
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
-        # add span links gathered on context to root
-        chunk_root.add_span_links(ctx._span_links)
         # for 128 bit trace ids
         if chunk_root.trace_id > MAX_UINT_64BITS:
             trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)

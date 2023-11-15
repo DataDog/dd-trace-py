@@ -557,10 +557,6 @@ class Span(object):
             )
         )
 
-    def add_span_links(self, links: list[SpanLink]) -> None:
-        """Add a list of span links"""
-        self._links.extend(links)
-
     def finish_with_ancestors(self):
         # type: () -> None
         """Finish this span along with all (accessible) ancestors of this span.
