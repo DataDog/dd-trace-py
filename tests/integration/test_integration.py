@@ -9,6 +9,7 @@ import pytest
 import six
 
 from ddtrace import Tracer
+from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -37,17 +38,17 @@ def test_configure_keeps_api_hostname_and_port():
 @mock.patch("signal.signal")
 @mock.patch("signal.getsignal")
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
-    with override_global_config(dict(_data_streams_enabled=True)):
-        mock_get_signal.return_value = None
-        tracer = Tracer()
-        assert mock_signal.call_count == 2
-        assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
-        assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
-        original_shutdown = tracer.shutdown
-        tracer.shutdown = mock.Mock()
-        mock_signal.call_args_list[0][0][1]("", "")
-        assert tracer.shutdown.call_count == 1
-        tracer.shutdown = original_shutdown
+    mock_get_signal.return_value = None
+    tracer = Tracer()
+    register_on_exit_signal(tracer._atexit)
+    assert mock_signal.call_count == 2
+    assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
+    assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
+    original_shutdown = tracer.shutdown
+    tracer.shutdown = mock.Mock()
+    mock_signal.call_args_list[0][0][1]("", "")
+    assert tracer.shutdown.call_count == 1
+    tracer.shutdown = original_shutdown
 
 
 def test_debug_mode_generates_debug_output():
