@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import subprocess
 import signal
+import subprocess
 import sys
 
 import flask
@@ -1183,7 +1183,12 @@ def hello_world():
 if __name__ == '__main__':
     app.run(port=8082)
     """
-    subp = subprocess.Popen(["ddtrace-run", sys.executable, str(code)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=sys.platform != "win32")
+    subp = subprocess.Popen(
+        ["ddtrace-run", sys.executable, str(code)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=sys.platform != "win32",
+    )
     subp.send_signal(signal.SIGINT)
     out, err = subp.communicate()
     status = subp.wait()
