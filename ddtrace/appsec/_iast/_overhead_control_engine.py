@@ -56,6 +56,17 @@ class Operation(object):
         return result
 
     @classmethod
+    def increment_quota(cls):
+        # type: () -> bool
+        cls._lock.acquire()
+        result = False
+        if cls._vulnerability_quota < MAX_VULNERABILITIES_PER_REQUEST:
+            cls._vulnerability_quota += 1
+            result = True
+        cls._lock.release()
+        return result
+
+    @classmethod
     def has_quota(cls):
         # type: () -> bool
         cls._lock.acquire()
