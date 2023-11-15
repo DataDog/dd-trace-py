@@ -472,6 +472,10 @@ class Span(object):
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
+        # SystemExit(0) is not an error
+        if issubclass(exc_type, SystemExit) and exc_val.code == 0:
+            return
+
         if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa
             return
 
