@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "flask",
       "flask.endpoint": "identify",
       "flask.url_rule": "/identify",
@@ -48,6 +49,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "identify",
          "flask.url_rule": "/identify"
@@ -64,6 +66,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 14667,
@@ -78,6 +81,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 18125,
@@ -92,6 +96,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 50042,
@@ -106,6 +111,7 @@
              "parent_id": 6,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
              "duration": 18834,
@@ -120,6 +126,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 12750,
@@ -134,6 +141,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 14000,
@@ -148,6 +156,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 10709,
@@ -162,6 +171,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },
        "duration": 197500,
