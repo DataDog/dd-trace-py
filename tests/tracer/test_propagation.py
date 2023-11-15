@@ -1758,8 +1758,8 @@ else:
 
 
 FULL_CONTEXT_EXTRACT_FIXTURES = [
-    # tracecontext, b3, and b3multi all have the same trace_id
-    # therefore only datadog SpanLink is added to context
+    # tracecontext and b3multi have the same t_id
+    # therefore no span links are added
     (
         "all_headers_all_styles_tracecontext_t_id_match_no_span_link",
         [
