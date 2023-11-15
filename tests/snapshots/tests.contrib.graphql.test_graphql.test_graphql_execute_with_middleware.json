@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "language": "python",
       "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
     },
@@ -30,6 +31,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -49,6 +51,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -71,6 +74,7 @@
           "type": "graphql",
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "graphql"
           },
           "duration": 52250,
@@ -84,7 +88,8 @@
              "span_id": 7,
              "parent_id": 5,
              "meta": {
-               "_dd.base_service": ""
+               "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000"
              },
              "duration": 16708,
              "start": 1692710417201093263
@@ -99,6 +104,7 @@
        "type": "graphql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -121,6 +127,7 @@
           "type": "graphql",
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "graphql"
           },
           "duration": 43500,
@@ -134,7 +141,8 @@
              "span_id": 8,
              "parent_id": 6,
              "meta": {
-               "_dd.base_service": ""
+               "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000"
              },
              "duration": 14000,
              "start": 1692710417201254179

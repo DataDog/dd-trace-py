@@ -1,4 +1,5 @@
 import os
+import time
 from typing import TYPE_CHECKING
 from typing import cast
 
@@ -10,6 +11,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings.asm import config as asm_config
 
+from ..._deduplications import deduplication
 from .. import oce
 from .._overhead_control_engine import Operation
 from .._utils import _has_to_scrub
@@ -42,6 +44,21 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 CWD = os.path.abspath(os.getcwd())
+
+
+class taint_sink_deduplication(deduplication):
+    def __call__(self, *args, **kwargs):
+        # we skip 0, 1 and last position because its the cls, span and sources respectively
+        result = None
+        if self.is_deduplication_enabled() is False:
+            result = self.func(*args, **kwargs)
+        else:
+            raw_log_hash = hash("".join([str(arg) for arg in args[2:-1]]))
+            last_reported_timestamp = self.get_last_time_reported(raw_log_hash)
+            if time.time() > last_reported_timestamp:
+                result = self.func(*args, **kwargs)
+                self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
+        return result
 
 
 def _check_positions_contained(needle, container):
@@ -82,12 +99,50 @@ class VulnerabilityBase(Operation):
         return wrapper
 
     @classmethod
+    @taint_sink_deduplication
+    def _prepare_report(cls, span, vulnerability_type, evidence, file_name, line_number, sources):
+        report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        if report:
+            report.vulnerabilities.add(
+                Vulnerability(
+                    type=vulnerability_type,
+                    evidence=evidence,
+                    location=Location(path=file_name, line=line_number, spanId=span.span_id),
+                )
+            )
+
+        else:
+            report = IastSpanReporter(
+                vulnerabilities={
+                    Vulnerability(
+                        type=vulnerability_type,
+                        evidence=evidence,
+                        location=Location(path=file_name, line=line_number, spanId=span.span_id),
+                    )
+                }
+            )
+        if sources:
+
+            def cast_value(value):
+                if isinstance(value, (bytes, bytearray)):
+                    value_decoded = value.decode("utf-8")
+                else:
+                    value_decoded = value
+                return value_decoded
+
+            report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
+
+        redacted_report = cls._redacted_report_cache.get(
+            hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
+        )
+        core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
+
+        return True
+
+    @classmethod
     def report(cls, evidence_value="", sources=None):
         # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
-        """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON
-
-        TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
-        """
+        """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
 
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
@@ -131,41 +186,11 @@ class VulnerabilityBase(Operation):
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
 
-            report = core.get_item(IAST.CONTEXT_KEY, span=span)
-            if report:
-                report.vulnerabilities.add(
-                    Vulnerability(
-                        type=cls.vulnerability_type,
-                        evidence=evidence,
-                        location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                    )
-                )
-
-            else:
-                report = IastSpanReporter(
-                    vulnerabilities={
-                        Vulnerability(
-                            type=cls.vulnerability_type,
-                            evidence=evidence,
-                            location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                        )
-                    }
-                )
-            if sources:
-
-                def cast_value(value):
-                    if isinstance(value, (bytes, bytearray)):
-                        value_decoded = value.decode("utf-8")
-                    else:
-                        value_decoded = value
-                    return value_decoded
-
-                report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
-
-            redacted_report = cls._redacted_report_cache.get(
-                hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
-            )
-            core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
+            result = cls._prepare_report(span, cls.vulnerability_type, evidence, file_name, line_number, sources)
+            # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
+            # we need to restore the quota
+            if not result:
+                cls.increment_quota()
 
     @classmethod
     def _extract_sensitive_tokens(cls, report):

@@ -643,6 +643,20 @@ def test_manual_context_usage():
     assert span1.context.sampling_priority == 1
 
 
+def test_set_exc_info_with_systemexit():
+    def get_exception_span():
+        span = Span("span1")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            type_, value_, traceback_ = sys.exc_info()
+            span.set_exc_info(type_, value_, traceback_)
+        return span
+
+    exception_span = get_exception_span()
+    assert not exception_span.error
+
+
 def test_set_exc_info_with_unicode():
     def get_exception_span(exception):
         span = Span("span1")

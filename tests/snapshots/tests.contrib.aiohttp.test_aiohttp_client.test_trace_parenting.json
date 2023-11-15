@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "language": "python",
       "runtime-id": "de4fa08308ec4bc3a437ed78b9f99c47"
     },
@@ -29,6 +30,7 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
@@ -48,6 +50,7 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "aiohttp"
           },
           "duration": 1236231,

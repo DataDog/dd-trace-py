@@ -16,7 +16,7 @@ mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.13.1
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.15.0
 
 parameters:
   coverage:
@@ -1193,6 +1193,13 @@ jobs:
     steps:
       - run_test:
           pattern: "langchain"
+          snapshot: true
+
+  logbook:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'logbook'
           snapshot: true
 
   loguru:
