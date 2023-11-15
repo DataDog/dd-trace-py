@@ -1,9 +1,13 @@
+import re
+import typing as t
+
 from envier import En
 
-from ddtrace import config
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.settings import _config as ddconfig
 from ddtrace.version import get_version
 
 
@@ -13,16 +17,37 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 def _derive_tags(c):
     # type: (En) -> str
-    _tags = dict(env=config.env, version=config.version, debugger_version=get_version())
-    _tags.update(config.tags)
+    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
+    _tags.update(ddconfig.tags)
+
+    # Add git metadata tags, if available
+    gitmetadata.add_tags(_tags)
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
+
+
+def normalize_ident(ident):
+    return ident.strip().lower().replace("_", "")
+
+
+def validate_type_patterns(types: t.Set[str]):
+    for typ in types:
+        for s in typ.strip().split("."):
+            s = s.strip().replace("*", "a")
+            if not (
+                s.isidentifier()
+                or s
+                in {
+                    "<locals>",
+                }
+            ):
+                raise ValueError(f"Invalid redaction type pattern {typ}: {s} is not a valid identifier")
 
 
 class DynamicInstrumentationConfig(En):
     __prefix__ = "dd.dynamic_instrumentation"
 
-    service_name = En.d(str, lambda _: config.service or get_application_name() or DEFAULT_SERVICE_NAME)
+    service_name = En.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
     _intake_url = En.d(str, lambda _: get_trace_url())
     max_probes = En.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = En.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
@@ -77,3 +102,32 @@ class DynamicInstrumentationConfig(En):
         help_type="Integer",
         help="Interval in seconds for periodically emitting probe diagnostic messages",
     )
+
+    redacted_identifiers = En.v(
+        set,
+        "redacted_identifiers",
+        map=normalize_ident,
+        default=set(),
+        help_type="List",
+        help="List of identifiers/object attributes/dict keys to redact from dynamic logs and snapshots",
+    )
+
+    redacted_types = En.v(
+        set,
+        "redacted_types",
+        map=str.strip,
+        default=set(),
+        validator=validate_type_patterns,
+        help_type="List",
+        help="List of object types to redact from dynamic logs and snapshots",
+    )
+
+    redacted_types_re = En.d(
+        t.Optional[re.Pattern],
+        lambda c: re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+        if c.redacted_types
+        else None,
+    )
+
+
+config = DynamicInstrumentationConfig()

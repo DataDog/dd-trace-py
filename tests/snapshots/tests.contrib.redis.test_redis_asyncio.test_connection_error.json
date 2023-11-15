@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "GET",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "redis",
+      "db.system": "redis",
+      "error.message": "whatever",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/trace_utils_redis.py\", line 117, in _trace_redis_cmd\n    yield span\n  File \"/root/project/ddtrace/contrib/redis/asyncio_patch.py\", line 22, in traced_async_execute_command\n    return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)\n  File \"/root/project/ddtrace/contrib/redis/asyncio_patch.py\", line 41, in _run_redis_command_async\n    result = await func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py31011_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_redis~41/lib/python3.10/site-packages/redis/asyncio/client.py\", line 509, in execute_command\n    conn = self.connection or await pool.get_connection(command_name, **options)\n  File \"/root/.pyenv/versions/3.10.11/lib/python3.10/unittest/mock.py\", line 2234, in _execute_mock_call\n    raise effect\nredis.exceptions.ConnectionError: whatever\n",
+      "error.type": "redis.exceptions.ConnectionError",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "redis.raw_command": "GET foo",
+      "runtime-id": "dc59875580884b52bebd2f9c402238f8",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 0,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 2340,
+      "redis.args_length": 2
+    },
+    "duration": 935417,
+    "start": 1695409673533997174
+  }]]

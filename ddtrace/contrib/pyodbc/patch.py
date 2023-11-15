@@ -6,6 +6,7 @@ from ddtrace.internal.schema import schematize_service_name
 
 from ... import Pin
 from ... import config
+from ...ext import db
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
@@ -23,16 +24,21 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return pyodbc.version
+
+
 def patch():
     if getattr(pyodbc, "_datadog_patch", False):
         return
-    setattr(pyodbc, "_datadog_patch", True)
+    pyodbc._datadog_patch = True
     wrap("pyodbc", "connect", _connect)
 
 
 def unpatch():
     if getattr(pyodbc, "_datadog_patch", False):
-        setattr(pyodbc, "_datadog_patch", False)
+        pyodbc._datadog_patch = False
         unwrap(pyodbc, "connect")
 
 
@@ -42,7 +48,11 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    pin = Pin(service=None)
+    try:
+        tags = {db.SYSTEM: conn.getinfo(pyodbc.SQL_DBMS_NAME), db.USER: conn.getinfo(pyodbc.SQL_USER_NAME)}
+    except pyodbc.Error:
+        tags = {}
+    pin = Pin(service=None, tags=tags)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped

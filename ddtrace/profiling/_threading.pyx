@@ -10,9 +10,20 @@ from six.moves import _thread
 from ddtrace import _threading as ddtrace_threading
 
 
-IF UNAME_SYSNAME == "Linux":
-    from cpython cimport PyLong_FromLong
+from cpython cimport PyLong_FromLong
 
+
+cdef extern from "<Python.h>":
+    # This one is provided as an opaque struct from Cython's
+    # cpython/pystate.pxd, but we need to access some of its fields so we
+    # redefine it here.
+    ctypedef struct PyThreadState:
+        unsigned long thread_id
+
+    PyThreadState* PyThreadState_Get()
+
+
+IF UNAME_SYSNAME == "Linux":
     from ddtrace.internal.module import ModuleWatchdog
     from ddtrace.internal.wrapping import wrap
 
@@ -108,28 +119,22 @@ class _ThreadLink(_thread_link_base):
     ):
         # type: (...) -> None
         """Link an object to the current running thread."""
-        self._thread_id_to_object[_thread.get_ident()] = weakref.ref(obj)
+        # Because threads might become tasks with some frameworks (e.g. gevent),
+        # we retrieve the thread ID using the C API instead of the Python API.
+        self._thread_id_to_object[<object>PyLong_FromLong(PyThreadState_Get().thread_id)] = weakref.ref(obj)
 
     def clear_threads(self,
                       existing_thread_ids,  # type: typing.Set[int]
                       ):
-        """Clear the stored list of threads based on the list of existing thread ids.
+        """Clean up the thread linking map.
 
-        If any thread that is part of this list was stored, its data will be deleted.
+        We remove all threads that are not in the existing thread IDs.
 
         :param existing_thread_ids: A set of thread ids to keep.
         """
-        # This code clears the thread/object mapping by clearing a copy and swapping it in an atomic operation This is
-        # needed to be able to have this whole class lock-free and avoid concurrency issues.
-        # The fact that it is lock free means we might lose some accuracy, but it's worth the trade-off for speed and simplicity.
-        new_thread_id_to_object_mapping = self._thread_id_to_object.copy()
-        # Iterate over a copy of the list of keys since it's mutated during our iteration.
-        for thread_id in list(new_thread_id_to_object_mapping):
-            if thread_id not in existing_thread_ids:
-                del new_thread_id_to_object_mapping[thread_id]
-
-        # Swap with the new list
-        self._thread_id_to_object = new_thread_id_to_object_mapping
+        self._thread_id_to_object = {
+            k: v for k, v in self._thread_id_to_object.items() if k in existing_thread_ids
+        }
 
     def get_object(
             self,

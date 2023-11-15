@@ -61,5 +61,6 @@ required_modules = ["cherrypy"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from .middleware import get_version
 
-        __all__ = ["TraceMiddleware"]
+        __all__ = ["TraceMiddleware", "get_version"]

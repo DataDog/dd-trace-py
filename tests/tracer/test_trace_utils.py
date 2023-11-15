@@ -25,7 +25,7 @@ from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -369,7 +369,7 @@ def test_set_http_meta(
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
     span.span_type = span_type
-    with override_global_config({"_appsec_enabled": appsec_enabled}):
+    with override_global_config({"_asm_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -431,15 +431,15 @@ def test_set_http_meta(
 
     if appsec_enabled and span.span_type == SpanTypes.WEB:
         if uri is not None:
-            assert _context.get_item("http.request.uri", span=span) == uri
+            assert core.get_item("http.request.uri", span=span) == uri
         if method is not None:
-            assert _context.get_item("http.request.method", span=span) == method
+            assert core.get_item("http.request.method", span=span) == method
         if request_headers is not None:
-            assert _context.get_item("http.request.headers", span=span) == request_headers
+            assert core.get_item("http.request.headers", span=span) == request_headers
         if response_headers is not None:
-            assert _context.get_item("http.response.headers", span=span) == response_headers
+            assert core.get_item("http.response.headers", span=span) == response_headers
         if path_params is not None:
-            assert _context.get_item("http.request.path_params", span=span) == path_params
+            assert core.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
@@ -486,16 +486,19 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
     with override_global_config(dict(_iast_enabled=False)):
         cookies = {"foo": "bar"}
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         assert not span_report
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ test")
+@pytest.mark.skipif(
+    sys.version_info < (3, 6, 0) or sys.version_info >= (3, 12),
+    reason="Python 3.6+ test, IAST not supported with Python 3.12",
+)
 def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=True, _appsec_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True, _asm_enabled=True)):
         cookies = {"foo": "bar"}
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         assert span_report.vulnerabilities
 
 
@@ -598,7 +601,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     ],
 )
 def test_get_request_header_ip(header_env_var, headers_dict, expected, span):
-    with override_global_config(dict(_appsec_enabled=True, client_ip_header=header_env_var)):
+    with override_global_config(dict(_asm_enabled=True, client_ip_header=header_env_var)):
         ip = trace_utils._get_request_header_client_ip(headers_dict, None, False)
         assert ip == expected
 
@@ -692,7 +695,7 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False)):
+    with override_global_config(dict(_asm_enabled=False)):
         int_config.myint.http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
@@ -706,7 +709,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=False)):
+    with override_global_config(dict(_asm_enabled=False, retrieve_client_ip=False)):
         int_config.myint.http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
@@ -720,7 +723,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
 
 
 def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
-    with override_global_config(dict(_appsec_enabled=False, retrieve_client_ip=True)):
+    with override_global_config(dict(_asm_enabled=False, retrieve_client_ip=True)):
         int_config.myint.http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
@@ -775,8 +778,8 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"\u3132\u3134\u3137\u3138"),
-        (u"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "\u3132\u3134\u3137\u3138"),
+        ("", ["runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py2(

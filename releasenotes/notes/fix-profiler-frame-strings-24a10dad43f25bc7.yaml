@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixed an issue with data encoding where non-string objects
+    might be interned on Python 3.11

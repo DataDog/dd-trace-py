@@ -4,10 +4,10 @@ from time import sleep
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._overhead_control_engine import MAX_REQUESTS
-from ddtrace.appsec.iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
-from ddtrace.internal import _context
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
+from ddtrace.appsec._iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
+from ddtrace.internal import core
 
 
 def function_with_vulnerabilities_3(tracer):
@@ -53,7 +53,7 @@ def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
     m.digest()
     m.digest()
     m.digest()
-    span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST
 
@@ -70,7 +70,7 @@ def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     oce.vulnerabilities_reset_quota()
     m.digest()
 
-    span_report = _context.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
 
@@ -90,7 +90,7 @@ def test_oce_max_requests(tracer, iast_span_defaults):
 
     spans = tracer.pop()
     for span in spans:
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         if span_report:
             total_vulnerabilities += len(span_report.vulnerabilities)
 
@@ -119,7 +119,7 @@ def test_oce_max_requests_py3(tracer, iast_span_defaults):
 
     spans = tracer.pop()
     for span in spans:
-        span_report = _context.get_item(IAST.CONTEXT_KEY, span=span)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         if span_report:
             total_vulnerabilities += len(span_report.vulnerabilities)
 

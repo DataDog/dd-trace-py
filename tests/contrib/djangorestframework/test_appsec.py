@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ddtrace.internal import _context
+from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
@@ -9,15 +9,15 @@ from tests.utils import override_global_config
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        tracer._appsec_enabled = True
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer._asm_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
         client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
         root_span = test_spans.spans[0]
         assert_span_http_status_code(root_span, 500)
-        query = dict(_context.get_item("http.request.body", span=root_span))
+        query = dict(core.get_item("http.request.body", span=root_span))
 
         assert root_span.get_tag("_dd.appsec.json") is None
         assert root_span.get_tag("component") == "django"
@@ -27,8 +27,8 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        tracer._appsec_enabled = True
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer._asm_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload, content_type = (

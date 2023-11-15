@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where just importing `unittest` enabled CIVisibility and potentially caused unexpected logs and API requests 

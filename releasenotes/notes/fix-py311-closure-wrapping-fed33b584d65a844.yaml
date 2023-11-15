@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an issue that could have caused some tracing integrations to create
+    invalid references to objects in Python frames, ultimately causing profiling
+    tools to potentially induce a segmentation fault.

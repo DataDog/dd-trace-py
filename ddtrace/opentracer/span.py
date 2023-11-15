@@ -1,8 +1,8 @@
 import threading
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Text
 from typing import Union
 
@@ -117,7 +117,7 @@ class Span(OpenTracingSpan):
         """
 
         # match opentracing defined keys to datadog functionality
-        # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
+        # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table  # noqa: E501
         for key, val in key_values.items():
             if key == "event" and val == "error":
                 # TODO: not sure if it's actually necessary to set the error manually

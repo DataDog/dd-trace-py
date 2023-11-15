@@ -1,23 +1,31 @@
 from copy import deepcopy
+import multiprocessing
 import os
 import re
+import sys
+from typing import Any
+from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import IAST_ENV
+from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import gitmetadata
-from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import DEFAULT_BUFFER_SIZE
+from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
+from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
+from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ..internal.constants import DEFAULT_TIMEOUT
+from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.utils.formats import asbool
@@ -27,18 +35,58 @@ from .http import HttpConfig
 from .integration import IntegrationConfig
 
 
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+
 log = get_logger(__name__)
 
 
-DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
-    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|"
-    r"private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
-    r'sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)'
-    r'(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)'
-    r"+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L]"
-    r"(?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
-    r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
-    r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
+DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
+    r"(?ix)"
+    r"(?:"  # JSON-ish leading quote
+    r'(?:"|%22)?'
+    r")"
+    r"(?:"  # common keys"
+    r"(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?"  # pw, password variants
+    r"|pass(?:[-_]?phrase)?"  # pass, passphrase variants
+    r"|secret"
+    r"|(?:"  # key, key_id variants
+    r"api[-_]?"
+    r"|private[-_]?"
+    r"|public[-_]?"
+    r"|access[-_]?"
+    r"|secret[-_]?"
+    r"|app(?:lica"
+    r"tion)?[-_]?"
+    r")key(?:[-_]?id)?"
+    r"|token"
+    r"|consumer[-_]?(?:id|key|secret)"
+    r"|sign(?:ed|ature)?"
+    r"|auth(?:entication|orization)?"
+    r")"
+    r"(?:"
+    # '=' query string separator, plus value til next '&' separator
+    r"(?:\s|%20)*(?:=|%3D)[^&]+"
+    # JSON-ish '": "somevalue"', key being handled with case above, without the opening '"'
+    r'|(?:"|%22)'  # closing '"' at end of key
+    r"(?:\s|%20)*(?::|%3A)(?:\s|%20)*"  # ':' key-value separator, with surrounding spaces
+    r'(?:"|%22)'  # opening '"' at start of value
+    r'(?:%2[^2]|%[^2]|[^"%])+'  # value
+    r'(?:"|%22)'  # closing '"' at end of value
+    r")"
+    r"|(?:"  # other common secret values
+    r" bearer(?:\s|%20)+[a-z0-9._\-]+"
+    r"|token(?::|%3A)[a-z0-9]{13}"
+    r"|gh[opsu]_[0-9a-zA-Z]{36}"
+    r"|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
+    r"|-{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY-{5}[^\-]+-{5}END"
+    r"(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY(?:-{5})?(?:\n|%0A)?"
+    r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
+    r"|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\s|%20|%09)+[a-z0-9._-]+)?"
+    r")"
 )
 
 
@@ -55,7 +103,8 @@ def _parse_propagation_styles(name, default):
 
     - "datadog"
     - "b3multi"
-    - "b3 single header"
+    - "b3" (formerly 'b3 single header')
+    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "none"
 
@@ -75,7 +124,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
-        DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
+        DD_TRACE_PROPAGATION_STYLE_INJECT="b3"
     """
     styles = []
     envvar = os.getenv(name, default=default)
@@ -83,14 +132,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
-        if style == "b3":
+        if style == "b3 single header":
             deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
-                removal_version="2.0.0",
+                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
+                removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            style = PROPAGATION_STYLE_B3
+            style = PROPAGATION_STYLE_B3_SINGLE
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
@@ -142,12 +191,82 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
+ConfigSource = Literal["default", "env", "code"]
+
+
+class _ConfigItem:
+    """Configuration item that tracks the value of a setting, and where it came from."""
+
+    def __init__(self, name, default, envs):
+        self._name = name
+        self._default_value = default
+        self._env_value = None
+        self._code_value = None
+        self._envs = envs
+        for env_var, parser in envs:
+            if env_var in os.environ:
+                self._env_value = parser(os.environ[env_var])
+                break
+
+    def set_code(self, value):
+        self._code_value = value
+
+    def value(self):
+        if self._code_value is not None:
+            return self._code_value
+        if self._env_value is not None:
+            return self._env_value
+        return self._default_value
+
+    def source(self):
+        # type: () -> ConfigSource
+        if self._code_value is not None:
+            return "code"
+        if self._env_value is not None:
+            return "env"
+        return "default"
+
+    def __repr__(self):
+        return "<{} name={} default={} env_value={} user_value={}>".format(
+            self.__class__.__name__,
+            self._name,
+            self._default_value,
+            self._env_value,
+            self._code_value,
+        )
+
+
+def _default_config():
+    # type: () -> Dict[str, _ConfigItem]
+    return {
+        "_trace_sample_rate": _ConfigItem(
+            name="trace_sample_rate",
+            default=1.0,
+            envs=[("DD_TRACE_SAMPLE_RATE", float)],
+        ),
+        "logs_injection": _ConfigItem(
+            name="logs_injection",
+            default=False,
+            envs=[("DD_LOGS_INJECTION", asbool)],
+        ),
+        "trace_http_header_tags": _ConfigItem(
+            name="trace_http_header_tags",
+            default={},
+            envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+    }
+
+
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
+    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
+        512
+    )  # type: multiprocessing.Queue
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -189,11 +308,54 @@ class Config(object):
             return False
 
     def __init__(self):
-        # use a dict as underlying storing mechanism
-        self._config = {}
+        # Must come before _integration_configs due to __setattr__
+        self._config = _default_config()
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
-        self.http = HttpConfig(header_tags=header_tags)
+        # use a dict as underlying storing mechanism for integration configs
+        self._integration_configs = {}
+
+        self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+        self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
+
+        self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
+        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
+        self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
+
+        self.http = HttpConfig(header_tags=self.trace_http_header_tags)
+        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
+        self._remote_config_poll_interval = float(
+            os.getenv(
+                "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
+            )
+        )
+        self._trace_api = os.getenv("DD_TRACE_API_VERSION")
+        self._trace_writer_buffer_size = int(
+            os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
+        )
+        self._trace_writer_payload_size = int(
+            os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
+        )
+        self._trace_writer_interval_seconds = float(
+            os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
+        )
+        self._trace_writer_connection_reuse = asbool(
+            os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS)
+        )
+        self._trace_writer_log_err_payload = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+
+        self._trace_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME"))
+        self._trace_agent_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+        self._trace_agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+
+        self._stats_agent_hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST"))
+        self._stats_agent_port = os.getenv("DD_DOGSTATSD_PORT")
+        self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
+        self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
+
+        self._span_traceback_max_size = int(os.getenv("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", default=30))
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -212,13 +374,17 @@ class Config(object):
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
+        if self.service is None and in_azure_function_consumption_plan():
+            self.service = os.environ.get("WEBSITE_SITE_NAME")
 
+        self._extra_services = set()
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
         self.trace_asgi_websocket = os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False)
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
+        self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -229,19 +395,21 @@ class Config(object):
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
-
         self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
+        self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
 
-        self._telemetry_metrics_enabled = asbool(os.getenv("DD_TELEMETRY_METRICS_ENABLED", default=True))
+        self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
-        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
+        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
+
+        self._sampling_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+        self._sampling_rules_file = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -257,13 +425,15 @@ class Config(object):
         if propagation_style_inject is not None:
             self._propagation_style_inject = propagation_style_inject
 
+        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
+
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
-        if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
+        if x_datadog_tags_max_length < 0:
             raise ValueError(
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values less than or equal to 512 allowed"
+                    "only non-negative values allowed"
                 ).format(x_datadog_tags_max_length)
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
@@ -271,37 +441,29 @@ class Config(object):
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+
+        trace_compute_stats_default = in_gcp_function() or in_azure_function_consumption_plan()
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", in_gcp_function()))
+            os.getenv(
+                "DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default)
+            )
         )
         self._data_streams_enabled = asbool(os.getenv("DD_DATA_STREAMS_ENABLED", False))
-        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
-        self._automatic_login_events_mode = os.getenv(APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, "safe")
-        self._user_model_login_field = os.getenv(APPSEC.USER_MODEL_LOGIN_FIELD, default="")
-        self._user_model_email_field = os.getenv(APPSEC.USER_MODEL_EMAIL_FIELD, default="")
-        self._user_model_name_field = os.getenv(APPSEC.USER_MODEL_NAME_FIELD, default="")
-        self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
-        self._api_security_enabled = asbool(os.getenv("_DD_API_SECURITY_ENABLED", False))
-        self._waf_timeout = DEFAULT.WAF_TIMEOUT
-        try:
-            self._waf_timeout = float(os.getenv("DD_APPSEC_WAF_TIMEOUT"))
-        except (TypeError, ValueError):
-            pass
 
-        dd_trace_obfuscation_query_string_pattern = os.getenv(
-            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
+        dd_trace_obfuscation_query_string_regexp = os.getenv(
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
         self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
-        if dd_trace_obfuscation_query_string_pattern != "":
+        if dd_trace_obfuscation_query_string_regexp != "":
             self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
             try:
                 self._obfuscation_query_string_pattern = re.compile(
-                    dd_trace_obfuscation_query_string_pattern.encode("ascii")
+                    dd_trace_obfuscation_query_string_regexp.encode("ascii")
                 )
             except Exception:
-                log.warning("Invalid obfuscation pattern, disabling query string tracing")
+                log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
                 self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
@@ -309,21 +471,44 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
-        self._ci_visibility_code_coverage_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", default=False)
-        )
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._ddtrace_bootstrapped = False
+        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
+        self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
+
+        self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
     def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
+        if name in self._config:
+            return self._config[name].value()
 
-        return self._config[name]
+        if name not in self._integration_configs:
+            self._integration_configs[name] = IntegrationConfig(self, name)
+
+        return self._integration_configs[name]
+
+    def _add_extra_service(self, service_name: str) -> None:
+        if self._remote_config_enabled and service_name != self.service:
+            try:
+                self._extra_services_queue.put_nowait(service_name)
+            except BaseException:  # nosec
+                pass
+
+    def _get_extra_services(self):
+        # type: () -> set[str]
+
+        try:
+            while True:
+                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                if len(self._extra_services) > 64:
+                    self._extra_services.pop()
+        except BaseException:  # nosec
+            pass
+        return self._extra_services
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -363,9 +548,11 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            self._integration_configs[integration] = IntegrationConfig(
+                self, integration, _deepmerge(existing, settings)
+            )
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """
@@ -407,5 +594,35 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._config.keys())
+        integrations = ", ".join(self._integration_config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+
+    def _subscribe(self, items, handler):
+        # type: (List[str], Callable[[Config, List[str]], None]) -> None
+        self._subscriptions.append((items, handler))
+
+    def _notify_subscribers(self, changed_items):
+        # type: (List[str]) -> None
+        for sub_items, sub_handler in self._subscriptions:
+            sub_updated_items = [i for i in changed_items if i in sub_items]
+            if sub_updated_items:
+                sub_handler(self, sub_updated_items)
+
+    def __setattr__(self, key, value):
+        # type: (str, Any) -> None
+        if key == "_config":
+            return super(self.__class__, self).__setattr__(key, value)
+        elif key in self._config:
+            self._config[key].set_code(value)
+            self._notify_subscribers([key])
+            return None
+        else:
+            return super(self.__class__, self).__setattr__(key, value)
+
+    def _reset(self):
+        # type: () -> None
+        self._config = _default_config()
+
+    def _get_source(self, item):
+        # type: (str) -> str
+        return self._config[item].source()

@@ -2,7 +2,7 @@
 
 The pymongo integration works by wrapping pymongo's MongoClient to trace
 network calls. Pymongo 3.0 and greater are the currently supported versions.
-``patch_all`` will automatically patch your MongoClient instance to make it work.
+``import ddtrace.auto`` will automatically patch your MongoClient instance to make it work.
 
 ::
 
@@ -42,6 +42,7 @@ required_modules = ["pymongo"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "get_version"]

@@ -12,6 +12,7 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -112,7 +113,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         ]
 
         for args, kwargs in inputs:
-
             with self.override_http_config("urllib3", {"_header_tags": dict()}):
                 config.urllib3.http.trace_headers(["accept"])
                 pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
@@ -143,7 +143,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
-        setattr(connpool, "datadog_tracer", self.tracer)
+        connpool.datadog_tracer = self.tracer
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200
@@ -387,7 +387,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_split_by_domain_includes_port(self):
         """Test the port is included if not 80 or 443"""
         with self.override_config("urllib3", dict(split_by_domain=True)):
-            with pytest.raises(Exception):
+            with pytest.raises(urllib3.exceptions.MaxRetryError):
                 # Using a port the service is not listening on will throw an error, which is fine
                 self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 
@@ -488,10 +488,10 @@ class TestUrllib3(BaseUrllib3TestCase):
             spans = self.pop_spans()
             s = spans[0]
             expected_headers = {
-                "x-datadog-trace-id": str(s.trace_id),
+                "x-datadog-trace-id": str(s._trace_id_64bits),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0",
+                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
                 "traceparent": s.context._traceparent,
                 "tracestate": s.context._tracestate,
             }

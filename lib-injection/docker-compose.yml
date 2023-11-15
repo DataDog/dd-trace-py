@@ -1,0 +1,49 @@
+# Emulate what the Cluster Agent does as closely as possible.
+# The Cluster Agent creates an InitContainer with the init image and runs the copy-lib.sh script.
+# It then patches the pods to include the PYTHONPATH environment variable and the volume mount.
+version: "3"
+
+services:
+  lib_inject:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - DDTRACE_PYTHON_VERSION=${DDTRACE_PYTHON_VERSION}
+    command: sh copy-lib.sh /datadog-lib
+    volumes:
+      # A host mount is used rather than named volumes as they run into permission issues when copying files.
+      # The injection image is run with a non-root user which does not have permission to write to the named volume.
+      - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib
+
+  # testagent is used to collect data from the library to validate.
+  testagent:
+    image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
+    ports:
+      - "8126:8126"
+
+  # app is parametrized to generically run images with the library injected and submit data to the test agent.
+  app:
+    depends_on:
+      - lib_inject
+    image: ${APP_IMAGE:-python:3.10}
+    environment:
+      - PYTHONPATH=/datadog-lib
+      - DD_TRACE_AGENT_URL=http://testagent:8126
+    volumes:
+      - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib
+
+  # same as app but a local docker file can be used.
+  app_local:
+    depends_on:
+      - lib_inject
+    build:
+      context: ${APP_CONTEXT}
+    ports:
+      - "0.0.0.0:18080:18080"
+    environment:
+      - PYTHONPATH=/datadog-lib
+      - DD_TRACE_AGENT_URL=http://testagent:8126
+      - DD_TRACE_DEBUG=1
+    volumes:
+      - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib

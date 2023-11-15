@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Pin ``cython<3`` due to an incompatibility with ``cython==3.0.0`` and typing annotations in
+    profiling code.

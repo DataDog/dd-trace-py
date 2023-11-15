@@ -181,6 +181,12 @@ Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
 
+.. _flask_login:
+
+Flask Login
+^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.flask_login
+
 
 .. _futures:
 
@@ -248,6 +254,24 @@ Kafka
 kombu
 ^^^^^
 .. automodule:: ddtrace.contrib.kombu
+
+.. _langchain:
+
+LangChain
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.langchain
+
+.. _logbook:
+
+Logbook
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.logbook
+
+.. _loguru:
+
+Loguru
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.loguru
 
 
 .. _mako:
@@ -369,7 +393,7 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib.pytest_bdd
 
-.. _psycopg2:
+.. _psycopg:
 
 psycopg
 ^^^^^^^
@@ -425,6 +449,13 @@ Starlette
 .. automodule:: ddtrace.contrib.starlette
 
 
+.. _structlog:
+
+Structlog
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.structlog
+
+
 .. _sqlalchemy:
 
 SQLAlchemy
@@ -444,6 +475,13 @@ SQLite
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.tornado
+
+
+.. _unittest:
+
+unittest
+^^^^^^^^
+.. automodule:: ddtrace.contrib.unittest
 
 
 .. _urllib3:

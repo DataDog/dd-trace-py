@@ -24,16 +24,15 @@ PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
 
 
 if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import SQL
     from psycopg2.sql import Composed
     from psycopg2.sql import Identifier
     from psycopg2.sql import Literal
-    from psycopg2.sql import SQL
 
 TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(TracerTestCase):
-
     # default service
     TEST_SERVICE = "postgres"
 
@@ -82,7 +81,6 @@ class PsycopgCore(TracerTestCase):
         self.assert_structure(dict(name="postgres.query", service=service))
 
     def assert_conn_is_traced(self, db, service):
-
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
         try:
@@ -100,7 +98,7 @@ class PsycopgCore(TracerTestCase):
         rows = cursor.fetchall()
         end = time.time()
 
-        self.assertEquals(rows, [("foobarblah",)])
+        self.assertEqual(rows, [("foobarblah",)])
 
         self.assert_structure(
             dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
@@ -164,7 +162,7 @@ class PsycopgCore(TracerTestCase):
             cursor.execute(query)
             rows = cursor.fetchall()
 
-        self.assertEquals(rows, [("tracing",)])
+        self.assertEqual(rows, [("tracing",)])
 
         self.assert_structure(
             dict(name="db.access", service="psycopg-svc"),
@@ -182,7 +180,7 @@ class PsycopgCore(TracerTestCase):
                 cursor.execute(query)
                 rows = cursor.fetchall()
 
-            self.assertEquals(rows, [("tracing",)])
+            self.assertEqual(rows, [("tracing",)])
 
             self.assert_structure(
                 dict(name="db.access", service="psycopg-svc"),

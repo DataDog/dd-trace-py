@@ -19,7 +19,7 @@ def span(tracer):
 @pytest.fixture
 def fn_task():
     _ = Mock()
-    setattr(_, "__dd_task_span", None)
+    _.__dd_task_span = None
     yield _
 
 
@@ -38,7 +38,7 @@ def test_span_delete(span, fn_task):
     task_id = "7c6731af-9533-40c3-83a9-25b58f0d837f"
     attach_span(fn_task, task_id, span)
     # delete the Span
-    weak_dict = getattr(fn_task, "__dd_task_span")
+    weak_dict = fn_task.__dd_task_span
     detach_span(fn_task, task_id)
     assert weak_dict.get((task_id, False)) is None
 
@@ -63,7 +63,7 @@ def test_memory_leak_safety(tracer, fn_task):
     # propagate and finish a Span for `fn_task`
     task_id = "7c6731af-9533-40c3-83a9-25b58f0d837f"
     attach_span(fn_task, task_id, tracer.trace("celery.run"))
-    weak_dict = getattr(fn_task, "__dd_task_span")
+    weak_dict = fn_task.__dd_task_span
     key = (task_id, False)
     assert weak_dict.get(key)
     # flush data and force the GC
@@ -169,31 +169,31 @@ def test_task_id_from_protocol_v2():
         "body": (
             ["user"],
             {"force_logout": True},
-            {u"chord": None, u"callbacks": None, u"errbacks": None, u"chain": None},
+            {"chord": None, "callbacks": None, "errbacks": None, "chain": None},
         ),
-        "sender": u"tests.contrib.celery.test_integration.fn_task_parameters",
-        "exchange": u"",
-        "routing_key": u"celery",
+        "sender": "tests.contrib.celery.test_integration.fn_task_parameters",
+        "exchange": "",
+        "routing_key": "celery",
         "retry_policy": None,
         "headers": {
-            u"origin": u"gen83744@hostname",
-            u"root_id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
-            u"expires": None,
-            u"shadow": None,
-            u"id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
-            u"kwargsrepr": u"{'force_logout': True}",
-            u"lang": u"py",
-            u"retries": 0,
-            u"task": u"tests.contrib.celery.test_integration.fn_task_parameters",
-            u"group": None,
-            u"timelimit": [None, None],
-            u"parent_id": None,
-            u"argsrepr": u"['user']",
-            u"eta": None,
+            "origin": "gen83744@hostname",
+            "root_id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
+            "expires": None,
+            "shadow": None,
+            "id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
+            "kwargsrepr": "{'force_logout': True}",
+            "lang": "py",
+            "retries": 0,
+            "task": "tests.contrib.celery.test_integration.fn_task_parameters",
+            "group": None,
+            "timelimit": [None, None],
+            "parent_id": None,
+            "argsrepr": "['user']",
+            "eta": None,
         },
         "properties": {
-            u"reply_to": "c3054a07-5b28-3855-b18c-1623a24aaeca",
-            u"correlation_id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
+            "reply_to": "c3054a07-5b28-3855-b18c-1623a24aaeca",
+            "correlation_id": "7e917b83-4018-431d-9832-73a28e1fb6c0",
         },
     }
 

@@ -30,6 +30,7 @@ def server(scenario, custom_post_response):
     env = {
         "PERF_TRACER_ENABLED": str(scenario.tracer_enabled),
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
+        "PERF_DEBUGGER_ENABLED": str(scenario.debugger_enabled),
         "DD_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "DD_IAST_ENABLED": str(scenario.iast_enabled),
         "DD_TELEMETRY_METRICS_ENABLED": str(scenario.telemetry_metrics_enabled),
@@ -74,3 +75,7 @@ def post_worker_init(worker):
     # If profiling enabled but not tracer than only run auto script for profiler
     if os.environ.get("PERF_PROFILER_ENABLED") == "1" and os.environ.get("PERF_TRACER_ENABLED") == "0":
         import ddtrace.profiling.auto  # noqa
+    if os.environ.get("PERF_DEBUGGER_ENABLED") == "True":
+        from bm.di_utils import BMDebugger
+
+        BMDebugger.enable()

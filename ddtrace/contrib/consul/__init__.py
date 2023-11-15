@@ -2,7 +2,7 @@
 
 Only supports tracing for the synchronous client.
 
-``patch_all`` will automatically patch your Consul client to make it work.
+``import ddtrace.auto`` will automatically patch your Consul client to make it work.
 ::
 
     from ddtrace import Pin, patch
@@ -26,7 +26,8 @@ required_modules = ["consul"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

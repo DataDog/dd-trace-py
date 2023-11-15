@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where chat completion requests with function calls led to failing to
+    tag null message content fields in the chat completion response.

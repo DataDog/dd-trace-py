@@ -18,7 +18,7 @@ from ddtrace.constants import MANUAL_DROP_KEY
 def test_otel_span_attributes(oteltracer):
     with oteltracer.start_span("otel-string-tags") as span1:
         span1.set_attribute("service.name", "moons-service-str")
-        span1.set_attribute(u"unicode_tag", u"ustr")
+        span1.set_attribute("unicode_tag", "ustr")
         # b"bytes_tag" is ignored by dd_span.set_tag()
         span1.set_attribute(b"bytes_tag", b"bstr")
         span1.set_attribute(r"real_string_tag", r"rstr")
@@ -34,6 +34,23 @@ def test_otel_span_attributes(oteltracer):
     # Attributes should not be set on a closed span
     for span in [span1, span2]:
         span.set_attribute("should_not_be_set", "attributes can not be added after a span is ended")
+
+
+@pytest.mark.snapshot
+@pytest.mark.parametrize(
+    "override",
+    [
+        ("operation.name", "operation-override"),
+        ("service.name", "service-override"),
+        ("resource.name", "resource-override"),
+        ("span.type", "type-override"),
+        ("analytics.event", 0.5),
+    ],
+)
+def test_otel_span_attributes_overrides(oteltracer, override):
+    otel, value = override
+    with oteltracer.start_span("set-{}".format(otel)) as span:
+        span.set_attribute(otel, value)
 
 
 @pytest.mark.snapshot
@@ -149,7 +166,7 @@ def test_otel_span_end(oteltracer):
 
 
 def test_otel_span_exception_handling(oteltracer):
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Sorry Friend, I failed you"):
         with oteltracer.start_span("otel1") as span:
             raise Exception("Sorry Friend, I failed you")
 

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Adds a `get_version` method to each integration and updates the basic template for developing an integration to include this method. The `get_version` method
+    returns the integration's package distribution version and is to be included in the APM Telemetry integrations payload.

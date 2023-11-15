@@ -24,6 +24,12 @@ config._add(
     ),
 )
 
+
+def get_version():
+    # type: () -> str
+    return mysql.connector.version.VERSION_TEXT
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "server_host",
     net.TARGET_PORT: "server_port",
@@ -52,7 +58,6 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)

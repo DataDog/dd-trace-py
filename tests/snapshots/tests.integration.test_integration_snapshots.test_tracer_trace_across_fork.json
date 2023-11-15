@@ -1,47 +1,42 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": null,
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 52166
+      "process_id": 19794
     },
-    "duration": 306192000,
-    "start": 1631827407437680000
+    "duration": 9397660,
+    "start": 1691163615417036222
   },
      {
        "name": "child",
-       "service": "",
+       "service": null,
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "meta": {
          "language": "python",
-         "runtime-id": "409d5f5531a54659b762419af6a3abc5"
+         "runtime-id": "36f1a5c9396e469291422d40f4296160"
        },
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 52180
+         "process_id": 19878
        },
-       "duration": 158000,
-       "start": 1631827407498354000
+       "duration": 50276,
+       "start": 1691163615421553702
      }]]

@@ -1,0 +1,3 @@
+features:
+  - |
+    datastreams: this change adds message payload size metrics and aggregations for Kafka.

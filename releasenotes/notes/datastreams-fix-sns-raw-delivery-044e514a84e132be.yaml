@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    data_streams: This fix resolves an issue where data stream context propagation would not propagate via SNS if raw
+    message delivery was enabled.

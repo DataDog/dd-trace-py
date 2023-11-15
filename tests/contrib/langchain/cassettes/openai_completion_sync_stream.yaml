@@ -1,0 +1,258 @@
+interactions:
+- request:
+    body: '{"prompt": ["Why is Spongebob so bad at driving?"], "model": "text-davinci-003",
+      "temperature": 0.7, "max_tokens": 256, "top_p": 1, "frequency_penalty": 0, "presence_penalty":
+      0, "n": 1, "logit_bias": {}, "stream": true}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '220'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Thu Jun  8 22:22:20
+        PDT 2023; root:xnu-8796.121.3~7/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: 'data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"\n","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"\n","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"Sp","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"onge","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"b","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"ob","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        is","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        bad","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        at","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        driving","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        because","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        he","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        is","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        a","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        sponge","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        and","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        doesn","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"''t","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        have","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        any","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        real","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"-","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"world","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        experience","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        with","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        driving","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        vehicles","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        He","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        also","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        tends","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        to","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        be","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        a","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        bit","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        naive","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        and","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        clumsy","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":",","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        which","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        doesn","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"''t","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        help","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        his","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        driving","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"
+        skills","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":null}],"model":"text-davinci-003"}
+
+
+        data: {"id":"cmpl-7W4XYk3V0JkIZHqkB4IKGiXfkF83i","object":"text_completion","created":1687878304,"choices":[{"text":"","index":0,"logprobs":null,"finish_reason":"stop"}],"model":"text-davinci-003"}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7dde96099e7d0f87-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream
+      Date:
+      - Tue, 27 Jun 2023 15:05:04 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '164'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249744'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - 4cb4f97e49a8dd7379699f3ab23da74f
+    status:
+      code: 200
+      message: OK
+version: 1

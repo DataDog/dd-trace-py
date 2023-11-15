@@ -12,8 +12,7 @@ Then use ddtrace-run when serving your application. For example, if serving with
 
     ddtrace-run uvicorn app:app
 
-If using Python 3.6, the legacy ``AsyncioContextProvider`` will have to be
-enabled before using the middleware::
+On Python 3.6 and below, you must enable the legacy ``AsyncioContextProvider`` before using the middleware::
 
     from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
     from ddtrace import tracer  # Or whichever tracer instance you plan to use
@@ -70,6 +69,7 @@ required_modules = []
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from .middleware import get_version
         from .middleware import span_from_scope
 
-        __all__ = ["TraceMiddleware", "span_from_scope"]
+        __all__ = ["TraceMiddleware", "span_from_scope", "get_version"]

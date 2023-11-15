@@ -116,6 +116,7 @@ with require_modules(required_modules) as missing_modules:
 
         context_provider = TracerStackContext()
 
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
@@ -125,4 +126,5 @@ with require_modules(required_modules) as missing_modules:
             "context_provider",
             "run_with_trace_context",
             "TracerStackContext",
+            "get_version",
         ]
