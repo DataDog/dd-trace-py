@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    propagation: When the tracer is configured to extract and inject ``tracecontext``, 
+    the tracer will propagate the tracestate values from other vendors so 
+    long as the traceparent trace-id matches the first found trace context,
+    regardless of propagator configuration order. To disable this behavior
+    ``DD_TRACE_PROPAGATION_EXTRACT_FIRST=true`` can be set.
+
