@@ -194,10 +194,6 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            if "raw_path" in scope:
-                raw_uri = bytes_to_str(scope["raw_path"])
-            else:
-                raw_uri = url
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -205,7 +201,7 @@ class TraceMiddleware:
                 url=url,
                 query=query_string,
                 request_headers=headers,
-                raw_uri=raw_uri,
+                raw_uri=url,
                 request_cookies=request_cookies,
                 parsed_query=parsed_query,
             )

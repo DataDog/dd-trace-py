@@ -148,7 +148,8 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
         assert get_response_body(resp) == "Ok: xtrace"
 
 
-def test_request_suspicious_request_block_match_uri(app, client, tracer, test_spans):
+@pytest.mark.parametrize("address", (".git", "?foo=.git"))
+def test_request_suspicious_request_block_match_uri(address, app, client, tracer, test_spans):
     @app.get("/.git")
     def test_route():
         return PlainTextResponse("git file")
@@ -156,14 +157,14 @@ def test_request_suspicious_request_block_match_uri(app, client, tracer, test_sp
     # value .git must be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/.git")
+        resp = client.get(address)
         assert resp.status_code == 403
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
         root_span = test_spans.pop_traces()[0][0]
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
         assert root_span.get_tag(http.STATUS_CODE) == "403"
-        assert root_span.get_tag(http.URL) == "http://testserver/.git"
+        assert root_span.get_tag(http.URL) == f"http://testserver/{address}"
         assert root_span.get_tag(http.METHOD) == "GET"
         assert root_span.get_tag(http.USER_AGENT).startswith("testclient")
         assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
