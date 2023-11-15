@@ -45,8 +45,11 @@ class MockConfig(object):
 class SyncProbeRCAdapter(ProbeRCAdapter):
     def __init__(self, *args, **kwargs):
         super(SyncProbeRCAdapter, self).__init__(*args, **kwargs)
-        # Prevent the worker thread from starting. We call methods manually.
-        self._subscriber.is_running = True
+        # Make the subscriber worker thread a no-op. We call methods manually.
+        self._subscriber.periodic = self.periodic
+
+    def periodic(self):
+        pass
 
 
 def config_metadata(config_id=None):

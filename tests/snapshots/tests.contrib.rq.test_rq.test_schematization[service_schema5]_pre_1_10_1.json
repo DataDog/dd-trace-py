@@ -9,6 +9,7 @@
     "type": "worker",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.func_name": "__call__",
       "job.id": "10c7014d-1acb-445f-8399-7cc8e971e9d2",
@@ -37,6 +38,7 @@
        "error": 1,
        "meta": {
          "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
          "component": "rq",
          "job.id": "10c7014d-1acb-445f-8399-7cc8e971e9d2",
          "job.origin": "q",
@@ -65,6 +67,7 @@
           "parent_id": 2,
           "error": 1,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "error.message": "__call__() got an unexpected keyword argument 'key'",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3716_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.7/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3716_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~180_click712/lib/python3.7/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
@@ -84,6 +87,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.id": "abc",
       "language": "python",

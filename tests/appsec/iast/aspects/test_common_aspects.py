@@ -66,7 +66,7 @@ def test_aspect_patched_result(aspect, args, kwargs):
     assert getattr(patched_callers, aspect)(*args, **kwargs) == getattr(unpatched_callers, aspect)(*args, **kwargs)
 
 
-def teardown():
+def teardown_module(_):
     """
     Remove the callers file after the tests are done.
     """
