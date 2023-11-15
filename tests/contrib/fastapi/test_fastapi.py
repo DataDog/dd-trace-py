@@ -616,7 +616,8 @@ def test_background_task(client, tracer, test_spans):
     assert response.status_code == 200
     assert response.json() == "task added"
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
+    # Generates two traces
+    assert len(spans) == 2
     assert len(spans[0]) == 2
     request_span, serialize_span = spans[0]
 
@@ -625,6 +626,16 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+    # Background task shound not be a child of the request span
+    assert len(spans[1]) == 1
+    background_span = spans[1][0]
+    # background task should link to the request span
+    assert background_span.parent_id is None
+    assert background_span._links[0].trace_id == request_span.trace_id
+    assert background_span._links[0].span_id == request_span.span_id
+    assert background_span.name == "fastapi.background_task"
+    assert background_span.resource == "custom_task"
 
 
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])

@@ -4,6 +4,7 @@ import fastapi.routing
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -52,7 +53,7 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     the result.
     """
     pin = Pin.get_from(fastapi)
-    if not pin or not pin.enabled:
+    if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
     with pin.tracer.trace("fastapi.serialize_response"):
@@ -67,6 +68,9 @@ def patch():
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
+
+    if not isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
+        _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
 
     # We need to check that Starlette instrumentation hasn't already patched these
     if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
@@ -91,3 +95,6 @@ def unpatch():
 
     if isinstance(fastapi.routing.Mount.handle, ObjectProxy):
         _u(fastapi.routing.Mount, "handle")
+
+    if isinstance(fastapi.BackgroundTasks.add_task, ObjectProxy):
+        _u(fastapi.BackgroundTasks, "add_task")

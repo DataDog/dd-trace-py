@@ -507,6 +507,15 @@ def test_background_task(client, tracer, test_spans):
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
 
+    # Background task shound not be a child of the request span
+    background_span = next(test_spans.filter_spans(name="starlette.background_task"))
+    # background task should link to the request span
+    assert background_span.parent_id is None
+    assert background_span._links[0].trace_id == request_span.trace_id
+    assert background_span._links[0].span_id == request_span.span_id
+    assert background_span.name == "starlette.background_task"
+    assert background_span.resource == "custom_task"
+
 
 @pytest.mark.parametrize(
     "service_schema",

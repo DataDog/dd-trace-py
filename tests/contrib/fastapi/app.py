@@ -104,12 +104,12 @@ def get_app():
             fp.flush()
             return FileResponse(fp.name)
 
-    async def custom_task():
-        await asyncio.sleep(1)
+    async def custom_task(test_arg):
+        await asyncio.sleep(2)
 
     @app.get("/asynctask")
     async def asynctask(bg_tasks: BackgroundTasks):
-        bg_tasks.add_task(custom_task)
+        bg_tasks.add_task(custom_task, test_arg="test")
         return "task added"
 
     subapp = FastAPI()
