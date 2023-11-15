@@ -37,6 +37,23 @@ def test_otel_span_attributes(oteltracer):
 
 
 @pytest.mark.snapshot
+@pytest.mark.parametrize(
+    "override",
+    [
+        ("operation.name", "operation-override"),
+        ("service.name", "service-override"),
+        ("resource.name", "resource-override"),
+        ("span.type", "type-override"),
+        ("analytics.event", 0.5),
+    ],
+)
+def test_otel_span_attributes_overrides(oteltracer, override):
+    otel, value = override
+    with oteltracer.start_span("set-{}".format(otel)) as span:
+        span.set_attribute(otel, value)
+
+
+@pytest.mark.snapshot
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
         pass
