@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "kafka",
       "kafka.group_id": "test_group",
       "kafka.message_key": "test_key",
@@ -18,6 +19,7 @@
       "kafka.topic": "test_message_False",
       "language": "python",
       "messaging.system": "kafka",
+      "pathway.hash": "6989450886678805289",
       "runtime-id": "28c848057ff14e2182d0d6fc1e31d7e0",
       "span.kind": "consumer"
     },
@@ -45,6 +47,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "kafka",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
@@ -52,6 +55,7 @@
       "language": "python",
       "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
+      "pathway.hash": "6989450886678805289",
       "runtime-id": "28c848057ff14e2182d0d6fc1e31d7e0",
       "span.kind": "producer"
     },
