@@ -47,9 +47,6 @@ def _add_start_end_source_file_path_data_to_span(
             test_name,
         )
         return
-    import pdb
-
-    pdb.set_trace()
     source_file_path = get_source_file_path_for_test_method(test_method_object, repo_directory)
     if not source_file_path:
         log.debug(
