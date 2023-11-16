@@ -175,6 +175,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pydantic
 pyenv
