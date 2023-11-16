@@ -25,9 +25,9 @@ from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
+from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
@@ -61,7 +61,6 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
-
     root = None
     trace = []
     for i in range(0, nspans):
@@ -80,7 +79,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 span.span_type = "web"
 
             for _ in range(0, nmetrics):
-                span.set_tag(rands(key_size), random.randint(0, 2 ** 16))
+                span.set_tag(rands(key_size), random.randint(0, 2**16))
 
             trace.append(span)
 
@@ -262,7 +261,6 @@ class TestEncoders(TestCase):
 
 
 def decode(obj, reconstruct=True):
-
     unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
     if not unpacked or not unpacked[0]:
@@ -376,11 +374,11 @@ class SubFloat(float):
         (Span("name"), {"int": SubInt(123)}),
         (Span("name"), {"float": SubFloat(123.213)}),
         (Span(SubString("name")), {SubString("test"): SubString("test")}),
-        (Span("name"), {"unicode": u"😐"}),
-        (Span("name"), {u"😐": u"😐"}),
+        (Span("name"), {"unicode": "😐"}),
+        (Span("name"), {"😐": "😐"}),
         (
-            Span(u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
-            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", u"tag2": u"unicode"},
+            Span("span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
+            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", "tag2": "unicode"},
         ),
     ],
 )
@@ -427,13 +425,13 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 
 @allencodings
 @given(
-    trace_id=integers(min_value=1, max_value=2 ** 128 - 1),
+    trace_id=integers(min_value=1, max_value=2**128 - 1),
     name=text(),
     service=text(),
     resource=text(),
     meta=dictionaries(text(), text()),
     metrics=dictionaries(text(), floats()),
-    error=integers(min_value=-(2 ** 31), max_value=2 ** 31 - 1),
+    error=integers(min_value=-(2**31), max_value=2**31 - 1),
     span_type=text(),
 )
 @settings(max_examples=200)
@@ -680,7 +678,7 @@ def test_json_encoder_traces_bytes():
         [
             [
                 Span(name=b"\x80span.a"),
-                Span(name=u"\x80span.b"),
+                Span(name="\x80span.b"),
                 Span(name="\x80span.b"),
             ]
         ]
@@ -694,9 +692,9 @@ def test_json_encoder_traces_bytes():
 
     if PY3:
         assert "\\x80span.a" == span_a["name"]
-        assert u"\x80span.b" == span_b["name"]
-        assert u"\x80span.b" == span_c["name"]
+        assert "\x80span.b" == span_b["name"]
+        assert "\x80span.b" == span_c["name"]
     else:
-        assert u"\ufffdspan.a" == span_a["name"], span_a["name"]
-        assert u"\x80span.b" == span_b["name"]
-        assert u"\ufffdspan.b" == span_c["name"]
+        assert "\ufffdspan.a" == span_a["name"], span_a["name"]
+        assert "\x80span.b" == span_b["name"]
+        assert "\ufffdspan.b" == span_c["name"]
