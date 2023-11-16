@@ -48,7 +48,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
         # Make it retryable
         self._write_with_backoff = fibonacci_backoff_with_jitter(
-            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             attempts=self.RETRY_ATTEMPTS,
         )(self._write)
 

@@ -5,13 +5,13 @@ import sys
 import threading
 from types import FunctionType
 from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import cast
 

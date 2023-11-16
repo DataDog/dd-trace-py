@@ -144,11 +144,9 @@ try:
         RuntimeWorker.enable()
 
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
-
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():
-
             from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
             from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
