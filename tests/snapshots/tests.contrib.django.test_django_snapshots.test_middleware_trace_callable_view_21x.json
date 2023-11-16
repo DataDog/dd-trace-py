@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponse",
@@ -39,6 +40,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 2131000,
@@ -52,6 +54,7 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
           "duration": 40000,
@@ -65,6 +68,7 @@
           "span_id": 4,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
           "duration": 2006000,
@@ -78,6 +82,7 @@
              "span_id": 6,
              "parent_id": 4,
              "meta": {
+               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
              "duration": 48000,
@@ -91,6 +96,7 @@
              "span_id": 7,
              "parent_id": 4,
              "meta": {
+               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
              "duration": 1878000,
@@ -104,6 +110,7 @@
                 "span_id": 9,
                 "parent_id": 7,
                 "meta": {
+                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
                 "duration": 12000,
@@ -117,6 +124,7 @@
                 "span_id": 10,
                 "parent_id": 7,
                 "meta": {
+                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
                 "duration": 1796000,
@@ -130,6 +138,7 @@
                    "span_id": 12,
                    "parent_id": 10,
                    "meta": {
+                     "_dd.p.tid": "654a694400000000",
                      "component": "django"
                    },
                    "duration": 14000,
@@ -143,6 +152,7 @@
                    "span_id": 13,
                    "parent_id": 10,
                    "meta": {
+                     "_dd.p.tid": "654a694400000000",
                      "component": "django"
                    },
                    "duration": 1739000,
@@ -156,6 +166,7 @@
                       "span_id": 14,
                       "parent_id": 13,
                       "meta": {
+                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
                       "duration": 36000,
@@ -169,6 +180,7 @@
                       "span_id": 15,
                       "parent_id": 13,
                       "meta": {
+                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
                       "duration": 1633000,
@@ -182,6 +194,7 @@
                          "span_id": 17,
                          "parent_id": 15,
                          "meta": {
+                           "_dd.p.tid": "654a694400000000",
                            "component": "django"
                          },
                          "duration": 1574000,
@@ -195,6 +208,7 @@
                             "span_id": 19,
                             "parent_id": 17,
                             "meta": {
+                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
                             "duration": 11000,
@@ -208,6 +222,7 @@
                             "span_id": 20,
                             "parent_id": 17,
                             "meta": {
+                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
                             "duration": 1489000,
@@ -221,6 +236,7 @@
                                "span_id": 22,
                                "parent_id": 20,
                                "meta": {
+                                 "_dd.p.tid": "654a694400000000",
                                  "component": "django"
                                },
                                "duration": 1463000,
@@ -234,6 +250,7 @@
                                   "span_id": 23,
                                   "parent_id": 22,
                                   "meta": {
+                                    "_dd.p.tid": "654a694400000000",
                                     "component": "django"
                                   },
                                   "duration": 1293000,
@@ -247,6 +264,7 @@
                                      "span_id": 24,
                                      "parent_id": 23,
                                      "meta": {
+                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
                                      "duration": 14000,
@@ -260,6 +278,7 @@
                                      "span_id": 25,
                                      "parent_id": 23,
                                      "meta": {
+                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
                                      "duration": 10000,
@@ -273,6 +292,7 @@
                                      "span_id": 26,
                                      "parent_id": 23,
                                      "meta": {
+                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
                                      "duration": 1142000,
@@ -286,6 +306,7 @@
                             "span_id": 21,
                             "parent_id": 17,
                             "meta": {
+                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
                             "duration": 13000,
@@ -299,6 +320,7 @@
                          "span_id": 18,
                          "parent_id": 15,
                          "meta": {
+                           "_dd.p.tid": "654a694400000000",
                            "component": "django"
                          },
                          "duration": 17000,
@@ -312,6 +334,7 @@
                       "span_id": 16,
                       "parent_id": 13,
                       "meta": {
+                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
                       "duration": 12000,
@@ -325,6 +348,7 @@
                 "span_id": 11,
                 "parent_id": 7,
                 "meta": {
+                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
                 "duration": 12000,
@@ -338,6 +362,7 @@
              "span_id": 8,
              "parent_id": 4,
              "meta": {
+               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
              "duration": 17000,
@@ -351,6 +376,7 @@
           "span_id": 5,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
           "duration": 14000,

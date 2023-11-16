@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "404",
@@ -41,6 +42,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "sanic",
       "error.message": "division by zero",
       "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    )\n  File \"/root/project/tests/contrib/sanic/run_server.py\", line 38, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",

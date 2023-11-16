@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "da5d74e6-52f8-411a-9a6f-e748344c3e62",
@@ -37,6 +38,7 @@
        "type": "worker",
        "meta": {
          "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
          "component": "rq",
          "job.id": "da5d74e6-52f8-411a-9a6f-e748344c3e62",
          "job.origin": "q",
@@ -64,6 +66,7 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "da5d74e6-52f8-411a-9a6f-e748344c3e62"
           },

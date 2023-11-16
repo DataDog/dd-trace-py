@@ -241,6 +241,9 @@
         "asynctest": [
             "ddtrace/contrib/asynctest/*"
         ],
+        "logbook": [
+            "ddtrace/contrib/logbook/*"
+        ],
         "logging": [
             "ddtrace/contrib/logging/*"
         ],
@@ -502,7 +505,17 @@
             "@logging",
             "tests/contrib/logging/*"
         ],
+        "logbook": [
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@logbook",
+            "tests/contrib/logbook/*"
+        ],
         "loguru": [
+            "@core",
+            "@contrib",
+            "@tracing",
             "@loguru",
             "tests/contrib/loguru/*"
         ],
@@ -946,6 +959,9 @@
             "tests/contrib/starlette/*"
         ],
         "structlog": [
+            "@core",
+            "@contrib",
+            "@tracing",
             "@structlog",
             "tests/contrib/structlog/*"
         ],

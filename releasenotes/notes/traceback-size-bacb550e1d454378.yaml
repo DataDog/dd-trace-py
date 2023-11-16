@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: This introduces the ``DD_TRACE_SPAN_TRACEBACK_MAX_SIZE`` environment variable, allowing the maximum size of tracebacks included on spans to be configured.

@@ -57,7 +57,7 @@ class TracerProvider(OtelTracerProvider):
 
 
 class Tracer(OtelTracer):
-    """Starts and/or activates Open Telemetry compatible Spans using the global Datadog Tracer."""
+    """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
 
     def __init__(self, datadog_tracer):
         # type: (DDTracer) -> None
