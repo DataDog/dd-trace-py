@@ -199,16 +199,15 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
-        writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
-            writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
             writer.join()
 
-            assert writer_metrics_reset.call_count == 1
+            # metrics should be reset after traces are sent
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
             statsd.distribution.assert_has_calls(
                 [
                     mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
@@ -219,10 +218,8 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
-        writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
-            writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write(
@@ -231,7 +228,8 @@ class AgentWriterTests(BaseTestCase):
             writer.stop()
             writer.join()
 
-            writer_metrics_reset.assert_called_once()
+            # metrics should be reset after traces are sent
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
 
         client_count = len(writer._clients)
         statsd.distribution.assert_has_calls(
@@ -247,17 +245,16 @@ class AgentWriterTests(BaseTestCase):
 
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
-        writer_metrics_reset = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
-            writer._metrics_reset = writer_metrics_reset
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.write([Span(name="a", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
             writer.stop()
             writer.join()
 
-            writer_metrics_reset.assert_called_once()
+            # metrics should be reset after traces are sent
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
 
             client_count = len(writer._clients)
             statsd.distribution.assert_has_calls(
@@ -274,13 +271,11 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_encoder = mock.Mock()
         writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
-        writer_metrics_reset = mock.Mock()
         writer_encoder.encode.side_effect = Exception
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for client in writer._clients:
                 client.encoder = writer_encoder
-            writer._metrics_reset = writer_metrics_reset
             for i in range(n_traces):
                 writer.write(
                     [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
@@ -289,7 +284,8 @@ class AgentWriterTests(BaseTestCase):
             writer.stop()
             writer.join()
 
-            assert writer_metrics_reset.call_count == 1
+            # writer should have has 10 unsent traces, sent traces should be reset to zero
+            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}
             statsd.distribution.assert_has_calls(
                 [
                     mock.call("datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None),
