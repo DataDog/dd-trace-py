@@ -137,7 +137,7 @@ def traced_produce(func, instance, args, kwargs):
         value = get_argument_value(args, kwargs, 1, "value")
     except ArgumentError:
         value = None
-    message_key = kwargs.get("key", "")
+    message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
