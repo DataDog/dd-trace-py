@@ -242,6 +242,13 @@ class RemoteConfigClient(object):
             return True
         return False
 
+    def start_products(self, products_list):
+        # type: (list) -> None
+        for product_name in products_list:
+            pubsub_instance = self._products.get(product_name)
+            if pubsub_instance:
+                pubsub_instance.restart_subscriber()
+
     def unregister_product(self, product_name):
         # type: (str) -> None
         self._products.pop(product_name, None)
