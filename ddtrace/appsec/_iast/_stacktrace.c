@@ -70,19 +70,15 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     char* cwd = NULL;
 
     if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
     cwd = PyBytes_AsString(cwd_bytes);
     if (!cwd) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
 
     PyFrameObject* frame = GET_FRAME(tstate);
     if (!frame) {
-        Py_DECREF(cwd_bytes);
-        FRAME_DECREF(frame);
         goto exit_0;
     }
 
