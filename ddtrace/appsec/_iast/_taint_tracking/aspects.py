@@ -118,7 +118,9 @@ def bytearray_aspect(orig_function, flag_added_args, *args, **kwargs):
 
 def join_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], int, Any, Any) -> Any
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if not orig_function:
+        orig_function = args[0].join
+    if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -172,6 +174,9 @@ def bytearray_extend_aspect(orig_function, flag_added_args, *args, **kwargs):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
+
+    if len(args) < 2:
+        return args[0].extend(*args[1:], **kwargs)
 
     op1 = args[0]
     op2 = args[1]
@@ -227,7 +232,9 @@ def build_string_aspect(*args):  # type: (List[Any]) -> str
 
 def ljust_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], int, Any, Any) -> Union[str, bytes, bytearray]
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if not orig_function:
+        orig_function = args[0].ljust
+    if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -309,7 +316,10 @@ def format_aspect(
     *args,  # type: Any
     **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if not orig_function:
+        orig_function = args[0].format
+
+    if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -585,8 +595,6 @@ def lower_aspect(
     candidate_text = args[0]
     args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
-        if flag_added_args > 0:
-            args = args[flag_added_args:]
         return candidate_text.lower(*args, **kwargs)
 
     try:
@@ -668,7 +676,7 @@ def casefold_aspect(
     if orig_function and orig_function.__qualname__ not in ("str.casefold", "bytes.casefold", "bytearray.casefold"):
         if flag_added_args > 0:
             args = args[flag_added_args:]
-        return orig_function(args, **kwargs)
+        return orig_function(*args, **kwargs)
 
     candidate_text = args[0]
     args = args[flag_added_args:]
