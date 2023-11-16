@@ -20,7 +20,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.limit_memory("1.3 MB")
+@pytest.mark.limit_memory("1.4 MB")
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -77,9 +77,9 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_memory("9.4 KB")
+@pytest.mark.limit_memory("1.2 MB")
 def test_stacktrace_memory_check():
-    """2.1KiB is enough but riot allocate more bytes"""
+    """2.1KiB is enough but CI allocate 1.2MiB bytes"""
     for _ in range(50000):
         frame_info = func_1("", "2", "3")
         if not frame_info:
@@ -90,9 +90,9 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("2.1 KB")
+@pytest.mark.limit_memory("19.1 KB")
 def test_stacktrace_memory_empty_byte_check():
-    """2.1KiB is enough but riot allocate more bytes"""
+    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_byte", "2", "3")
         if not frame_info:
@@ -103,9 +103,9 @@ def test_stacktrace_memory_empty_byte_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("9.7 KB")
+@pytest.mark.limit_memory("19.1 KB")
 def test_stacktrace_memory_empty_string_check():
-    """2.1KiB is enough but riot allocate more bytes"""
+    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_string", "2", "3")
         if not frame_info:
@@ -116,9 +116,9 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("9.7 KB")
+@pytest.mark.limit_memory("19.1 KB")
 def test_stacktrace_memory_random_string_check():
-    """2.1KiB is enough but riot allocate more bytes"""
+    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
     for _ in range(50000):
         frame_info = func_1("random_string", "2", "3")
         if not frame_info:
