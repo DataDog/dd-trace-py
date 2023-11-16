@@ -258,7 +258,11 @@ def _extract_test_file_name(item) -> str:
 
 def _extract_module_file_path(item) -> str:
     if _is_test(item):
-        return os.path.relpath(inspect.getfile(item.__class__))
+        try:
+            module_file_path = os.path.relpath(inspect.getfile(item.__class__))
+            return module_file_path
+        except ValueError:
+            log.debug("Tried to collect module file path but it is on different paths on Windows")
 
     return ""
 
@@ -537,14 +541,23 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
-    test_module_path = os.path.relpath(obj.__code__.co_filename)
-    test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
-    _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
+    test_module_path = None
+    try:
+        test_module_path = os.path.relpath(obj.__code__.co_filename)
+    except ValueError:
+        log.debug("Tried to collect unskippable decorator but it is on different paths on Windows")
+    if test_module_path:
+        test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
+        _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
 
+def _using_unskippable_decorator(args, kwargs):
+    return args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON
+
+
 def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
-    if args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON:
+    if _using_unskippable_decorator(args, kwargs):
         return _mark_test_as_unskippable
     return func(*args, **kwargs)
 

@@ -11,14 +11,14 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
-from doctest import DocTest
 import json
 import os
 import re
+from doctest import DocTest
 from typing import Dict
 
-from _pytest.nodes import get_fslocation_from_item
 import pytest
+from _pytest.nodes import get_fslocation_from_item
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -49,7 +49,6 @@ from ddtrace.internal.ci_visibility.coverage import build_payload as build_cover
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
@@ -331,7 +330,9 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_module_path = test_module_span.get_tag(test.MODULE_PATH)
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-    test_suite_span.set_tag_str(test.SUITE, item.config.hook.pytest_ddtrace_get_item_suite_name(item=item))
+    test_suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
+    if test_suite_name:
+        test_suite_span.set_tag_str(test.SUITE, test_suite_name)
     _store_span(pytest_module_item, test_suite_span)
 
     if should_enable_coverage:
@@ -806,7 +807,13 @@ def pytest_ddtrace_get_item_suite_name(item):
     if test_module_path:
         if not pytest_module_item.nodeid.startswith(test_module_path):
             log.warning("Suite path is not under module path: '%s' '%s'", pytest_module_item.nodeid, test_module_path)
-        suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
+        try:
+            suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
+        except TypeError:
+            log.warning(
+                "Tried to collect suite path but it is using different paths on Windows",
+            )
+            return ""
         return suite_path
     return pytest_module_item.nodeid
 

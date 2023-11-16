@@ -6,14 +6,13 @@ import ddtrace
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
 
-
 log = get_logger(__name__)
 
 
 def get_source_file_path_for_test_method(test_method_object) -> typing.Union[str, None]:
     try:
         source_file_path = os.path.relpath(inspect.getfile(test_method_object))
-    except TypeError:
+    except (TypeError, ValueError):
         return None
     return source_file_path
 
@@ -39,7 +38,10 @@ def _add_start_end_source_file_path_data_to_span(span: ddtrace.Span, test_method
         return
     source_file_path = get_source_file_path_for_test_method(test_method_object)
     if not source_file_path:
-        log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
+        log.debug(
+            "Tried to collect file path for test %s but it is a built-in Python function or using different paths on Windows",
+            test_name,
+        )
         return
     start_line, end_line = get_source_lines_for_test_method(test_method_object)
     if not start_line or not end_line:
