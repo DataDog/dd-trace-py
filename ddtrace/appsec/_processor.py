@@ -3,8 +3,8 @@ import json
 import os
 import os.path
 import traceback
-from typing import Set
 from typing import TYPE_CHECKING
+from typing import Set
 
 import attr
 from six import ensure_binary

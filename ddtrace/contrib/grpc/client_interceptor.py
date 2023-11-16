@@ -11,9 +11,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
-from . import constants
-from . import utils
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
@@ -23,6 +20,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
+from . import constants
+from . import utils
 
 
 log = get_logger(__name__)

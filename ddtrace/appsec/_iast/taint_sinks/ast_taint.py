@@ -14,9 +14,8 @@ def ast_function(
     func,  # type: Callable
     flag_added_args,  # type: Any
     *args,  # type: Any
-    **kwargs  # type: Any
+    **kwargs,  # type: Any
 ):  # type: (...) -> Any
-
     cls = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""

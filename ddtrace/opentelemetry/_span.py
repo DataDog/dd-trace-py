@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from typing import Optional
     from typing import Union
 
-    from opentelemetry.util.types import AttributeValue
     from opentelemetry.util.types import Attributes
+    from opentelemetry.util.types import AttributeValue
 
     from ddtrace.span import Span as DDSpan
 

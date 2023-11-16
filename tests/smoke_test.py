@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # ASM WAF smoke test
     if system() == "Linux":
-        if not sys.maxsize > 2 ** 32:
+        if not sys.maxsize > 2**32:
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
 
