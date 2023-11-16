@@ -45,7 +45,6 @@ _sym_db.RegisterMessage(HelloReply)
 
 _HELLO = DESCRIPTOR.services_by_name["Hello"]
 if _descriptor._USE_C_DESCRIPTORS == False:
-
     DESCRIPTOR._options = None
     _HELLOREQUEST._serialized_start = 46
     _HELLOREQUEST._serialized_end = 74
