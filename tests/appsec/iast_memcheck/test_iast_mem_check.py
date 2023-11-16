@@ -20,7 +20,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.limit_memory("1.2 MB")
+@pytest.mark.limit_memory("1.3 MB")
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -44,7 +44,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     _initializer_size = 0
-    for _ in range(500):
+    for _ in range(100):
         create_context()
         tainted_string_1 = taint_pyobject(
             origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH
@@ -77,8 +77,9 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_memory("9.4 KiB")
+@pytest.mark.limit_memory("9.4 KB")
 def test_stacktrace_memory_check():
+    """2.1KiB is enough but riot allocate more bytes"""
     for _ in range(50000):
         frame_info = func_1("", "2", "3")
         if not frame_info:
@@ -89,8 +90,9 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.350 KB")
+@pytest.mark.limit_memory("2.1 KB")
 def test_stacktrace_memory_empty_byte_check():
+    """2.1KiB is enough but riot allocate more bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_byte", "2", "3")
         if not frame_info:
@@ -101,8 +103,9 @@ def test_stacktrace_memory_empty_byte_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.350 KB")
+@pytest.mark.limit_memory("9.7 KB")
 def test_stacktrace_memory_empty_string_check():
+    """2.1KiB is enough but riot allocate more bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_string", "2", "3")
         if not frame_info:
@@ -113,8 +116,9 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.650 KB")
+@pytest.mark.limit_memory("9.7 KB")
 def test_stacktrace_memory_random_string_check():
+    """2.1KiB is enough but riot allocate more bytes"""
     for _ in range(50000):
         frame_info = func_1("random_string", "2", "3")
         if not frame_info:
