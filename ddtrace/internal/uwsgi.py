@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
-from typing import Callable
-from typing import Optional
+from typing import Callable  # noqa
+from typing import Optional  # noqa
 
 
 class uWSGIConfigError(Exception):

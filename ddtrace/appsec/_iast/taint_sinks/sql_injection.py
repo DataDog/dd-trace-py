@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import six
 
@@ -12,8 +12,8 @@ from ._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import Dict
+    from typing import Any  # noqa
+    from typing import Dict  # noqa
 
     from .reporter import Vulnerability
 

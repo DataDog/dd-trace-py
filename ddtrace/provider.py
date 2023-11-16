@@ -1,8 +1,8 @@
 import abc
-from typing import Any
-from typing import Callable
-from typing import Optional
-from typing import Union
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Optional  # noqa
+from typing import Union  # noqa
 
 import six
 

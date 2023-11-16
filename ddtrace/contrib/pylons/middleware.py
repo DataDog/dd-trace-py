@@ -1,8 +1,8 @@
 import json
 import sys
-from typing import Any
-from typing import Dict
-from typing import Tuple
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Tuple  # noqa
 
 from pylons import config
 import webob

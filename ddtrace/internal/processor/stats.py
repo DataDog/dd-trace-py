@@ -25,11 +25,11 @@ from . import SpanProcessor
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Union
+    from typing import DefaultDict  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Union  # noqa
 
     from ddtrace import Span
 

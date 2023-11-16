@@ -4,9 +4,9 @@ import os
 import subprocess
 import sys
 import time
-from typing import Dict
-from typing import NamedTuple
-from typing import Optional
+from typing import Dict  # noqa
+from typing import NamedTuple  # noqa
+from typing import Optional  # noqa
 
 import pytest
 

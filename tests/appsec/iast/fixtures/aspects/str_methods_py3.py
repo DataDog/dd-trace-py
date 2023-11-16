@@ -1,12 +1,12 @@
 # Python 3 only functions (syntax errors on Python 2)
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Tuple  # noqa
 
 
 def do_fmt_value(a):  # type: (str) -> str

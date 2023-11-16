@@ -1,8 +1,8 @@
 import os
 import re
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
 
 
 def path_to_regex(pattern):

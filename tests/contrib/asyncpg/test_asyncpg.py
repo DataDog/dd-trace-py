@@ -1,5 +1,5 @@
 import os
-from typing import Generator
+from typing import Generator  # noqa
 
 import asyncpg
 import pytest

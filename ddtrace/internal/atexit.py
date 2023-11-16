@@ -8,7 +8,7 @@ import atexit
 import logging
 import signal
 import threading
-import typing
+import typing  # noqa
 
 from ddtrace.internal.utils import signals
 

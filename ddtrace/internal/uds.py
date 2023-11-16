@@ -1,5 +1,5 @@
 import socket
-from typing import Any
+from typing import Any  # noqa
 
 from .compat import httplib
 from .http import BasePathMixin

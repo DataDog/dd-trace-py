@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List  # noqa
 
 from ddtrace.internal import agent
 from ddtrace.internal import atexit

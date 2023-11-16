@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -8,9 +8,9 @@ from ddtrace.internal.utils.cache import cachedmethod
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa
+    from typing import Optional  # noqa
+    from typing import Tuple  # noqa
 
     from .span import Span
 

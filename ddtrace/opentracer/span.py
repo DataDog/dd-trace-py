@@ -1,10 +1,10 @@
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Text
-from typing import Union
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Optional  # noqa
+from typing import Text  # noqa
+from typing import Union  # noqa
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags

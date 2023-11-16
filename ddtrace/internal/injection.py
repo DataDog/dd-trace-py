@@ -1,10 +1,10 @@
 from collections import deque
 from types import FunctionType
-from typing import Any
-from typing import Callable
-from typing import Deque
-from typing import List
-from typing import Tuple
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Deque  # noqa
+from typing import List  # noqa
+from typing import Tuple  # noqa
 
 from bytecode import Bytecode
 

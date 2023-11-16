@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 #
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import Tuple
+    from typing import Dict  # noqa
+    from typing import Tuple  # noqa
 
     from ._taint_tracking import Source
 

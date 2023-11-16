@@ -13,13 +13,13 @@ from types import BuiltinMethodType
 from types import FunctionType
 from types import MethodType
 from types import TracebackType
-from typing import Any
-from typing import AnyStr
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import Type
-from typing import Union
+from typing import Any  # noqa
+from typing import AnyStr  # noqa
+from typing import Optional  # noqa
+from typing import Text  # noqa
+from typing import Tuple  # noqa
+from typing import Type  # noqa
+from typing import Union  # noqa
 import warnings
 
 import six
@@ -336,11 +336,11 @@ BUILTIN = "__builtin__" if PY2 else "builtins"
 
 
 try:
-    from typing import Collection
+    from typing import Collection  # noqa
 except ImportError:
-    from typing import List
-    from typing import Set
-    from typing import Union
+    from typing import List  # noqa
+    from typing import Set  # noqa
+    from typing import Union  # noqa
 
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 

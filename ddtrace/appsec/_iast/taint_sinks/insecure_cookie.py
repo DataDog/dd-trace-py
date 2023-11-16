@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ddtrace.internal.compat import six
 
@@ -14,8 +14,8 @@ from ..taint_sinks._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import Optional
+    from typing import Dict  # noqa
+    from typing import Optional  # noqa
 
 
 @oce.register

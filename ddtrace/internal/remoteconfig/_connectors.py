@@ -3,9 +3,9 @@ import json
 import multiprocessing
 import os
 import sys
-from typing import Any
-from typing import Dict
-from typing import Mapping
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Mapping  # noqa
 from uuid import UUID
 
 from ddtrace.internal.compat import PY2

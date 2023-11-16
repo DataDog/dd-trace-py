@@ -7,12 +7,12 @@ import os
 import random
 import re
 import subprocess
-from typing import Dict
-from typing import Generator
-from typing import MutableMapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
+from typing import Dict  # noqa
+from typing import Generator  # noqa
+from typing import MutableMapping  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
+from typing import Union  # noqa
 
 import six
 

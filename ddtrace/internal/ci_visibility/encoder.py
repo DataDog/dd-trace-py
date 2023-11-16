@@ -1,6 +1,6 @@
 import json
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -21,10 +21,10 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Optional
+    from typing import Any  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
 
     from ..span import Span
 

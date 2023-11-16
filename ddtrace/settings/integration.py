@@ -1,6 +1,6 @@
 import os
-from typing import Optional
-from typing import Tuple
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
 
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict

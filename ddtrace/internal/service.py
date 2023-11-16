@@ -1,6 +1,6 @@
 import abc
 import enum
-import typing
+import typing  # noqa
 
 import attr
 import six

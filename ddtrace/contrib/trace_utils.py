@@ -4,18 +4,18 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import Iterator
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
-from typing import cast
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Dict  # noqa
+from typing import Generator  # noqa
+from typing import Iterator  # noqa
+from typing import List  # noqa
+from typing import Mapping  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
+from typing import Union  # noqa
+from typing import cast  # noqa
 
 from ddtrace import Pin
 from ddtrace import config

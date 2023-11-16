@@ -1,6 +1,6 @@
 import gzip
 import os
-import typing
+import typing  # noqa
 
 import attr
 

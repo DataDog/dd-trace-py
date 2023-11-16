@@ -1,7 +1,7 @@
 import re
-from typing import Callable
-from typing import Dict
-from typing import Set
+from typing import Callable  # noqa
+from typing import Dict  # noqa
+from typing import Set  # noqa
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config

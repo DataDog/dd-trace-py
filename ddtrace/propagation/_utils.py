@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional  # noqa
 
 from ddtrace.internal.utils.cache import cached
 

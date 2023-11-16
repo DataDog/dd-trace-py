@@ -1,6 +1,6 @@
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Optional  # noqa
 
 from opentracing import SpanContext as OpenTracingSpanContext
 

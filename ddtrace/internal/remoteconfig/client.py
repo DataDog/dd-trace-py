@@ -5,13 +5,13 @@ import json
 import os
 import re
 import sys
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Set
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Mapping  # noqa
+from typing import Optional  # noqa
+from typing import Set  # noqa
 import uuid
 
 import attr
@@ -36,10 +36,10 @@ from ._pubsub import PubSub
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import MutableMapping
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa
+    from typing import MutableMapping  # noqa
+    from typing import Tuple  # noqa
+    from typing import Union  # noqa
 
 log = get_logger(__name__)
 

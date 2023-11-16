@@ -5,11 +5,11 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import TextIO
+from typing import TYPE_CHECKING  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import TextIO  # noqa
 
 import six
 
@@ -44,7 +44,7 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple
+    from typing import Tuple  # noqa
 
     from ddtrace import Span
 

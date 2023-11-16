@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-import typing
+import typing  # noqa
 
 import attr
 

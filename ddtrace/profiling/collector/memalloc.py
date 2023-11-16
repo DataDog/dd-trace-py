@@ -3,7 +3,7 @@ import logging
 from math import ceil
 import os
 import threading
-import typing
+import typing  # noqa
 
 import attr
 

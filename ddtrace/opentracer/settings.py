@@ -1,7 +1,7 @@
 from collections import namedtuple
-from typing import Any
-from typing import Dict
-from typing import List
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
 
 
 # Keys used for the configuration dict

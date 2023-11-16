@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 import math
-from typing import Any
-from typing import Dict
+from typing import Any  # noqa
+from typing import Dict  # noqa
 
 import pytest
 

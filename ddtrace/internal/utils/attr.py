@@ -1,8 +1,8 @@
 import os
-from typing import Callable
-from typing import Type
-from typing import TypeVar
-from typing import Union
+from typing import Callable  # noqa
+from typing import Type  # noqa
+from typing import TypeVar  # noqa
+from typing import Union  # noqa
 
 
 T = TypeVar("T")

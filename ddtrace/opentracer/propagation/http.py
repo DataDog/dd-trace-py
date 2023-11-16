@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict  # noqa
 
 from opentracing import InvalidCarrierException
 

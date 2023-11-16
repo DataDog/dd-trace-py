@@ -3,16 +3,16 @@ from json import loads
 import logging
 import os
 import re
-from typing import Any
-from typing import Callable
-from typing import ContextManager
-from typing import Dict
-from typing import Generator
-from typing import List
-from typing import Optional
-from typing import Pattern
-from typing import Tuple
-from typing import Union
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import ContextManager  # noqa
+from typing import Dict  # noqa
+from typing import Generator  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Pattern  # noqa
+from typing import Tuple  # noqa
+from typing import Union  # noqa
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat

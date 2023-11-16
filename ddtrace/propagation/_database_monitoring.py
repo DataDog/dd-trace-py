@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 from typing import Union  # noqa
 
 from ddtrace.internal.logger import get_logger
@@ -13,7 +13,7 @@ from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa
 
     from ddtrace import Span
 

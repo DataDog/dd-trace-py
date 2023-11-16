@@ -3,17 +3,17 @@ from collections import defaultdict
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any
-from typing import Callable
-from typing import DefaultDict
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
-from typing import Union
-from typing import cast
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import DefaultDict  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Set  # noqa
+from typing import Tuple  # noqa
+from typing import Type  # noqa
+from typing import Union  # noqa
+from typing import cast  # noqa
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.compat import PY2

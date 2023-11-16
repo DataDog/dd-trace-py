@@ -1,9 +1,9 @@
 import inspect
-from typing import Any
-from typing import Awaitable
-from typing import Callable
-from typing import Iterable
-from typing import Union
+from typing import Any  # noqa
+from typing import Awaitable  # noqa
+from typing import Callable  # noqa
+from typing import Iterable  # noqa
+from typing import Union  # noqa
 
 import grpc
 from grpc import aio

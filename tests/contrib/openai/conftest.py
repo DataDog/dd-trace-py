@@ -1,8 +1,8 @@
 import os
 import sys
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
 
 import mock
 import pytest

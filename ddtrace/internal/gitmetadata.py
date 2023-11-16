@@ -1,4 +1,4 @@
-import typing
+import typing  # noqa
 
 from envier import Env
 

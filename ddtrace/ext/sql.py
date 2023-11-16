@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict  # noqa
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog

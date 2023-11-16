@@ -2,7 +2,7 @@ import json
 import re
 import string
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import attr
 
@@ -11,10 +11,10 @@ from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import List
-    from typing import Set
-    from typing import Tuple
+    from typing import Any  # noqa
+    from typing import List  # noqa
+    from typing import Set  # noqa
+    from typing import Tuple  # noqa
 
 
 def _is_python_version_supported():  # type: () -> bool

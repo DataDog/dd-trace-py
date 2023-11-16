@@ -2,10 +2,10 @@
 import logging
 import os
 import typing
-from typing import List
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Type  # noqa
+from typing import Union  # noqa
 
 import attr
 

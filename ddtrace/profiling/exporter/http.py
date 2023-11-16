@@ -7,8 +7,8 @@ import json
 import os
 import platform
 import typing
-from typing import Any
-from typing import Dict
+from typing import Any  # noqa
+from typing import Dict  # noqa
 
 import attr
 import six

@@ -1,9 +1,9 @@
 from threading import RLock
-from typing import Any
-from typing import Callable
-from typing import Optional
-from typing import Type
-from typing import TypeVar
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Optional  # noqa
+from typing import Type  # noqa
+from typing import TypeVar  # noqa
 
 from ddtrace.internal.compat import getfullargspec
 from ddtrace.internal.compat import is_not_void_function

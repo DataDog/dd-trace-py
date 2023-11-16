@@ -1,5 +1,5 @@
 import re
-import typing
+import typing  # noqa
 
 import pytest
 

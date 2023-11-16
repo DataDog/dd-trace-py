@@ -1,8 +1,8 @@
 import itertools
 import os
-from typing import ClassVar
-from typing import Optional
-from typing import Set
+from typing import ClassVar  # noqa
+from typing import Optional  # noqa
+from typing import Set  # noqa
 
 import attr
 

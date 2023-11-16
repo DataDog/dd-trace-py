@@ -1,6 +1,6 @@
 import abc
-from typing import List
-from typing import Optional
+from typing import List  # noqa
+from typing import Optional  # noqa
 
 import attr
 import six

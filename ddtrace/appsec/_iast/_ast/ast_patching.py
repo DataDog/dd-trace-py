@@ -5,13 +5,13 @@ import codecs
 import os
 import re
 from sys import builtin_module_names
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 
 if TYPE_CHECKING:
     from types import ModuleType
-    from typing import Optional
-    from typing import Tuple
+    from typing import Optional  # noqa
+    from typing import Tuple  # noqa
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version

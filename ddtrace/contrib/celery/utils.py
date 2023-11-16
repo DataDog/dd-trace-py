@@ -1,5 +1,5 @@
-from typing import Any
-from typing import Dict
+from typing import Any  # noqa
+from typing import Dict  # noqa
 from weakref import WeakValueDictionary
 
 from ddtrace.contrib.trace_utils import set_flattened_tags

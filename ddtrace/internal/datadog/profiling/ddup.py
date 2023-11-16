@@ -4,8 +4,8 @@ from .utils import sanitize_string  # noqa: F401
 try:
     from ._ddup import *  # noqa: F403, F401
 except ImportError:
-    from typing import Dict
-    from typing import Optional
+    from typing import Dict  # noqa
+    from typing import Optional  # noqa
 
     from ddtrace.span import Span
 

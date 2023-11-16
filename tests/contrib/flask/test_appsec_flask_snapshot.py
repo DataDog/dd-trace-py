@@ -3,10 +3,10 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import List
+from typing import Callable  # noqa
+from typing import Dict  # noqa
+from typing import Generator  # noqa
+from typing import List  # noqa
 
 import pytest
 import six

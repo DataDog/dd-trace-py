@@ -7,13 +7,13 @@ from datetime import datetime
 import json
 import os
 import typing
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Union
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Set  # noqa
+from typing import Tuple  # noqa
+from typing import Union  # noqa
 
 from botocore import __version__
 import botocore.client

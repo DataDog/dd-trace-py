@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
@@ -10,8 +10,8 @@ from .weak_randomness import WeakRandomness
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import Callable
+    from typing import Any  # noqa
+    from typing import Callable  # noqa
 
 
 def ast_function(

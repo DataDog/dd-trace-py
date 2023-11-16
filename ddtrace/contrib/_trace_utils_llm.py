@@ -1,11 +1,11 @@
 import abc
 import os
 import time
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
 
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service

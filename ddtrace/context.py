@@ -1,10 +1,10 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Optional
-from typing import Text
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Optional  # noqa
+from typing import Text  # noqa
 
 from ddtrace.tracing._span_link import SpanLink
 
@@ -20,7 +20,7 @@ from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_memb
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple
+    from typing import Tuple  # noqa
 
     from .span import Span
     from .span import _MetaDictType

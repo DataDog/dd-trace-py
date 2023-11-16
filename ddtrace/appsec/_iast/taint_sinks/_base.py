@@ -1,7 +1,7 @@
 import os
 import time
-from typing import TYPE_CHECKING
-from typing import cast
+from typing import TYPE_CHECKING  # noqa
+from typing import cast  # noqa
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
@@ -32,14 +32,14 @@ except ImportError:
     from .._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Set
-    from typing import Text
-    from typing import Union
+    from typing import Any  # noqa
+    from typing import Callable  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Set  # noqa
+    from typing import Text  # noqa
+    from typing import Union  # noqa
 
 log = get_logger(__name__)
 

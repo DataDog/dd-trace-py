@@ -1,5 +1,5 @@
 import struct
-from typing import Tuple
+from typing import Tuple  # noqa
 
 from .fnv import _get_byte
 

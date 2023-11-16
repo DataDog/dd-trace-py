@@ -2,13 +2,13 @@ import collections
 import logging
 import os
 import typing
-from typing import cast
+from typing import cast  # noqa
 
 
 if typing.TYPE_CHECKING:
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Tuple
+    from typing import Any  # noqa
+    from typing import DefaultDict  # noqa
+    from typing import Tuple  # noqa
 
 
 def get_logger(name):

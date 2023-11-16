@@ -103,18 +103,18 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Optional  # noqa
 
 from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Tuple
+    from typing import Callable  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Tuple  # noqa
 
     from ddtrace.span import Span  # noqa
 

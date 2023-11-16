@@ -10,22 +10,22 @@ import random
 import re
 import sys
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Optional
-from typing import Text
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Optional  # noqa
+from typing import Text  # noqa
 
 from six import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import Generator
-    from typing import Iterable
-    from typing import List
-    from typing import Sequence
-    from typing import Tuple
+    from typing import Callable  # noqa
+    from typing import Dict  # noqa
+    from typing import Generator  # noqa
+    from typing import Iterable  # noqa
+    from typing import List  # noqa
+    from typing import Sequence  # noqa
+    from typing import Tuple  # noqa
 
 
 def methodcaller(*args, **kwargs):

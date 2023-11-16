@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import asyncpg
 
@@ -25,8 +25,8 @@ from ..trace_utils_async import with_traced_module
 
 if TYPE_CHECKING:  # pragma: no cover
     from types import ModuleType
-    from typing import Dict
-    from typing import Union
+    from typing import Dict  # noqa
+    from typing import Union  # noqa
 
     from asyncpg.prepared_stmt import PreparedStatement
 

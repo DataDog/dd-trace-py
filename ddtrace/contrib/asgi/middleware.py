@@ -1,5 +1,5 @@
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import ddtrace
 from ddtrace import config
@@ -24,9 +24,9 @@ from .utils import guarantee_single_callable
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Mapping
-    from typing import Optional
+    from typing import Any  # noqa
+    from typing import Mapping  # noqa
+    from typing import Optional  # noqa
 
     from ddtrace import Span
 

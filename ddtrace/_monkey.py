@@ -1,7 +1,7 @@
 import importlib
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -14,10 +14,10 @@ from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import List
-    from typing import Union
+    from typing import Any  # noqa
+    from typing import Callable  # noqa
+    from typing import List  # noqa
+    from typing import Union  # noqa
 
 
 log = get_logger(__name__)

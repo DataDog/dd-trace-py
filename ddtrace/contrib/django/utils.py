@@ -1,10 +1,10 @@
 import json
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Text
-from typing import Union
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Mapping  # noqa
+from typing import Text  # noqa
+from typing import Union  # noqa
 
 import django
 from django.utils.functional import SimpleLazyObject

@@ -1,12 +1,12 @@
 import json
 import re
-from typing import TYPE_CHECKING
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa
+from typing import Optional  # noqa
 
 
 # TypedDict was added to typing in python 3.8
 try:
-    from typing import TypedDict
+    from typing import TypedDict  # noqa
 except ImportError:
     from typing_extensions import TypedDict
 
@@ -39,10 +39,10 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Text
+    from typing import Any  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Text  # noqa
 
     from ddtrace.context import Context
     from ddtrace.span import Span

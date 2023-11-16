@@ -1,16 +1,16 @@
 from types import FunctionType
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Optional
-from typing import Tuple
-from typing import cast
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Dict  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
+from typing import cast  # noqa
 
 from six import PY3
 
 
 try:
-    from typing import Protocol
+    from typing import Protocol  # noqa
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 

@@ -1,6 +1,6 @@
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover

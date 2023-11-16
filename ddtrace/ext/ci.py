@@ -6,10 +6,10 @@ import logging
 import os
 import platform
 import re
-from typing import Dict
-from typing import List
-from typing import MutableMapping
-from typing import Optional
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import MutableMapping  # noqa
+from typing import Optional  # noqa
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger

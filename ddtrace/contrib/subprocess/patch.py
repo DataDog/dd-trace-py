@@ -5,12 +5,12 @@ import re
 import shlex
 import subprocess  # nosec
 from threading import RLock
-from typing import Deque
-from typing import Dict
-from typing import List
-from typing import Tuple
-from typing import Union
-from typing import cast
+from typing import Deque  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Tuple  # noqa
+from typing import Union  # noqa
+from typing import cast  # noqa
 
 import attr
 import six

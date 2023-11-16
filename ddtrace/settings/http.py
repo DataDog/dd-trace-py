@@ -1,7 +1,7 @@
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Union
+from typing import List  # noqa
+from typing import Mapping  # noqa
+from typing import Optional  # noqa
+from typing import Union  # noqa
 
 import six
 

@@ -1,7 +1,7 @@
 import sqlite3
 import sys
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import pytest
 
@@ -22,7 +22,7 @@ from tests.utils import assert_is_not_measured
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Generator
+    from typing import Generator  # noqa
 
 
 @pytest.fixture

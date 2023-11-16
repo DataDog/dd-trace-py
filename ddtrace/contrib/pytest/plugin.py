@@ -15,7 +15,7 @@ from doctest import DocTest
 import json
 import os
 import re
-from typing import Dict
+from typing import Dict  # noqa
 
 from _pytest.nodes import get_fslocation_from_item
 import pytest

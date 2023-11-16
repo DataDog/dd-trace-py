@@ -1,5 +1,5 @@
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import ddtrace
 from ddtrace import config
@@ -23,9 +23,9 @@ from .encoder import CIVisibilityEncoderV01
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict
-    from typing import List
-    from typing import Optional
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
 
     from ddtrace.vendor.dogstatsd import DogStatsd
 

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import abc
 import time
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
 
 import six
 

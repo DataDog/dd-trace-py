@@ -1,5 +1,5 @@
 import hashlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import django
 from django.db import connection
@@ -32,7 +32,7 @@ else:
 
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any  # noqa
 
 
 def include_view(request):

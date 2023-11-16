@@ -1,7 +1,7 @@
 import abc
 import copy
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 import six
 
@@ -9,12 +9,12 @@ from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa
+    from typing import Callable  # noqa
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Tuple  # noqa
 
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._pubsub import PubSub

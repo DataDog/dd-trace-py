@@ -1,8 +1,8 @@
 # -*- encoding: utf-8 -*-
 import math
-from typing import Any
-from typing import List
-from typing import Text
+from typing import Any  # noqa
+from typing import List  # noqa
+from typing import Text  # noqa
 
 import pytest
 

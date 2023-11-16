@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from opentelemetry.context import Context as OtelContext
 from opentelemetry.trace import SpanKind as OtelSpanKind
@@ -19,11 +19,11 @@ from ddtrace.opentelemetry._span import Span
 
 
 if TYPE_CHECKING:
-    from typing import Iterator
-    from typing import Mapping
-    from typing import Optional
-    from typing import Sequence
-    from typing import Union
+    from typing import Iterator  # noqa
+    from typing import Mapping  # noqa
+    from typing import Optional  # noqa
+    from typing import Sequence  # noqa
+    from typing import Union  # noqa
 
     from opentelemetry.trace import Link as OtelLink
     from opentelemetry.util.types import AttributeValue as OtelAttributeValue

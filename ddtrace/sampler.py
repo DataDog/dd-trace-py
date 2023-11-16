@@ -4,11 +4,11 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-from typing import TYPE_CHECKING
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import TYPE_CHECKING  # noqa
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Tuple  # noqa
 
 import six
 

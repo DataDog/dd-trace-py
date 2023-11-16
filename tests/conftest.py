@@ -11,9 +11,9 @@ import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 import time
-from typing import Any
-from typing import Generator
-from typing import Tuple
+from typing import Any  # noqa
+from typing import Generator  # noqa
+from typing import Tuple  # noqa
 from unittest import mock
 
 from _pytest.runner import call_and_report

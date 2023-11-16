@@ -2,9 +2,9 @@ from __future__ import division
 
 import random
 import threading
-from typing import Any
-from typing import Callable
-from typing import Optional
+from typing import Any  # noqa
+from typing import Callable  # noqa
+from typing import Optional  # noqa
 
 import attr
 

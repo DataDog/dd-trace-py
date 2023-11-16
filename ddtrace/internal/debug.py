@@ -4,10 +4,10 @@ import os
 import platform
 import re
 import sys
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import Union
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Union  # noqa
 
 import ddtrace
 from ddtrace.internal.packages import get_distributions

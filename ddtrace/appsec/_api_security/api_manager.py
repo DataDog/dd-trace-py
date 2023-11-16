@@ -2,7 +2,7 @@ import base64
 import gzip
 import json
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ddtrace import config
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
@@ -18,7 +18,7 @@ from ddtrace.internal.service import Service
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa
 
 
 log = get_logger(__name__)

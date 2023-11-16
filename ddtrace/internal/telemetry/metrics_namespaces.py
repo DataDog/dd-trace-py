@@ -1,8 +1,8 @@
 from collections import defaultdict
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Type
+from typing import Any  # noqa
+from typing import Dict  # noqa
+from typing import Optional  # noqa
+from typing import Type  # noqa
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION

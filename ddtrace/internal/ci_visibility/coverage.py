@@ -1,17 +1,17 @@
 from itertools import groupby
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa
 
 from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Dict  # noqa
+    from typing import Iterable  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Tuple  # noqa
 
 log = get_logger(__name__)
 

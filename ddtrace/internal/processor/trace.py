@@ -2,11 +2,11 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Union
+from typing import Dict  # noqa
+from typing import Iterable  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Union  # noqa
 
 import attr
 import six
@@ -34,7 +34,7 @@ from ddtrace.span import _is_top_level
 
 
 try:
-    from typing import DefaultDict
+    from typing import DefaultDict  # noqa
 except ImportError:
     from collections import defaultdict as DefaultDict
 

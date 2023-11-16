@@ -1,8 +1,8 @@
 import platform
 import sys
-from typing import Dict
-from typing import List
-from typing import Tuple
+from typing import Dict  # noqa
+from typing import List  # noqa
+from typing import Tuple  # noqa
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME

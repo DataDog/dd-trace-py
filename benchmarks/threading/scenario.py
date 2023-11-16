@@ -1,9 +1,9 @@
 import concurrent.futures
 import random
-from typing import Callable
-from typing import Generator
-from typing import List
-from typing import Optional
+from typing import Callable  # noqa
+from typing import Generator  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
 
 import bm
 

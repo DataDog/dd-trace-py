@@ -3,9 +3,9 @@ from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
 from types import BuiltinFunctionType
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
+from typing import TYPE_CHECKING  # noqa
+from typing import Any  # noqa
+from typing import Callable  # noqa
 
 from ddtrace.internal.compat import iteritems
 
@@ -26,10 +26,10 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Union
+    from typing import Dict  # noqa
+    from typing import List  # noqa
+    from typing import Optional  # noqa
+    from typing import Union  # noqa
 
     TEXT_TYPE = Union[str, bytes, bytearray]
 

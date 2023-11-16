@@ -2,7 +2,7 @@
 from functools import partial
 import sys
 from types import ModuleType
-import typing
+import typing  # noqa
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import ModuleWatchdog

@@ -1,5 +1,5 @@
 from types import FunctionType
-from typing import Set
+from typing import Set  # noqa
 
 from bytecode import Bytecode
 

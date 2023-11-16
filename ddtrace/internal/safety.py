@@ -1,11 +1,11 @@
-from typing import Any
-from typing import Iterator
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
-from typing import Union
+from typing import Any  # noqa
+from typing import Iterator  # noqa
+from typing import List  # noqa
+from typing import Optional  # noqa
+from typing import Set  # noqa
+from typing import Tuple  # noqa
+from typing import Type  # noqa
+from typing import Union  # noqa
 
 from ddtrace.internal.compat import BUILTIN
 from ddtrace.internal.compat import PY3
