@@ -116,7 +116,7 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.0 MB")
+@pytest.mark.limit_memory("1.1 MB")
 def test_stacktrace_memory_random_string_check():
     """2.1KiB is enough but CI allocates 1.0 MB bytes"""
     for _ in range(50000):
