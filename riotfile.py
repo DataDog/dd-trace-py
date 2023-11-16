@@ -151,6 +151,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_memcheck",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            command="pytest {cmdargs} --memray tests/appsec/iast_memcheck/",
+            pkgs={
+                "requests": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "astunparse": latest,
+                "simplejson": latest,
+                "memray": latest,
+                "pytest-memray": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_integrations",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={

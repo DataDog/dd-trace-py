@@ -26,6 +26,7 @@ GET_FILENAME(PyFrameObject* frame)
 {
     PyCodeObject* code = PyFrame_GetCode(frame);
     if (!code) {
+        Py_DECREF(code);
         return NULL;
     }
     return PyObject_GetAttrString((PyObject*)code, "co_filename");
@@ -69,6 +70,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     char* cwd = NULL;
 
     if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
+        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
     cwd = PyBytes_AsString(cwd_bytes);
