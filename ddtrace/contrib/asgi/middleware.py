@@ -111,7 +111,7 @@ class TraceMiddleware:
 
     async def __call__(self, scope, receive, send_fun):
         if scope["type"] != "http":
-            return await self.app(scope, receive, sen_fun)
+            return await self.app(scope, receive, send_fun)
         log.debug(">>> call start")
         try:
             headers = _extract_headers(scope)
