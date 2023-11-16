@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds ARM64 support for Single-Step instrumentation

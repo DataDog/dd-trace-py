@@ -43,7 +43,6 @@ if six.PY3:
     def gzip_compress(payload):
         return gzip.compress(payload, 1)
 
-
 else:
     import StringIO
 
@@ -137,7 +136,7 @@ class DataStreamsProcessor(PeriodicService):
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
-            initial_wait=0.618 * self.interval / (1.618 ** retry_attempts) / 2,
+            initial_wait=0.618 * self.interval / (1.618**retry_attempts) / 2,
         )(self._flush_stats)
 
         register_on_exit_signal(partial(_atexit, obj=self))
@@ -208,42 +207,42 @@ class DataStreamsProcessor(PeriodicService):
             for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
-                    u"EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
-                    u"Hash": hash_value,
-                    u"ParentHash": parent_hash,
-                    u"PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
-                    u"EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
+                    "EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
+                    "Hash": hash_value,
+                    "ParentHash": parent_hash,
+                    "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
+                    "EdgeLatency": DDSketchProto.to_proto(stat_aggr.edge_latency).SerializeToString(),
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_commit",
                             "consumer_group:" + consumer_key.group,
                             "topic:" + consumer_key.topic,
                             "partition:" + str(consumer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             for producer_key, offset in bucket.latest_produce_offsets.items():
                 backlogs.append(
                     {
-                        u"Tags": [
+                        "Tags": [
                             "type:kafka_produce",
                             "topic:" + producer_key.topic,
                             "partition:" + str(producer_key.partition),
                         ],
-                        u"Value": offset,
+                        "Value": offset,
                     }
                 )
             serialized_buckets.append(
                 {
-                    u"Start": bucket_time_ns,
-                    u"Duration": self._bucket_size_ns,
-                    u"Stats": bucket_aggr_stats,
-                    u"Backlogs": backlogs,
+                    "Start": bucket_time_ns,
+                    "Duration": self._bucket_size_ns,
+                    "Stats": bucket_aggr_stats,
+                    "Backlogs": backlogs,
                 }
             )
 
@@ -287,16 +286,16 @@ class DataStreamsProcessor(PeriodicService):
             log.debug("No data streams reported. Skipping flushing.")
             return
         raw_payload = {
-            u"Service": self._service,
-            u"TracerVersion": ddtrace.__version__,
-            u"Lang": "python",
-            u"Stats": serialized_stats,
-            u"Hostname": self._hostname,
+            "Service": self._service,
+            "TracerVersion": ddtrace.__version__,
+            "Lang": "python",
+            "Stats": serialized_stats,
+            "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload[u"Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = six.ensure_text(config.env)
         if config.version:
-            raw_payload[u"Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = six.ensure_text(config.version)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -345,7 +344,7 @@ class DataStreamsProcessor(PeriodicService):
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+    def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
         """
         type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
@@ -365,7 +364,7 @@ class DataStreamsProcessor(PeriodicService):
             # when producing
             payload_size += len(ctx.encode())
             payload_size += len(PROPAGATION_KEY)
-        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size)
+        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
 
@@ -416,7 +415,13 @@ class DataStreamsCtx:
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
-        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+        self,
+        tags,
+        now_sec=None,
+        edge_start_sec_override=None,
+        pathway_start_sec_override=None,
+        payload_size=0,
+        span=None,
     ):
         """
         type: (List[str], float, float, float) -> None
@@ -456,6 +461,8 @@ class DataStreamsCtx:
 
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
+        if span:
+            span.set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = now_sec - self.current_edge_start_sec
         pathway_latency_sec = now_sec - self.pathway_start_sec
         self.hash = hash_value

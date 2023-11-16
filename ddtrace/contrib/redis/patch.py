@@ -8,6 +8,7 @@ from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
@@ -21,6 +22,7 @@ config._add(
     {
         "_default_service": schematize_service_name("redis"),
         "cmd_max_length": int(os.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        "resource_only_command": asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     },
 )
 
@@ -157,8 +159,7 @@ def traced_execute_pipeline(integration_config, is_cluster=False):
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
                 for c, _ in instance.command_stack
             ]
-        resource = "\n".join(cmds)
-        with _trace_redis_execute_pipeline(pin, integration_config, resource, instance, is_cluster):
+        with _trace_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
             return func(*args, **kwargs)
 
     return _traced_execute_pipeline

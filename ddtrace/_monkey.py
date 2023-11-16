@@ -71,6 +71,7 @@ PATCH_MODULES = {
     "jinja2": True,
     "mako": True,
     "flask": True,
+    "flask_login": True,
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
@@ -78,6 +79,7 @@ PATCH_MODULES = {
     "pylons": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    "logbook": config.logs_injection,
     "logging": config.logs_injection,
     "loguru": config.logs_injection,
     "structlog": config.logs_injection,

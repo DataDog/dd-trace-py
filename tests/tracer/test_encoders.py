@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import contextlib
 import json
-import os
 import random
 import string
 import threading
@@ -23,7 +22,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
-from ddtrace.internal._encoding import EncodingValidationError
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
@@ -37,7 +35,6 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
-from tests.utils import override_global_config
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -66,7 +63,6 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
-
     root = None
     trace = []
     for i in range(0, nspans):
@@ -85,7 +81,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 span.span_type = "web"
 
             for _ in range(0, nmetrics):
-                span.set_tag(rands(key_size), random.randint(0, 2 ** 16))
+                span.set_tag(rands(key_size), random.randint(0, 2**16))
 
             trace.append(span)
 
@@ -267,7 +263,6 @@ class TestEncoders(TestCase):
 
 
 def decode(obj, reconstruct=True):
-
     unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
     if not unpacked or not unpacked[0]:
@@ -381,11 +376,11 @@ class SubFloat(float):
         (Span("name"), {"int": SubInt(123)}),
         (Span("name"), {"float": SubFloat(123.213)}),
         (Span(SubString("name")), {SubString("test"): SubString("test")}),
-        (Span("name"), {"unicode": u"😐"}),
-        (Span("name"), {u"😐": u"😐"}),
+        (Span("name"), {"unicode": "😐"}),
+        (Span("name"), {"😐": "😐"}),
         (
-            Span(u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
-            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", u"tag2": u"unicode"},
+            Span("span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
+            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", "tag2": "unicode"},
         ),
     ],
 )
@@ -524,13 +519,13 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 
 @allencodings
 @given(
-    trace_id=integers(min_value=1, max_value=2 ** 128 - 1),
+    trace_id=integers(min_value=1, max_value=2**128 - 1),
     name=text(),
     service=text(),
     resource=text(),
     meta=dictionaries(text(), text()),
     metrics=dictionaries(text(), floats()),
-    error=integers(min_value=-(2 ** 31), max_value=2 ** 31 - 1),
+    error=integers(min_value=-(2**31), max_value=2**31 - 1),
     span_type=text(),
 )
 @settings(max_examples=200)
@@ -777,7 +772,7 @@ def test_json_encoder_traces_bytes():
         [
             [
                 Span(name=b"\x80span.a"),
-                Span(name=u"\x80span.b"),
+                Span(name="\x80span.b"),
                 Span(name="\x80span.b"),
             ]
         ]
@@ -791,145 +786,9 @@ def test_json_encoder_traces_bytes():
 
     if PY3:
         assert "\\x80span.a" == span_a["name"]
-        assert u"\x80span.b" == span_b["name"]
-        assert u"\x80span.b" == span_c["name"]
+        assert "\x80span.b" == span_b["name"]
+        assert "\x80span.b" == span_c["name"]
     else:
-        assert u"\ufffdspan.a" == span_a["name"], span_a["name"]
-        assert u"\x80span.b" == span_b["name"]
-        assert u"\ufffdspan.b" == span_c["name"]
-
-
-@pytest.mark.skipif(
-    os.getenv("PYTHONOPTIMIZE", "").lower() in ("1", "t", "true"),
-    reason="Python optimize removes assertions from cython code",
-)
-def test_verifying_v05_payloads():
-    string_table_size = 4 * (1 << 12)
-    encoder = MsgpackEncoderV05(string_table_size, string_table_size)
-
-    # Ensure EncodingValidationError is not raised when trace fields are encoded as expected
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        traces = [[Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(100)]
-        for trace in traces:
-            for s in trace:
-                s._meta = {
-                    "app": "ac_query",
-                    "language": "python",
-                    "key_for_long_string": "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1),
-                }
-                s._metrics = {
-                    "zqSCqAYiBgjmqYKoBiohcCKwCagB": 7,
-                    "_sampling_priority_v1": 0,
-                    "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1): 1,
-                }
-
-        encoded = []
-        for trace in traces:
-            try:
-                encoder.put(trace)
-                encoded.append(trace)
-            except BufferFull:
-                pass
-        assert 0 < len(encoded) < len(traces), "Ensures BufferFull is raised and only a subset of traces are encoded"
-        assert encoder.encode()
-
-    # Ensure EncodingValidationError is raised when the encoded span name does not match the span name
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.name = "new_name"
-            encoder.encode()
-        assert "misencoded name: b'name'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded service does not match the span service
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.service = "new_service"
-            encoder.encode()
-        assert "misencoded service: b'service'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded resource does not match the span resource
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.resource = "new_resource"
-            encoder.encode()
-        assert "misencoded resource: b'resource'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded duration does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.duration_ns = 55
-            encoder.encode()
-        assert "misencoded duration: 0" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded start does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", start=10)
-            encoder.put([og_span])
-            og_span.start_ns = 100000001
-            encoder.encode()
-        assert "misencoded start: 10" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded parent_id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", parent_id=1)
-            encoder.put([og_span])
-            og_span.parent_id = 2
-            encoder.encode()
-        assert "misencoded parent id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded trace id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", trace_id=1)
-            encoder.put([og_span])
-            og_span.trace_id = 2
-            encoder.encode()
-        assert "misencoded trace id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded span id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", span_id=1)
-            encoder.put([og_span])
-            og_span.span_id = 2
-            encoder.encode()
-        assert "misencoded span id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded tags do not match the span tag's
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            og_span._meta["hi"] = "tag"
-            encoder.put([og_span])
-            og_span._meta["hi"] = "new tag"
-            encoder.encode()
-        assert "misencoded tag: k=hi v=tag" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded metrics do not match the metrics set on the span
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            og_span._metrics["hi"] = 1
-            encoder.put([og_span])
-            og_span._metrics["hi"] = 2
-            encoder.encode()
-        assert "misencoded metric: k=hi v=1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded span type does not match the span type on the span
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.span_type = "new_span_type"
-            encoder.encode()
-        assert "misencoded span type: b'type'" in e.value.args[0]
+        assert "\ufffdspan.a" == span_a["name"], span_a["name"]
+        assert "\x80span.b" == span_b["name"]
+        assert "\ufffdspan.b" == span_c["name"]

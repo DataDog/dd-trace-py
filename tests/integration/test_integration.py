@@ -9,6 +9,7 @@ import pytest
 import six
 
 from ddtrace import Tracer
+from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -39,6 +40,7 @@ def test_configure_keeps_api_hostname_and_port():
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_get_signal.return_value = None
     tracer = Tracer()
+    register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
     assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
@@ -514,10 +516,10 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return u"bad_payload"
+            return "bad_payload"
 
         def encode_traces(self, traces):
-            return u"bad_payload"
+            return "bad_payload"
 
     log = send_invalid_payload_and_get_logs(NonBytesBadEncoder)
     log.error.assert_has_calls(
@@ -531,31 +533,6 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
             )
         ]
     )
-
-
-@skip_if_testagent
-@pytest.mark.subprocess(
-    env={
-        "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true",
-        "DD_TRACE_API_VERSION": "v0.5",
-        "DD_TRACE_WRITER_INTERVAL_SECONDS": "1000",
-    }
-)
-def test_trace_with_invalid_encoding_for_v05_payload():
-    import mock
-
-    from ddtrace import tracer
-    from tests.utils import AnyStr
-    from tests.utils import AnyStringWithText
-
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        span = tracer.trace("name")
-        span.finish()
-        span.name = "new_name"
-        tracer.flush()
-
-    log.error.assert_has_calls([mock.call("Encoding Error (or span was modified after finish): %s", AnyStr())])
-    log.debug.assert_has_calls([mock.call(AnyStringWithText("Malformed String table values"))])
 
 
 def test_trace_with_failing_encoder_generates_error_log():

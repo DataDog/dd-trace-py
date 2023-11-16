@@ -111,7 +111,6 @@ try:
             or isgeneratorfunction(f)
         )
 
-
 except ImportError:
     from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
 

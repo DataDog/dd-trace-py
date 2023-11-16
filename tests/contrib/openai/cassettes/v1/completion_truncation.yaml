@@ -1,0 +1,95 @@
+interactions:
+- request:
+    body: '{"model": "ada", "prompt": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '59'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.1.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.1.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    content: "{\n  \"id\": \"cmpl-8I4enOEZCrMy6TMRcXBrKMrHonrgj\",\n  \"object\":
+      \"text_completion\",\n  \"created\": 1699318497,\n  \"model\": \"ada\",\n  \"choices\":
+      [\n    {\n      \"text\": \" November 2017 GMT\\n\\nWednesday, November 2, 2017
+      Events in the Arlington Pen\",\n      \"index\": 0,\n      \"logprobs\": null,\n
+      \     \"finish_reason\": \"length\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+      19,\n    \"completion_tokens\": 16,\n    \"total_tokens\": 35\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 82219b9e3acf42e9-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 07 Nov 2023 00:54:57 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - ada
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '111'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-limit-tokens_usage_based:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249983'
+      x-ratelimit-remaining-tokens_usage_based:
+      - '249983'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 3ms
+      x-ratelimit-reset-tokens_usage_based:
+      - 3ms
+      x-request-id:
+      - 242ca8cac8090406078b941e07719d97
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

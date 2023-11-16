@@ -697,8 +697,8 @@ def no_effect_using_wraps(func):
     return wrapper
 
 
-def do_upper(s):  # type: (str) -> str
-    return s.upper()
+def do_upper(sss):  # type: (str) -> str
+    return sss.upper()
 
 
 def do_lower(s):  # type: (str) -> str
@@ -842,6 +842,10 @@ def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe):  # type: (str, A
 
 def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
     return template.format_map(mapping)
+
+
+def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
+    return "Test {param1}, {param2}".format(param1=param1)
 
 
 def do_join(s, iterable):

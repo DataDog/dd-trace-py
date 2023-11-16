@@ -7,7 +7,6 @@ from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.internal.compat import PY3
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_decoration_line_probe
@@ -221,11 +220,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             parent, child = self.get_spans()
 
             assert parent is root
-            if PY3:
-                assert parent.get_tag("test.tag") == "🍰"
-            else:
-                # String coertions in Python 2 change the value of the string
-                assert parent.get_tag("test.tag") is not None
+            assert parent.get_tag("test.tag") == "🍰"
             assert parent.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
 
             assert child.name == "traceme"

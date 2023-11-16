@@ -1,0 +1,84 @@
+interactions:
+- request:
+    body: '{"instruction": "fix spelling mistakes", "model": "text-davinci-edit-001",
+      "input": "thsi si a spelilgn imstkae.", "n": 3, "top_p": 0.3}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '136'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/edits
+  response:
+    content: "{\n  \"object\": \"edit\",\n  \"created\": 1684789788,\n  \"choices\":
+      [\n    {\n      \"text\": \"this is a spelling mistake.\\n\",\n      \"index\":
+      0\n    },\n    {\n      \"text\": \"this is a spelling mistake.\\n\",\n      \"index\":
+      1\n    },\n    {\n      \"text\": \"this is a spelling mistake.\\n\",\n      \"index\":
+      2\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 28,\n    \"completion_tokens\":
+      90,\n    \"total_tokens\": 118\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81b4a65018fa41cd-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Oct 2023 19:33:07 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-edit:001
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '556'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '20'
+      x-ratelimit-remaining-requests:
+      - '19'
+      x-ratelimit-reset-requests:
+      - 3s
+      x-request-id:
+      - 655ef98a29ad10ec97536b7d072ed590
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

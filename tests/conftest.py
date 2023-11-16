@@ -26,6 +26,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
@@ -373,7 +374,10 @@ def _stop_remote_config_worker():
 
 @pytest.fixture
 def remote_config_worker():
-    remoteconfig_poller.disable(join=True)
+    try:
+        remoteconfig_poller.disable(join=True)
+    except ServiceStatusError:
+        pass
     remoteconfig_poller._client = RemoteConfigClient()
     try:
         yield
@@ -402,8 +406,7 @@ class TelemetryTestSession(object):
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
-        # A timeout of 5 seconds will hopefully prevent http.client.RemoteDisconnected errors
-        return httplib.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+        return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
         # type: (str, str) -> Tuple[int, bytes]

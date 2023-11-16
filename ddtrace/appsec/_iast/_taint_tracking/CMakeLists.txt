@@ -68,3 +68,9 @@ set_target_properties(
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 endif()
+
+install(TARGETS _native DESTINATION
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+)

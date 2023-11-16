@@ -8,16 +8,15 @@ from _config import config
 from output import log
 
 from ddtrace.debugging._config import di_config
+import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
-import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
@@ -115,7 +114,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
 
         super(ModuleCollector, self).after_import(module)
 
-        if PY3 and config.elusive:
+        if config.elusive:
             # Handle any new modules that have been imported since the last time
             # and that have eluded the import hook.
             for m in list(_ for _ in sys.modules.values() if _ is not None):
@@ -291,7 +290,6 @@ if config.status_messages:
 
     def status(msg: str) -> None:
         log(("{:%d}" % COLS).format(msg))
-
 
 else:
 

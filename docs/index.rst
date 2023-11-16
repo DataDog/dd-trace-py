@@ -112,6 +112,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`langchain`                                 | >= 0.0.192    | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`logbook`                                   | >= 1.0.0      | No             |
++--------------------------------------------------+---------------+----------------+
 | :ref:`loguru`                                    | >= 0.3.0      | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mako`                                      | >= 0.1.0      | Yes            |
@@ -179,9 +181,9 @@ contacting support.
 
 
 .. [1] Libraries that are automatically instrumented when the
-  :ref:`ddtrace-run<ddtracerun>` command is used or the ``patch_all()`` method
-  is called. Always use ``patch()`` and ``patch_all()`` as soon as possible in
-  your Python entrypoint.
+  :ref:`ddtrace-run<ddtracerun>` command is used or the ``import ddtrace.auto`` import
+  is used. Always use ``patch()``, ``patch_all()``, and ``import ddtrace.auto`` as soon
+  as possible in your Python entrypoint.
 
 .. [2] only the synchronous client
 

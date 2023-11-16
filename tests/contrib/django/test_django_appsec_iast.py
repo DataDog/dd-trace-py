@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._utils import _is_python_version_supported as python_s
 from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -435,9 +436,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
-    with override_global_config(dict(_iast_enabled=True)), mock.patch(
-        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
-    ):
+    with override_global_config(dict(_iast_enabled=True)), override_env(
+        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")
+    ), mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True):
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,

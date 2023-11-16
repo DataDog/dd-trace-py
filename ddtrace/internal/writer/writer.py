@@ -31,7 +31,6 @@ from .. import periodic
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
-from .._encoding import EncodingValidationError
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
@@ -190,7 +189,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
@@ -400,11 +399,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             encoded = client.encoder.encode()
             if encoded is None:
                 return
-        except EncodingValidationError as e:
-            log.error("Encoding Error (or span was modified after finish): %s", str(e))
-            if hasattr(e, "_debug_message"):
-                log.debug(e._debug_message)
-            return
         except Exception:
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
@@ -428,15 +422,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             if config.health_metrics_enabled and self.dogstatsd:
                 namespace = self.STATSD_NAMESPACE
-                # Note that we cannot use the batching functionality of dogstatsd because
-                # it's not thread-safe.
-                # https://github.com/DataDog/datadogpy/issues/439
-                # This really isn't ideal as now we're going to do a ton of socket calls.
+                self.dogstatsd.open_buffer()  # using `with self.dogstatsd as batch` here breaks mocking done in tests
                 self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
                 self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
                 for name, metric_tags in self._metrics.items():
                     for tags, count in metric_tags.items():
                         self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
+                self.dogstatsd.close_buffer()
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
