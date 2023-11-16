@@ -106,6 +106,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered
                 we call the hook as expected
         """
+
         # Setup our hook
         @self.config.web.hooks.on("request")
         def on_web_request(span):
@@ -127,6 +128,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered
                 we call the hook as expected
         """
+
         # Setup our hook
         @self.config.web.hooks.on("request")
         def on_web_request(span, request, response):
@@ -151,6 +153,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered that is missing parameters
                 we do not raise an exception
         """
+
         # Setup our hook
         # DEV: We are missing the required "response" argument
         @self.config.web.hooks.on("request")
@@ -174,6 +177,7 @@ class GlobalConfigTestCase(TestCase):
             When there are multiple hooks registered
                 we do not raise an exception
         """
+
         # Setup our hooks
         @self.config.web.hooks.on("request")
         def on_web_request(span):
@@ -238,6 +242,7 @@ class GlobalConfigTestCase(TestCase):
             When no span is provided
                 we do not raise an exception
         """
+
         # Setup our hooks
         @self.config.web.hooks.on("request")
         def on_web_request(span):
