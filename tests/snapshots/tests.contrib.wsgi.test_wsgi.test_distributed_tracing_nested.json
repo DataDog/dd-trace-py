@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.base_service": "",
+      "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
@@ -35,6 +36,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
        "duration": 362875,
@@ -50,6 +52,7 @@
           "type": "web",
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -69,6 +72,7 @@
              "parent_id": 4,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "wsgi"
              },
              "duration": 170750,
@@ -84,6 +88,7 @@
                 "type": "web",
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.p.tid": "654a694400000000",
                   "component": "wsgi",
                   "span.kind": "server"
                 },
@@ -99,6 +104,7 @@
              "parent_id": 4,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "wsgi",
                "result_class": "list"
              },
@@ -115,6 +121,7 @@
           "type": "web",
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "span.kind": "server"
           },
@@ -130,6 +137,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list_iterator"
        },

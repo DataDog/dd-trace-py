@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.func_name": "__call__",
       "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec",
@@ -38,6 +39,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
          "component": "rq",
          "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec",
          "job.origin": "q",
@@ -66,6 +68,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "163cbef5-7bef-4712-b7f6-3312801605ec"
           },
@@ -84,6 +87,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rq",
       "job.func_name": "job_on_class",
       "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb",
@@ -112,6 +116,7 @@
        "meta": {
          "_dd.base_service": "",
          "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
          "component": "rq",
          "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb",
          "job.origin": "q",
@@ -140,6 +145,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "rq",
             "job.id": "b46b05f7-e418-4cb7-afa8-de25d42ba0bb"
           },
