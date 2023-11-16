@@ -263,11 +263,11 @@ class Tracer(object):
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -682,6 +682,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
+                links=context._span_links,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
