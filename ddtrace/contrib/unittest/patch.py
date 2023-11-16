@@ -601,7 +601,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 )
                 result.stopTest(test=instance)
             else:
-                if _CIVisibility._instance._collect_coverage_enabled:
+                if _is_test_coverage_enabled(instance):
                     coverage = _start_coverage(root_directory)
                     instance._coverage = coverage
                 result = func(*args, **kwargs)

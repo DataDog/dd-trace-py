@@ -191,7 +191,7 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+        run: DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
