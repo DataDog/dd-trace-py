@@ -331,9 +331,7 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_module_path = test_module_span.get_tag(test.MODULE_PATH)
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-    test_suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
-    if test_suite_name:
-        test_suite_span.set_tag_str(test.SUITE, test_suite_name)
+    test_suite_span.set_tag_str(test.SUITE, item.config.hook.pytest_ddtrace_get_item_suite_name(item=item))
     _store_span(pytest_module_item, test_suite_span)
 
     if should_enable_coverage:
