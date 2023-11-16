@@ -307,7 +307,7 @@ def test_gevent_gunicorn_behaviour():
 
     class TestService(PeriodicService):
         def __init__(self):
-            super(TestService, self).__init__(interval=1.0)
+            super(TestService, self).__init__(interval=0.1)
 
         def periodic(self):
             sys.stdout.write("T")
@@ -315,7 +315,7 @@ def test_gevent_gunicorn_behaviour():
 
     service = TestService()
     service.start()
-    atexit.register(service.stop)
+    atexit.register(lambda: service.stop() and service.join(1))
 
     def restart_service():
         global service
@@ -324,7 +324,6 @@ def test_gevent_gunicorn_behaviour():
         service.start()
 
     forksafe.register(restart_service)
-    atexit.register(lambda: service.join(1))
 
     # ---- Application code ----
 
@@ -341,7 +340,7 @@ def test_gevent_gunicorn_behaviour():
 
         sys.stdout.write("C")
 
-        gevent.sleep(1.5)
+        gevent.sleep(1)
 
     def fork_workers(num):
         for _ in range(num):
@@ -350,5 +349,7 @@ def test_gevent_gunicorn_behaviour():
                 sys.exit(0)
 
     fork_workers(3)
+
+    gevent.sleep(1)
 
     exit()

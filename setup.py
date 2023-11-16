@@ -476,6 +476,11 @@ if not IS_PYSTON:
             ],
             extra_compile_args=debug_compile_args,
         ),
+        Extension(
+            "ddtrace.internal._threads",
+            sources=["ddtrace/internal/_threads.cpp"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(

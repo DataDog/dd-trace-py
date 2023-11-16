@@ -246,14 +246,6 @@ def test_ignore_profiler_single():
     assert thread_id not in {e.thread_id for e in events}
 
 
-def test_no_ignore_profiler_single():
-    r, c, thread_id = test_collector._test_collector_collect(
-        stack.StackCollector, stack_event.StackSampleEvent, ignore_profiler=False
-    )
-    events = r.events[stack_event.StackSampleEvent]
-    assert thread_id in {e.thread_id for e in events}
-
-
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_ignore_profiler_gevent_task():

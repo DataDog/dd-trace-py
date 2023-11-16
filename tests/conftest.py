@@ -26,6 +26,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
@@ -365,8 +366,8 @@ def git_repo(git_repo_empty):
 
 
 def _stop_remote_config_worker():
-    if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service(True)
+    if remoteconfig_poller.status == ServiceStatus.RUNNING:
+        remoteconfig_poller.stop(join=True)
         remoteconfig_poller._worker = None
 
 
