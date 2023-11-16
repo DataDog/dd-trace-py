@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where ddtrace's signal handlers could cause Flask apps not to respond
+    correctly to SIGINT.
