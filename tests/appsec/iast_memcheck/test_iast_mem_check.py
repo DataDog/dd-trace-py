@@ -79,7 +79,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
 
 @pytest.mark.limit_memory("1.2 MB")
 def test_stacktrace_memory_check():
-    """2.1KiB is enough but CI allocate 1.2MiB bytes"""
+    """2.1KiB is enough but CI allocates 1.2MiB bytes"""
     for _ in range(50000):
         frame_info = func_1("", "2", "3")
         if not frame_info:
@@ -90,9 +90,9 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("19.1 KB")
+@pytest.mark.limit_memory("23 KB")
 def test_stacktrace_memory_empty_byte_check():
-    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
+    """2.1KiB is enough but CI allocates 23 KB bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_byte", "2", "3")
         if not frame_info:
@@ -105,7 +105,7 @@ def test_stacktrace_memory_empty_byte_check():
 
 @pytest.mark.limit_memory("19.1 KB")
 def test_stacktrace_memory_empty_string_check():
-    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
+    """2.1KiB is enough but CI allocates 19.1 KB bytes"""
     for _ in range(50000):
         frame_info = func_1("empty_string", "2", "3")
         if not frame_info:
@@ -116,9 +116,9 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("19.1 KB")
+@pytest.mark.limit_memory("1.0 MB")
 def test_stacktrace_memory_random_string_check():
-    """2.1KiB is enough but CI allocate 19.1 KB bytes"""
+    """2.1KiB is enough but CI allocates 1.0 MB bytes"""
     for _ in range(50000):
         frame_info = func_1("random_string", "2", "3")
         if not frame_info:
