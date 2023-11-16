@@ -109,10 +109,10 @@ class TraceMiddleware:
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope, receive, send_fun):
         if scope["type"] != "http":
-            return await self.app(scope, receive, send)
-
+            return await self.app(scope, receive, sen_fun)
+        log.debug(">>> call start")
         try:
             headers = _extract_headers(scope)
         except Exception:
@@ -122,6 +122,10 @@ class TraceMiddleware:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
+
+        def send(*arg, **varg):
+            log.debug(">>> sending message %s %s", arg, varg)
+            send_fun(*arg, **varg)
 
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
@@ -272,3 +276,4 @@ class TraceMiddleware:
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
+                log.debug(">>> call end")
