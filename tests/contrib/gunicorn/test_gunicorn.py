@@ -70,8 +70,7 @@ def _gunicorn_settings_factory(
     if import_auto_in_app is not None:
         env["_DD_TEST_IMPORT_AUTO"] = str(import_auto_in_app)
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "1" if enable_module_cloning else "0"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = str(True)
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
+    env["_DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = str(SERVICE_INTERVAL)
     env["DD_PROFILING_UPLOAD_INTERVAL"] = str(SERVICE_INTERVAL)
     env["DD_TRACE_DEBUG"] = str(debug_mode)
     if dd_service is not None:
@@ -123,7 +122,7 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
         cmd = ["ddtrace-run"]
     cmd += ["gunicorn", "--config", str(cfg_file), str(gunicorn_server_settings.app_path)]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
-    gunicorn_server_settings.env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    gunicorn_server_settings.env["_DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=gunicorn_server_settings.env,

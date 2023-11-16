@@ -258,16 +258,10 @@ class Debugger(Service):
             self._span_processor = None
 
         if di_config.enabled:
-            # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
-            #  has been removed
-            if ddconfig._remote_config_enabled is False:
-                ddconfig._remote_config_enabled = True
-                log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
-
             # Register the debugger with the RCM client.
-            if not remoteconfig_poller.update_product_callback("LIVE_DEBUGGING", self._on_configuration):
-                di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-                remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            remoteconfig_poller.register(
+                "LIVE_DEBUGGING", self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
+            )
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 

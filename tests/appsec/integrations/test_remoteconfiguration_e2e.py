@@ -355,7 +355,6 @@ if __name__ == '__main__':
     print("success")
 """
     env = os.environ.copy()
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
 
     if module_unloading_env is True:
         env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"

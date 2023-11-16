@@ -328,10 +328,11 @@ class Config(object):
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
-        self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
+        self._remote_config_enabled = asbool(os.getenv("_DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
-                "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
+                "_DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS",
+                default=os.getenv("_DD_REMOTECONFIG_POLL_SECONDS", default=5.0),
             )
         )
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")

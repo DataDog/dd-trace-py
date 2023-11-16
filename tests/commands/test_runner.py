@@ -346,48 +346,23 @@ def test_info_no_configs():
     )
     p.wait()
     stdout = p.stdout.read()
-    assert (stdout) == (
-        b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
-    Tracer enabled: True
-    Application Security enabled: False
-    Remote Configuration enabled: False
-    IAST enabled (experimental): False
-    Debug logging: False
-    Writing traces to: http://localhost:8126
-    Agent error: Agent not reachable at http://localhost:8126. """
-        + b"""Exception raised: [Errno 99] Cannot assign requested address\n"""
-        b"""    App Analytics enabled(deprecated): False
-    Log injection enabled: False
-    Health metrics enabled: False
-    Priority sampling enabled: True
-    Partial flushing enabled: True
-    Partial flush minimum number of spans: 300
-    WAF timeout: 5.0 msecs
-    \x1b[92m\x1b[1mTagging:\x1b[0m
-    DD Service: None
-    DD Env: None
-    DD Version: None
-    Global Tags: None
-    Tracer Tags: None
-
-\x1b[96m\x1b[1mSummary\x1b[0m"""
-        b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
-        b""" Exception raised: [Errno 99] Cannot assign requested address'\n"""
-        b""" If you're experiencing a connection error, please """
-        b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
-        b"""agent are configured properly to connect, and that the Datadog agent is running:"""
-        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html"""
-        b"""#failed-to-send-traces-connectionrefusederror"""
-        b"""\nIf your issue is not a connection error then please reach out to support for further assistance:"""
-        b""" https://docs.datadoghq.com/help/\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced """
-        b"""applications. For more information please see"""
-        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. """
-        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING VERSION NOT SET: """
-        b"""It is recommended that a version tag be set for all traced applications. """
-        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"""
+    assert (
+        stdout == b"\x1b[94m\x1b[1mTracer Configurations:\x1b[0m\n    Tracer enabled: True"
+        b"\n    Application Security enabled: False\n    IAST enabled (experimental): False"
+        b"\n    Debug logging: False\n    Writing traces to: http://localhost:8126\n    Agent error: None"
+        b"\n    App Analytics enabled(deprecated): False\n    Log injection enabled: False"
+        b"\n    Health metrics enabled: False\n    Priority sampling enabled: True"
+        b"\n    Partial flushing enabled: True\n    Partial flush minimum number of spans: 300"
+        b"\n    WAF timeout: 5.0 msecs\n    \x1b[92m\x1b[1mTagging:\x1b[0m\n    DD Service: None\n    DD Env: None"
+        b"\n    DD Version: None\n    Global Tags: None\n    Tracer Tags: None\n\n\x1b[96m\x1b[1mSummary\x1b[0m"
+        b"\n\n\x1b[93mWARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced "
+        b"applications. For more information please see "
+        b"https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"
+        b"\n\n\x1b[93mWARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. "
+        b"For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"
+        b"\n\n\x1b[93mWARNING VERSION NOT SET: It is recommended that a version tag be set for all traced "
+        b"applications. For more information please see "
+        b"https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"
     )
 
     assert p.returncode == 0
@@ -398,7 +373,6 @@ def test_info_w_configs():
         dict(
             DD_SERVICE="tester",
             DD_APPSEC_ENABLED="true",
-            DD_REMOTE_CONFIGURATION_ENABLED="true",
             DD_IAST_ENABLED="true",
             DD_ENV="dev",
             DD_VERSION="0.45",
@@ -422,7 +396,6 @@ def test_info_w_configs():
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: True
-    Remote Configuration enabled: True
     IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
