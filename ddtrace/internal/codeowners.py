@@ -67,7 +67,6 @@ def path_to_regex(pattern):
 
     iterator = enumerate(pattern_trimmed)
     for i, ch in iterator:
-
         if escaped:
             regex += re.escape(ch)
             escaped = False
