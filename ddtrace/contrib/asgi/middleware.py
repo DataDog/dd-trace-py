@@ -123,9 +123,9 @@ class TraceMiddleware:
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
 
-        def send(*arg, **varg):
+        async def send(*arg, **varg):
             log.debug(">>> sending message %s %s", arg, varg)
-            send_fun(*arg, **varg)
+            return await send_fun(*arg, **varg)
 
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
