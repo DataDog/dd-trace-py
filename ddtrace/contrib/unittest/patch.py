@@ -270,7 +270,8 @@ def _extract_module_file_path(item) -> str:
             return module_file_path
         except ValueError:
             log.debug(
-                "Tried to collect module file path but it is using different drive paths on Windows, using absolute path instead"
+                "Tried to collect module file path but it is using different drive paths on Windows, "
+                "using absolute path instead"
             )
             return os.path.abspath(test_module_object)
 
@@ -555,7 +556,8 @@ def _mark_test_as_unskippable(obj):
         test_module_path = os.path.relpath(obj.__code__.co_filename, start=os.getcwd())
     except ValueError:
         log.debug(
-            "Tried to collect unskippable decorator but it is using different drive paths on Windows, using absolute path instead"
+            "Tried to collect unskippable decorator but it is using different drive paths on Windows, "
+            "using absolute path instead"
         )
         test_module_path = os.path.abspath(obj.__code__.co_filename)
     test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)

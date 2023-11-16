@@ -812,7 +812,8 @@ def pytest_ddtrace_get_item_suite_name(item):
             suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
         except TypeError:
             log.debug(
-                "Tried to collect suite path but it is using different drive paths on Windows, using absolute path instead",
+                "Tried to collect suite path but it is using different drive paths on Windows, "
+                "using absolute path instead",
             )
             return os.path.abspath(pytest_module_item.nodeid)
         return suite_path
