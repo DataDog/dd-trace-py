@@ -161,7 +161,6 @@ if PY >= (3, 12):
                 Instr("RERAISE", 0, lineno=lineno),
             ]
 
-
 elif PY >= (3, 11):
 
     def wrap_async(instrs, code, lineno):
@@ -297,7 +296,6 @@ elif PY >= (3, 11):
                 propagate,  # finally:
                 Instr("RERAISE", 0, lineno=lineno),
             ]
-
 
 else:
 

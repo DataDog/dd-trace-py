@@ -3,9 +3,9 @@ from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
 from types import BuiltinFunctionType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import TYPE_CHECKING
 
 from ddtrace.internal.compat import iteritems
 

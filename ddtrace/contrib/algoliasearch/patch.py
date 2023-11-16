@@ -8,9 +8,9 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from .. import trace_utils
 
 
 DD_PATCH_ATTR = "_datadog_patch"

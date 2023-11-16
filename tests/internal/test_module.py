@@ -218,7 +218,6 @@ def test_module_deleted():
 
 
 def test_module_unregister_origin_hook(module_watchdog):
-
     hook = mock.Mock()
     path = origin(sys.modules[__name__])
 
@@ -240,7 +239,6 @@ def test_module_unregister_origin_hook(module_watchdog):
 
 
 def test_module_unregister_module_hook(module_watchdog):
-
     hook = mock.Mock()
     module = __name__
     module_watchdog.register_module_hook(module, hook)

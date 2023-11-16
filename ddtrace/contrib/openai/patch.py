@@ -1,7 +1,7 @@
 import os
 import sys
-from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Optional
 
 from openai import version
 
@@ -14,8 +14,8 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.wrapping import wrap
 
-from . import _endpoint_hooks
 from ...pin import Pin
+from . import _endpoint_hooks
 from .utils import _format_openai_api_key
 
 
@@ -83,14 +83,18 @@ class _OpenAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _logs_tags(cls, span):
-        tags = "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s," "openai.user.api_key:%s" % (  # noqa: E501
-            (config.env or ""),
-            (config.version or ""),
-            (span.get_tag("openai.request.endpoint") or ""),
-            (span.get_tag("openai.request.method") or ""),
-            (span.get_tag("openai.request.model") or ""),
-            (span.get_tag("openai.organization.name") or ""),
-            (span.get_tag("openai.user.api_key") or ""),
+        tags = (
+            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s,"
+            "openai.user.api_key:%s"
+            % (  # noqa: E501
+                (config.env or ""),
+                (config.version or ""),
+                (span.get_tag("openai.request.endpoint") or ""),
+                (span.get_tag("openai.request.method") or ""),
+                (span.get_tag("openai.request.model") or ""),
+                (span.get_tag("openai.organization.name") or ""),
+                (span.get_tag("openai.user.api_key") or ""),
+            )
         )
         return tags
 
