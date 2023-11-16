@@ -259,10 +259,20 @@ def _extract_test_file_name(item) -> str:
 def _extract_module_file_path(item) -> str:
     if _is_test(item):
         try:
-            module_file_path = os.path.relpath(inspect.getfile(item.__class__))
+            test_module_object = inspect.getfile(item.__class__)
+        except TypeError:
+            log.debug(
+                "Tried to collect module file path but it is a built-in Python function",
+            )
+            return ""
+        try:
+            module_file_path = os.path.relpath(test_module_object, start=os.getcwd())
             return module_file_path
         except ValueError:
-            log.debug("Tried to collect module file path but it is using different paths on Windows")
+            log.debug(
+                "Tried to collect module file path but it is using different drive paths on Windows, using absolute path instead"
+            )
+            return os.path.abspath(test_module_object)
 
     return ""
 
@@ -541,14 +551,15 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
-    test_module_path = None
     try:
-        test_module_path = os.path.relpath(obj.__code__.co_filename)
+        test_module_path = os.path.relpath(obj.__code__.co_filename, start=os.getcwd())
     except ValueError:
-        log.debug("Tried to collect unskippable decorator but it is using different paths on Windows")
-    if test_module_path:
-        test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
-        _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
+        log.debug(
+            "Tried to collect unskippable decorator but it is using different drive paths on Windows, using absolute path instead"
+        )
+        test_module_path = os.path.abspath(obj.__code__.co_filename)
+    test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
+    _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
 
@@ -802,7 +813,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
-    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, os.getcwd())
 
     _store_test_span(instance, span)
     return span

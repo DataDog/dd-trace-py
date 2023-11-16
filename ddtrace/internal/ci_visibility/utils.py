@@ -6,14 +6,22 @@ import ddtrace
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
 
+
 log = get_logger(__name__)
 
 
-def get_source_file_path_for_test_method(test_method_object) -> typing.Union[str, None]:
+def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> typing.Union[str, None]:
     try:
-        source_file_path = os.path.relpath(inspect.getfile(test_method_object))
-    except (TypeError, ValueError):
-        return None
+        file_object = inspect.getfile(test_method_object)
+    except TypeError:
+        return ""
+    try:
+        source_file_path = os.path.relpath(file_object, start=repo_directory)
+    except ValueError:
+        log.debug(
+            "Tried to collect source file path but it is using different drive paths on Windows, using absolute path instead",
+        )
+        return os.path.abspath(file_object)
     return source_file_path
 
 
@@ -29,17 +37,22 @@ def get_source_lines_for_test_method(
     return start_line, end_line
 
 
-def _add_start_end_source_file_path_data_to_span(span: ddtrace.Span, test_method_object, test_name: str):
+def _add_start_end_source_file_path_data_to_span(
+    span: ddtrace.Span, test_method_object, test_name: str, repo_directory: str
+):
     if not test_method_object:
         log.debug(
             "Tried to collect source start/end lines for test method %s but test method object could not be found",
             test_name,
         )
         return
-    source_file_path = get_source_file_path_for_test_method(test_method_object)
+    import pdb
+
+    pdb.set_trace()
+    source_file_path = get_source_file_path_for_test_method(test_method_object, repo_directory)
     if not source_file_path:
         log.debug(
-            "Tried to collect file path for test %s but it is a built-in Python function or using different paths on Windows",
+            "Tried to collect file path for test %s but it is a built-in Python function",
             test_name,
         )
         return

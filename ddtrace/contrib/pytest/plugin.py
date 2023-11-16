@@ -11,14 +11,14 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+from doctest import DocTest
 import json
 import os
 import re
-from doctest import DocTest
 from typing import Dict
 
-import pytest
 from _pytest.nodes import get_fslocation_from_item
+import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
@@ -49,6 +49,7 @@ from ddtrace.internal.ci_visibility.coverage import build_payload as build_cover
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
@@ -643,7 +644,7 @@ def pytest_runtest_protocol(item, nextitem):
             _CIVisibility.set_codeowners_of(item.location[0], span=span)
         if hasattr(item, "_obj"):
             test_method_object = item._obj
-            _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+            _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, item.config.rootdir)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
@@ -810,10 +811,10 @@ def pytest_ddtrace_get_item_suite_name(item):
         try:
             suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
         except TypeError:
-            log.warning(
-                "Tried to collect suite path but it is using different paths on Windows",
+            log.debug(
+                "Tried to collect suite path but it is using different drive paths on Windows, using absolute path instead",
             )
-            return ""
+            return os.path.abspath(pytest_module_item.nodeid)
         return suite_path
     return pytest_module_item.nodeid
 

@@ -8,9 +8,9 @@ from _config import config
 from output import log
 
 from ddtrace.debugging._config import di_config
-import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
