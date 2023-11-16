@@ -14,8 +14,8 @@ try:
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
-from bytecode import Instr
 import bytecode as bc
+from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY

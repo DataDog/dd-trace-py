@@ -13,8 +13,8 @@ try:
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
     from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
