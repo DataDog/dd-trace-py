@@ -172,7 +172,6 @@ if _DDWAF_LOADED:
     def version() -> str:
         return ddwaf_get_version().decode("UTF-8")
 
-
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
