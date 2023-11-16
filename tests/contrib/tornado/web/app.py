@@ -226,7 +226,6 @@ try:
             yield self.outer_executor()
             self.write("OK")
 
-
 except TypeError:
     # the class definition fails because Tornado 4.0 and 4.1 don't support
     # `run_on_executor` with params. Because it's just this case, we can
@@ -344,5 +343,5 @@ def make_app(settings=None):
             (r"/sync_nested_wrap/", SyncNestedWrapHandler),
             (r"/sync_nested_exception_wrap/", SyncNestedExceptionWrapHandler),
         ],
-        **settings
+        **settings,
     )
