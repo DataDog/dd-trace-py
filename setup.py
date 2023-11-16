@@ -317,7 +317,16 @@ class CMakeBuild(build_ext):
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
-            self.build_extension_cmake(ext)
+            try:
+                self.build_extension_cmake(ext)
+            except subprocess.CalledProcessError as e:
+                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                if not ext.optional:
+                    raise
+            except Exception as e:
+                print("WARNING: An error occurred while building the CMake extension.")
+                if not ext.optional:
+                    raise
         else:
             super().build_extension(ext)
 
@@ -380,18 +389,10 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
-        try:
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
-            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
-            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
-            if not ext.permissive_build:
-                raise
-        except Exception as e:
-            print("WARNING: An error occurred while building the CMake extension.")
-            raise
+        cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+        subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
 
 
 class CMakeExtension(Extension):
@@ -403,7 +404,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        permissive_build=False,
+        optional=False,
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -411,7 +412,7 @@ class CMakeExtension(Extension):
         self.build_args = build_args or []
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
-        self.permissive_build = permissive_build  # If True, build errors are ignored
+        self.optional = optional  # If True, all cmake errors are ignored
 
 
 long_description = """
@@ -505,11 +506,7 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
         )
 
         ext_modules.append(
-            CMakeExtension(
-                "ddtrace.appsec._iast._taint_tracking._native",
-                source_dir=IAST_DIR,
-                permissive_build=True if CURRENT_OS == "Darwin" else False,
-            )
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=True)
         )
 else:
     ext_modules = []
