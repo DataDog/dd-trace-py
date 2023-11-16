@@ -262,7 +262,7 @@ def _extract_module_file_path(item) -> str:
             module_file_path = os.path.relpath(inspect.getfile(item.__class__))
             return module_file_path
         except ValueError:
-            log.debug("Tried to collect module file path but it is on different paths on Windows")
+            log.debug("Tried to collect module file path but it is using different paths on Windows")
 
     return ""
 
@@ -545,7 +545,7 @@ def _mark_test_as_unskippable(obj):
     try:
         test_module_path = os.path.relpath(obj.__code__.co_filename)
     except ValueError:
-        log.debug("Tried to collect unskippable decorator but it is on different paths on Windows")
+        log.debug("Tried to collect unskippable decorator but it is using different paths on Windows")
     if test_module_path:
         test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
         _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
