@@ -1,6 +1,6 @@
 [[
   {
-    "name": "test-otel-distributed-trace",
+    "name": "internal",
     "service": null,
     "resource": "test-otel-distributed-trace",
     "trace_id": 0,
@@ -8,26 +8,28 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655535dc00000000",
       "language": "python",
-      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 34011
+      "process_id": 7703
     },
-    "duration": 17919000,
-    "start": 1675884561931051000
+    "duration": 24467250,
+    "start": 1700083164080082009
   },
      {
-       "name": "/otel",
+       "name": "server",
        "service": null,
        "resource": "/otel",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "meta": {
+         "_dd.p.tid": "655535dc00000000",
          "http.flavor": "1.1",
          "http.host": "0.0.0.0:8001",
          "http.method": "GET",
@@ -39,7 +41,7 @@
          "http.user_agent": "python-requests/2.28.1",
          "language": "python",
          "net.peer.ip": "127.0.0.1",
-         "runtime-id": "c6467d51b30d46e0960922cfeddda2a4",
+         "runtime-id": "f90fe90fc53a4388b02210639d156981",
          "span.kind": "server",
          "tracestate": "dd=s:1;t.dm:-0"
        },
@@ -48,19 +50,19 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 0,
          "net.host.port": 8001,
-         "net.peer.port": 50782,
-         "process_id": 34028
+         "net.peer.port": 65508,
+         "process_id": 7721
        },
-       "duration": 354944,
-       "start": 1675884561932909056
+       "duration": 413250,
+       "start": 1700083164081574592
      },
         {
-          "name": "otel-flask-manual-span",
+          "name": "internal",
           "service": null,
           "resource": "otel-flask-manual-span",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "duration": 15000,
-          "start": 1675884561933174000
+          "duration": 18250,
+          "start": 1700083164081867259
         }]]
