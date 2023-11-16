@@ -68,8 +68,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
     from typing import Set
-    from typing import Union
     from typing import Tuple
+    from typing import Union
 
 from typing import Callable
 from typing import TypeVar

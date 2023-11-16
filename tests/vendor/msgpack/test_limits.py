@@ -5,11 +5,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from msgpack import Packer
 from msgpack import PackOverflowError
 from msgpack import PackValueError
-from msgpack import Packer
-from msgpack import UnpackValueError
 from msgpack import Unpacker
+from msgpack import UnpackValueError
 from msgpack import unpackb
 import pytest
 

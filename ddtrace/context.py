@@ -1,16 +1,16 @@
 import base64
 import re
 import threading
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Text
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
-from .internal.compat import NumericType
 from .internal.compat import PY2
+from .internal.compat import NumericType
 from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
