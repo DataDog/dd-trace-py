@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    Vulnerability Management for Code-level (IAST): IAST is independent of Appsec; ``DD_IAST_ENABLED`` doesn't require 
-    ``DD_APPSEC_ENABLED``. With that, this fix introduces a small refactor when both IAST and ASM check the 
-    request cookies.
+    Vulnerability Management for Code-level (IAST): Generates cookies vulnerabilities report if IAST is enabled. 
+    Before this fix, Cookies vulnerabilities need both IAST enabled and Appsec enable.
