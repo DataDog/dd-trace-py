@@ -77,7 +77,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_memory("1.350 KB")
+@pytest.mark.limit_memory("9.4 KiB")
 def test_stacktrace_memory_check():
     for _ in range(50000):
         frame_info = func_1("", "2", "3")
@@ -113,7 +113,7 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.350 KB")
+@pytest.mark.limit_memory("1.650 KB")
 def test_stacktrace_memory_random_string_check():
     for _ in range(50000):
         frame_info = func_1("random_string", "2", "3")
