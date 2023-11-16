@@ -55,7 +55,7 @@ ddtrace = "ddtrace.contrib.pytest.plugin"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
-Changelog = "https://ddtrace.readthedocs.io/en/stable/release_notes.html"
+Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
@@ -63,16 +63,6 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 write_to = "ddtrace/_version.py"
-
-[tool.isort]
-force_single_line = true
-lines_after_imports = 2
-force_sort_within_sections = true
-known_first_party = "ddtrace"
-default_section = "THIRDPARTY"
-skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build", "setup.py"]
-skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py", "ddtrace/appsec/_iast/_taint_tracking/_vendor/*", "ddtrace/**/*.pyi"]
-line_length = 120
 
 [tool.cython-lint]
 max-line-length = 120
@@ -86,7 +76,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
+target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
@@ -186,3 +176,75 @@ test-skip = "*-macosx_universal2:arm64"
 # `platform.mac_ver()` reports incorrect MacOS version at 11.0
 # See: https://stackoverflow.com/a/65402241
 SYSTEM_VERSION_COMPAT = "0"
+
+[tool.ruff]
+exclude = [
+    ".riot",
+    ".ddriot",
+    ".venv*",
+    ".git",
+    "__pycache__",
+    ".eggs",
+    "*.egg",
+    "build",
+    "ddtrace/__init__.py",
+    "ddtrace/vendor/*",
+    "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
+    "ddtrace/profiling/exporter/pprof_*pb2.py",
+    "tests/profiling/simple_program_gevent.py",
+    "tests/contrib/grpc/hello_pb2.py",
+    "tests/contrib/django_celery/app/*",
+    "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
+    "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
+]
+ignore = [
+    "A003",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "D200",
+    "D202",
+    "D204",
+    "D205",
+    "D208",
+    "D210",
+    "D300",
+    "D400",
+    "D401",
+    "D403",
+    "D404",
+    "D413",
+    "E203",
+    "E231",
+    "E721",
+    "G201",
+]
+line-length = 120
+select = [
+    "A",
+    "D",
+    "E",
+    "G",
+    "I",
+    "W",
+]
+
+[tool.ruff.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.isort]
+force-single-line = true
+lines-after-imports = 2
+force-sort-within-sections = true
+known-first-party = [ "ddtrace" ]
+relative-imports-order = "furthest-to-closest"
+
+[tool.ruff.per-file-ignores]
+# Exclude typing stubs as vertical line spacing incompatibility with black
+# See: https://github.com/astral-sh/ruff/pull/6501
+"*.pyi" = ["I001"]

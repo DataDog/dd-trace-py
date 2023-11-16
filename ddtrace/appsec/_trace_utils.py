@@ -1,5 +1,5 @@
-from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.contrib.trace_utils import set_user
