@@ -4,7 +4,6 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -13,6 +12,7 @@ from ...ext import SpanTypes
 from ...internal.schema import schematize_url_operation
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from .. import trace_utils
 from ..trace_utils import set_http_meta
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY

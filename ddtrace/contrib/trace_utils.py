@@ -4,6 +4,7 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -12,7 +13,6 @@ from typing import Iterator
 from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
 from typing import cast

@@ -291,7 +291,6 @@ if config.status_messages:
         # type: (str) -> None
         print(("{:%d}" % COLS).format(msg))
 
-
 else:
 
     def status(msg):

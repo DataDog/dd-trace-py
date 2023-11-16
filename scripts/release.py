@@ -10,11 +10,11 @@ from github import Github
 import requests
 
 
-"""This release notes script is built to create a release notes draft 
+"""This release notes script is built to create a release notes draft
 for release candidates, patches, and minor releases.
 
 Setup:
-1. Create a Personal access token (classic), not a fine grained one, on Github: 
+1. Create a Personal access token (classic), not a fine grained one, on Github:
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic # noqa
 2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
 3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
@@ -24,7 +24,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 
 6. Install pandoc with `brew install pandoc`
 
-Create an activate a virtual environment, and install required packages : 
+Create an activate a virtual environment, and install required packages :
 `python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
 
 
@@ -39,7 +39,7 @@ Optional:
     RC - Whether or not this is a release candidate. e.g. RC=1 or RC=0
     PATCH - Whether or not this a patch release. e.g. PATCH=1 or PATCH=0
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
-    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.  
+    NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.
     Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 1.11: `BASE=1.11 RC=1 NOTEBOOK=1 python release.py`
@@ -47,7 +47,7 @@ Generate release notes and staging testing notebook for next release candidate v
 Generate release notes for next patch version of 1.13: `BASE=1.13 PATCH=1 python release.py`
 
 Generate release notes for the 1.15 release: `BASE=1.15 python release.py`
-"""
+"""  # noqa: E501
 
 
 def create_release_draft(dd_repo, base, rc, patch):
