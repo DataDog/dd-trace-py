@@ -6,6 +6,8 @@ from typing import Any
 from typing import Optional
 from typing import Text
 
+from ddtrace.tracing._span_link import SpanLink
+
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
@@ -42,13 +44,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = [
-        "trace_id",
-        "span_id",
-        "_lock",
-        "_meta",
-        "_metrics",
-    ]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links"]
 
     def __init__(
         self,
@@ -59,6 +55,7 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
+        span_links=None,  # type: Optional[list[SpanLink]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -70,6 +67,10 @@ class Context(object):
             self._meta[ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
+        if span_links is not None:
+            self._span_links = span_links
+        else:
+            self._span_links = []
 
         if lock is not None:
             self._lock = lock
@@ -226,11 +227,12 @@ class Context(object):
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
             self._metrics,
+            self._span_links,
         )
 
     __str__ = __repr__
