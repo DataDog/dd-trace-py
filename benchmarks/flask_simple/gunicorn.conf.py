@@ -1,5 +1,5 @@
 from bm.di_utils import BMDebugger
-from bm.flask_utils import post_fork  # noqag
+from bm.flask_utils import post_fork  # noqa
 from bm.flask_utils import post_worker_init  # noqa
 
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
