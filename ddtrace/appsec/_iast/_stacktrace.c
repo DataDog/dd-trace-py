@@ -82,6 +82,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     PyFrameObject* frame = GET_FRAME(tstate);
     if (!frame) {
         Py_DECREF(cwd_bytes);
+        FRAME_DECREF(frame);
         goto exit_0;
     }
 
