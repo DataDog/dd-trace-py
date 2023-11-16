@@ -682,6 +682,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
+                links=context._span_links,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
