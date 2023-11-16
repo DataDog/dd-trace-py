@@ -37,6 +37,7 @@ config._add(
         "llmobs_enabled": asbool(os.getenv("DD_LLMOBS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "llmobs_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
         "_api_key": os.getenv("DD_API_KEY"),
@@ -248,7 +249,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
 
     def generate_completion_llm_records(self, resp, span, args, kwargs):
         # type: (Any, Span, List[Any], Dict[str, Any]) -> None
-        """Generate a payload for the LLM Obs API from a completion."""
+        """Generate payloads for the LLM Obs API from a completion."""
         if not self._config.llmobs_enabled:
             return
         choices = resp.choices
@@ -279,7 +280,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
 
     def generate_chat_llm_records(self, resp, span, args, kwargs):
         # type: (Any, Span, List[Any], Dict[str, Any]) -> None
-        """Generate a payload for the LLM Obs API from a chat completion."""
+        """Generate payloads for the LLM Obs API from a chat completion."""
         if not self._config.llmobs_enabled:
             return
         choices = resp.choices
@@ -291,8 +292,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 "type": "chat",
                 "id": resp.id,
                 "timestamp": resp.created * 1000,
-                # "model": resp.model,
-                "model": "yun_test_model_chat",
+                "model": resp.model,
                 "model_provider": "openai",
                 "input": {
                     "messages": [{"content": m.get("content", ""), "role": m.get("role", "")} for m in messages],

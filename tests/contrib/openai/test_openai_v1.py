@@ -40,9 +40,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
 def test_patching(openai):
     """Ensure that the correct objects are patched and not double patched."""
-
-    # for some reason these can't be specified as the real python objects...
-    # no clue why (eg. openai.Completion.create doesn't work)
     methods = [
         (openai.resources.completions.Completions, "create"),
         (openai.resources.completions.AsyncCompletions, "create"),
@@ -148,7 +145,9 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+def test_completion(
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, mock_llmobs_writer, snapshot_tracer
+):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -191,55 +190,27 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                2,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                12,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                14,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 2, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.completion", 12, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.total", 14, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.tokens", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.tokens", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
+    mock_logs.start.assert_not_called()
+    mock_logs.enqueue.assert_not_called()
+    mock_llmobs_writer.start.assert_not_called()
+    mock_llmobs_writer.enqueue.assert_not_called()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acompletion(
-    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, mock_llmobs_writer, snapshot_tracer
 ):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
@@ -289,50 +260,21 @@ async def test_acompletion(
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                10,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                150,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                160,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 10, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.completion", 150, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.total", 160, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.tokens", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.tokens", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
-    mock_logs.assert_not_called()
+    mock_logs.start.assert_not_called()
+    mock_logs.enqueue.assert_not_called()
+    mock_llmobs_writer.start.assert_not_called()
+    mock_llmobs_writer.enqueue.assert_not_called()
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
@@ -1922,3 +1864,137 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert status == 0, err
         assert out == b""
         assert err == b""
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-a-real-api-key>",
+            _app_key="<not-a-real-app-key",
+            llmobs_enabled=True,
+            llmobs_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+    """Ensure llmobs records are emitted for completion endpoints when configured.
+
+    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+    """
+    with openai_vcr.use_cassette("completion.yaml"):
+        client = openai.OpenAI()
+        resp = client.completions.create(
+            model="ada",
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_llmobs_writer.enqueue.call_count == 2
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "type": "completion",
+                    "id": resp.id,
+                    "timestamp": resp.created * 1000,
+                    "model": "ada",
+                    "model_provider": "openai",
+                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "output": {"completions": [{"content": ", relax!” I said to my laptop"}]},
+                }
+            ),
+            mock.call.enqueue(
+                {
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "type": "completion",
+                    "id": resp.id,
+                    "timestamp": resp.created * 1000,
+                    "model": "ada",
+                    "model_provider": "openai",
+                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "output": {"completions": [{"content": " (1"}]},
+                }
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-a-real-api-key>",
+            _app_key="<not-a-real-app-key",
+            llmobs_enabled=True,
+            llmobs_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+    """Ensure llmobs records are emitted for chat completion endpoints when configured.
+
+    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+    """
+    with openai_vcr.use_cassette("chat_completion.yaml"):
+        input_messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Who won the world series in 2020?"},
+            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+            {"role": "user", "content": "Where was it played?"},
+        ]
+        client = openai.OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            top_p=0.9,
+            n=2,
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_llmobs_writer.enqueue.call_count == 2
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "type": "chat",
+                    "id": resp.id,
+                    "timestamp": resp.created * 1000,
+                    "model": resp.model,
+                    "model_provider": "openai",
+                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "output": {"completions": [{"content": resp.choices[0].message.content, "role": "assistant"}]},
+                }
+            ),
+            mock.call.enqueue(
+                {
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "type": "chat",
+                    "id": resp.id,
+                    "timestamp": resp.created * 1000,
+                    "model": resp.model,
+                    "model_provider": "openai",
+                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "output": {"completions": [{"content": resp.choices[1].message.content, "role": "assistant"}]},
+                }
+            ),
+        ]
+    )

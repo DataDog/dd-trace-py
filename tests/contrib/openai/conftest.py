@@ -43,6 +43,7 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
+    return "<not-a-real-key>"
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
@@ -118,6 +119,16 @@ def mock_logs(scope="session"):
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_writer(scope="session"):
+    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
     yield m
     patcher.stop()
 
