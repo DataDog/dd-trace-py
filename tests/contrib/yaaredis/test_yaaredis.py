@@ -6,7 +6,6 @@ import pytest
 import yaaredis
 
 from ddtrace import Pin
-from ddtrace import tracer
 from ddtrace.contrib.yaaredis.patch import patch
 from ddtrace.contrib.yaaredis.patch import unpatch
 from ddtrace.vendor.wrapt import ObjectProxy

@@ -6,7 +6,7 @@ import attr
 
 from ddtrace.profiling.exporter import pprof
 
-from .. import recorder
+from .. import recorder  # noqa
 
 
 @attr.s

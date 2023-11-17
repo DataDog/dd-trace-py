@@ -15,7 +15,7 @@ from ..settings._database_monitoring import dbm_config
 if TYPE_CHECKING:
     from typing import Optional  # noqa
 
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 DBM_PARENT_SERVICE_NAME_KEY = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"

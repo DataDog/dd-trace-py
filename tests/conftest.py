@@ -28,7 +28,6 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
-from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer

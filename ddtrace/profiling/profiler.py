@@ -19,7 +19,7 @@ from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
+from ddtrace.profiling import exporter  # noqa
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio

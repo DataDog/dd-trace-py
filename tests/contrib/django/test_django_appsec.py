@@ -4,7 +4,6 @@ import logging
 
 import pytest
 
-from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import http

@@ -444,7 +444,7 @@ def test_logger_adds_handler_as_default():
 def test_logger_does_not_add_handler_when_configured():
     import logging
 
-    import ddtrace  # noqq
+    import ddtrace  # noqa
 
     ddtrace_logger = logging.getLogger("ddtrace")
     assert len(ddtrace_logger.handlers) == 0

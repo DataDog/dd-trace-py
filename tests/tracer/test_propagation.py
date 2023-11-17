@@ -8,7 +8,6 @@ import pytest
 from ddtrace.context import Context
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -286,7 +285,7 @@ def test_extract(tracer):
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 

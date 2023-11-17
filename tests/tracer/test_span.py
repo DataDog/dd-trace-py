@@ -23,7 +23,6 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 

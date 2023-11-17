@@ -845,7 +845,7 @@ def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
 
 
 def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
-    return "Test {param1}, {param2}".format(param1=param1)
+    return "Test {param1}, {param2}".format(param1=param1)  # noqa
 
 
 def do_join(s, iterable):

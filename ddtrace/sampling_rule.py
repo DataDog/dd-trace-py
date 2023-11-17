@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa
     from typing import Tuple  # noqa
 
-    from .span import Span
+    from .span import Span  # noqa
 
 log = get_logger(__name__)
 KNUTH_FACTOR = 1111111111111111111

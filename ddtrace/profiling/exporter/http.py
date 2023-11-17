@@ -25,7 +25,7 @@ from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
-from ddtrace.profiling import recorder
+from ddtrace.profiling import recorder  # noqa
 from ddtrace.profiling.exporter import pprof
 from ddtrace.settings.profiling import config
 

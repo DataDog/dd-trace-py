@@ -389,7 +389,7 @@ class CMakeBuild(build_ext):
             print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
             if not ext.permissive_build:
                 raise
-        except Exception as e:
+        except Exception:
             print("WARNING: An error occurred while building the CMake extension.")
             raise
 

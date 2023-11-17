@@ -34,7 +34,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .span import Span
+    from .span import Span  # noqa
 
 
 log = get_logger(__name__)

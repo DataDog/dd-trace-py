@@ -7,7 +7,7 @@ from typing import Union  # noqa
 import six
 
 from . import _hooks
-from .context import Context
+from .context import Context  # noqa
 from .internal.compat import contextvars
 from .internal.logger import get_logger
 from .span import Span

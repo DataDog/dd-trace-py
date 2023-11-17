@@ -7,7 +7,7 @@ from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.settings.profiling import config
 
-from .. import event
+from .. import event  # noqa
 
 
 class CollectorError(Exception):

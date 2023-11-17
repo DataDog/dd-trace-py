@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType
+from types import ModuleType  # noqa
 import typing  # noqa
 
 from ddtrace.internal.compat import PY3

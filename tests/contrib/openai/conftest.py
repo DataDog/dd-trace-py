@@ -17,7 +17,7 @@ from tests.utils import override_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 
 def pytest_configure(config):

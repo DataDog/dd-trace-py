@@ -3,7 +3,7 @@ import typing
 
 import attr
 
-from ddtrace import span as ddspan
+from ddtrace import span as ddspan  # noqa
 from ddtrace.internal import compat
 
 
