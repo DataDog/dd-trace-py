@@ -17,12 +17,12 @@ from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
 from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
+from .span import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa
 
-    from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
 
