@@ -169,8 +169,6 @@ class CIVisibility(Service):
 
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
-        if asbool(os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)):
-            return True
         if not coverage_enabled_by_api:
             return False
         if compat.PY2:
