@@ -98,7 +98,7 @@ class Context(object):
         self._lock = threading.RLock()
 
     def _with_span(self, span):
-        # type: (Span)
+        # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
             trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
