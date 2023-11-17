@@ -1,6 +1,5 @@
 import functools
 from itertools import chain
-import json
 import logging
 import os
 from os import environ
@@ -68,8 +67,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
     from typing import Set
-    from typing import Union
     from typing import Tuple
+    from typing import Union
 
 from typing import Callable
 from typing import TypeVar
@@ -271,11 +270,11 @@ class Tracer(object):
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -519,7 +518,7 @@ class Tracer(object):
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
                 if log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % info
                     self._log_compat(logging.INFO, msg)
 
                 # Always log errors since we're either in debug_mode or start up logs

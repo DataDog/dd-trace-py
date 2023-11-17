@@ -78,6 +78,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 dunder
 elasticsearch
@@ -198,6 +199,7 @@ repo
 respawn
 riotfile
 rq
+pubsub
 rowcount
 runnable
 runtime
@@ -239,6 +241,7 @@ unpatch
 unpatched
 unobfuscated
 unregister
+unserializable
 unshallow
 unvendored
 uri

@@ -18,7 +18,7 @@ from ddtrace.constants import MANUAL_DROP_KEY
 def test_otel_span_attributes(oteltracer):
     with oteltracer.start_span("otel-string-tags") as span1:
         span1.set_attribute("service.name", "moons-service-str")
-        span1.set_attribute(u"unicode_tag", u"ustr")
+        span1.set_attribute("unicode_tag", "ustr")
         # b"bytes_tag" is ignored by dd_span.set_tag()
         span1.set_attribute(b"bytes_tag", b"bstr")
         span1.set_attribute(r"real_string_tag", r"rstr")

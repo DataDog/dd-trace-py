@@ -5,13 +5,13 @@ import json
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 import uuid
 
 import attr
@@ -241,6 +241,13 @@ class RemoteConfigClient(object):
                 pubsub_instance.start_subscriber()
             return True
         return False
+
+    def start_products(self, products_list):
+        # type: (list) -> None
+        for product_name in products_list:
+            pubsub_instance = self._products.get(product_name)
+            if pubsub_instance:
+                pubsub_instance.restart_subscriber()
 
     def unregister_product(self, product_name):
         # type: (str) -> None
