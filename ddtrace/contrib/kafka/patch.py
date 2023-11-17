@@ -190,7 +190,6 @@ def traced_poll(func, instance, args, kwargs):
         message = func(*args, **kwargs)
     except Exception as e:
         err = e
-        pass
     ctx = None
     if message is not None and config.kafka.distributed_tracing_enabled and message.headers() is not None:
         ctx = Propagator.extract(dict(message.headers()))
