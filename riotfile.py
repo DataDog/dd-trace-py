@@ -158,7 +158,6 @@ venv = Venv(
                 "requests": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
-                "memray": latest,
                 "pytest-memray": latest,
             },
             env={
