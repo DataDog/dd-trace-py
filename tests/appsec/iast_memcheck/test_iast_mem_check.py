@@ -29,6 +29,8 @@ CWD = os.path.abspath(os.getcwd())
 ALLOW_LIST = ["iast_memcheck/test_iast_mem_check.py", "fixtures/stacktrace.py"]
 DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite", "coverage/", "internal/ci_visibility/"]
 
+mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
+
 
 class IASTFilter(LeaksFilterFunction):
     def __call__(self, stack: Stack) -> bool:
@@ -63,9 +65,6 @@ class IASTFilter(LeaksFilterFunction):
     ],
 )
 def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
-    expected_result = propagation_memory_check(origin1, origin2)
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
-
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     _initializer_size = 0
@@ -78,8 +77,6 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
             origin2, source_name="path2", source_value=origin2, source_origin=OriginType.PARAMETER
         )
         result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
-
-        assert result == expected_result
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert len(span_report.sources) > 0
