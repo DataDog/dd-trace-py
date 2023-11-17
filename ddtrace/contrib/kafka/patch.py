@@ -13,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
@@ -182,7 +183,14 @@ def traced_poll(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    message = func(*args, **kwargs)
+    # we must get start time now since execute before starting a span in order to get distributed context 
+    # if it exists
+    start_ns = time_ns()
+    # wrap in a try catch and raise exception after span is started
+    try:
+        message = func(*args, **kwargs)
+    except Exception as e:
+        pass
     ctx = None
     if message is not None and config.kafka.distributed_tracing_enabled and message.headers() is not None:
         ctx = Propagator.extract(dict(message.headers()))
@@ -192,6 +200,9 @@ def traced_poll(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         child_of=ctx,
     ) as span:
+        # reset span start time to before function call
+        span.start_ns = start_ns
+
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -212,6 +223,10 @@ def traced_poll(func, instance, args, kwargs):
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+        # raise exception if one was encountered
+        if e is not None:
+            raise e
         return message
 
 
