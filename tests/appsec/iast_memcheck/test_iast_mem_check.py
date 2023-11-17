@@ -1,6 +1,11 @@
+import os
+
 import pytest
+from pytest_memray import LeaksFilterFunction
+from pytest_memray import Stack
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
 from ddtrace.appsec._iast._taint_tracking import create_context
@@ -13,14 +18,34 @@ from ddtrace.appsec._iast._utils import _is_python_version_supported as python_s
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.fixtures.propagation_path import propagation_memory_check
-from tests.appsec.iast.fixtures.stacktrace import func_1
+from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
+from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 
+LOOPS = 5
+CWD = os.path.abspath(os.getcwd())
+ALLOW_LIST = ["iast_memcheck/test_iast_mem_check.py", "fixtures/stacktrace.py"]
+DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite"]
+
+
+class IASTFilter(LeaksFilterFunction):
+    def __call__(self, stack: Stack) -> bool:
+        for frame in stack.frames:
+            for disallowed_element in DISALLOW_LIST:
+                if disallowed_element in frame.filename:
+                    return False
+
+            for allowed_element in ALLOW_LIST:
+                if allowed_element in frame.filename:
+                    return True
+
+        return False
+
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.limit_memory("1.4 MB")
+@pytest.mark.limit_leaks("9 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -44,7 +69,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     _initializer_size = 0
-    for _ in range(100):
+    for _ in range(LOOPS):
         create_context()
         tainted_string_1 = taint_pyobject(
             origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH
@@ -77,10 +102,9 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_memory("1.2 MB")
+@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check():
-    """2.1KiB is enough but CI allocates 1.2MiB bytes"""
-    for _ in range(50000):
+    for _ in range(LOOPS):
         frame_info = func_1("", "2", "3")
         if not frame_info:
             pytest.fail("No stacktrace")
@@ -90,10 +114,45 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("23 KB")
+@pytest.mark.limit_leaks("301 B", filter_fn=IASTFilter())
+def test_stacktrace_memory_check_direct_call():
+    for _ in range(LOOPS):
+        frame_info = get_info_frame(CWD)
+        if not frame_info:
+            pytest.fail("No stacktrace")
+
+        file_name, line_number = frame_info
+        assert file_name
+        assert line_number > 0
+
+
+@pytest.mark.limit_leaks("272 KB", filter_fn=IASTFilter())
+def test_stacktrace_memory_check_no_native():
+    for _ in range(LOOPS):
+        frame_info = func_1("", "py", "3")
+        if not frame_info:
+            pytest.fail("No stacktrace")
+
+        file_name, line_number = frame_info
+        assert file_name
+        assert line_number > 0
+
+
+@pytest.mark.limit_leaks("8 KB", filter_fn=IASTFilter())
+def test_stacktrace_memory_check_no_native_direct_call():
+    for _ in range(2):
+        frame_info = get_info_frame_py(CWD)
+        if not frame_info:
+            pytest.fail("No stacktrace")
+
+        file_name, line_number = frame_info
+        assert file_name
+        assert line_number > 0
+
+
+@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_byte_check():
-    """2.1KiB is enough but CI allocates 23 KB bytes"""
-    for _ in range(50000):
+    for _ in range(LOOPS):
         frame_info = func_1("empty_byte", "2", "3")
         if not frame_info:
             pytest.fail("No stacktrace")
@@ -103,10 +162,9 @@ def test_stacktrace_memory_empty_byte_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("19.1 KB")
+@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_string_check():
-    """2.1KiB is enough but CI allocates 19.1 KB bytes"""
-    for _ in range(50000):
+    for _ in range(LOOPS):
         frame_info = func_1("empty_string", "2", "3")
         if not frame_info:
             pytest.fail("No stacktrace")
@@ -116,10 +174,10 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_memory("1.1 MB")
+@pytest.mark.limit_leaks("750 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_random_string_check():
-    """2.1KiB is enough but CI allocates 1.0 MB bytes"""
-    for _ in range(50000):
+    """2.1 KB is enough but CI allocates 1.0 MB bytes"""
+    for _ in range(LOOPS):
         frame_info = func_1("random_string", "2", "3")
         if not frame_info:
             pytest.fail("No stacktrace")
