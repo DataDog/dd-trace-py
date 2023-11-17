@@ -208,7 +208,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
