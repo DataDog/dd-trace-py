@@ -238,7 +238,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-legacy-atrrs",
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.0.1"},
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
                     # Test with the latest version of Python only
                     pys=MIN_PYTHON_VERSION,
                 ),
