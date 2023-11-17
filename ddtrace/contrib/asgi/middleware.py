@@ -194,6 +194,8 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
+            receive, body = await core.dispatch("asgi.request.parse.body", receive, headers)[0][0]
+
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -204,6 +206,7 @@ class TraceMiddleware:
                 raw_uri=url,
                 request_cookies=request_cookies,
                 parsed_query=parsed_query,
+                request_body=body,
             )
 
             tags = _extract_versions_from_scope(scope, self.integration_config)
