@@ -808,7 +808,7 @@ def pytest_ddtrace_get_item_suite_name(item):
             log.warning("Suite path is not under module path: '%s' '%s'", pytest_module_item.nodeid, test_module_path)
         try:
             suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
-        except TypeError:
+        except ValueError:
             log.debug(
                 "Tried to collect suite path but it is using different drive paths on Windows, "
                 "using absolute path instead",
