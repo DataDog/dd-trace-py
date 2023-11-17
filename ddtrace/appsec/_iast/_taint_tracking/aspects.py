@@ -515,18 +515,14 @@ def incremental_translation(self, incr_coder, funcode, empty):
 
 
 def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
-    if flag_added_args > 0:
-        self = args[0]
-        args = args[flag_added_args:]
-    else:
+    if orig_function and not flag_added_args:
         # This patch is unexpected, so we fallback
         # to executing the original function
-        if orig_function:
-            return orig_function(*args, **kwargs)
+        return orig_function(*args, **kwargs)
 
-    # Assume we call decode method of the first argument
     self = args[0]
-    args = args[1:]
+    args = args[(flag_added_args or 1) :]
+    # Assume we call decode method of the first argument
     result = self.decode(*args, **kwargs)
 
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
@@ -542,18 +538,14 @@ def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
 
 
 def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
-    if flag_added_args > 0:
-        self = args[0]
-        args = args[flag_added_args:]
-    else:
+    if orig_function and not flag_added_args:
         # This patch is unexpected, so we fallback
         # to executing the original function
-        if orig_function:
-            return orig_function(*args, **kwargs)
+        return orig_function(*args, **kwargs)
 
-    # Assume we call encode method of the first argument
     self = args[0]
-    args = args[1:]
+    args = args[(flag_added_args or 1) :]
+    # Assume we call encode method of the first argument
     result = self.encode(*args, **kwargs)
 
     if not is_pyobject_tainted(self) or not isinstance(self, str):
