@@ -27,7 +27,7 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 LOOPS = 5
 CWD = os.path.abspath(os.getcwd())
 ALLOW_LIST = ["iast_memcheck/test_iast_mem_check.py", "fixtures/stacktrace.py"]
-DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite"]
+DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite", "coverage/", "internal/ci_visibility/"]
 
 
 class IASTFilter(LeaksFilterFunction):
