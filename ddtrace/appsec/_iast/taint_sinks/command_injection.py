@@ -3,8 +3,6 @@ import re
 import shlex
 import subprocess  # nosec
 from typing import TYPE_CHECKING  # noqa
-from typing import Any
-from typing import Dict
 from typing import List  # noqa
 from typing import Set  # noqa
 from typing import Union  # noqa
@@ -23,10 +21,16 @@ from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_CMDI
 from ..constants import VULN_CMDI
-from ..reporter import IastSpanReporter
-from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained
+
+
+if TYPE_CHECKING:
+    from typing import Any  # noqa
+    from typing import Dict  # noqa
+
+    from ..reporter import IastSpanReporter  # noqa
+    from ..reporter import Vulnerability  # noqa
 
 
 log = get_logger(__name__)
@@ -100,7 +104,8 @@ class CommandInjection(VulnerabilityBase):
         super(CommandInjection, cls).report(evidence_value=evidence_value, sources=sources)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]:
+    def _extract_sensitive_tokens(cls, vulns_to_text):
+        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         ret = {}  # type: Dict[int, Dict[str, Any]]
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
@@ -128,7 +133,7 @@ class CommandInjection(VulnerabilityBase):
         return ret, replaced
 
     @classmethod
-    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
+    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not asm_config._iast_redaction_enabled:
             return report
 

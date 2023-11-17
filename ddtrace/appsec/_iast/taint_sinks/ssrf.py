@@ -16,7 +16,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
-from ..reporter import IastSpanReporter
+from ..reporter import IastSpanReporter  # noqa
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained
@@ -58,7 +58,7 @@ class SSRF(VulnerabilityBase):
         return ret
 
     @classmethod
-    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
+    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not asm_config._iast_redaction_enabled:
             return report
 

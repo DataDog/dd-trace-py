@@ -8,13 +8,13 @@ from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
+from ._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
     from typing import Any  # noqa
     from typing import Dict  # noqa
 
-    from ._base import VulnerabilityBase  # noqa
     from .reporter import Vulnerability  # noqa
 
 

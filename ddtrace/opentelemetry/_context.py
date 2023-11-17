@@ -13,7 +13,7 @@ from ddtrace import tracer as ddtracer
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.opentelemetry._span import Span
-from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
+from ddtrace.provider import BaseContextProvider as DDBaseContextProvider  # noqa
 from ddtrace.span import Span as DDSpan
 
 
@@ -72,7 +72,8 @@ class DDRuntimeContext:
         pass
 
     @property
-    def _ddcontext_provider(self) -> DDBaseContextProvider:
+    def _ddcontext_provider(self):
+        # type: () -> DDBaseContextProvider
         """
         Get the ddtrace context provider from the global Datadog tracer.
         This can reterive a default, gevent, or asyncio context provider.
