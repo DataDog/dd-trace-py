@@ -1,13 +1,13 @@
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING
+from typing import Callable
+from typing import Iterable
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa
-    from typing import Callable
     from typing import Dict  # noqa
-    from typing import Iterable
     from typing import Mapping  # noqa
     from typing import Optional  # noqa
 

@@ -17,11 +17,12 @@ from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
 from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
-from .span import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa
+
+    from .span import Span  # noqa
 
     from .span import _MetaDictType
     from .span import _MetricDictType
@@ -96,13 +97,15 @@ class Context(object):
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
-    def _with_span(self, span: Span):
+    def _with_span(self, span):
+        # type: (Span)
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
             trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
         )
 
-    def _update_tags(self, span: Span) -> None:
+    def _update_tags(self, span):
+        # type: (Span) -> None
         with self._lock:
             for tag in self._meta:
                 span._meta.setdefault(tag, self._meta[tag])

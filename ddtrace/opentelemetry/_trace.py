@@ -1,7 +1,11 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING
+from typing import Mapping
+from typing import Optional
+from typing import Sequence
 
 from opentelemetry.context import Context as OtelContext
+from opentelemetry.trace import Link as OtelLink
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -10,6 +14,7 @@ from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
 from opentelemetry.trace.span import TraceFlags
+from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
 import ddtrace
 from ddtrace.internal.constants import SPAN_API_OTEL
@@ -20,13 +25,7 @@ from ddtrace.opentelemetry._span import Span
 
 if TYPE_CHECKING:
     from typing import Iterator  # noqa
-    from typing import Mapping  # noqa
-    from typing import Optional  # noqa
-    from typing import Sequence  # noqa
     from typing import Union  # noqa
-
-    from opentelemetry.trace import Link as OtelLink
-    from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
     from ddtrace import Tracer as DDTracer  # noqa
     from ddtrace.span import _MetaDictType  # noqa

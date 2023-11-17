@@ -1,5 +1,6 @@
 from enum import Enum  # noqa
 from typing import TYPE_CHECKING  # noqa
+from typing import Optional
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -8,6 +9,8 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
+from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
@@ -19,11 +22,7 @@ from ddtrace.internal.logger import get_logger
 if TYPE_CHECKING:
     from typing import Callable  # noqa
     from typing import Mapping  # noqa
-    from typing import Optional  # noqa
     from typing import Union  # noqa
-
-    from opentelemetry.util.types import Attributes
-    from opentelemetry.util.types import AttributeValue
 
     from ddtrace.internal.compat import NumericType  # noqa
     from ddtrace.span import Span as DDSpan  # noqa

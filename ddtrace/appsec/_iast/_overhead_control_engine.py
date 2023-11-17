@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa
     from typing import Type  # noqa
 
-    from ddtrace.span import Span
+    from ddtrace.span import Span  # noqa
 
 log = get_logger(__name__)
 
@@ -98,7 +98,8 @@ class OverheadControl(object):
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span: Span) -> None:
+    def acquire_request(self, span):
+        # type: (Span) -> None
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
