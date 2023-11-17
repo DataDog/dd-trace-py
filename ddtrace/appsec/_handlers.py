@@ -45,7 +45,7 @@ async def _on_asgi_request_parse_body(receive, headers):
         async def receive():
             return data_received
 
-        content_type = headers["content-type"]
+        content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
             if content_type == "application/json" or content_type == "text/json":
                 req_body = json.loads(body.decode())
