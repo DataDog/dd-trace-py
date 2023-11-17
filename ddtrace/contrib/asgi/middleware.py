@@ -176,7 +176,7 @@ class TraceMiddleware:
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
-            parsed_query = bytes_to_str(parse.parse_qs(scope.get("query_string", b"")))
+            parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("root_path", "") + scope.get("path", "")
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
