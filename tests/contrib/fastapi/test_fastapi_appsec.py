@@ -243,7 +243,7 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
     # POST must not be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.post("/", content="post data")
+        resp = client.post("/", data="post data")
         assert resp.status_code == 200
     # GET must pass if appsec disabled
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
