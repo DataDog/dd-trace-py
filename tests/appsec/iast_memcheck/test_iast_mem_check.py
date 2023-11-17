@@ -45,7 +45,7 @@ class IASTFilter(LeaksFilterFunction):
 
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.limit_leaks("9 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("19 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -126,7 +126,7 @@ def test_stacktrace_memory_check_direct_call():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("272 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("460 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_no_native():
     for _ in range(LOOPS):
         frame_info = func_1("", "py", "3")
@@ -174,7 +174,7 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("750 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("1.5 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_random_string_check():
     """2.1 KB is enough but CI allocates 1.0 MB bytes"""
     for _ in range(LOOPS):

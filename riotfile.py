@@ -153,7 +153,7 @@ venv = Venv(
         Venv(
             name="appsec_iast_memcheck",
             pys=select_pys(min_version="3.8", max_version="3.11"),
-            command="pytest {cmdargs} --memray tests/appsec/iast_memcheck/",
+            command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
                 "pycryptodome": latest,
