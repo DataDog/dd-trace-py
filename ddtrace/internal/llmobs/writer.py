@@ -29,10 +29,11 @@ class LLMObsEvent(TypedDict):
     id: str
     type: str
     input: dict[str, Union[float, int, list[str]]]
+    model: str
+    model_provider: str
     output: dict[str, list[dict[str, str]]]
     # Additional attributes can be specified on the event
-    # including model(str) and model_provider(str),
-    # and dd.trace_id and dd.span_id to correlate a trace
+    # including dd.trace_id and dd.span_id to correlate a trace
 
 
 class LLMObsWriter(PeriodicService):
@@ -101,8 +102,8 @@ class LLMObsWriter(PeriodicService):
         model = llm_records[0]["model"]
         model_provider = llm_records[0]["model_provider"]
         for record in llm_records:
-            record.pop("model", None)
-            record.pop("model_provider", None)
+            record.pop("model", None)  # type: ignore[misc]
+            record.pop("model_provider", None)  # type: ignore[misc]
         data = {
             "data": {
                 "type": "records",
