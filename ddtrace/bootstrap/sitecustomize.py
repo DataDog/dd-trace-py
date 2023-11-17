@@ -195,6 +195,11 @@ try:
         # will be `None`.
         ddtrace_sitecustomize = sys.modules["sitecustomize"]
         del sys.modules["sitecustomize"]
+
+        # Cache this module under it's fully qualified package name
+        if "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize
+
         try:
             import sitecustomize  # noqa
         except ImportError:

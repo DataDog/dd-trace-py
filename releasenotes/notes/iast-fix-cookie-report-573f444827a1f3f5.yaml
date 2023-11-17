@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Generates cookies vulnerabilities report if IAST is enabled. 
+    Before this fix, Cookies vulnerabilities were only generated if both IAST and Appsec were enabled.
