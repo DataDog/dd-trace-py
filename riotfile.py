@@ -208,7 +208,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
@@ -235,6 +235,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.0.1"},
+                    # Test with the latest version of Python only
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -2003,6 +2009,7 @@ venv = Venv(
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
+                "cattrs": "<23.2.0",
             },
         ),
         Venv(
