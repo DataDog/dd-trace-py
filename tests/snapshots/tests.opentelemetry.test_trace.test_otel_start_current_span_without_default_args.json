@@ -1,6 +1,6 @@
 [[
   {
-    "name": "root-span",
+    "name": "internal",
     "service": null,
     "resource": "root-span",
     "trace_id": 0,
@@ -8,20 +8,21 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655535da00000000",
       "language": "python",
-      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 22384
+      "process_id": 7703
     },
-    "duration": 176928,
-    "start": 1691164174708472479
+    "duration": 472708,
+    "start": 1700083162392162508
   },
      {
-       "name": "rename-start-current-span",
+       "name": "server",
        "service": null,
        "resource": "rename-start-current-span",
        "trace_id": 0,

@@ -1,6 +1,6 @@
 [[
   {
-    "name": "otel-root",
+    "name": "internal",
     "service": null,
     "resource": "otel-root",
     "trace_id": 0,
@@ -8,79 +8,80 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655529aa00000000",
       "language": "python",
-      "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 22384
+      "process_id": 7032
     },
-    "duration": 224542605,
-    "start": 1691164174002885806
+    "duration": 261488626,
+    "start": 1700080042950720258
   },
      {
-       "name": "otel-parent1",
+       "name": "internal",
        "service": null,
        "resource": "otel-parent1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 101305442,
-       "start": 1691164174023443313
+       "duration": 110618583,
+       "start": 1700080042974075675
      },
         {
-          "name": "otel-child1",
+          "name": "internal",
           "service": null,
           "resource": "otel-child1",
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
-          "duration": 60367898,
-          "start": 1691164174064181692
+          "duration": 65187750,
+          "start": 1700080043019322133
         },
      {
-       "name": "orphan1",
+       "name": "internal",
        "service": null,
        "resource": "orphan1",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "duration": 102511059,
-       "start": 1691164174124877672
+       "duration": 127379917,
+       "start": 1700080043084759842
      },
      {
-       "name": "otel-parent2",
+       "name": "internal",
        "service": null,
        "resource": "otel-parent2",
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-         "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 22384
+         "process_id": 7032
        },
-       "duration": 101872924,
-       "start": 1691164174125480219
+       "duration": 126974250,
+       "start": 1700080043085104425
      },
         {
-          "name": "otel-child2",
+          "name": "internal",
           "service": null,
           "resource": "otel-child2",
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 4,
           "meta": {
-            "runtime-id": "370b7d1e226648e4b58d1faeeb4884d8"
+            "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
           },
           "metrics": {
             "_dd.top_level": 1,
-            "process_id": 22384
+            "process_id": 7032
           },
-          "duration": 60462788,
-          "start": 1691164174166713523
+          "duration": 79690208,
+          "start": 1700080043132067967
         }]]
