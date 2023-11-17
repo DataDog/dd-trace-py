@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING  # noqa
 from typing import Any  # noqa
 from typing import Dict  # noqa
 from typing import Optional  # noqa
+from typing import Union
 
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
@@ -140,7 +141,7 @@ def _extract_model_name(instance):
     return None
 
 
-def _format_api_key(api_key: (str | SecretStr)) -> str:
+def _format_api_key(api_key: Union[str, SecretStr]) -> str:
     """Obfuscate a given LLM provider API key by returning the last four characters."""
     if hasattr(api_key, "get_secret_value"):
         api_key = api_key.get_secret_value()

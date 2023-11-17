@@ -1,5 +1,7 @@
 import re
 from typing import TYPE_CHECKING  # noqa
+from typing import Any
+from typing import Dict
 
 import six
 
@@ -9,13 +11,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ._base import VulnerabilityBase
-
-
-if TYPE_CHECKING:
-    from typing import Any
-    from typing import Dict
-
-    from .reporter import Vulnerability
+from .reporter import Vulnerability
 
 
 _INSIDE_QUOTES_REGEXP = re.compile(r'["\']([^"\']*?)["\']')
