@@ -176,6 +176,9 @@ def bytearray_extend_aspect(orig_function, flag_added_args, *args, **kwargs):
         return orig_function(*args, **kwargs)
 
     if len(args) < 2:
+        # If we're not receiving at least 2 arguments, means the call was
+        # ``x.extend()`` and not ``x.extend(y)``
+        # so either not the extend we're looking for, or no changes in taint ranges.
         return args[0].extend(*args[1:], **kwargs)
 
     op1 = args[0]
