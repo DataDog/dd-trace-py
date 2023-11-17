@@ -28,6 +28,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.span import _get_64_lowest_order_bits_as_int
+from ddtrace.tracing._span_link import SpanLink
 
 from ..utils import override_global_config
 
@@ -1059,6 +1060,12 @@ DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(DATADOG_HEADERS_VALID_MATC
 # we use 64-bit traceparent trace id value here so it can match for both 128-bit enabled and disabled
 DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(TRACECONTEXT_HEADERS_VALID_64_bit)
 
+# edge case testing
+ALL_HEADERS_CHAOTIC = {}
+ALL_HEADERS_CHAOTIC.update(DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID)
+ALL_HEADERS_CHAOTIC.update(TRACECONTEXT_HEADERS_VALID_64_bit)
+ALL_HEADERS_CHAOTIC.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS_CHAOTIC.update(B3_HEADERS_INVALID)
 
 EXTRACT_FIXTURES = [
     # Datadog headers
@@ -1748,6 +1755,143 @@ else:
 
     result = json.loads(stdout.decode())
     assert result == expected_context
+
+
+FULL_CONTEXT_EXTRACT_FIXTURES = [
+    # tracecontext and b3multi have the same t_id
+    # therefore no span links are added
+    (
+        "all_headers_all_styles_tracecontext_t_id_match_no_span_link",
+        [
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=171395628812617415352188477958425669623,
+            span_id=67667974448284343,
+            meta={
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.origin": "rum",
+            },
+            metrics={"_sampling_priority_v1": 2},
+            span_links=[],
+        ),
+    ),
+    # tracecontext, b3, and b3multi all have the same trace_id
+    # therefore only datadog SpanLink is added to context
+    (
+        "all_headers_all_styles_tracecontext_primary_only_datadog_t_id_diff",
+        [
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=171395628812617415352188477958425669623,
+            span_id=67667974448284343,
+            meta={
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.origin": "rum",
+            },
+            metrics={"_sampling_priority_v1": 2},
+            span_links=[
+                SpanLink(
+                    trace_id=13088165645273925489,
+                    span_id=5678,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                )
+            ],
+        ),
+    ),
+    # Datadog has different t_id and is extracted first
+    # therefore we get span links for tracecontext, b3, and b3multi
+    (
+        "all_headers_all_styles_datadog_primary_only_datadog_t_id_diff",
+        [
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=13088165645273925489,
+            span_id=5678,
+            meta={"_dd.origin": "synthetics"},
+            metrics={"_sampling_priority_v1": 1},
+            span_links=[
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=67667974448284343,
+                    tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+                ),
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                ),
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=11744061942159299346,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3multi"},
+                ),
+            ],
+        ),
+    ),
+    # We try to extract with b3multi but it's invalid,
+    # so we get Datadog as primary context, tracecontext matches,
+    # so we add on tracestate to context, b3 single does not, so we
+    # create a span link for it
+    (
+        "datadog_primary_match_tracecontext_diff_from_b3_b3multi_invalid",
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+        ],
+        ALL_HEADERS_CHAOTIC,
+        Context(
+            trace_id=7277407061855694839,
+            span_id=5678,
+            meta={"_dd.origin": "synthetics", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+            metrics={"_sampling_priority_v1": 1},
+            span_links=[
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                )
+            ],
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
+def test_mutliple_context_interactions(name, styles, headers, expected_context):
+    with override_global_config(dict(_propagation_style_extract=styles)):
+        context = HTTPPropagator.extract(headers)
+        assert context == expected_context
 
 
 VALID_DATADOG_CONTEXT = {
