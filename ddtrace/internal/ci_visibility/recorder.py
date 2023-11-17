@@ -182,7 +182,6 @@ class CIVisibility(Service):
                 "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
             )
             return False
-
         return True
 
     def _check_enabled_features(self):
