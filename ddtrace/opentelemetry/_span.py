@@ -1,6 +1,4 @@
-from enum import Enum  # noqa
-from typing import TYPE_CHECKING  # noqa
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -9,8 +7,6 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
-from opentelemetry.util.types import Attributes
-from opentelemetry.util.types import AttributeValue
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
@@ -22,7 +18,11 @@ from ddtrace.internal.logger import get_logger
 if TYPE_CHECKING:
     from typing import Callable  # noqa
     from typing import Mapping  # noqa
+    from typing import Optional  # noqa
     from typing import Union  # noqa
+
+    from opentelemetry.util.types import Attributes  # noqa
+    from opentelemetry.util.types import AttributeValue  # noqa
 
     from ddtrace.internal.compat import NumericType  # noqa
     from ddtrace.span import Span as DDSpan  # noqa
@@ -43,6 +43,7 @@ def _ddmap(span, attribute, value):
 
 
 _OTelDatadogMapping = {
+    "operation.name": "name",
     "service.name": "service",
     "resource.name": "resource",
     "span.type": "span_type",
@@ -117,9 +118,6 @@ class Span(OtelSpan):
         """
         if end_time is None:
             end_time = time_ns()
-        override_name = self._datadog_operation_name
-        if override_name:
-            self._ddspan.name = override_name
         self._ddspan._finish_ns(end_time)
 
     @property
@@ -148,7 +146,8 @@ class Span(OtelSpan):
         for k, v in attributes.items():
             self.set_attribute(k, v)
 
-    def set_attribute(self, key: str, value: AttributeValue) -> None:
+    def set_attribute(self, key, value):
+        # type: (str, AttributeValue) -> None
         """Sets an attribute or service name on a tag"""
         if not self.is_recording():
             return
@@ -171,6 +170,10 @@ class Span(OtelSpan):
         """Updates the name of a span"""
         if not self.is_recording():
             return
+        # OpenTelemetry spans have one name while Datadog spans can have two different names (operation and resource).
+        # Ensure the resource and operation names are equal for OpenTelemetry spans
+        #
+        self._ddspan.name = name
         self._ddspan.resource = name
 
     def is_recording(self):
@@ -201,13 +204,8 @@ class Span(OtelSpan):
             if message:
                 self.set_attribute(ERROR_MSG, message)
 
-    def record_exception(
-        self,
-        exception: BaseException,
-        attributes: Optional[Attributes] = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
-    ) -> None:
+    def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
+        # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
         """
         Records the type, message, and traceback of an exception as Span attributes.
         Note - Span Events are not yet supported.
@@ -234,74 +232,3 @@ class Span(OtelSpan):
                 # do not overwrite the status message set by record exception
                 self.set_status(StatusCode.ERROR)
         self.end()
-
-    @property
-    def _datadog_operation_name(self):
-        # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107
-        ddspan = self._ddspan
-        span_kind = self.kind
-
-        operation_name = ddspan.get_tag("operation.name")
-        if operation_name:
-            return operation_name
-
-        if ddspan.get_tag("http.request.method"):
-            if span_kind == SpanKind.SERVER:
-                return "http.server.request"
-            if span_kind == SpanKind.CLIENT:
-                return "http.client.request"
-
-        db_system = ddspan.get_tag("db.system")
-        if db_system and span_kind == SpanKind.CLIENT:
-            return f"{db_system}.query"
-
-        messaging_system = ddspan.get_tag("messaging.system")
-        messaging_operation = ddspan.get_tag("messaging.operation")
-        if (
-            messaging_system
-            and messaging_operation
-            and (
-                span_kind == SpanKind.CONSUMER
-                or span_kind == SpanKind.PRODUCER
-                or span_kind == SpanKind.CLIENT
-                or span_kind == SpanKind.SERVER
-            )
-        ):
-            return messaging_system + "." + messaging_operation
-
-        rpc_system = ddspan.get_tag("rpc.system")
-        if span_kind == SpanKind.CLIENT and rpc_system == "aws-api":
-            rpc_service = ddspan.get_tag("rpc.service")
-            if not rpc_service:
-                return "aws.client.request"
-            return f"aws.{rpc_service}.request"
-        if span_kind == SpanKind.CLIENT and rpc_system:
-            return f"{rpc_system}.client.request"
-        if span_kind == SpanKind.SERVER and rpc_system:
-            return f"{rpc_system}.server.request"
-
-        faas_invoked_provider = ddspan.get_tag("faas.invoked_provider")
-        faas_invoked_name = ddspan.get_tag("faas.invoked_name")
-        if span_kind == SpanKind.CLIENT and faas_invoked_provider and faas_invoked_name:
-            return f"{faas_invoked_provider}.{faas_invoked_name}.invoke"
-        faas_trigger = ddspan.get_tag("faas.trigger")
-        if span_kind == SpanKind.SERVER and faas_trigger:
-            return f"{faas_trigger}.invoke"
-
-        graphql_operation_type = ddspan.get_tag("graphql.operation.type")
-        if graphql_operation_type:
-            return "graphql.server.request"
-
-        network_protocol_name = ddspan.get_tag("network.protocol.name")
-        if span_kind == SpanKind.SERVER:
-            if network_protocol_name:
-                return f"{network_protocol_name}.server.request"
-            else:
-                return "server.request"
-        if span_kind == SpanKind.CLIENT:
-            if network_protocol_name:
-                return f"{network_protocol_name}.client.request"
-            else:
-                return "server.request"
-
-        return span_kind

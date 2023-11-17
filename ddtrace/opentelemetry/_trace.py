@@ -1,11 +1,7 @@
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
-from typing import Mapping
-from typing import Optional
-from typing import Sequence
 
-from opentelemetry.context import Context as OtelContext
-from opentelemetry.trace import Link as OtelLink
+from opentelemetry.context import Context as OtelContext  # noqa
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -14,7 +10,6 @@ from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
 from opentelemetry.trace.span import TraceFlags
-from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
 import ddtrace
 from ddtrace.internal.constants import SPAN_API_OTEL
@@ -25,7 +20,13 @@ from ddtrace.opentelemetry._span import Span
 
 if TYPE_CHECKING:
     from typing import Iterator  # noqa
+    from typing import Mapping  # noqa
+    from typing import Optional  # noqa
+    from typing import Sequence  # noqa
     from typing import Union  # noqa
+
+    from opentelemetry.trace import Link as OtelLink  # noqa
+    from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa
 
     from ddtrace import Tracer as DDTracer  # noqa
     from ddtrace.span import _MetaDictType  # noqa
@@ -123,10 +124,10 @@ class Tracer(OtelTracer):
     def start_as_current_span(
         self,
         name,  # type: str
-        context: Optional[OtelContext] = None,
-        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
-        attributes: Optional[Mapping[str, OtelAttributeValue]] = None,
-        links: Optional[Sequence[OtelLink]] = None,
+        context=None,  # type: Optional[OtelContext]
+        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
+        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
+        links=None,  # type: Optional[Sequence[OtelLink]]
         start_time=None,  # type: Optional[int]
         record_exception=True,  # type: bool
         set_status_on_exception=True,  # type: bool
