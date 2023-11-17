@@ -127,7 +127,9 @@ class TracedClient(ObjectProxy):
 
                 # returns a tuple object that may be (None, None)
                 if span:
-                    span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
+                    span.set_metric(
+                        db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0
+                    )
                 return result
             else:
                 return method(*args, **kwargs)
