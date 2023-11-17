@@ -519,12 +519,14 @@ def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
         self = args[0]
         args = args[flag_added_args:]
     else:
+        # This patch is unexpected, so we fallback
+        # to executing the original function
         if orig_function:
             return orig_function(*args, **kwargs)
-        self = args[0]
-        args = args[1:]
-        return args[0].decode(*args, **kwargs)
 
+    # Assume we call decode method of the first argument
+    self = args[0]
+    args = args[1:]
     result = self.decode(*args, **kwargs)
 
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
@@ -544,12 +546,14 @@ def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
         self = args[0]
         args = args[flag_added_args:]
     else:
+        # This patch is unexpected, so we fallback
+        # to executing the original function
         if orig_function:
             return orig_function(*args, **kwargs)
-        self = args[0]
-        args = args[1:]
-        return args[0].encode(*args, **kwargs)
 
+    # Assume we call encode method of the first argument
+    self = args[0]
+    args = args[1:]
     result = self.encode(*args, **kwargs)
 
     if not is_pyobject_tainted(self) or not isinstance(self, str):
