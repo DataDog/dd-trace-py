@@ -60,8 +60,7 @@ else:
 _INJECT_HOOK_OPCODES = [_.name for _ in INJECTION_ASSEMBLY]
 
 
-def _inject_hook(code, hook, lineno, arg):
-    # type: (Bytecode, HookType, int, Any) -> None
+def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     """Inject a hook at the given line number inside an abstract code object.
 
     The hook is called with the given argument, which is also used as an
@@ -73,7 +72,7 @@ def _inject_hook(code, hook, lineno, arg):
     # occurrences and inject the hook at each of them. An example of when this
     # happens is with finally blocks, which are duplicated at the end of the
     # bytecode.
-    locs = deque()  # type: Deque[int]
+    locs: Deque[int] = deque()
     last_lineno = None
     for i, instr in enumerate(code):
         try:
@@ -104,14 +103,13 @@ _INJECT_HOOK_OPCODE_POS = 0 if PY < (3, 11) else 1
 _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
 
 
-def _eject_hook(code, hook, line, arg):
-    # type: (Bytecode, HookType, int, Any) -> None
+def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
     """Eject a hook from the abstract code object at the given line number.
 
     The hook is identified by its argument. This ensures that only the right
     hook is ejected.
     """
-    locs = deque()  # type: Deque[int]
+    locs: Deque[int] = deque()
     for i, instr in enumerate(code):
         try:
             # DEV: We look at the expected opcode pattern to match the injected
@@ -136,13 +134,7 @@ def _eject_hook(code, hook, line, arg):
         del code[i : i + len(_INJECT_HOOK_OPCODES)]
 
 
-def _function_with_new_code(f, abstract_code):
-    f.__code__ = abstract_code.to_code()
-    return f
-
-
-def inject_hooks(f, hooks):
-    # type: (FunctionType, List[HookInfoType]) -> List[HookInfoType]
+def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
     """Bulk-inject a list of hooks into a function.
 
     Hooks are specified via a list of tuples, where each tuple contains the hook
@@ -160,13 +152,12 @@ def inject_hooks(f, hooks):
             failed.append((hook, line, arg))
 
     if len(failed) < len(hooks):
-        _function_with_new_code(f, abstract_code)
+        f.__code__ = abstract_code.to_code()
 
     return failed
 
 
-def eject_hooks(f, hooks):
-    # type: (FunctionType, List[HookInfoType]) -> List[HookInfoType]
+def eject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
     """Bulk-eject a list of hooks from a function.
 
     The hooks are specified via a list of tuples, where each tuple contains the
@@ -184,13 +175,12 @@ def eject_hooks(f, hooks):
             failed.append((hook, line, arg))
 
     if len(failed) < len(hooks):
-        _function_with_new_code(f, abstract_code)
+        f.__code__ = abstract_code.to_code()
 
     return failed
 
 
-def inject_hook(f, hook, line, arg):
-    # type: (FunctionType, HookType, int, Any) -> FunctionType
+def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
     """Inject a hook into a function.
 
     The hook is injected at the given line number and called with the given
@@ -201,11 +191,12 @@ def inject_hook(f, hook, line, arg):
 
     _inject_hook(abstract_code, hook, line, arg)
 
-    return _function_with_new_code(f, abstract_code)
+    f.__code__ = abstract_code.to_code()
+
+    return f
 
 
-def eject_hook(f, hook, line, arg):
-    # type: (FunctionType, HookType, int, Any) -> FunctionType
+def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
     """Eject a hook from a function.
 
     The hook is identified by its line number and the argument passed to the
@@ -215,4 +206,6 @@ def eject_hook(f, hook, line, arg):
 
     _eject_hook(abstract_code, hook, line, arg)
 
-    return _function_with_new_code(f, abstract_code)
+    f.__code__ = abstract_code.to_code()
+
+    return f

@@ -240,6 +240,8 @@ class CIVisibility(Service):
             return False, False
 
         attributes = parsed["data"]["attributes"]
+        if asbool(os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)):
+            return True, attributes["tests_skipping"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):

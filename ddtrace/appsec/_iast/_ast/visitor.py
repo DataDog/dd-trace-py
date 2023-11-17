@@ -470,8 +470,9 @@ class AstVisitor(ast.NodeTransformer):
                 # Send 1 as flag_added_args value
                 call_node.args.insert(0, self._int_constant(call_node, 1))
 
-                # Insert original method as first parameter (a.b.c.method)
-                call_node.args = self._add_original_function_as_arg(call_node, False)
+                # Insert None as first parameter instead of a.b.c.method
+                # to avoid unexpected side effects such as a.b.read(4).method
+                call_node.args.insert(0, self._none_constant(call_node))
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
