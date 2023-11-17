@@ -970,8 +970,6 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         token = "{}_{}".format(token, variant_id) if variant_id else token
 
     ignores = ignores or []
-    # implementation of _dd.tracer_kr is flaky, so we ignore it by default
-    ignores.append("_dd.tracer_kr")
     if not tracer:
         tracer = ddtrace.tracer
 
