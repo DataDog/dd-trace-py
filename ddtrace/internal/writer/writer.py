@@ -178,7 +178,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics_reset()
+        self._metrics = defaultdict(int)  # type: Dict[str, int]
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
@@ -213,36 +213,22 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name, count=1, tags=tuple()):
-        # type: (str, int, Tuple) -> None
-        if tags in self._metrics[name]:
-            self._metrics[name][tags] += count
-        else:
-            self._metrics[name][tags] = count
-
-    def _metrics_reset(self):
-        # type: () -> None
-        self._metrics = defaultdict(dict)  # type: Dict[str, Dict[Tuple[str,...], int]]
+    def _metrics_dist(self, name, count=1, tags=None):
+        # type: (str, int, Optional[List]) -> None
+        if config.health_metrics_enabled and self.dogstatsd:
+            self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
     def _set_drop_rate(self):
-        dropped = sum(
-            counts
-            for metric in ("encoder.dropped.traces", "buffer.dropped.traces", "http.dropped.traces")
-            for _tags, counts in self._metrics[metric].items()
-        )
-        accepted = sum(counts for _tags, counts in self._metrics["writer.accepted.traces"].items())
-
-        if dropped > accepted:
-            # Sanity check, we cannot drop more traces than we accepted.
-            log.debug(
-                "dropped.traces metric is greater than accepted.traces metric"
-                "This difference may be reconciled in future metric uploads (dropped.traces: %d, accepted.traces: %d)",
-                dropped,
-                accepted,
-            )
-            accepted = dropped
-
+        # type: () -> None
+        accepted = self._metrics["accepted_traces"]
+        sent = self._metrics["sent_traces"]
+        encoded = sum([len(client.encoder) for client in self._clients])
+        # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
+        # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
+        dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
+        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
+        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
     def _set_keep_rate(self, trace):
         if trace:
@@ -307,9 +293,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         response = self._put(payload, headers, client, no_trace=True)
 
         if response.status >= 400:
-            self._metrics_dist("http.errors", tags=("type:%s" % response.status,))
+            self._metrics_dist("http.errors", tags=["type:%s" % response.status])
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
+            self._metrics["sent_traces"] += count
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
@@ -353,6 +340,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 pass
 
         self._metrics_dist("writer.accepted.traces")
+        self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
         try:
@@ -364,8 +352,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 client.encoder.max_item_size,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:t_too_big",))
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:t_too_big",))
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
             log.warning(
@@ -376,10 +364,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 payload_size,
                 self.status.value,
             )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:full",))
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=("reason:full",))
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
         except NoEncodableSpansError:
-            self._metrics_dist("buffer.dropped.traces", 1, tags=("reason:incompatible",))
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
@@ -390,7 +378,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
-            self._metrics_reset()
 
     def _flush_queue_with_client(self, client, raise_exc=False):
         # type: (WriterClientBase, bool) -> None
@@ -407,7 +394,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
         except Exception:
-            self._metrics_dist("http.errors", tags=("type:err",))
+            self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
@@ -420,15 +407,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self.RETRY_ATTEMPTS,
                 )
         finally:
-            if config.health_metrics_enabled and self.dogstatsd:
-                namespace = self.STATSD_NAMESPACE
-                self.dogstatsd.open_buffer()  # using `with self.dogstatsd as batch` here breaks mocking done in tests
-                self.dogstatsd.distribution("datadog.%s.http.sent.bytes" % namespace, len(encoded))
-                self.dogstatsd.distribution("datadog.%s.http.sent.traces" % namespace, n_traces)
-                for name, metric_tags in self._metrics.items():
-                    for tags, count in metric_tags.items():
-                        self.dogstatsd.distribution("datadog.%s.%s" % (namespace, name), count, tags=list(tags))
-                self.dogstatsd.close_buffer()
+            self._metrics_dist("http.sent.bytes", len(encoded))
+            self._metrics_dist("http.sent.traces", n_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
