@@ -198,12 +198,14 @@ from ddtrace.internal.llmobs import LLMObsWriter
 from tests.internal.test_llmobs import _completion_record
 from tests.internal.test_llmobs import logs_vcr
 
-with logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml"):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=0.01, timeout=1
-    )
-    llmobs_writer.start()
-    llmobs_writer.enqueue(_completion_record())
+ctx = logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml")
+ctx.__enter__()
+atexit.register(lambda: ctx.__exit__())
+llmobs_writer = LLMObsWriter(
+    site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=0.01, timeout=1
+)
+llmobs_writer.start()
+llmobs_writer.enqueue(_completion_record())
 """,
     )
     assert status == 0, err

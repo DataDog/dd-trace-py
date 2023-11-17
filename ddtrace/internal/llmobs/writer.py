@@ -1,5 +1,6 @@
 import atexit
 import json
+from typing import Dict
 from typing import List
 from typing import Union
 
@@ -28,10 +29,10 @@ class LLMObsEvent(TypedDict):
     timestamp: int
     id: str
     type: str
-    input: dict[str, Union[float, int, list[str]]]
+    input: Dict[str, Union[float, int, List[str]]]
     model: str
     model_provider: str
-    output: dict[str, list[dict[str, str]]]
+    output: Dict[str, List[Dict[str, str]]]
     # Additional attributes can be specified on the event
     # including dd.trace_id and dd.span_id to correlate a trace
 
@@ -47,8 +48,8 @@ class LLMObsWriter(PeriodicService):
         # match the API limit
         self._buffer_limit = 1000
         self._timeout = timeout  # type: float
-        self._api_key = api_key  # type: str
-        self._app_key = app_key
+        self._api_key = api_key or ""  # type: str
+        self._app_key = app_key or ""  # type: str
         self._endpoint = "/api/unstable/llm-obs/records"  # type: str
         self._site = site  # type: str
         self._intake = "api.%s" % self._site  # type: str
