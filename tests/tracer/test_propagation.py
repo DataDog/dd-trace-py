@@ -3,9 +3,12 @@ import json
 import logging
 import os
 
+import fastapi
+import httpx
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -29,6 +32,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.tracing._span_link import SpanLink
+from tests.contrib.fastapi.test_fastapi import client
+from tests.contrib.fastapi.test_fastapi import test_spans
+from tests.contrib.fastapi.test_fastapi import tracer
 
 from ..utils import override_global_config
 
@@ -1892,6 +1898,25 @@ def test_mutliple_context_interactions(name, styles, headers, expected_context):
     with override_global_config(dict(_propagation_style_extract=styles)):
         context = HTTPPropagator.extract(headers)
         assert context == expected_context
+
+
+def test_span_links_set_on_root_span_not_child(client, tracer, test_spans):
+    response = client.get("/", headers={"sleep": "False", **ALL_HEADERS})
+    assert response.status_code == 200
+    assert response.json() == {"Homepage Read": "Success"}
+
+    spans = test_spans.pop_traces()
+    assert spans[0][0].name == "fastapi.request"
+    assert spans[0][0]._links == [
+        SpanLink(
+            trace_id=13088165645273925489,
+            span_id=5678,
+            tracestate=None,
+            flags=1,
+            attributes={"reason": "terminated_context", "context_headers": "datadog"},
+        )
+    ]
+    assert spans[0][1]._links == []
 
 
 VALID_DATADOG_CONTEXT = {
