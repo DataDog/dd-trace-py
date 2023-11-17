@@ -6,7 +6,6 @@ import collections
 from datetime import datetime
 import json
 import os
-import typing
 from typing import Any
 from typing import Dict
 from typing import List  # noqa
@@ -19,6 +18,7 @@ from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
@@ -48,9 +48,6 @@ from ..trace_utils import unwrap
 
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]
-
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient

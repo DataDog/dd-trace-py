@@ -1,7 +1,10 @@
 import sys
-from typing import TYPE_CHECKING  # noqa
+from typing import Any
+from typing import Mapping
+from typing import Optional
 
 import ddtrace
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _utils as appsec_utils
@@ -21,14 +24,6 @@ from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Mapping
-    from typing import Optional
-
-    from ddtrace import Span
 
 
 log = get_logger(__name__)

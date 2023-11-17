@@ -1,23 +1,19 @@
 import abc
 import os
 import time
-from typing import TYPE_CHECKING  # noqa
 from typing import Any  # noqa
 from typing import Dict  # noqa
 from typing import List  # noqa
 from typing import Optional  # noqa
 
+from ddtrace import Pin
+from ddtrace import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
-
-
-if TYPE_CHECKING:
-    from ddtrace import Pin
-    from ddtrace import Span
 
 
 class BaseLLMIntegration:

@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING  # noqa
-
+from types import ModuleType
 import asyncpg
 
 from ddtrace import Pin
@@ -24,7 +24,6 @@ from ..trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from types import ModuleType
     from typing import Dict  # noqa
     from typing import Union  # noqa
 
