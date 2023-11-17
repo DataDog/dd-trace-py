@@ -183,7 +183,7 @@ def traced_poll(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    # we must get start time now since execute before starting a span in order to get distributed context 
+    # we must get start time now since execute before starting a span in order to get distributed context
     # if it exists
     start_ns = time_ns()
     # wrap in a try catch and raise exception after span is started
