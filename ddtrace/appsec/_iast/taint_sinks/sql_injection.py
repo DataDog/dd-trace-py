@@ -1,7 +1,5 @@
 import re
 from typing import TYPE_CHECKING  # noqa
-from typing import Any
-from typing import Dict
 
 import six
 
@@ -10,8 +8,14 @@ from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
-from ._base import VulnerabilityBase
-from .reporter import Vulnerability
+
+
+if TYPE_CHECKING:
+    from typing import Any  # noqa
+    from typing import Dict  # noqa
+
+    from ._base import VulnerabilityBase  # noqa
+    from .reporter import Vulnerability  # noqa
 
 
 _INSIDE_QUOTES_REGEXP = re.compile(r'["\']([^"\']*?)["\']')
@@ -29,7 +33,8 @@ class SqlInjection(VulnerabilityBase):
         super(SqlInjection, cls).report(evidence_value=evidence_value, sources=sources)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]:
+    def _extract_sensitive_tokens(cls, vulns_to_text):
+        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         ret = {}  # type: Dict[int, Dict[str, Any]]
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
