@@ -313,7 +313,11 @@ class CMakeBuild(build_ext):
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
-            subprocess.run(["strip", "-g", so_file], check=True)
+            try:
+                subprocess.run(["strip", "-g", so_file], check=True)
+            except Exception as e:
+                print("WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode))
+                pass
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
@@ -321,22 +325,19 @@ class CMakeBuild(build_ext):
                 self.build_extension_cmake(ext)
             except subprocess.CalledProcessError as e:
                 print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
-                if not ext.optional:
-                    raise
+                if ext.optional:
+                    return
+                raise
             except Exception as e:
-                print("WARNING: An error occurred while building the CMake extension.")
-                if not ext.optional:
-                    raise
+                print("WARNING: An error occurred while building the CMake extension {}.".format(ext.name))
+                if ext.optional:
+                    return
+                raise
         else:
             super().build_extension(ext)
 
         if not DEBUG_COMPILE:
-            try:
-                if not DEBUG_COMPILE:
-                    self.try_strip_symbols(self.get_ext_fullpath(ext.name))
-            except Exception as e:
-                print(f"WARNING: An error occurred while building the extension: {e}")
-                raise
+            self.try_strip_symbols(self.get_ext_fullpath(ext.name))
 
     def build_extension_cmake(self, ext):
         # Define the build and output directories
