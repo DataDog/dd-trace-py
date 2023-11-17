@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List  # noqa
     from typing import Optional  # noqa
 
-    from ..span import Span
+    from ..span import Span  # noqa
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):

@@ -29,7 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from ...sampler import BaseSampler
+    from ...sampler import BaseSampler  # noqa
 
 
 class CIVisibilityEventClient(WriterClientBase):
@@ -84,7 +84,7 @@ class CIVisibilityWriter(HTTPWriter):
         sampler=None,  # type: Optional[BaseSampler]
         processing_interval=None,  # type: Optional[float]
         timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
+        dogstatsd: Optional[DogStatsd] = None,
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]

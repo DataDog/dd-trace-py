@@ -72,8 +72,7 @@ class DDRuntimeContext:
         pass
 
     @property
-    def _ddcontext_provider(self):
-        # type: () -> DDBaseContextProvider
+    def _ddcontext_provider(self) -> DDBaseContextProvider:
         """
         Get the ddtrace context provider from the global Datadog tracer.
         This can reterive a default, gevent, or asyncio context provider.

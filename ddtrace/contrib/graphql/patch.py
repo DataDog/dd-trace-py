@@ -291,8 +291,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _set_span_errors(errors, span):
-    # type: (List[GraphQLError], Span) -> None
+def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return

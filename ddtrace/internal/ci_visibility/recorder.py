@@ -49,7 +49,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa
     from typing import Tuple  # noqa
 
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace.settings import IntegrationConfig  # noqa
 
 log = get_logger(__name__)
 

@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes
     from opentelemetry.util.types import AttributeValue
 
-    from ddtrace.internal.compat import NumericType
-    from ddtrace.span import Span as DDSpan
+    from ddtrace.internal.compat import NumericType  # noqa
+    from ddtrace.span import Span as DDSpan  # noqa
 
 
 log = get_logger(__name__)
@@ -149,8 +149,7 @@ class Span(OtelSpan):
         for k, v in attributes.items():
             self.set_attribute(k, v)
 
-    def set_attribute(self, key, value):
-        # type: (str, AttributeValue) -> None
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
         """Sets an attribute or service name on a tag"""
         if not self.is_recording():
             return
@@ -203,8 +202,13 @@ class Span(OtelSpan):
             if message:
                 self.set_attribute(ERROR_MSG, message)
 
-    def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
-        # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Attributes] = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+    ) -> None:
         """
         Records the type, message, and traceback of an exception as Span attributes.
         Note - Span Events are not yet supported.

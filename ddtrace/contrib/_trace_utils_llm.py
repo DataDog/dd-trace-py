@@ -39,20 +39,17 @@ class BaseLLMIntegration:
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
 
-    def is_pc_sampled_span(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
             return False
         return self._span_pc_sampler.sample(span)
 
-    def is_pc_sampled_log(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_log(self, span: Span) -> bool:
         if not self._config.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
-    def start_log_writer(self):
-        # type: (...) -> None
+    def start_log_writer(self) -> None:
         self._log_writer.start()
 
     @abc.abstractmethod
@@ -61,8 +58,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id, **kwargs):
-        # type: (Pin, str, Dict[str, Any]) -> Span
+    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.

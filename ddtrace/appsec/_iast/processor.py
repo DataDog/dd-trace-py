@@ -27,8 +27,7 @@ log = get_logger(__name__)
 
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         if span.span_type != SpanTypes.WEB:
             return
         oce.acquire_request(span)
@@ -36,8 +35,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         create_context()
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         """Report reported vulnerabilities.
 
         Span Tags:

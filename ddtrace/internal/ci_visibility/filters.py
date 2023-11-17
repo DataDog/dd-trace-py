@@ -12,7 +12,7 @@ from ddtrace.filters import TraceFilter
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 
 class TraceCiVisibilityFilter(TraceFilter):

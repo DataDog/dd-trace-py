@@ -13,9 +13,9 @@ from ddtrace.internal.compat import PY2
 
 
 if TYPE_CHECKING:
-    import Any
-    import Dict
-    import Optional
+    import Any  # noqa
+    import Dict  # noqa
+    import Optional  # noqa
 
 
 def _only_if_true(value):

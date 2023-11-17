@@ -281,8 +281,9 @@ class BaseModuleWatchdog(abc.ABC):
 
         return None
 
-    def find_spec(self, fullname, path=None, target=None):
-        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
+    def find_spec(
+        self, fullname: str, path: Optional[str] = None, target: Optional[ModuleType] = None
+    ) -> Optional[ModuleSpec]:
         if fullname in self._finding:
             return None
 

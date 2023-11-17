@@ -9,7 +9,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.metrics import DistributionMetric
 from ddtrace.internal.telemetry.metrics import Metric
-from ddtrace.internal.telemetry.metrics import MetricTagType
+from ddtrace.internal.telemetry.metrics import MetricTagType  # noqa
 
 
 NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]

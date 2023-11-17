@@ -21,7 +21,7 @@ from .logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Tracer
+    from ddtrace import Tracer  # noqa
 
 
 logger = get_logger(__name__)

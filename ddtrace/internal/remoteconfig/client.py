@@ -32,7 +32,7 @@ from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
-from ._pubsub import PubSub
+from ._pubsub import PubSub  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover

@@ -11,7 +11,7 @@ from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
-from ...settings import _config as config
+from ...settings import _config as config  # noqa
 from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 

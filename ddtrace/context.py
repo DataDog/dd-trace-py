@@ -3,10 +3,10 @@ import re
 import threading
 from typing import TYPE_CHECKING  # noqa
 from typing import Any  # noqa
-from typing import Optional  # noqa
+from typing import Optional
 from typing import Text  # noqa
 
-from ddtrace.tracing._span_link import SpanLink
+from ddtrace.tracing._span_link import SpanLink  # noqa
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -96,15 +96,13 @@ class Context(object):
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
-    def _with_span(self, span):
-        # type: (Span) -> Context
+    def _with_span(self, span: Span):
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
             trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
         )
 
-    def _update_tags(self, span):
-        # type: (Span) -> None
+    def _update_tags(self, span: Span) -> None:
         with self._lock:
             for tag in self._meta:
                 span._meta.setdefault(tag, self._meta[tag])
@@ -112,14 +110,12 @@ class Context(object):
                 span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
-    def sampling_priority(self):
-        # type: () -> Optional[NumericType]
+    def sampling_priority(self) -> Optional[NumericType]:
         """Return the context sampling priority for the trace."""
         return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
-    def sampling_priority(self, value):
-        # type: (Optional[NumericType]) -> None
+    def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:
             if value is None:
                 if SAMPLING_PRIORITY_KEY in self._metrics:

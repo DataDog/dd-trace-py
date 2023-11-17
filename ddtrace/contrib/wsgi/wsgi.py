@@ -5,16 +5,16 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa
-    from typing import Callable  # noqa
+    from typing import Callable
     from typing import Dict  # noqa
-    from typing import Iterable  # noqa
+    from typing import Iterable
     from typing import Mapping  # noqa
     from typing import Optional  # noqa
 
-    from ddtrace import Pin
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import Config
+    from ddtrace import Pin  # noqa
+    from ddtrace import Span  # noqa
+    from ddtrace import Tracer  # noqa
+    from ddtrace.settings import Config  # noqa
 
 from six.moves.urllib.parse import quote
 
@@ -89,8 +89,7 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ, start_response):
-        # type: (Iterable, Callable) -> wrapt.ObjectProxy
+    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True

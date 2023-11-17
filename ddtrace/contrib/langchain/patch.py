@@ -35,7 +35,7 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 
 log = get_logger(__name__)
@@ -140,8 +140,7 @@ def _extract_model_name(instance):
     return None
 
 
-def _format_api_key(api_key):
-    # type: (str | SecretStr) -> str
+def _format_api_key(api_key: (str | SecretStr)) -> str:
     """Obfuscate a given LLM provider API key by returning the last four characters."""
     if hasattr(api_key, "get_secret_value"):
         api_key = api_key.get_secret_value()

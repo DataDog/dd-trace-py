@@ -74,8 +74,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd):
-            # type: (str, bool) -> Span
+        def __trace(self, cmd) -> Span:
             """
             Start a tracing with default attributes and tags
             """

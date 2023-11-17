@@ -31,7 +31,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa
     from typing import Union  # noqa
 
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 
 log = get_logger(__name__)

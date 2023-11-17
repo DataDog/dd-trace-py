@@ -5,7 +5,7 @@ from typing import Optional  # noqa
 import attr
 import six
 
-from ddtrace import Span
+from ddtrace import Span  # noqa
 from ddtrace.internal.logger import get_logger
 
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from datetime import timedelta
 from types import TracebackType
-from typing import Optional  # noqa
+from typing import Optional
 from typing import Type  # noqa
 
 from ddtrace.internal import compat
@@ -89,8 +89,9 @@ class StopWatch(object):
         self.start()
         return self
 
-    def __exit__(self, tp, value, traceback):
-        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
+    def __exit__(
+        self, tp: Optional[Type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]
+    ) -> None:
         """Stops the watch."""
         self.stop()
 

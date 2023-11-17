@@ -65,16 +65,16 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 from typing import TYPE_CHECKING  # noqa
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa
     from typing import Optional  # noqa
 
-    from ddtrace import Tracer
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+    from ddtrace import Tracer  # noqa
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa
 
 log = get_logger(__name__)
 

@@ -24,9 +24,9 @@ from .utils import guarantee_single_callable
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa
-    from typing import Mapping  # noqa
-    from typing import Optional  # noqa
+    from typing import Any
+    from typing import Mapping
+    from typing import Optional
 
     from ddtrace import Span
 
@@ -82,8 +82,7 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
-def span_from_scope(scope):
-    # type: (Mapping[str, Any]) -> Optional[Span]
+def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     """Retrieve the top-level ASGI span from the scope."""
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 

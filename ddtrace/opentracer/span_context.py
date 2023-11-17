@@ -5,7 +5,7 @@ from typing import Optional  # noqa
 from opentracing import SpanContext as OpenTracingSpanContext
 
 from ddtrace.context import Context as DatadogContext
-from ddtrace.internal.compat import NumericType
+from ddtrace.internal.compat import NumericType  # noqa
 
 
 class SpanContext(OpenTracingSpanContext):

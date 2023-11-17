@@ -90,10 +90,10 @@ from .data import get_host_info
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
-from .metrics import MetricTagType
+from .metrics import MetricTagType  # noqa
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType
+from .metrics_namespaces import NamespaceMetricType  # noqa
 
 
 log = get_logger(__name__)
@@ -128,8 +128,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._agent_url, self._endpoint)
 
-    def send_event(self, request):
-        # type: (Dict) -> Optional[httplib.HTTPResponse]
+    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None

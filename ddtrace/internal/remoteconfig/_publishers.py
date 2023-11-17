@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa
     from typing import Tuple  # noqa
 
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
     PreprocessFunc = Callable[[Dict[str, Any], Optional[PubSub]], Any]

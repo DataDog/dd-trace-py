@@ -28,8 +28,8 @@ if TYPE_CHECKING:
     from opentelemetry.trace import Link as OtelLink
     from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
-    from ddtrace import Tracer as DDTracer
-    from ddtrace.span import _MetaDictType
+    from ddtrace import Tracer as DDTracer  # noqa
+    from ddtrace.span import _MetaDictType  # noqa
 
 
 log = get_logger(__name__)
@@ -124,10 +124,10 @@ class Tracer(OtelTracer):
     def start_as_current_span(
         self,
         name,  # type: str
-        context=None,  # type: Optional[OtelContext]
-        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
-        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
-        links=None,  # type: Optional[Sequence[OtelLink]]
+        context: Optional[OtelContext] = None,
+        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, OtelAttributeValue]] = None,
+        links: Optional[Sequence[OtelLink]] = None,
         start_time=None,  # type: Optional[int]
         record_exception=True,  # type: bool
         set_status_on_exception=True,  # type: bool

@@ -9,7 +9,7 @@ from ddtrace.internal.processor.trace import TraceProcessor
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
 
 class TraceFilter(TraceProcessor):

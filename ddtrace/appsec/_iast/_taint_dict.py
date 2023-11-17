@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from typing import Dict  # noqa
     from typing import Tuple  # noqa
 
-    from ._taint_tracking import Source
+    from ._taint_tracking import Source  # noqa
 
 _IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Source, int, int],...]]
 

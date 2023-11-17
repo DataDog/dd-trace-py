@@ -27,7 +27,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
 
@@ -117,7 +117,7 @@ def _set_span_meta(span, request, response):
 
 
 async def _wrapped_async_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
@@ -146,7 +146,7 @@ async def _wrapped_async_send(
 
 
 def _wrapped_sync_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]

@@ -18,7 +18,7 @@ __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..span import Span
+    from ..span import Span  # noqa
 
 
 log = get_logger(__name__)

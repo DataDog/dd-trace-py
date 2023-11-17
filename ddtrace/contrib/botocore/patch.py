@@ -7,8 +7,8 @@ from datetime import datetime
 import json
 import os
 import typing
-from typing import Any  # noqa
-from typing import Dict  # noqa
+from typing import Any
+from typing import Dict
 from typing import List  # noqa
 from typing import Optional  # noqa
 from typing import Set  # noqa
@@ -688,8 +688,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             raise
 
 
-def _set_response_metadata_tags(span, result):
-    # type: (Span, Dict[str, Any]) -> None
+def _set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
     if not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]

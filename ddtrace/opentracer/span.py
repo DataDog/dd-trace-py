@@ -12,8 +12,8 @@ from opentracing.ext import tags as OTTags
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.context import Context as DatadogContext
-from ddtrace.internal.compat import NumericType
+from ddtrace.context import Context as DatadogContext  # noqa
+from ddtrace.internal.compat import NumericType  # noqa
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.span import Span as DatadogSpan
 
@@ -22,7 +22,7 @@ from .tags import Tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .tracer import Tracer
+    from .tracer import Tracer  # noqa
 
 
 _TagNameType = Union[Text, bytes]

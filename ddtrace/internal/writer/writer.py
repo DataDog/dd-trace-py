@@ -25,7 +25,7 @@ from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
-from ...sampler import BaseSampler
+from ...sampler import BaseSampler  # noqa
 from .. import compat
 from .. import periodic
 from .. import service
@@ -40,15 +40,15 @@ from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
-from .writer_client import WriterClientBase
+from .writer_client import WriterClientBase  # noqa
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa
 
-    from ddtrace import Span
+    from ddtrace import Span  # noqa
 
-    from .agent import ConnectionType
+    from .agent import ConnectionType  # noqa
 
 
 log = get_logger(__name__)
@@ -452,7 +452,7 @@ class AgentWriter(HTTPWriter):
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
         timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
+        dogstatsd: Optional[DogStatsd] = None,
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]

@@ -39,9 +39,9 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace import Span  # noqa
+    from ddtrace import Tracer  # noqa
+    from ddtrace.settings import IntegrationConfig  # noqa
 
 
 log = get_logger(__name__)

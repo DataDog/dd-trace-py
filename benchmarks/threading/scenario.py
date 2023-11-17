@@ -8,8 +8,8 @@ from typing import Optional  # noqa
 import bm
 
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.span import Span
-from ddtrace.tracer import Tracer
+from ddtrace.span import Span  # noqa
+from ddtrace.tracer import Tracer  # noqa
 
 
 class NoopWriter(TraceWriter):

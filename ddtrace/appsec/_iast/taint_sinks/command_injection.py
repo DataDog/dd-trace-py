@@ -104,9 +104,7 @@ class CommandInjection(VulnerabilityBase):
         super(CommandInjection, cls).report(evidence_value=evidence_value, sources=sources)
 
     @classmethod
-    def _extract_sensitive_tokens(cls, vulns_to_text):
-        # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
-
+    def _extract_sensitive_tokens(cls, vulns_to_text: Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]:
         ret = {}  # type: Dict[int, Dict[str, Any]]
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
@@ -134,7 +132,7 @@ class CommandInjection(VulnerabilityBase):
         return ret, replaced
 
     @classmethod
-    def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
+    def _redact_report(cls, report: IastSpanReporter) -> IastSpanReporter:
         if not asm_config._iast_redaction_enabled:
             return report
 
