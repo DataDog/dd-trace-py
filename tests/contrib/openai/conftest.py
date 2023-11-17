@@ -43,7 +43,6 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
-    return "<not-a-real-key>"
     return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
 
 
