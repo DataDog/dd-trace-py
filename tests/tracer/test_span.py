@@ -23,6 +23,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -210,6 +211,14 @@ class SpanTestCase(TracerTestCase):
         assert not s.get_tag(ERROR_MSG)
         assert not s.get_tag(ERROR_TYPE)
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
+
+    def test_custom_traceback_size(self):
+        tb_length_limit = 11
+        with override_global_config(dict(_span_traceback_max_size=tb_length_limit)):
+            s = Span("test.span")
+            s.set_traceback()
+            stack = s.get_tag(ERROR_STACK)
+            assert len(stack.splitlines()) == tb_length_limit * 2, "stacktrace should contain two lines per entry"
 
     def test_ctx_mgr(self):
         s = Span("bar")
@@ -641,6 +650,20 @@ def test_manual_context_usage():
     span1.context.sampling_priority = 1
     assert span2.context.sampling_priority == 1
     assert span1.context.sampling_priority == 1
+
+
+def test_set_exc_info_with_systemexit():
+    def get_exception_span():
+        span = Span("span1")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            type_, value_, traceback_ = sys.exc_info()
+            span.set_exc_info(type_, value_, traceback_)
+        return span
+
+    exception_span = get_exception_span()
+    assert not exception_span.error
 
 
 def test_set_exc_info_with_unicode():

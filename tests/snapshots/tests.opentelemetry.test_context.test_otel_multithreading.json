@@ -1,6 +1,6 @@
 [[
   {
-    "name": "otel-threading-root",
+    "name": "internal",
     "service": null,
     "resource": "otel-threading-root",
     "trace_id": 0,
@@ -8,163 +8,164 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655529ab00000000",
       "language": "python",
-      "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 34011
+      "process_id": 7032
     },
-    "duration": 90569000,
-    "start": 1675884559879671000
+    "duration": 88410458,
+    "start": 1700080043405226967
   },
      {
-       "name": "s1",
+       "name": "internal",
        "service": null,
        "resource": "s1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 34011
+         "process_id": 7032
        },
-       "duration": 90267000,
-       "start": 1675884559879895000
+       "duration": 85156542,
+       "start": 1700080043406178092
      },
         {
-          "name": "s2",
+          "name": "internal",
           "service": null,
           "resource": "s2",
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 2,
-          "duration": 25074000,
-          "start": 1675884559879940000
+          "duration": 23362125,
+          "start": 1700080043406289967
         },
         {
-          "name": "s3",
+          "name": "internal",
           "service": null,
           "resource": "s3",
           "trace_id": 0,
           "span_id": 7,
           "parent_id": 2,
-          "duration": 65061000,
-          "start": 1675884559905077000
+          "duration": 61255875,
+          "start": 1700080043429745967
         },
      {
-       "name": "s1",
+       "name": "internal",
        "service": null,
        "resource": "s1",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
        "meta": {
-         "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 34011
+         "process_id": 7032
        },
-       "duration": 86943000,
-       "start": 1675884559880036000
+       "duration": 85552833,
+       "start": 1700080043406687134
      },
         {
-          "name": "s2",
+          "name": "internal",
           "service": null,
           "resource": "s2",
           "trace_id": 0,
           "span_id": 8,
           "parent_id": 3,
-          "duration": 25047000,
-          "start": 1675884559880075000
+          "duration": 23411792,
+          "start": 1700080043406774092
         },
         {
-          "name": "s3",
+          "name": "internal",
           "service": null,
           "resource": "s3",
           "trace_id": 0,
           "span_id": 9,
           "parent_id": 3,
-          "duration": 61776000,
-          "start": 1675884559905155000
+          "duration": 61850083,
+          "start": 1700080043430265967
         },
      {
-       "name": "s1",
+       "name": "internal",
        "service": null,
        "resource": "s1",
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-         "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 34011
+         "process_id": 7032
        },
-       "duration": 86905000,
-       "start": 1675884559880150000
+       "duration": 85467000,
+       "start": 1700080043407120092
      },
         {
-          "name": "s2",
+          "name": "internal",
           "service": null,
           "resource": "s2",
           "trace_id": 0,
           "span_id": 10,
           "parent_id": 4,
-          "duration": 25005000,
-          "start": 1675884559880182000
+          "duration": 22181375,
+          "start": 1700080043407196592
         },
         {
-          "name": "s3",
+          "name": "internal",
           "service": null,
           "resource": "s3",
           "trace_id": 0,
           "span_id": 11,
           "parent_id": 4,
-          "duration": 61815000,
-          "start": 1675884559905219000
+          "duration": 62950666,
+          "start": 1700080043429524884
         },
      {
-       "name": "s1",
+       "name": "internal",
        "service": null,
        "resource": "s1",
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
        "meta": {
-         "runtime-id": "29953bb1123f44a79c3c786defdb1bd5"
+         "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
        "metrics": {
          "_dd.top_level": 1,
-         "process_id": 34011
+         "process_id": 7032
        },
-       "duration": 86866000,
-       "start": 1675884559880253000
+       "duration": 85444666,
+       "start": 1700080043407564509
      },
         {
-          "name": "s2",
+          "name": "internal",
           "service": null,
           "resource": "s2",
           "trace_id": 0,
           "span_id": 12,
           "parent_id": 5,
-          "duration": 24964000,
-          "start": 1675884559880280000
+          "duration": 22272375,
+          "start": 1700080043407654425
         },
         {
-          "name": "s3",
+          "name": "internal",
           "service": null,
           "resource": "s3",
           "trace_id": 0,
           "span_id": 13,
           "parent_id": 5,
-          "duration": 61841000,
-          "start": 1675884559905263000
+          "duration": 62895166,
+          "start": 1700080043430002634
         }]]
