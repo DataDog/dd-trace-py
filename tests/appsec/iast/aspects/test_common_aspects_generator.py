@@ -82,5 +82,8 @@ def teardown_module(_):
     Remove the callers file after the tests are done.
     """
     for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
-        os.remove(_file)
+        try:
+            os.remove(_file)
+        except FileNotFoundError:
+            pass
         assert not os.path.exists(_file)
