@@ -31,6 +31,7 @@ def vcr_logs(request):
     else:
         yield
 
+
 @pytest.fixture
 def mock_logs():
     with mock.patch("ddtrace.internal.llmobs.writer.logger") as m:
@@ -53,10 +54,10 @@ def _completion_record():
             "completions": [
                 {
                     "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, "
-                               "led by mathematician Alan Turing."
+                    "led by mathematician Alan Turing."
                 }
             ]
-        }
+        },
     }
 
 
@@ -79,12 +80,12 @@ def _chat_completion_record():
             "completions": [
                 {
                     "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, "
-                               "little creature, I shall play along. But know that I am always watching, "
-                               "and your quest will not go unnoticed",
+                    "little creature, I shall play along. But know that I am always watching, "
+                    "and your quest will not go unnoticed",
                     "role": "assistant",
                 }
             ]
-        }
+        },
     }
 
 
@@ -142,7 +143,7 @@ def test_send_completion_bad_api_key(mock_logs):
         1,
         "https://api.datad0g.com/api/unstable/llm-obs/records",
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
     )
 
 
@@ -159,7 +160,7 @@ def test_send_completion_bad_app_key(mock_logs):
         1,
         "https://api.datad0g.com/api/unstable/llm-obs/records",
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
     )
 
 
@@ -208,5 +209,3 @@ with logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml"):
     assert status == 0, err
     assert out == b""
     assert err == b""
-
-

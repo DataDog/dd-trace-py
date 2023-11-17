@@ -29,11 +29,10 @@ class LLMObsEvent(TypedDict):
     id: str
     type: str
     input: dict[str, Union[float, int, list[str]]]
-    model: str
-    model_provider: str
     output: dict[str, list[dict[str, str]]]
     # Additional attributes can be specified on the event
-    # including dd.trace_id and dd.span_id to correlate a trace
+    # including model(str) and model_provider(str),
+    # and dd.trace_id and dd.span_id to correlate a trace
 
 
 class LLMObsWriter(PeriodicService):
