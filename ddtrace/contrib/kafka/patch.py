@@ -187,9 +187,11 @@ def traced_poll(func, instance, args, kwargs):
     # if it exists
     start_ns = time_ns()
     # wrap in a try catch and raise exception after span is started
+    err = None
     try:
         message = func(*args, **kwargs)
     except Exception as e:
+        err = e
         pass
     ctx = None
     if message is not None and config.kafka.distributed_tracing_enabled and message.headers() is not None:
@@ -225,8 +227,8 @@ def traced_poll(func, instance, args, kwargs):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
         # raise exception if one was encountered
-        if e is not None:
-            raise e
+        if err is not None:
+            raise err
         return message
 
 
