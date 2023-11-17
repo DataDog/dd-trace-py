@@ -316,7 +316,9 @@ class CMakeBuild(build_ext):
             try:
                 subprocess.run(["strip", "-g", so_file], check=True)
             except Exception as e:
-                print("WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode))
+                print(
+                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
+                )
                 pass
 
     def build_extension(self, ext):
