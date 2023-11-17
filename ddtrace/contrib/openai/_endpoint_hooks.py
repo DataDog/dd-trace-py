@@ -224,8 +224,6 @@ class _CompletionHook(_BaseCompletionHook):
                 "sampled %s" % self.OPERATION_ID,
                 attrs={"prompt": prompt, "choices": log_choices},
             )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return self._handle_response(pin, span, integration, resp)
 
 
@@ -327,8 +325,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
                     "completion": log_choices,
                 },
             )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return self._handle_response(pin, span, integration, resp)
 
 
