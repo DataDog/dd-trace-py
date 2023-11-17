@@ -34,8 +34,7 @@ class LLMObsEvent(TypedDict):
     model_provider: str
     output: Dict[str, List[Dict[str, str]]]
     # Additional attributes can be specified on the event
-    # including model(str) and model_provider(str),
-    # and dd.trace_id and dd.span_id to correlate a trace
+    # including dd.trace_id and dd.span_id to correlate a trace
 
 
 class LLMObsWriter(PeriodicService):
