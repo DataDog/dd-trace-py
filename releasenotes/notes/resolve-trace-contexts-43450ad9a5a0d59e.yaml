@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    propagation: If a valid context is extracted from headers, and the following extracted
+    trace context's ``trace_id``s do not match the valid context's, then add a span link to the
+    root span to represent the broken propagation.
