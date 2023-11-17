@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix resolves an issue where, at AST patching to replace code with IAST aspects, passing the original function/method as an extra parameter for accurate patching unintentionally triggers side effects in methods obtained from an expression (like ``decode`` in ``file.read(n).decode()``), resulting in unexpected multiple calls to the expression (``file.read(n)`` in the example).
