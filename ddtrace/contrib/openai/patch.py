@@ -34,7 +34,7 @@ config._add(
     "openai",
     {
         "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
-        "llmobs_enabled": asbool(os.getenv("DD_LLMOBS_ENABLED", False)),
+        "llmobs_enabled": asbool(os.getenv("DD_OPENAI_LLMOBS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "llmobs_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
