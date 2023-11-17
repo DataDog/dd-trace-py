@@ -237,6 +237,8 @@ class CIVisibility(Service):
             log.warning(
                 "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
             )
+            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)):
+                return True, False
             return False, False
 
         attributes = parsed["data"]["attributes"]
