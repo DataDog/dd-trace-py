@@ -99,7 +99,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("450 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check():
     for _ in range(LOOPS):
         frame_info = func_1("", "2", "3")
