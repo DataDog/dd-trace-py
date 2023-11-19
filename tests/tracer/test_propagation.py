@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
