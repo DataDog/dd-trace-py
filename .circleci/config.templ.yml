@@ -432,7 +432,14 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'appsec_iast'
+          pattern: 'appsec_iast$'
+          snapshot: true
+
+  appsec_iast_memcheck:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_memcheck'
           snapshot: true
 
   appsec_integrations:
