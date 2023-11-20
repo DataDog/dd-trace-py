@@ -7,7 +7,7 @@ name = "ddtrace"
 dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
-# license-files = { paths = ["LICENSE.BSD3"] }
+license = { text = "LICENSE.BSD3" }
 requires-python = ">=3.7"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
