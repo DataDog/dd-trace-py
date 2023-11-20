@@ -212,6 +212,8 @@ venv = Venv(
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
+                "fastapi": latest,
+                "httpx": latest,
             },
             venvs=[
                 Venv(pys=select_pys()),
