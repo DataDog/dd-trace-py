@@ -239,7 +239,7 @@ venv = Venv(
                 Venv(
                     name="tracer-legacy-atrrs",
                     pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
-                    # Test with the latest version of Python only
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),
             ],
@@ -2009,7 +2009,6 @@ venv = Venv(
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
-                "cattrs": "<23.2.0",
             },
         ),
         Venv(
