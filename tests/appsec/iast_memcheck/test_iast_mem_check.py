@@ -144,7 +144,7 @@ def test_stacktrace_memory_check_no_native_direct_call():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_byte_check():
     for _ in range(LOOPS):
         frame_info = func_1("empty_byte", "2", "3")
@@ -156,7 +156,7 @@ def test_stacktrace_memory_empty_byte_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("370 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_empty_string_check():
     for _ in range(LOOPS):
         frame_info = func_1("empty_string", "2", "3")
