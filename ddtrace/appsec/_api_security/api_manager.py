@@ -97,6 +97,7 @@ class APIManager(Service):
             return False
         # Rate limit per route
         self.current_sampling_value += sample_rate
+        log.debug("API SECURITY SAMPLING %s %s", self.current_sampling_value, sample_rate)
         if self.current_sampling_value >= 1.0:
             self.current_sampling_value -= 1.0
             return True
@@ -105,17 +106,23 @@ class APIManager(Service):
     def _schema_callback(self, env):
         from ddtrace.appsec._utils import _appsec_apisec_features_is_active
 
+        log.debug("API SECURITY S CALLBACK 1")
         if env.span is None or not _appsec_apisec_features_is_active():
             return
+
+        log.debug("API SECURITY S CALLBACK 2")
         root = env.span._local_root or env.span
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
             return
 
+        log.debug("API SECURITY S CALLBACK 3")
         try:
             if not self._should_collect_schema(env):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
+
+        log.debug("API SECURITY S CALLBACK 4")
 
         # we need the request content type on the span
         try:
