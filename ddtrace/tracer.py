@@ -410,7 +410,7 @@ class Tracer(object):
 
         if sampler is not None:
             self._sampler = sampler
-            self._user_sampler = sampler
+            self._user_sampler = self._sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -1061,9 +1061,11 @@ class Tracer(object):
                 self.configure(sampler=self._user_sampler)
                 return
 
-            sample_rate = None
             if cfg._get_source("_trace_sample_rate") != "default":
                 sample_rate = cfg._trace_sample_rate
+            else:
+                sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
+            # Hack to reconfigure the agent with the new sample rate
             self.configure()

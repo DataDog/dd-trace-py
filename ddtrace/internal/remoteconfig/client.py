@@ -17,6 +17,7 @@ import uuid
 import attr
 import cattr
 from envier import En
+import enum
 import six
 
 import ddtrace
@@ -54,6 +55,10 @@ class RemoteConfigClientConfig(En):
 
 
 config = RemoteConfigClientConfig()
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
 
 
 class RemoteConfigError(Exception):
@@ -358,6 +363,8 @@ class RemoteConfigClient(object):
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
+        capabilities = _appsec_rc_capabilities()
+        capabilities |= Capabilities.APM_TRACING_SAMPLE_RATE
 
         return dict(
             client=dict(
@@ -366,7 +373,7 @@ class RemoteConfigClient(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
-                capabilities=_appsec_rc_capabilities(),
+                capabilities=capabilities,
             ),
             cached_target_files=self.cached_target_files,
         )

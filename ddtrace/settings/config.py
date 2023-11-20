@@ -9,6 +9,7 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
@@ -217,9 +218,11 @@ class _ConfigItem:
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
+        else:
+            raise ValueError("Invalid source: {}".format(source))
 
     def set_code(self, value):
-        # type: (Any) -> None
+        # type: (Union[int, float, str, bool]) -> None
         self._code_value = value
 
     def unset_rc(self):
@@ -227,7 +230,7 @@ class _ConfigItem:
         self._rc_value = None
 
     def value(self):
-        # type: () -> Any
+        # type: () -> Union[int, float, str, bool]
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
