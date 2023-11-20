@@ -1,6 +1,6 @@
 [[
   {
-    "name": "otel-string-tags",
+    "name": "internal",
     "service": "moons-service-str",
     "resource": "otel-string-tags",
     "trace_id": 0,
@@ -9,9 +9,10 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655529ab00000000",
       "language": "python",
       "real_string_tag": "rstr",
-      "runtime-id": "2fe461d5fb3a4eef9fe1e1517236403a",
+      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d",
       "tag1": "one",
       "tag2": "two",
       "tag3": "3",
@@ -21,14 +22,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 4171
+      "process_id": 7032
     },
-    "duration": 1216333,
-    "start": 1699977005889436597
+    "duration": 907417,
+    "start": 1700080043692314967
   }],
 [
   {
-    "name": "otel-numerical-tags",
+    "name": "internal",
     "service": "moons-service-num",
     "resource": "otel-numerical-tags",
     "trace_id": 1,
@@ -37,8 +38,9 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655529ab00000000",
       "language": "python",
-      "runtime-id": "2fe461d5fb3a4eef9fe1e1517236403a"
+      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
     },
     "metrics": {
       "_dd.top_level": 1,
@@ -46,11 +48,11 @@
       "_sampling_priority_v1": 1,
       "float_tag": 2.111,
       "int_tag": 1,
-      "process_id": 4171,
+      "process_id": 7032,
       "tag1": 1,
       "tag2": 2,
       "tag3": 3.1415
     },
-    "duration": 186125,
-    "start": 1699977005890878222
+    "duration": 118958,
+    "start": 1700080043693385092
   }]]
