@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    structlog: Fix appending to ``default_processors`` by converting to list.
