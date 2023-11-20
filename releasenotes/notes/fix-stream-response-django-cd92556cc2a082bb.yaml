@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: Fixes ``AttributeError`` when using ``StreamingHttpResponse``.
