@@ -107,7 +107,7 @@ class APIManager(Service):
         from ddtrace.appsec._utils import _appsec_apisec_features_is_active
 
         log.debug("API SECURITY S CALLBACK 1")
-        if env.span is None or not _appsec_apisec_features_is_active():
+        if env.span is None or env.span.finished or not _appsec_apisec_features_is_active():
             return
 
         log.debug("API SECURITY S CALLBACK 2")
