@@ -208,10 +208,12 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
+                "fastapi": latest,
+                "httpx": latest,
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -235,6 +237,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
