@@ -5,6 +5,7 @@ import contextlib
 from ddtrace import config
 from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
+from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 
@@ -24,7 +25,9 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
     def headers_here(self, tracer, root_span):
         assert b"x-datadog-trace-id" in self.httplib_request
         assert b"x-datadog-parent-id" in self.httplib_request
-        assert str(root_span.trace_id).encode("utf-8") in self.httplib_request
+        httplib_request_str = self.httplib_request.decode()
+        assert str(root_span._trace_id_64bits) in httplib_request_str
+        assert _get_64_highest_order_bits_as_hex(root_span.trace_id) in httplib_request_str
         return True
 
     def headers_not_here(self, tracer):
