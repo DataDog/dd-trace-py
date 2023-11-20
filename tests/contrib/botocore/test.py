@@ -578,6 +578,44 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
+
+    @mock_sqs
+    def test_sqs_send_message_distributed_tracing_on(self):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            spans = self.get_spans()
+            assert spans
+            produce_span = spans[0]
+            assert len(spans) == 1
+            assert produce_span.get_tag("aws.region") == "us-east-1"
+            assert produce_span.get_tag("region") == "us-east-1"
+            assert produce_span.get_tag("aws.operation") == "SendMessage"
+            assert produce_span.get_tag("params.MessageBody") is None
+            assert produce_span.get_tag("component") == "botocore"
+            assert produce_span.get_tag("span.kind"), "client"
+            assert_is_measured(produce_span)
+            assert_span_http_status_code(produce_span, 200)
+            assert produce_span.service == "test-botocore-tracing.sqs"
+            assert produce_span.resource == "sqs.sendmessage"
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["All"],
+                WaitTimeSeconds=5,
+            )
+            assert len(response["Messages"]) == 1
+            trace_in_message = "MessageAttributes" in response["Messages"][0]
+            assert trace_in_message is True
+
+            spans = self.get_spans()
+            assert spans
+            consume_span = spans[1]
+            assert len(spans) == 2
+
+            assert consume_span.parent_id == produce_span.span_id
+            assert consume_span.trace_id == produce_span.trace_id
+
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)

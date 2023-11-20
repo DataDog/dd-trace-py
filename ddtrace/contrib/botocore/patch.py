@@ -484,10 +484,46 @@ def patched_api_call(original_func, instance, args, kwargs):
     trace_operation = schematize_cloud_api_operation(
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
-    with pin.tracer.trace(
+
+    result = None
+    ctx = None
+    operation = None
+    if args:
+        operation = get_argument_value(args, kwargs, 0, "operation_name")
+        params = get_argument_value(args, kwargs, 1, "api_params")
+
+    if config.botocore["distributed_tracing"]:
+        if (endpoint_name == "sqs" and operation == "ReceiveMessage"):
+            err = None
+            try:
+                result = original_func(*args, **kwargs)
+            except Exception as e:
+                err = e
+            if "Messages" in result and len(result["Messages"]) > 0:
+                if len(result["Messages"]) == 1:
+                    message_body = result["Messages"][0]
+                    context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
+                    ctx = HTTPPropagator().extract(context_json)
+                else:
+                    prev_ctx = None
+                    for message in result["Messages"]:
+                        prev_ctx = ctx
+                        message_body = result["Messages"][0]
+                        context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
+                        ctx = HTTPPropagator().extract(context_json)
+                        
+                        # only want parenting for batches if all contexts are the same
+                        if prev_ctx is not None and prev_ctx != ctx:
+                            ctx = None
+                            break
+
+                    
+        
+    with pin.tracer.start_span(
         trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
+        child_of=ctx
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -495,10 +531,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
-        operation = None
         if args:
-            operation = get_argument_value(args, kwargs, 0, "operation_name")
-            params = get_argument_value(args, kwargs, 1, "api_params")
             # DEV: join is the fastest way of concatenating strings that is compatible
             # across Python versions (see
             # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
@@ -607,7 +640,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                 elif "_datadog" not in params["MessageAttributeNames"]:
                     params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
-                result = original_func(*args, **kwargs)
+                if result is None:
+                    result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
 
                 try:
@@ -665,7 +699,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                 return result
 
             else:
-                result = original_func(*args, **kwargs)
+                if result is None:
+                    result = original_func(*args, **kwargs)
 
                 if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
                     try:
