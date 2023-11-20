@@ -685,6 +685,7 @@ class BotocoreTest(TracerTestCase):
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
             MessageAttributeNames=["_datadog"],
+            WaitTimeSeconds=2,
         )
         assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]

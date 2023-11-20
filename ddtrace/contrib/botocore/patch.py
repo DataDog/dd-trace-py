@@ -530,7 +530,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
-        child_of=ctx,
+        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
