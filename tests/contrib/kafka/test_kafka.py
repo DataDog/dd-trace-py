@@ -745,8 +745,11 @@ def test(consumer, producer, kafka_topic):
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.flush()
 
-    assert str(message.value()) == str(PAYLOAD)
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
 
     consume_span = None
     traces = dummy_tracer.pop_traces()
@@ -757,6 +760,8 @@ def test(consumer, producer, kafka_topic):
                 if span.get_tag('kafka.message_key') == test_key:
                     consume_span = span
                     break
+
+    assert str(message.value()) == str(PAYLOAD)
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
