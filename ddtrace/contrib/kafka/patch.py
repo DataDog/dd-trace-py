@@ -196,7 +196,8 @@ def traced_poll(func, instance, args, kwargs):
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
-        child_of=ctx,
+        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        activate=True,
     ) as span:
         # reset span start time to before function call
         span.start_ns = start_ns
