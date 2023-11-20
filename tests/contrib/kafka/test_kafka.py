@@ -745,8 +745,6 @@ def test(consumer, producer, kafka_topic):
     PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
 
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
-    assert produce_span.trace_id != consume_span1.trace_id
-    assert consume_span1.trace_id != consume_span2.trace_id
 
     assert str(message.value()) == str(PAYLOAD)
 
@@ -764,9 +762,9 @@ def test(consumer, producer, kafka_topic):
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
 
-    # One of the kafka.consume spans has a parent
+    # kafka.consume span has a parent
     assert consume_span.name == "kafka.consume"
-    assert consume_span.parent_id is not None
+    assert consume_span.parent_id == produce_span.span_id
 
     # Two of these spans are part of the same trace
     assert produce_span.trace_id == consume_span.trace_id
