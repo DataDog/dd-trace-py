@@ -304,3 +304,43 @@ def test_tuple_processor_list():
 
     cf.logger.calls.clear()
     unpatch()
+
+@pytest.mark.subprocess()
+def test_no_configured_processor():
+    """
+    Check if injected values are present when no processor is configured
+    """
+    import structlog
+
+    from ddtrace import config
+    from ddtrace import tracer
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    patch()
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        logger_factory=cf,
+    )
+    logger = structlog.getLogger()
+
+    span = tracer.trace("test.logging")
+    logger.info("Hello!")
+    span.finish()
+
+    output = cf.logger.calls
+
+    assert "Hello!" in output[0].args[0]
+    assert "dd.trace_id={}".format(str(span._trace_id_64bits)) in output[0].args[0]
+    assert "dd.span_id={}".format(str(span.span_id)) in output[0].args[0]
+    assert "dd.env=global.env" in output[0].args[0]
+    assert "dd.service=logging" in output[0].args[0]
+    assert "dd.version=global.version" in output[0].args[0]
+
+    cf.logger.calls.clear()
+    unpatch()
