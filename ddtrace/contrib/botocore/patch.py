@@ -32,6 +32,7 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.compat import parse
+from ...internal.compat import time_ns
 from ...internal.constants import COMPONENT
 from ...internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ...internal.logger import get_logger
@@ -488,44 +489,53 @@ def patched_api_call(original_func, instance, args, kwargs):
     result = None
     ctx = None
     operation = None
+    start_ns = None
     if args:
         operation = get_argument_value(args, kwargs, 0, "operation_name")
         params = get_argument_value(args, kwargs, 1, "api_params")
 
     if config.botocore["distributed_tracing"]:
-        if (endpoint_name == "sqs" and operation == "ReceiveMessage"):
+        if endpoint_name == "sqs" and operation == "ReceiveMessage":
+            if "MessageAttributeNames" not in params:
+                params.update({"MessageAttributeNames": ["_datadog"]})
+            elif "_datadog" not in params["MessageAttributeNames"]:
+                params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+
             err = None
             try:
+                start_ns = time_ns()
                 result = original_func(*args, **kwargs)
             except Exception as e:
                 err = e
-            if "Messages" in result and len(result["Messages"]) > 0:
+            if result is not None and "Messages" in result:
                 if len(result["Messages"]) == 1:
-                    message_body = result["Messages"][0]
-                    context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
-                    ctx = HTTPPropagator().extract(context_json)
-                else:
+                    message = result["Messages"][0]
+                    if "MessageAttributes" in message:
+                        context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+                        ctx = HTTPPropagator().extract(context_json)
+                elif len(result["Messages"]) > 1:
                     prev_ctx = None
                     for message in result["Messages"]:
                         prev_ctx = ctx
-                        message_body = result["Messages"][0]
-                        context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
-                        ctx = HTTPPropagator().extract(context_json)
-                        
+                        if "MessageAttributes" in message:
+                            context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+                            ctx = HTTPPropagator().extract(context_json)
+
                         # only want parenting for batches if all contexts are the same
                         if prev_ctx is not None and prev_ctx != ctx:
                             ctx = None
                             break
 
-                    
-        
     with pin.tracer.start_span(
         trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
-        child_of=ctx
+        child_of=ctx,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
+
+        if start_ns is not None:
+            span.start_ns = start_ns
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

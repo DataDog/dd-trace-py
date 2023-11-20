@@ -578,7 +578,6 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_on(self):
         with self.override_config("botocore", dict(distributed_tracing=True)):
@@ -686,7 +685,6 @@ class BotocoreTest(TracerTestCase):
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
             MessageAttributeNames=["_datadog"],
-            WaitTimeSeconds=2,
         )
         assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
