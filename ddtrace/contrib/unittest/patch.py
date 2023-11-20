@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -258,7 +259,14 @@ def _extract_test_file_name(item) -> str:
 
 def _extract_module_file_path(item) -> str:
     if _is_test(item):
-        return os.path.relpath(inspect.getfile(item.__class__))
+        try:
+            test_module_object = inspect.getfile(item.__class__)
+        except TypeError:
+            log.debug(
+                "Tried to collect module file path but it is a built-in Python function",
+            )
+            return ""
+        return get_relative_or_absolute_path_for_path(test_module_object, os.getcwd())
 
     return ""
 
@@ -537,14 +545,18 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
-    test_module_path = os.path.relpath(obj.__code__.co_filename)
+    test_module_path = get_relative_or_absolute_path_for_path(obj.__code__.co_filename, os.getcwd())
     test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
 
+def _using_unskippable_decorator(args, kwargs):
+    return args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON
+
+
 def skip_if_decorator(func, instance, args: tuple, kwargs: dict):
-    if args[0] is False and _extract_skip_if_reason(args, kwargs) == ITR_UNSKIPPABLE_REASON:
+    if _using_unskippable_decorator(args, kwargs):
         return _mark_test_as_unskippable
     return func(*args, **kwargs)
 
@@ -789,7 +801,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.Span) -> ddtrace.Span:
 
     _CIVisibility.set_codeowners_of(_extract_test_file_name(instance), span=span)
 
-    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name)
+    _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, os.getcwd())
 
     _store_test_span(instance, span)
     return span
