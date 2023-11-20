@@ -1,6 +1,6 @@
 [[
   {
-    "name": "rename-start-current-span",
+    "name": "internal",
     "service": null,
     "resource": "rename-start-current-span",
     "trace_id": 0,
@@ -8,15 +8,16 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "655535da00000000",
       "language": "python",
-      "runtime-id": "86d94e107de5452e80709b37ac12b380"
+      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32782
+      "process_id": 7703
     },
-    "duration": 60000,
-    "start": 1675884475365464000
+    "duration": 70875,
+    "start": 1700083162387024633
   }]]

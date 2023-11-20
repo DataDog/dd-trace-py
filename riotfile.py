@@ -151,6 +151,21 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_memcheck",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
+            pkgs={
+                "requests": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "pytest-memray": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_integrations",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
@@ -208,10 +223,12 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
+                "fastapi": latest,
+                "httpx": latest,
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -235,6 +252,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),

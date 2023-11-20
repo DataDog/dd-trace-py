@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "unnamed-python-service",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "_dd.peer.service.source": "db.name",
       "component": "asyncpg",
       "db.name": "postgres",
@@ -43,6 +44,7 @@
     "meta": {
       "_dd.base_service": "unnamed-python-service",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "_dd.peer.service.source": "db.name",
       "component": "asyncpg",
       "db.name": "postgres",
