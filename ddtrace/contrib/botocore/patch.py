@@ -486,6 +486,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
 
+    func_run = False
     result = None
     ctx = None
     operation = None
@@ -504,6 +505,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             err = None
             try:
                 start_ns = time_ns()
+                func_run = True
                 result = original_func(*args, **kwargs)
             except Exception as e:
                 err = e
@@ -531,6 +533,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
         child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        activate=True,
     ) as span:
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
@@ -650,7 +653,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 elif "_datadog" not in params["MessageAttributeNames"]:
                     params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
-                if result is None:
+                if not func_run:
                     result = original_func(*args, **kwargs)
                 _set_response_metadata_tags(span, result)
 
@@ -709,7 +712,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 return result
 
             else:
-                if result is None:
+                if not func_run:
                     result = original_func(*args, **kwargs)
 
                 if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
