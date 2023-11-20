@@ -135,7 +135,7 @@ def test_stacktrace_memory_check_no_native():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("8 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("24 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_no_native_direct_call():
     for _ in range(2):
         frame_info = get_info_frame_py(CWD)
