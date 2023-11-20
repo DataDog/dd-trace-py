@@ -191,7 +191,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
@@ -218,6 +218,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -1971,7 +1977,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": latest,
+                "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
                 "flask": latest,
