@@ -9,6 +9,7 @@ import pytest
 import six
 
 from ddtrace import Tracer
+from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -39,6 +40,7 @@ def test_configure_keeps_api_hostname_and_port():
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_get_signal.return_value = None
     tracer = Tracer()
+    register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
     assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
@@ -235,79 +237,95 @@ def test_child_spans_do_not_cause_warning_logs():
         log.error.assert_not_called()
 
 
-def _test_metrics(
-    tracer,
-    http_sent_traces=-1,
-    writer_accepted_traces=-1,
-    buffer_accepted_traces=-1,
-    buffer_accepted_spans=-1,
-    http_requests=-1,
-    http_sent_bytes=-1,
-):
+@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
+def test_metrics():
+    import mock
+
+    from ddtrace import tracer as t
+    from tests.utils import AnyInt
+    from tests.utils import override_global_config
+
+    assert t._partial_flush_min_spans == 300
+
     with override_global_config(dict(health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
-        tracer._writer.dogstatsd = statsd_mock
+        t._writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
-            for _ in range(5):
+            for _ in range(2):
                 spans = []
-                for _ in range(3000):
-                    spans.append(tracer.trace("op"))
+                for _ in range(600):
+                    spans.append(t.trace("op"))
                 for s in spans:
                     s.finish()
 
-            tracer.shutdown()
+            t.shutdown()
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-        for metric_name, metric_value, check_tags in (
-            ("datadog.tracer.http.sent.traces", http_sent_traces, False),
-            ("datadog.tracer.writer.accepted.traces", writer_accepted_traces, True),
-            ("datadog.tracer.buffer.accepted.traces", buffer_accepted_traces, True),
-            ("datadog.tracer.buffer.accepted.spans", buffer_accepted_spans, True),
-            ("datadog.tracer.http.requests", http_requests, True),
-            ("datadog.tracer.http.sent.bytes", http_sent_bytes, True),
-        ):
-            if metric_value != -1:
-                kwargs = {"tags": []} if check_tags else {}
-                statsd_mock.distribution.assert_has_calls(
-                    [mock.call(metric_name, metric_value, **kwargs)], any_order=True
-                )
-
-
-@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
-def test_metrics():
-    from ddtrace import tracer as t
-    from tests.integration.test_integration import _test_metrics
-    from tests.utils import AnyInt
-
-    assert t._partial_flush_min_spans == 300
-    _test_metrics(
-        t,
-        http_sent_bytes=AnyInt(),
-        http_sent_traces=50,
-        writer_accepted_traces=50,
-        buffer_accepted_traces=50,
-        buffer_accepted_spans=15000,
-        http_requests=1,
+    statsd_mock.distribution.assert_has_calls(
+        [
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+            mock.call("datadog.tracer.http.requests", 1, tags=None),
+            mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
+            mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
+            mock.call("datadog.tracer.http.sent.traces", 4, tags=None),
+        ],
+        any_order=True,
     )
 
 
-@skip_if_testagent
 @parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
 def test_metrics_partial_flush_disabled():
+    import mock
+
     from ddtrace import tracer as t
-    from tests.integration.test_integration import _test_metrics
     from tests.utils import AnyInt
+    from tests.utils import override_global_config
 
     t.configure(
         partial_flush_enabled=False,
     )
-    _test_metrics(
-        t,
-        http_sent_bytes=AnyInt(),
-        buffer_accepted_traces=5,
-        buffer_accepted_spans=15000,
-        http_requests=1,
+
+    with override_global_config(dict(health_metrics_enabled=True)):
+        statsd_mock = mock.Mock()
+        t._writer.dogstatsd = statsd_mock
+        with mock.patch("ddtrace.internal.writer.writer.log") as log:
+            for _ in range(2):
+                spans = []
+                for _ in range(600):
+                    spans.append(t.trace("op"))
+                for s in spans:
+                    s.finish()
+
+            t.shutdown()
+            log.warning.assert_not_called()
+            log.error.assert_not_called()
+
+    statsd_mock.distribution.assert_has_calls(
+        [
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+            mock.call("datadog.tracer.http.requests", 1, tags=None),
+            mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
+            mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
+            mock.call("datadog.tracer.http.sent.traces", 2, tags=None),
+        ],
+        any_order=True,
     )
 
 
