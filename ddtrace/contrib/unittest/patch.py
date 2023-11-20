@@ -30,7 +30,10 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import (
+    _add_start_end_source_file_path_data_to_span,
+    get_relative_or_absolute_path_for_path,
+)
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -265,15 +268,7 @@ def _extract_module_file_path(item) -> str:
                 "Tried to collect module file path but it is a built-in Python function",
             )
             return ""
-        try:
-            module_file_path = os.path.relpath(test_module_object, start=os.getcwd())
-            return module_file_path
-        except ValueError:
-            log.debug(
-                "Tried to collect module file path but it is using different drive paths on Windows, "
-                "using absolute path instead"
-            )
-            return os.path.abspath(test_module_object)
+        return get_relative_or_absolute_path_for_path(test_module_object, os.getcwd())
 
     return ""
 
@@ -552,14 +547,7 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
-    try:
-        test_module_path = os.path.relpath(obj.__code__.co_filename, start=os.getcwd())
-    except ValueError:
-        log.debug(
-            "Tried to collect unskippable decorator but it is using different drive paths on Windows, "
-            "using absolute path instead"
-        )
-        test_module_path = os.path.abspath(obj.__code__.co_filename)
+    test_module_path = get_relative_or_absolute_path_for_path(obj.__code__.co_filename, os.getcwd())
     test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj

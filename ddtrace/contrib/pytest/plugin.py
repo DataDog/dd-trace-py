@@ -46,7 +46,10 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import (
+    _add_start_end_source_file_path_data_to_span,
+    get_relative_or_absolute_path_for_path,
+)
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -806,15 +809,7 @@ def pytest_ddtrace_get_item_suite_name(item):
     if test_module_path:
         if not pytest_module_item.nodeid.startswith(test_module_path):
             log.warning("Suite path is not under module path: '%s' '%s'", pytest_module_item.nodeid, test_module_path)
-        try:
-            suite_path = os.path.relpath(pytest_module_item.nodeid, start=test_module_path)
-        except ValueError:
-            log.debug(
-                "Tried to collect suite path but it is using different drive paths on Windows, "
-                "using absolute path instead",
-            )
-            return os.path.abspath(pytest_module_item.nodeid)
-        return suite_path
+        return get_relative_or_absolute_path_for_path(pytest_module_item.nodeid, test_module_path)
     return pytest_module_item.nodeid
 
 

@@ -10,20 +10,25 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
+    try:
+        relative_path = os.path.relpath(path, start=start_directory)
+    except ValueError:
+        log.debug(
+            "Tried to collect relative path but it is using different drive paths on Windows, "
+            "using absolute path instead",
+        )
+        return os.path.abspath(path)
+    return relative_path
+
+
 def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> typing.Union[str, None]:
     try:
         file_object = inspect.getfile(test_method_object)
     except TypeError:
         return ""
-    try:
-        source_file_path = os.path.relpath(file_object, start=repo_directory)
-    except ValueError:
-        log.debug(
-            "Tried to collect source file path but it is using different drive paths on Windows, "
-            "using absolute path instead",
-        )
-        return os.path.abspath(file_object)
-    return source_file_path
+
+    return get_relative_or_absolute_path_for_path(file_object, repo_directory)
 
 
 def get_source_lines_for_test_method(
