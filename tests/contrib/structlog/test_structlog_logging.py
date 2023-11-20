@@ -305,6 +305,7 @@ def test_tuple_processor_list():
     cf.logger.calls.clear()
     unpatch()
 
+
 @pytest.mark.subprocess()
 def test_no_configured_processor():
     """
