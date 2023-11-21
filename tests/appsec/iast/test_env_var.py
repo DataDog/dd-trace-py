@@ -3,7 +3,6 @@ import os
 import subprocess
 
 import pytest
-from six import PY2
 
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 
@@ -23,7 +22,6 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -34,7 +32,6 @@ def test_env_var_iast_enabled(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.skipif(PY2, reason="Not testing Python 2")
 def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -45,7 +42,6 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     assert "IAST enabled" not in captured.err
 
 
-@pytest.mark.skipif(PY2, reason="Not testing Python 2")
 def test_env_var_iast_unset(monkeypatch, capfd):
     # type: (...) -> None
     _run_python_file()
@@ -54,8 +50,7 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     assert "IAST enabled" not in captured.err
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
-@pytest.mark.xfail(reason="IAST now working with Gevent yet")
+@pytest.mark.xfail(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -67,8 +62,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
-@pytest.mark.xfail(reason="IAST now working with Gevent yet")
+@pytest.mark.xfail(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -80,8 +74,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
-@pytest.mark.xfail(reason="IAST now working with Gevent yet")
+@pytest.mark.xfail(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -92,7 +85,6 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_A_env_var_iast_modules_to_patch(capfd):
     # type: (...) -> None
     import gc

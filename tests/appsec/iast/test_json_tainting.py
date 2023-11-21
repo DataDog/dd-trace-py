@@ -2,21 +2,15 @@ import json
 
 import pytest
 
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+from ddtrace.appsec._iast._taint_utils import LazyTaintList
+from ddtrace.appsec._iast._taint_utils import _is_tainted_struct
 from tests.utils import override_global_config
-
-
-try:
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._taint_utils import LazyTaintDict
-    from ddtrace.appsec._iast._taint_utils import LazyTaintList
-    from ddtrace.appsec._iast._taint_utils import _is_tainted_struct
-    from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def setup():
@@ -46,7 +40,6 @@ TEST_INPUTS = [
 ]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
 def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
     assert json._datadog_json_tainting_patch
@@ -71,7 +64,6 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
         assert is_fully_tainted(res)
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
 def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type, tainted_type):
     with override_global_config(dict(_iast_enabled=True)):

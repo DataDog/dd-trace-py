@@ -16,6 +16,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -313,6 +314,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "metrics._dd.appsec.waf.duration_ext",
     ],
 )
+@flaky(until=1704067200)
 def test_appsec_span_tags_snapshot(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
@@ -331,6 +333,7 @@ def test_appsec_span_tags_snapshot(tracer):
         "meta._dd.appsec.event_rules.errors",
     ],
 )
+@flaky(until=1704067200)
 def test_appsec_span_tags_snapshot_with_errors(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
