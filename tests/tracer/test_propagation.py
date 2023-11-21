@@ -1941,9 +1941,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
 @pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
 def test_mutliple_context_interactions(name, styles, headers, expected_context):
     with override_global_config(dict(_propagation_style_extract=styles)):
-        import pdb
-
-        pdb.set_trace()
         context = HTTPPropagator.extract(headers)
         assert context == expected_context
 
