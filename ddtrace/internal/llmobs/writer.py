@@ -52,7 +52,7 @@ class LLMObsWriter(PeriodicService):
         self._app_key = app_key or ""  # type: str
         self._endpoint = "/api/unstable/llm-obs/records"  # type: str
         self._site = site  # type: str
-        self._intake = "api.%s" % self._site  # type: str
+        self._intake = "%s" % self._site  # type: str
         self._headers = {
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
@@ -136,6 +136,7 @@ class LLMObsWriter(PeriodicService):
                     resp.read(),
                 )
             else:
+                print("\n\nsent %s record to llmobs backend\n\n" % data)
                 logger.debug("sent %d LLM records to %r", num_llm_records, self._url)
         except Exception:
             logger.error("failed to send %d LLM records to %r", num_llm_records, self._intake, exc_info=True)
