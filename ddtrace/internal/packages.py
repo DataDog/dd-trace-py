@@ -131,8 +131,3 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
-
-
-def is_third_party(filename):
-    # type: (str) -> bool
-    return filename_to_package(filename) is not None
