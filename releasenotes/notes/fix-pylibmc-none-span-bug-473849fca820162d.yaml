@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pylibmc: Fixes an issue where here any use of get/gets/get_multi would break if the tracer was disabled
