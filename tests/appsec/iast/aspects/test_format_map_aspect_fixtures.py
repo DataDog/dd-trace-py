@@ -5,15 +5,12 @@ from typing import Dict
 
 import pytest
 
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.internal.compat import iteritems
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-try:
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from ddtrace.appsec._iast._taint_tracking import get_ranges
-    from ddtrace.internal.compat import iteritems
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 

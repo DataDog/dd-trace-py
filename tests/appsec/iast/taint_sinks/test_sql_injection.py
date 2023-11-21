@@ -1,7 +1,9 @@
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
@@ -9,18 +11,9 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 
 
-try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
-
-
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/sql_injection.py"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_sql_injection(iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.sql_injection")
     table = taint_pyobject(
@@ -53,7 +46,6 @@ def test_sql_injection(iast_span_defaults):
     assert vulnerability.hash == hash_value
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_sql_injection_deduplication(num_vuln_expected, iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.sql_injection")
