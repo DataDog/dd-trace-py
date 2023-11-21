@@ -335,11 +335,7 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={
-                "httpretty": latest,
-                "gevent": latest,
-                "pytest-asyncio": latest,
-            },
+            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(

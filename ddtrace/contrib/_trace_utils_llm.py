@@ -11,6 +11,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 

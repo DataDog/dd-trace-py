@@ -10,7 +10,7 @@ from tests.utils import request_token
 
 
 logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
+    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
     record_mode="once",
     match_on=["path"],
     filter_headers=[("DD-API-KEY", "XXXXXX")],
@@ -119,9 +119,9 @@ def test_send_on_exit():
     import time
 
     from ddtrace.internal.log_writer import V2LogWriter
-    from tests.contrib.openai.test_logger import logs_vcr
+    from tests.internal.test_logger import logs_vcr
 
-    ctx = logs_vcr.use_cassette("tests.contrib.openai.test_logger.test_send_on_exit.yaml")
+    ctx = logs_vcr.use_cassette("tests.internal.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()
     # Save the cassette at exit, this atexit handler has to be
     # registered before logger.start() is called so that the request
