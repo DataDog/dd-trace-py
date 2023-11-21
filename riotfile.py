@@ -152,7 +152,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
             pkgs={
                 "requests": latest,
@@ -171,7 +171,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "psycopg2": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -2020,7 +2020,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": latest,
+                "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
                 "flask": latest,

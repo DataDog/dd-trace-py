@@ -16,6 +16,7 @@ import uuid
 
 import attr
 import cattr
+from envier import En
 import six
 
 import ddtrace
@@ -44,6 +45,15 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+
+class RemoteConfigClientConfig(En):
+    __prefix__ = "_dd.remote_configuration"
+
+    log_payloads = En.v(bool, "log_payloads", default=False)
+
+
+config = RemoteConfigClientConfig()
 
 
 class RemoteConfigError(Exception):
@@ -275,10 +285,19 @@ class RemoteConfigClient(object):
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
             )  # noqa: G200
+
+            if config.log_payloads:
+                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
+
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data = resp.read()
+
+            if config.log_payloads:
+                log.debug(
+                    "[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8")
+                )  # noqa: G200
         except OSError as e:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
