@@ -407,6 +407,15 @@
             "@appsec_iast",
             "tests/appsec/iast/*"
         ],
+        "appsec_iast_memcheck": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*",
+            "tests/appsec/iast_memcheck/*"
+        ],
         "appsec_integrations": [
             "@bootstrap",
             "@core",
