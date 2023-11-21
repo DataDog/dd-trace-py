@@ -28,7 +28,9 @@ GET_FILENAME(PyFrameObject* frame)
     if (!code) {
         return NULL;
     }
-    return PyObject_GetAttrString((PyObject*)code, "co_filename");
+    PyObject* filename = PyObject_GetAttrString((PyObject*)code, "co_filename");
+    Py_CLEAR(code);
+    return filename;
 }
 #else
 #define GET_FRAME(tstate) tstate->frame
@@ -73,13 +75,11 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     }
     cwd = PyBytes_AsString(cwd_bytes);
     if (!cwd) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
 
     PyFrameObject* frame = GET_FRAME(tstate);
     if (!frame) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
 
@@ -124,6 +124,8 @@ exit_0:; // fix: "a label can only be part of a statement and a declaration is n
     PyObject* line_obj = Py_BuildValue("i", 0);
     filename_o = PyUnicode_FromString("");
     result = PyTuple_Pack(2, filename_o, line_obj);
+    Py_DECREF(cwd_bytes);
+    FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
     Py_DECREF(line_obj);
     return result;

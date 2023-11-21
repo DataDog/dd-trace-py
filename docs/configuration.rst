@@ -361,6 +361,13 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_EXTRACT_FIRST:
+     type: Boolean
+     default: False
+     description: Whether the propagator stops after extracting the first header.
+     version_added:
+       v2.3.0:
+
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
      default: 512
@@ -566,6 +573,13 @@ The following environment variables for the tracer are supported:
       version_added:
          v1.15.0:
 
+   DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
+      type: Integer
+      default: 30
+      description: |
+         The maximum length of a traceback included in a span.
+      version_added:
+         v2.3.0:
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

@@ -3,7 +3,10 @@ import sys
 import pytest
 
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._utils import _is_python_version_supported
+from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
@@ -14,11 +17,6 @@ from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-if sys.version_info >= (3, 6):
-    from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
-    from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
 
 
 def iast_span(tracer, env, request_sampling="100"):
@@ -93,12 +91,6 @@ def iast_span_only_sha1(tracer):
 
 @pytest.fixture(autouse=True)
 def iast_context():
-    if _is_python_version_supported():
-        from ddtrace.appsec._iast._taint_tracking import create_context
-        from ddtrace.appsec._iast._taint_tracking import reset_context
-
-        _ = create_context()
-        yield
-        reset_context()
-    else:
-        yield
+    _ = create_context()
+    yield
+    reset_context()

@@ -2,7 +2,6 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._utils import _iast_report_to_str
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -30,7 +29,6 @@ def test_insecure_cookies(iast_span_defaults):
     assert vulnerabilities[0].location.path is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_nohttponly_cookies(iast_span_defaults):
     cookies = {"foo": "bar;secure"}
     asm_check_cookies(cookies)

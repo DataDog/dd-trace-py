@@ -2,21 +2,17 @@ import os
 
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
+from ddtrace.appsec._iast.taint_sinks.path_traversal import PathTraversal
 
-
-if python_supported_by_iast():
-    from ddtrace.appsec._iast.taint_sinks.path_traversal import PathTraversal
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     [
@@ -47,7 +43,6 @@ def test_path_traversal_redact_exclude(file_path):
         assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     [
@@ -94,7 +89,6 @@ def test_path_traversal_redact_rel_paths(file_path):
         assert v.evidence.valueParts == [{"source": 0, "value": file_path}]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal_redact_abs_paths():
     file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
     ev = Evidence(
