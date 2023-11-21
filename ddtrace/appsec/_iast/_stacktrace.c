@@ -26,10 +26,11 @@ GET_FILENAME(PyFrameObject* frame)
 {
     PyCodeObject* code = PyFrame_GetCode(frame);
     if (!code) {
-        Py_DECREF(code);
         return NULL;
     }
-    return PyObject_GetAttrString((PyObject*)code, "co_filename");
+    PyObject* filename = PyObject_GetAttrString((PyObject*)code, "co_filename");
+    Py_CLEAR(code);
+    return filename;
 }
 #else
 #define GET_FRAME(tstate) tstate->frame

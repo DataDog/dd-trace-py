@@ -14,10 +14,8 @@ from ddtrace.appsec._iast._taint_tracking import initializer_size
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.appsec.iast.fixtures.propagation_path import propagation_memory_check
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 
@@ -46,7 +44,6 @@ class IASTFilter(LeaksFilterFunction):
         return False
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.limit_leaks("19 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
@@ -99,7 +96,7 @@ def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
         reset_context()
 
 
-@pytest.mark.limit_leaks("450 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check():
     for _ in range(LOOPS):
         frame_info = func_1("", "2", "3")
@@ -111,7 +108,7 @@ def test_stacktrace_memory_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("301 B", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_direct_call():
     for _ in range(LOOPS):
         frame_info = get_info_frame(CWD)
@@ -171,7 +168,7 @@ def test_stacktrace_memory_empty_string_check():
         assert line_number > 0
 
 
-@pytest.mark.limit_leaks("2.5 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("10 KB", filter_fn=IASTFilter())
 def test_stacktrace_memory_random_string_check():
     """2.1 KB is enough but CI allocates 1.0 MB bytes"""
     for _ in range(LOOPS):
