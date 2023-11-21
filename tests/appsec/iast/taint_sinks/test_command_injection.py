@@ -7,6 +7,10 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
@@ -15,14 +19,6 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
 
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
 
