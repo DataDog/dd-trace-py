@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 
 def _is_python_version_supported():  # type: () -> bool
-    # IAST supports Python versions 3.6 to 3.11
-    return (3, 6, 0) <= sys.version_info < (3, 12, 0)
+    # IAST supports Python versions 3.6 to 3.12
+    return (3, 6, 0) <= sys.version_info < (3, 13, 0)
 
 
 def _is_iast_enabled():
