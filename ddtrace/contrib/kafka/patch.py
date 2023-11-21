@@ -208,7 +208,11 @@ def traced_poll(func, instance, args, kwargs):
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
-            if not isinstance(instance, _DeserializingConsumer):
+            if (
+                not isinstance(instance, _DeserializingConsumer)
+                or isinstance(message_key, str)
+                or isinstance(message_key, bytes)
+            ):
                 span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
             span.set_tag(kafkax.PARTITION, message.partition())
             span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))

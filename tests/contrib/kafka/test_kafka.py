@@ -755,7 +755,10 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     _producer = confluent_kafka.SerializingProducer(conf)
 
     def json_deserializer(as_bytes, ctx):
-        return json.loads(as_bytes)
+        try:
+            return json.loads(as_bytes)
+        except json.decoder.JSONDecodeError:
+            return as_bytes
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
