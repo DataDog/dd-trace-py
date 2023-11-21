@@ -793,5 +793,6 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
 
     assert produce_span.get_tag("kafka.message_key") is not None
 
-    # consumer span will not have tag set since we can't serialize the deserialized key from the original type to a string
+    # consumer span will not have tag set since we can't serialize the deserialized key from the original type to 
+    # a string
     assert consume_span.get_tag("kafka.message_key") is None
