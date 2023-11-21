@@ -1,0 +1,37 @@
+interactions:
+- request:
+    body: '{"data": {"type": "records", "attributes": {"tags": ["src:integration"],
+      "model": "ada", "model_provider": "openai", "records": [{"type":
+      "completion", "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6", "timestamp": 1681852797000,
+      "input": {"prompts": ["who broke enigma?"], "temperature": 0, "max_tokens":
+      256}, "output": {"completions": [{"content": "\n\nThe Enigma code was broken
+      by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]}}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+      DD-APPLICATION-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '169'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 15 Nov 2023 19:36:49 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+version: 1
