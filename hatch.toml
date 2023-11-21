@@ -84,6 +84,8 @@ extra-dependencies = [
 pre-install-commands = [
     "scripts/docs/install.sh",
 ]
+[envs.docs.env-vars]
+DD_TRACE_ENABLED = "false"
 
 [envs.docs.scripts]
 build = [
