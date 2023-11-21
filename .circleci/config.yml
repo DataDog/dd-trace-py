@@ -25,6 +25,8 @@ executors:
 jobs:
   setup:
     executor: python310
+    environment:
+      - GIT_COMMIT_DESC: git log -n 1 $CIRCLE_SHA1
     steps:
       - checkout
       - run:
