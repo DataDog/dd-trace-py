@@ -1,3 +1,7 @@
+from collections import Counter
+from collections import OrderedDict
+from collections import defaultdict
+from collections import deque
 from inspect import isgeneratorfunction
 import ipaddress
 import os
@@ -310,7 +314,9 @@ def to_bytes_py2(n, length, byteorder):
 NoneType = type(None)
 
 BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long, complex])
-BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
+BUILTIN_MAPPNG_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
+BUILTIN_SEQUENCE_TYPES = frozenset([list, tuple, set, frozenset, deque])
+BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPNG_TYPES | BUILTIN_SEQUENCE_TYPES
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
 
