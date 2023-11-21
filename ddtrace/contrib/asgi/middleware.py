@@ -195,6 +195,12 @@ class TraceMiddleware:
                 query_string = None
             receive, body = await core.dispatch("asgi.request.parse.body", receive, headers)[0][0]
 
+            client = scope.get("client")
+            if isinstance(client, list) and len(client):
+                peer_ip = client[0]
+            else:
+                peer_ip = None
+
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -206,8 +212,8 @@ class TraceMiddleware:
                 request_cookies=request_cookies,
                 parsed_query=parsed_query,
                 request_body=body,
+                peer_ip=peer_ip,
             )
-
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
 

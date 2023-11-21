@@ -204,7 +204,9 @@ def _asgi_make_block_content(ctx, url):
         ]
     else:
         if desired_type == "auto":
-            ctype = "text/html" if "text/html" in headers.get("Accept", "").lower() else "text/json"
+            ctype = (
+                "text/html" if "text/html" in headers.get("Accept", headers.get("accept", "")).lower() else "text/json"
+            )
         else:
             ctype = "text/" + block_config["type"]
         content = http_utils._get_blocked_template(ctype).encode("UTF-8")
