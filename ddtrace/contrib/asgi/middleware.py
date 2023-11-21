@@ -112,7 +112,6 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        log.debug(">>> call start")
         try:
             headers = _extract_headers(scope)
         except Exception:
@@ -275,4 +274,3 @@ class TraceMiddleware:
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
-                log.debug(">>> call end")
