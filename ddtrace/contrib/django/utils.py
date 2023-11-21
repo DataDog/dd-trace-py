@@ -395,7 +395,7 @@ def _after_request_tags(pin, span: Span, request, response):
                 status,
                 response_cookies,
             )
-            content = getattr(response, "content")
+            content = getattr(response, "content", None)
             if content is None:
                 content = getattr(response, "streaming_content", None)
             core.dispatch("django.after_request_headers.finalize", content, None)
