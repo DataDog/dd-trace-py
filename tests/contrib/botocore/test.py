@@ -38,7 +38,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
@@ -2889,7 +2888,6 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.kinesis.send"
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager(self):
         from moto import mock_secretsmanager
 
@@ -2915,7 +2913,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager_binary(self):
         from moto import mock_secretsmanager
 

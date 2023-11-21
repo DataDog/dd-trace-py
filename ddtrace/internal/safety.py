@@ -8,7 +8,6 @@ from typing import Type
 from typing import Union
 
 from ddtrace.internal.compat import BUILTIN
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
@@ -16,9 +15,6 @@ from ddtrace.vendor import wrapt
 
 
 NoneType = type(None)
-
-if PY3:
-    long = int
 
 
 def _maybe_slots(obj):
@@ -115,7 +111,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
                 # No __module__ attribute. We'll use caution
                 pass
 
-        elif _type in {str, int, float, bool, NoneType, bytes, complex, long}:
+        elif _type in {str, int, float, bool, NoneType, bytes, complex}:
             # We are assuming that scalar builtin type instances are safe
             return obj
 

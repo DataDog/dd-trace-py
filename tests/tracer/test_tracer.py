@@ -636,24 +636,6 @@ class TracerTestCases(TracerTestCase):
         assert span.context.dd_user_id == user_id_string
         assert user_id == "44Om44O844K244O8SUQ="
 
-    @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
-    def test_tracer_set_user_propagation_string_error_py2(self):
-        span = self.trace("fake_span")
-        set_user(
-            self.tracer,
-            user_id="ユーザーID",
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            propagate=True,
-        )
-        user_id = span.context._meta.get("_dd.p.usr.id")
-        assert span.get_tag(user.ID) == "ユーザーID"
-        assert span.context.dd_user_id == "ユーザーID"
-        assert user_id == "44Om44O844K244O8SUQ="
-
 
 def test_tracer_url():
     t = ddtrace.Tracer()

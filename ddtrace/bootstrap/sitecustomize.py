@@ -13,7 +13,6 @@ from ddtrace import config  # noqa
 from ddtrace._logger import _configure_log_injection
 from ddtrace.debugging._config import di_config  # noqa
 from ddtrace.debugging._config import ed_config  # noqa
-from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
@@ -43,10 +42,6 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
         )
 
 
-if PY2:
-    _unloaded_modules = []
-
-
 def is_module_installed(module_name):
     return find_loader(module_name) is not None
 
@@ -54,10 +49,6 @@ def is_module_installed(module_name):
 def cleanup_loaded_modules():
     def drop(module_name):
         # type: (str) -> None
-        if PY2:
-            # Store a reference to deleted modules to avoid them being garbage
-            # collected
-            _unloaded_modules.append(sys.modules[module_name])
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)
@@ -88,15 +79,9 @@ def cleanup_loaded_modules():
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
     )
-    if PY2:
-        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs", "copy_reg"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
-
-        if PY2:
-            if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES_PY2):
-                continue
 
         drop(m)
 
