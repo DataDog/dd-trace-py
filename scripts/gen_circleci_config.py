@@ -170,7 +170,10 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
             desc = func.__doc__.splitlines()[0]
             try:
                 start = time()
-                func(config, git_commit_selections)
+                if name == "gen_required_suites":
+                    func(config, git_commit_selections)
+                else:
+                    func(config)
                 end = time()
                 LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
             except Exception as e:
