@@ -124,7 +124,7 @@ def extract_git_commit_selections(git_commit_message: str) -> dict:
     suites = set()
     for token in git_commit_message.split():
         if token.lower().startswith("circleci:"):
-            suites.update(token[len("circleci:") :].split(","))
+            suites.update(token[len("circleci:") :].lower().split(","))
     return list(sorted(suites))
 
 
