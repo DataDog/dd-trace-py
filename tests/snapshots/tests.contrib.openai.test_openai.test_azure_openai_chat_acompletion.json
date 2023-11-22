@@ -39,7 +39,6 @@
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.choices_count": 1,
       "openai.response.created": 1695243913,
       "openai.response.usage.completion_tokens": 20,
       "openai.response.usage.prompt_tokens": 18,
