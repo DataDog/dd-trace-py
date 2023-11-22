@@ -13,8 +13,8 @@ from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -26,6 +26,7 @@ from ...internal.logger import get_logger
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
+from .. import trace_utils
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
@@ -41,7 +42,9 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 class PylonsTraceMiddleware(object):
-    def __init__(self, app, tracer, service=schematize_service_name("pylons"), distributed_tracing=None):
+    def __init__(self, app, tracer, service=None, distributed_tracing=None):
+        if service is None:
+            service = schematize_service_name("pylons")
         self.app = app
         self._service = service
         self._tracer = tracer
@@ -105,7 +108,7 @@ class PylonsTraceMiddleware(object):
 
             req_body = None
 
-            if ddconfig._appsec_enabled and request.method in _BODY_METHODS:
+            if asm_config._asm_enabled and request.method in _BODY_METHODS:
                 content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
 
                 try:

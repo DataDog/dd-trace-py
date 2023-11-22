@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    CI visibility: Adds support for tracking repository URLs via the BITBUCKET_GIT_HTTP_ORIGIN environment variable
+  - |
+    CI visibility: Adds CodeFresh integration

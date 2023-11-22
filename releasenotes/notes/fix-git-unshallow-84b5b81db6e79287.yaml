@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix solves an issue where the git unshallow command wasn't called

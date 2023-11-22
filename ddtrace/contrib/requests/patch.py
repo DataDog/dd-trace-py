@@ -9,6 +9,7 @@ from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ..trace_utils import unwrap as _u
+from .connection import _wrap_request
 from .connection import _wrap_send
 
 
@@ -24,13 +25,20 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(requests, "__version__", "")
+
+
 def patch():
     """Activate http calls tracing"""
     if getattr(requests, "__datadog_patch", False):
         return
-    setattr(requests, "__datadog_patch", True)
+    requests.__datadog_patch = True
 
     _w("requests", "Session.send", _wrap_send)
+    # IAST needs to wrap this function because `Session.send` is too late
+    _w("requests", "Session.request", _wrap_request)
     Pin(_config=config.requests).onto(requests.Session)
 
 
@@ -38,6 +46,6 @@ def unpatch():
     """Disable traced sessions"""
     if not getattr(requests, "__datadog_patch", False):
         return
-    setattr(requests, "__datadog_patch", False)
+    requests.__datadog_patch = False
 
     _u(requests.Session, "send")

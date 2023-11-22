@@ -4,16 +4,18 @@ import os
 import platform
 import re
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
-from typing import TYPE_CHECKING
 from typing import Union
 
 import ddtrace
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
 
@@ -50,8 +52,6 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    import pkg_resources
-
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
     if isinstance(tracer._writer, LogWriter):
@@ -77,7 +77,7 @@ def collect(tracer):
 
     is_venv = in_venv()
 
-    packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
+    packages_available = {p.name: p.version for p in get_distributions()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
@@ -122,7 +122,7 @@ def collect(tracer):
         os_name=platform.system(),
         # eg. 12.5.0
         os_version=platform.release(),
-        is_64_bit=sys.maxsize > 2 ** 32,
+        is_64_bit=sys.maxsize > 2**32,
         architecture=architecture()[0],
         vm=platform.python_implementation(),
         version=ddtrace.__version__,
@@ -137,7 +137,7 @@ def collect(tracer):
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
-        priority_sampler_type=type(tracer._priority_sampler).__name__ if tracer._priority_sampler else "N/A",
+        priority_sampler_type="N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
@@ -147,16 +147,16 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        priority_sampling_enabled=tracer._priority_sampler is not None,
+        priority_sampling_enabled=ddtrace.config._priority_sampling,
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
-        asm_enabled=ddtrace.config._appsec_enabled,
-        iast_enabled=ddtrace.config._iast_enabled,
-        waf_timeout=ddtrace.config._waf_timeout,
-        remote_config_enabled=os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", "true"),
+        asm_enabled=asm_config._asm_enabled,
+        iast_enabled=asm_config._iast_enabled,
+        waf_timeout=asm_config._waf_timeout,
+        remote_config_enabled=ddtrace.config._remote_config_enabled,
     )
 
 

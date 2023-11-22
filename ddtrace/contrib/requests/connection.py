@@ -4,8 +4,8 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -16,6 +16,7 @@ from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...internal.utils import get_argument_value
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 
 
 log = get_logger(__name__)
@@ -51,6 +52,17 @@ def _extract_query_string(uri):
         return None
 
     return uri[start:end]
+
+
+def _wrap_request(func, instance, args, kwargs):
+    """This function wraps `request.request`, which includes all request verbs like `request.get` and `request.post`.
+    IAST needs to wrap this function because `Session.send` is too late, as we require the raw arguments of the request.
+    """
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+
+        _iast_report_ssrf(func, *args, **kwargs)
+    return func(*args, **kwargs)
 
 
 def _wrap_send(func, instance, args, kwargs):

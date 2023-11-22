@@ -10,7 +10,6 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -22,9 +21,14 @@ from ...ext import redis as redisx
 from ...internal.schema import schematize_cache_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import CMD_MAX_LEN
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
+from .. import trace_utils
+from ..redis.asyncio_patch import _run_redis_command_async
+from ..trace_utils_redis import ROW_RETURNING_COMMANDS
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
+from ..trace_utils_redis import determine_row_count
 
 
 try:
@@ -37,17 +41,23 @@ config._add(
     dict(
         _default_service=schematize_service_name("redis"),
         cmd_max_length=int(os.getenv("DD_AIOREDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 
-aioredis_version_str = getattr(aioredis, "__version__", "0.0.0")
+aioredis_version_str = getattr(aioredis, "__version__", "")
 aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
+
+
+def get_version():
+    # type: () -> str
+    return aioredis_version_str
 
 
 def patch():
     if getattr(aioredis, "_datadog_patch", False):
         return
-    setattr(aioredis, "_datadog_patch", True)
+    aioredis._datadog_patch = True
     pin = Pin()
     if aioredis_version >= (2, 0):
         _w("aioredis.client", "Redis.execute_command", traced_execute_command)
@@ -65,7 +75,7 @@ def unpatch():
     if not getattr(aioredis, "_datadog_patch", False):
         return
 
-    setattr(aioredis, "_datadog_patch", False)
+    aioredis._datadog_patch = False
     if aioredis_version >= (2, 0):
         _u(aioredis.client.Redis, "execute_command")
         _u(aioredis.client.Redis, "pipeline")
@@ -81,8 +91,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aioredis, instance, args):
-        return await func(*args, **kwargs)
+    with _trace_redis_cmd(pin, config.aioredis, instance, args) as span:
+        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
 
 
 def traced_pipeline(func, instance, args, kwargs):
@@ -99,8 +109,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c, cmd_max_len=config.aioredis.cmd_max_length) for c, _ in instance.command_stack]
-    resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance):
+    with _trace_redis_execute_pipeline(pin, config.aioredis, cmds, instance):
         return await func(*args, **kwargs)
 
 
@@ -125,9 +134,11 @@ def traced_13_execute_command(func, instance, args, kwargs):
     # execution so subsequent operations in the stack are not necessarily semantically related
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
     parent = pin.tracer.current_span()
+    query = stringify_cache_args(args, cmd_max_len=config.aioredis.cmd_max_length)
     span = pin.tracer.start_span(
         schematize_cache_operation(redisx.CMD, cache_provider="redis"),
         service=trace_utils.ext_service(pin, config.aioredis),
+        resource=query.split(" ")[0] if config.aioredis.resource_only_command else query,
         span_type=SpanTypes.REDIS,
         activate=False,
         child_of=parent,
@@ -138,8 +149,6 @@ def traced_13_execute_command(func, instance, args, kwargs):
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
-    query = stringify_cache_args(args, cmd_max_len=config.aioredis.cmd_max_length)
-    span.resource = query
     span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
@@ -161,10 +170,15 @@ def traced_13_execute_command(func, instance, args, kwargs):
             #   - The future was cancelled (CancelledError)
             #   - There was an error executing the future (`future.exception()`)
             #   - The future is in an invalid state
+            redis_command = span.resource.split(" ")[0]
             future.result()
+            if redis_command in ROW_RETURNING_COMMANDS:
+                determine_row_count(redis_command=redis_command, span=span, result=future.result())
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except BaseException:
             span.set_exc_info(*sys.exc_info())
+            if redis_command in ROW_RETURNING_COMMANDS:
+                span.set_metric(db.ROWCOUNT, 0)
         finally:
             span.finish()
 
@@ -186,7 +200,11 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         parts = [cmd]
         parts.extend(cmd_args)
         cmds.append(stringify_cache_args(parts, cmd_max_len=config.aioredis.cmd_max_length))
-    resource = "\n".join(cmds)
+
+    resource = cmds_string = "\n".join(cmds)
+    if config.aioredis.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
     with pin.tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider="redis"),
         resource=resource,
@@ -207,7 +225,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         )
 
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag_str(redisx.RAWCMD, resource)
+        span.set_tag_str(redisx.RAWCMD, cmds_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())

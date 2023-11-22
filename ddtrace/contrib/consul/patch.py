@@ -22,10 +22,15 @@ from ...pin import Pin
 _KV_FUNCS = ["put", "get", "delete"]
 
 
+def get_version():
+    # type: () -> str
+    return getattr(consul, "__version__", "")
+
+
 def patch():
     if getattr(consul, "__datadog_patch", False):
         return
-    setattr(consul, "__datadog_patch", True)
+    consul.__datadog_patch = True
 
     pin = Pin(service=schematize_service_name(consulx.SERVICE))
     pin.onto(consul.Consul.KV)
@@ -37,7 +42,7 @@ def patch():
 def unpatch():
     if not getattr(consul, "__datadog_patch", False):
         return
-    setattr(consul, "__datadog_patch", False)
+    consul.__datadog_patch = False
 
     for f_name in _KV_FUNCS:
         _u(consul.Consul.KV, f_name)

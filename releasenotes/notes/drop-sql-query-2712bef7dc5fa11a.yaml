@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The aiopg and aiomysql integrations no longer set the sql.query tag on query spans. This tag duplicated the value captured by the span resource. Users who want to send this query unobfuscated can use the tracer API to set tags on the query span.

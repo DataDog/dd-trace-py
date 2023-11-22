@@ -7,8 +7,8 @@ Enabling
 ~~~~~~~~
 
 The httplib integration is disabled by default. It can be enabled when using
-:ref:`ddtrace-run<ddtracerun>` using the ``DD_TRACE_HTTPLIB_ENABLED``
-environment variable::
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`
+using the ``DD_TRACE_HTTPLIB_ENABLED`` environment variable::
 
     DD_TRACE_HTTPLIB_ENABLED=true ddtrace-run ....
 
@@ -58,8 +58,9 @@ The integration can be configured per instance::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
+from .patch import get_version
 from .patch import patch
 from .patch import unpatch
 
 
-__all__ = ["patch", "unpatch"]
+__all__ = ["patch", "unpatch", "get_version"]

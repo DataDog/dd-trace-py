@@ -18,10 +18,12 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -40,8 +42,8 @@ class SpanTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_128bit_trace_ids(self):
         s = Span(name="test.span")
-        assert s.trace_id >= 2 ** 64
-        assert s._trace_id_64bits < 2 ** 64
+        assert s.trace_id >= 2**64
+        assert s._trace_id_64bits < 2**64
 
         trace_id_binary = format(s.trace_id, "b")
         trace_id64_binary = format(s._trace_id_64bits, "b")
@@ -61,29 +63,29 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("negative", -1)
         s.set_tag("zero", 0)
         s.set_tag("positive", 1)
-        s.set_tag("large_int", 2 ** 53)
-        s.set_tag("really_large_int", (2 ** 53) + 1)
-        s.set_tag("large_negative_int", -(2 ** 53))
-        s.set_tag("really_large_negative_int", -((2 ** 53) + 1))
+        s.set_tag("large_int", 2**53)
+        s.set_tag("really_large_int", (2**53) + 1)
+        s.set_tag("large_negative_int", -(2**53))
+        s.set_tag("really_large_negative_int", -((2**53) + 1))
         s.set_tag("float", 12.3456789)
         s.set_tag("negative_float", -12.3456789)
-        s.set_tag("large_float", 2.0 ** 53)
-        s.set_tag("really_large_float", (2.0 ** 53) + 1)
+        s.set_tag("large_float", 2.0**53)
+        s.set_tag("really_large_float", (2.0**53) + 1)
 
         assert s.get_tags() == dict(
-            really_large_int=str(((2 ** 53) + 1)),
-            really_large_negative_int=str(-((2 ** 53) + 1)),
+            really_large_int=str(((2**53) + 1)),
+            really_large_negative_int=str(-((2**53) + 1)),
         )
         assert s.get_metrics() == {
             "negative": -1,
             "zero": 0,
             "positive": 1,
-            "large_int": 2 ** 53,
-            "large_negative_int": -(2 ** 53),
+            "large_int": 2**53,
+            "large_negative_int": -(2**53),
             "float": 12.3456789,
             "negative_float": -12.3456789,
-            "large_float": 2.0 ** 53,
-            "really_large_float": (2.0 ** 53) + 1,
+            "large_float": 2.0**53,
+            "really_large_float": (2.0**53) + 1,
         }
 
     def test_set_tag_bool(self):
@@ -227,6 +229,14 @@ class SpanTestCase(TracerTestCase):
         assert not s.get_tag(ERROR_TYPE)
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
 
+    def test_custom_traceback_size(self):
+        tb_length_limit = 11
+        with override_global_config(dict(_span_traceback_max_size=tb_length_limit)):
+            s = Span("test.span")
+            s.set_traceback()
+            stack = s.get_tag(ERROR_STACK)
+            assert len(stack.splitlines()) == tb_length_limit * 2, "stacktrace should contain two lines per entry"
+
     def test_ctx_mgr(self):
         s = Span("bar")
         assert not s.duration
@@ -352,6 +362,26 @@ class SpanTestCase(TracerTestCase):
         s.set_tag(ENV_KEY, "prod")
         assert s.get_tag(ENV_KEY) == "prod"
 
+    def test_span_links(self):
+        s1 = Span(name="test.span1")
+
+        s2 = Span(name="test.span2", span_id=1, trace_id=2)
+        s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
+        s2.context.sampling_priority = 1
+
+        link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "value2"}
+        s1.link_span(s2.context, link_attributes)
+
+        assert s1._links == [
+            SpanLink(
+                trace_id=2,
+                span_id=1,
+                tracestate="dd=s:1,congo=t61rcWkgMzE",
+                flags=1,
+                attributes=link_attributes,
+            )
+        ]
+
 
 @pytest.mark.parametrize(
     "value,assertion",
@@ -440,10 +470,10 @@ def test_spans_finished():
 
 def test_span_unicode_set_tag():
     span = Span(None)
-    span.set_tag("key", u"😌")
-    span.set_tag("😐", u"😌")
-    span.set_tag_str("key", u"😌")
-    span.set_tag_str(u"😐", u"😌")
+    span.set_tag("key", "😌")
+    span.set_tag("😐", "😌")
+    span.set_tag_str("key", "😌")
+    span.set_tag_str("😐", "😌")
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
@@ -455,7 +485,7 @@ def test_span_binary_unicode_set_tag(span_log):
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
-    assert span.get_tag("key_str") == u"🤔"
+    assert span.get_tag("key_str") == "🤔"
 
 
 @pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
@@ -472,9 +502,9 @@ def test_span_bytes_string_set_tag(span_log):
 @mock.patch("ddtrace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
-    span.set_tag_str("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
     span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == u"/?foo=bar&baz=����ó��"
+    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
 
 
 def test_span_nonstring_set_str_tag_exc():
@@ -618,9 +648,9 @@ def test_span_pprint():
     assert "error=1" in actual
 
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    root.set_tag(u"😌", u"😌")
+    root.set_tag("😌", "😌")
     actual = root._pprint()
-    assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+    assert ("tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
 
     root = Span("test.span", service=object())
     actual = root._pprint()
@@ -639,6 +669,20 @@ def test_manual_context_usage():
     assert span1.context.sampling_priority == 1
 
 
+def test_set_exc_info_with_systemexit():
+    def get_exception_span():
+        span = Span("span1")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            type_, value_, traceback_ = sys.exc_info()
+            span.set_exc_info(type_, value_, traceback_)
+        return span
+
+    exception_span = get_exception_span()
+    assert not exception_span.error
+
+
 def test_set_exc_info_with_unicode():
     def get_exception_span(exception):
         span = Span("span1")
@@ -649,8 +693,8 @@ def test_set_exc_info_with_unicode():
             span.set_exc_info(type_, value_, traceback_)
         return span
 
-    exception_span = get_exception_span(Exception(u"DataDog/水"))
-    assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
+    exception_span = get_exception_span(Exception("DataDog/水"))
+    assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
 
     if six.PY3:
         exception_span = get_exception_span(Exception("DataDog/水"))

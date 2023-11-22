@@ -119,6 +119,45 @@ def test_dbm_propagation_full_mode():
     assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
+    )
+)
+def test_dbm_dddbs_peer_service_enabled():
+    from ddtrace import tracer
+    from ddtrace.propagation import _database_monitoring
+
+    dbspan_no_service = tracer.trace("dbname")
+
+    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+    dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
+    sqlcomment = dbm_popagator._get_dbm_comment(dbspan_no_service)
+    # assert tags sqlcomment contains the correct value
+    assert (
+        sqlcomment
+        == "/*dddbs='orders-app',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+        % (dbspan_no_service.context._traceparent,)
+    ), sqlcomment
+
+    dbspan_with_peer_service = tracer.trace("dbname")
+    dbspan_with_peer_service.set_tag_str("db.name", "db-name-test")
+
+    # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
+    dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
+    sqlcomment = dbm_popagator._get_dbm_comment(dbspan_with_peer_service)
+    # assert tags sqlcomment contains the correct value
+    assert (
+        sqlcomment
+        == "/*dddbs='db-name-test',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
+        % (dbspan_with_peer_service.context._traceparent,)
+    ), sqlcomment
+
+
 def test_default_sql_injector(caplog):
     # test sql injection with unicode str
     dbm_comment = "/*dddbs='orders-db'*/ "

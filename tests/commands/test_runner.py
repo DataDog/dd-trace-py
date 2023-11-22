@@ -74,7 +74,7 @@ class DdtraceRunTest(BaseTestCase):
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" not in out
 
-        with self.override_env(dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true")):
+        with self.override_env(dict(DD_TRACE_DEBUG="true")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
                 stderr=subprocess.STDOUT,
@@ -223,22 +223,21 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true", DD_CALL_BASIC_CONFIG="true")):
+        with self.override_env(dict(DD_LOGS_INJECTION="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success"), out.decode()
 
     def test_debug_mode(self):
-        with self.override_env(dict(DD_CALL_BASIC_CONFIG="true")):
-            p = subprocess.Popen(
-                ["ddtrace-run", "--debug", "python", "-c", "''"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+        p = subprocess.Popen(
+            ["ddtrace-run", "--debug", "python", "-c", "''"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-            p.wait()
-            assert p.returncode == 0
-            assert p.stdout.read() == six.b("")
-            assert six.b("ddtrace.sampler") in p.stderr.read()
+        p.wait()
+        assert p.returncode == 0
+        assert p.stdout.read() == six.b("")
+        assert six.b("debug mode has been enabled for the ddtrace logger") in p.stderr.read()
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
@@ -351,7 +350,7 @@ def test_info_no_configs():
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: False
-    Remote Configuration enabled: false
+    Remote Configuration enabled: False
     IAST enabled (experimental): False
     Debug logging: False
     Writing traces to: http://localhost:8126
@@ -362,7 +361,7 @@ def test_info_no_configs():
     Health metrics enabled: False
     Priority sampling enabled: True
     Partial flushing enabled: True
-    Partial flush minimum number of spans: 500
+    Partial flush minimum number of spans: 300
     WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None
@@ -423,7 +422,7 @@ def test_info_w_configs():
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Application Security enabled: True
-    Remote Configuration enabled: true
+    Remote Configuration enabled: True
     IAST enabled (experimental): True
     Debug logging: True
     Writing traces to: http://168.212.226.204:8126
@@ -512,3 +511,64 @@ def test_ddtrace_auto_imports():
 
     for module in MODULES_TO_CHECK:
         assert module not in sys.modules, module
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_re_module():
+    import re
+
+    re.Scanner(
+        (
+            ("frozen", None),
+            (r"[a-zA-Z0-9_]+", lambda s, t: t),
+            (r"[\s,<>]", None),
+        )
+    )
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_sitecustomize():
+    """When using ddtrace-run we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=False, err=None)
+def test_ddtrace_auto_sitecustomize():
+    """When import ddtrace.auto we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    import ddtrace.auto  # noqa: F401
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_and_auto_sitecustomize():
+    """When using ddtrace-run and import ddtrace.auto we don't double import sitecustomize"""
+    import sys
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+    # Capture the list of all loaded modules
+    starting_modules = set(sys.modules.keys())
+
+    assert "ddtrace.auto" not in starting_modules
+
+    # Setting this to false, and confirming that importing auto doesn't set it to True (sitecustomize code ran)
+    sys.modules["ddtrace.bootstrap.sitecustomize"].loaded = False
+
+    import ddtrace.auto  # noqa: F401
+
+    # Ensure we didn't re-load our sitecustomize module, which sets loaded = True
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded is False
+
+    # Compare the list of imported modules before/after ddtrace.auto to show it is a no-op with
+    # no additional modules imported / side-effects
+    final_modules = set(sys.modules.keys())
+    assert final_modules - starting_modules == set(["ddtrace.auto"])

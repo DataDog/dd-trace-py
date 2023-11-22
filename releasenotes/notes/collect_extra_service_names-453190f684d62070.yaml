@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracer: This introduces collection of inferred service names.
+    The agent version v7.46.0 contains a new field "extra_services" in the remote config client, that allows clients to list any additional services that are used within tracer spans.
+    Knowing all service names used by a tracer instance help the UI give better feedback to the user.
+

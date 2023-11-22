@@ -1,8 +1,8 @@
 """
-The molten web framework is automatically traced by ``ddtrace`` when calling ``patch``::
+The molten web framework is automatically traced by ``ddtrace``::
 
+    import ddtrace.auto
     from molten import App, Route
-    from ddtrace import patch_all; patch_all(molten=True)
 
     def hello(name: str, age: int) -> str:
         return f'Hello {age} year old named {name}!'
@@ -45,5 +45,6 @@ with require_modules(required_modules) as missing_modules:
 
         patch = _patch.patch
         unpatch = _patch.unpatch
+        get_version = _patch.get_version
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

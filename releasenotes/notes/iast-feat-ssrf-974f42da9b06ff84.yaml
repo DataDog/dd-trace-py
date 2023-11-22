@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Vulnerability Management for Code-level (IAST): Server-Side Request Forgery (SSRF) vulnerability detection, 
+    which will be displayed on your DataDog Vulnerability Explorer dashboard.
+    See the `Application Vulnerability Management <https://docs.datadoghq.com/security/application_security/vulnerability_management/>`_ documentation for more information about this feature.

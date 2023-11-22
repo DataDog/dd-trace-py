@@ -12,13 +12,18 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 
 
+def get_version():
+    # type: () -> str
+    return getattr(aiopg, "__version__", "")
+
+
 def patch():
     """Patch monkey patches psycopg's connection function
     so that the connection's functions are traced.
     """
     if getattr(aiopg, "_datadog_patch", False):
         return
-    setattr(aiopg, "_datadog_patch", True)
+    aiopg._datadog_patch = True
 
     wrapt.wrap_function_wrapper(aiopg.connection, "_connect", patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
@@ -26,7 +31,7 @@ def patch():
 
 def unpatch():
     if getattr(aiopg, "_datadog_patch", False):
-        setattr(aiopg, "_datadog_patch", False)
+        aiopg._datadog_patch = False
         _u(aiopg.connection, "_connect")
         _unpatch_extensions(_aiopg_extensions)
 

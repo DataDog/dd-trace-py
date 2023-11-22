@@ -107,6 +107,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered
                 we call the hook as expected
         """
+
         # Setup our hook
         @self.config.web.hooks.on("request")
         def on_web_request(span):
@@ -128,6 +129,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered
                 we call the hook as expected
         """
+
         # Setup our hook
         @self.config.web.hooks.on("request")
         def on_web_request(span, request, response):
@@ -152,6 +154,7 @@ class GlobalConfigTestCase(TestCase):
             When there is a hook registered that is missing parameters
                 we do not raise an exception
         """
+
         # Setup our hook
         # DEV: We are missing the required "response" argument
         @self.config.web.hooks.on("request")
@@ -175,6 +178,7 @@ class GlobalConfigTestCase(TestCase):
             When there are multiple hooks registered
                 we do not raise an exception
         """
+
         # Setup our hooks
         @self.config.web.hooks.on("request")
         def on_web_request(span):
@@ -239,6 +243,7 @@ class GlobalConfigTestCase(TestCase):
             When no span is provided
                 we do not raise an exception
         """
+
         # Setup our hooks
         @self.config.web.hooks.on("request")
         def on_web_request(span):
@@ -279,10 +284,9 @@ class GlobalConfigTestCase(TestCase):
             c = Config()
             assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}
 
-
-def test_parse_propagation_styles_b3_deprecation(capsys):
-    with pytest.warns(DeprecationWarning, match='Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated'), override_env(
-        dict(DD_TRACE_PROPAGATION_STYLE="b3")
-    ):
-        style = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE", default="datadog")
-        assert style == ["b3multi"]
+    def test_parse_propagation_styles_b3_deprecation(capsys):
+        with pytest.warns(
+            DeprecationWarning, match='Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated'
+        ), override_env(dict(DD_TRACE_PROPAGATION_STYLE="b3 single header")):
+            style = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE", default="datadog")
+            assert style == ["b3"]

@@ -1,0 +1,27 @@
+---
+features:
+  - |
+    Adds support for Python 3.12.
+issues:
+  - |
+    aiohttp: Python 3.12 is not supported.
+  - |
+    aiohttp-jinja: Python 3.12 is not supported.
+  - |
+    aiobotocore: Python 3.12 is not supported.
+  - |
+    asm: IAST for Python 3.12 is not supported.
+  - |
+    flask-caching: Python 3.12 is not supported.
+  - |
+    openai/langchain: Python 3.12 is not supported.
+  - |
+    opentelemetry-api: Python 3.12 is not supported.
+  - |
+    opentracing: Python 3.12 is not supported.
+  - |
+    pyramid: Python 3.12 is not supported.
+  - |
+    pynamodb: Python 3.12 is not supported.
+  - |
+    redis/redis-py-cluster: Python 3.12 is not supported.

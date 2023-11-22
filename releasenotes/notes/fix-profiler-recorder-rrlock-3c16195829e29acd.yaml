@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: prevent deadlocks while recording events of different type.

@@ -8,5 +8,7 @@ GROUP_ID = "kafka.group_id"
 TOMBSTONE = "kafka.tombstone"
 RECEIVED_MESSAGE = "kafka.received_message"
 
+HOST_LIST = "messaging.kafka.bootstrap.servers"
+
 PRODUCE = "kafka.produce"
 CONSUME = "kafka.consume"

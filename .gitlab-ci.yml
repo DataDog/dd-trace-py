@@ -31,6 +31,16 @@ package:
   script:
     - ../.gitlab/build-deb-rpm.sh
 
+package-arm:
+  extends: .package-arm
+  rules:
+  - if: $PYTHON_PACKAGE_VERSION
+    when: on_success
+  - if: '$CI_COMMIT_TAG =~ /^v.*/'
+    when: on_success
+  script:
+    - ../.gitlab/build-deb-rpm.sh
+
 .release-package:
   stage: deploy
   variables:
@@ -60,7 +70,7 @@ deploy_to_di_backend:automatic:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: on_success
   trigger:
-    project: DataDog/debugger-backend
+    project: DataDog/debugger-demos
     branch: main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
@@ -76,7 +86,7 @@ deploy_to_di_backend:manual:
     - when: manual
       allow_failure: true
   trigger:
-    project: DataDog/debugger-backend
+    project: DataDog/debugger-demos
     branch: main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID

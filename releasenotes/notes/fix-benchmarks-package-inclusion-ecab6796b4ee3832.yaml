@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    core: This fix removes the inclusion of our ``benchmarks/`` directory in the ``ddtrace`` wheels.

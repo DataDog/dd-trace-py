@@ -2,7 +2,7 @@
 The Vertica integration will trace queries made using the vertica-python
 library.
 
-Vertica will be automatically instrumented with ``patch_all``, or when using
+Vertica will be automatically instrumented with ``import ddtrace.auto``, or when using
 the ``ddtrace-run`` command.
 
 Vertica is instrumented on import. To instrument Vertica manually use the
@@ -46,7 +46,8 @@ required_modules = ["vertica_python"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
         from .patch import unpatch
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = ["patch", "unpatch", "get_version"]

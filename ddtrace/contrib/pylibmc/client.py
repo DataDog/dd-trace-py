@@ -114,7 +114,6 @@ class TracedClient(ObjectProxy):
         """
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
-
             if span and args:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
@@ -135,7 +134,6 @@ class TracedClient(ObjectProxy):
         """trace the execution of the multi command with the given name."""
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
-
             pre = kwargs.get("key_prefix")
             if span and pre:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
@@ -186,7 +184,7 @@ class TracedClient(ObjectProxy):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
         # using, so fallback to randomly choosing one. can we do better?
         if self._addresses:
-            _, host, port, _ = random.choice(self._addresses)
+            _, host, port, _ = random.choice(self._addresses)  # nosec
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
 

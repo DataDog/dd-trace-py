@@ -8,11 +8,6 @@ from typing import Tuple
 
 import six
 
-from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_COUNT
-from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
-from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_GAUGE
-from ddtrace.internal.telemetry.constants import TELEMETRY_METRIC_TYPE_RATE
-
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
@@ -80,7 +75,7 @@ class CountMetric(Metric):
     metric tracking the number of website hits, for instance.
     """
 
-    metric_type = TELEMETRY_METRIC_TYPE_COUNT
+    metric_type = "count"
 
     def add_point(self, value=1.0):
         # type: (float) -> None
@@ -99,7 +94,7 @@ class GaugeMetric(Metric):
     Choosing the correct metric type ensures accurate data.
     """
 
-    metric_type = TELEMETRY_METRIC_TYPE_GAUGE
+    metric_type = "gauge"
 
     def add_point(self, value=1.0):
         # type: (float) -> None
@@ -113,7 +108,7 @@ class RateMetric(Metric):
     interested in the number of hits per second.
     """
 
-    metric_type = TELEMETRY_METRIC_TYPE_RATE
+    metric_type = "rate"
 
     def add_point(self, value=1.0):
         # type: (float) -> None
@@ -131,7 +126,7 @@ class DistributionMetric(Metric):
     interested in the number of hits per second.
     """
 
-    metric_type = TELEMETRY_METRIC_TYPE_DISTRIBUTIONS
+    metric_type = "distributions"
 
     def add_point(self, value=1.0):
         # type: (float) -> None

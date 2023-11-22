@@ -5,6 +5,9 @@ on:
       - 0.x
       - 1.x
   pull_request:
+    paths:
+      - 'ddtrace/**'
+      - 'scripts/profiles/flask-simple/**'
 jobs:
   flask-overhead-profile:
     runs-on: ubuntu-latest

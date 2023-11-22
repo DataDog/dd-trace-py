@@ -9,8 +9,7 @@ from flask import request
 app = Flask(__name__)
 
 
-@app.route("/")
-def index():
+def make_index():
     rand_numbers = [random.random() for _ in range(20)]
     m = hashlib.md5()
     m.update(b"Insecure hash")
@@ -45,6 +44,11 @@ def index():
     """,
         rand_numbers=rand_numbers,
     )
+
+
+@app.route("/")
+def index():
+    return make_index()
 
 
 @app.route("/post-view", methods=["POST"])

@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    tracing: Previously the maximum size of a span tag was set to the full size of trace writer buffer (via DD_TRACE_WRITER_BUFFER_SIZE_BYTES).
+    With this change the maximum size of span tags will be set to 10% of the size of the writer's buffer. This should decrease the frequency 
+    of encoding errors due to large span tags.

@@ -1,17 +1,11 @@
-from os.path import abspath
+from functools import wraps
+from pathlib import Path
 
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import _undecorate
-from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
-
-
-def _f(f):
-    if PY2:
-        return f.im_func
-    return f
 
 
 @pytest.fixture
@@ -95,7 +89,7 @@ def test_function_module_method(stuff_discovery):
 def test_function_instance_method(stuff_discovery):
     cls = stuff.Stuff
     (original_func,) = stuff_discovery.at_line(36)
-    assert _f(cls.instancestuff) is original_func
+    assert cls.instancestuff is original_func
 
 
 def test_function_decorated_method(stuff_discovery):
@@ -107,7 +101,7 @@ def test_function_decorated_method(stuff_discovery):
 def test_function_mangled(stuff_discovery):
     original_method = stuff.Stuff._Stuff__mangledstuff
     (original_func,) = stuff_discovery.at_line(75)
-    assert _f(original_method) is original_func
+    assert original_method is original_func
 
 
 def test_discovery_after_external_wrapping(stuff):
@@ -150,10 +144,34 @@ def test_undecorate():
     dddf = d(ddf)
     assert dddf is not ddf
 
-    name, path = f.__code__.co_name, abspath(__file__)
-    assert _undecorate(dddf, name, path) is f
-    assert _undecorate(ddf, name, path) is f
-    assert _undecorate(df, name, path) is f
-    assert _undecorate(f, name, path) is f
+    name, path = f.__code__.co_name, Path(__file__).resolve()
+    assert f is _undecorate(dddf, name, path)
+    assert f is _undecorate(ddf, name, path)
+    assert f is _undecorate(df, name, path)
+    assert f is _undecorate(f, name, path)
 
     assert _undecorate(_undecorate, name, path) is _undecorate
+
+
+def test_discovery_class_decoration():
+    class Decorator:
+        def __init__(self, f):
+            self.f = f
+
+    @Decorator
+    def f():
+        pass
+
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
+    assert code.co_name == "f"
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()
+
+
+def test_discovery_wrapped_decoration():
+    @wraps
+    def f():
+        pass
+
+    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
+    assert code.co_name == "f"
+    assert Path(code.co_filename).resolve() == Path(__file__).resolve()

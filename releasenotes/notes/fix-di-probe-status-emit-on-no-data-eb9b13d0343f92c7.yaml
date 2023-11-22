@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed a bug that might have caused probe status
+    to fail to update correctly.

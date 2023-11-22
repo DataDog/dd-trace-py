@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Fixes ``ValueError`` raised when ``Consumer.commit(offsets=...)`` is called.

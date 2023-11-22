@@ -3,7 +3,6 @@ import collections
 import email.parser
 import json
 import platform
-import socket
 import sys
 import threading
 import time
@@ -11,7 +10,6 @@ import time
 import pytest
 import six
 from six.moves import BaseHTTPServer
-from six.moves import http_client
 
 import ddtrace
 from ddtrace.internal import compat
@@ -216,7 +214,7 @@ def test_export_server_down():
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(EnvironmentError):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
@@ -228,7 +226,7 @@ def test_export_timeout(endpoint_test_timeout_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises((TimeoutError, socket.timeout) if six.PY3 else socket.error):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
@@ -240,7 +238,7 @@ def test_export_reset(endpoint_test_reset_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(ConnectionResetError if six.PY3 else http_client.BadStatusLine):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 

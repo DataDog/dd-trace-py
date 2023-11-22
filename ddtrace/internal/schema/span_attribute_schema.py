@@ -1,5 +1,7 @@
 from enum import Enum
 
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+
 
 class SpanDirection(Enum):
     INBOUND = "inbound"
@@ -23,7 +25,6 @@ def database_operation_v0(v0_operation, database_provider=None):
 
 def database_operation_v1(v0_operation, database_provider=None):
     operation = "query"
-    assert database_provider is not None, "You must specify a database provider, not 'None'"
     return "{}.{}".format(database_provider, operation)
 
 
@@ -32,7 +33,6 @@ def cache_operation_v0(v0_operation, cache_provider=None):
 
 
 def cache_operation_v1(v0_operation, cache_provider=None):
-    assert cache_provider is not None, "You must specify a cache provider, not 'None'"
     operation = "command"
     return "{}.{}".format(cache_provider, operation)
 
@@ -84,14 +84,6 @@ def url_operation_v0(v0_operation, protocol=None, direction=None):
 
 
 def url_operation_v1(v0_operation, protocol=None, direction=None):
-    acceptable_protocols = {"http", "grpc", "graphql"}
-    assert direction in SpanDirection, "You must specify a direction as one of {}. You specified {}".format(
-        list(SpanDirection), direction
-    )
-    assert protocol in acceptable_protocols, "You must specify a protocol as one of {}. You specified {}.".format(
-        acceptable_protocols, protocol
-    )
-
     server_or_client = {SpanDirection.INBOUND: "server", SpanDirection.OUTBOUND: "client"}[direction]
     return "{}.{}.request".format(protocol, server_or_client)
 
@@ -120,4 +112,4 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
 }
 
 
-_DEFAULT_SPAN_SERVICE_NAMES = {"v0": None, "v1": "unnamed-python-service"}
+_DEFAULT_SPAN_SERVICE_NAMES = {"v0": None, "v1": DEFAULT_SERVICE_NAME}

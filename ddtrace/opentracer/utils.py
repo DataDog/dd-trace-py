@@ -48,7 +48,7 @@ def _patch_scope_manager(scope_manager, context_provider):
     """
     if getattr(scope_manager, "_datadog_patch", False):
         return
-    setattr(scope_manager, "_datadog_patch", True)
+    scope_manager._datadog_patch = True
 
     old_method = scope_manager.activate
 

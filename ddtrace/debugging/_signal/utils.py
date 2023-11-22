@@ -4,48 +4,47 @@ from types import FrameType
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
+from typing import Tuple
 from typing import Type
 
 from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging._probe.model import MAXLEN
 from ddtrace.debugging._probe.model import MAXLEVEL
 from ddtrace.debugging._probe.model import MAXSIZE
-from ddtrace.debugging.safety import get_fields
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
+from ddtrace.debugging._redaction import redact
+from ddtrace.debugging._redaction import redact_type
+from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
+from ddtrace.internal.compat import Collection
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.compat import NoneType
-from ddtrace.internal.compat import stringify
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.compat import Collection
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
 
 
 @cached()
-def qualname(_type):
-    # type: (Type) -> str
+def qualname(_type: Type) -> str:
     try:
-        return stringify(_type.__qualname__)
+        return _type.__qualname__
     except AttributeError:
-        # The logic for implementing qualname in Python 2 is complex, so if we
-        # don't have it, we just return the name of the type.
         try:
             return _type.__name__
         except AttributeError:
             return repr(_type)
 
 
-def _serialize_collection(value, brackets, level, maxsize, maxlen, maxfields):
-    # type: (Collection, str, int, int, int, int) -> str
+def _serialize_collection(
+    value: Collection, brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
+) -> str:
     o, c = brackets[0], brackets[1]
     ellipsis = ", ..." if len(value) > maxsize else ""
     return "".join(
@@ -53,8 +52,9 @@ def _serialize_collection(value, brackets, level, maxsize, maxlen, maxfields):
     )
 
 
-def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=MAXFIELDS):
-    # type: (Any, int, int, int, int) -> str
+def serialize(
+    value: Any, level: int = MAXLEVEL, maxsize: int = MAXSIZE, maxlen: int = MAXLEN, maxfields: int = MAXFIELDS
+) -> str:
     """Python object serializer.
 
     We provide our own serializer to avoid any potential side effects of calling
@@ -72,28 +72,28 @@ def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=M
         return repr(type(value))
 
     if type(value) not in BUILTIN_CONTAINER_TYPES:
-        return (
-            type(value).__name__
-            + "("
-            + ", ".join(
-                [
+        return "%s(%s)" % (
+            type(value).__name__,
+            ", ".join(
+                (
                     "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                    for k, v in list(get_fields(value).items())[:maxfields]
-                ]
-            )
-            + ")"
+                    for k, v in islice(get_fields(value).items(), maxfields)
+                    if not redact(k)
+                )
+            ),
         )
 
     if type(value) is dict:
-        return (
-            "{"
-            + ", ".join(
-                [
-                    ": ".join((serialize(k, level - 1, maxsize, maxlen, maxfields), serialize(v, level - 1)))
-                    for k, v in value.items()
-                ]
+        return "{%s}" % ", ".join(
+            (
+                ": ".join(
+                    (
+                        serialize(_, level - 1, maxsize, maxlen, maxfields)
+                        for _ in (k, v if not (_isinstance(k, str) and redact(k)) else REDACTED_PLACEHOLDER)
+                    )
+                )
+                for k, v in islice(value.items(), maxsize)
             )
-            + "}"
         )
     elif type(value) is list:
         return _serialize_collection(value, "[]", level, maxsize, maxlen, maxfields)
@@ -102,12 +102,12 @@ def serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN, maxfields=M
     elif type(value) is set:
         return _serialize_collection(value, r"{}", level, maxsize, maxlen, maxfields) if value else "set()"
 
-    raise TypeError("Unhandled type: %s", type(value))
+    msg = f"Unhandled type: {type(value)}"
+    raise TypeError(msg)
 
 
-def capture_stack(top_frame, max_height=4096):
-    # type: (FrameType, int) -> List[dict]
-    frame = top_frame  # type: Optional[FrameType]
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:
+    frame: Optional[FrameType] = top_frame
     stack = []
     h = 0
     while frame and h < max_height:
@@ -124,8 +124,7 @@ def capture_stack(top_frame, max_height=4096):
     return stack
 
 
-def capture_exc_info(exc_info):
-    # type: (ExcInfoType) -> Optional[Dict[str, Any]]
+def capture_exc_info(exc_info: ExcInfoType) -> Optional[Dict[str, Any]]:
     _type, value, tb = exc_info
     if _type is None or value is None:
         return None
@@ -142,8 +141,36 @@ def capture_exc_info(exc_info):
     }
 
 
-def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfields=MAXFIELDS, stopping_cond=None):
-    # type: (Any, int, int, int, int, Optional[Callable[[Any], bool]]) -> Dict[str, Any]
+def redacted_value(v: Any) -> dict:
+    return {"type": qualname(type(v)), "notCapturedReason": "redactedIdent"}
+
+
+def redacted_type(t: Any) -> dict:
+    return {"type": qualname(t), "notCapturedReason": "redactedType"}
+
+
+def capture_pairs(
+    pairs: Iterable[Tuple[str, Any]],
+    level: int = MAXLEVEL,
+    maxlen: int = MAXLEN,
+    maxsize: int = MAXSIZE,
+    maxfields: int = MAXFIELDS,
+    stopping_cond: Optional[Callable[[Any], bool]] = None,
+) -> Dict[str, Any]:
+    return {
+        n: (capture_value(v, level, maxlen, maxsize, maxfields, stopping_cond) if not redact(n) else redacted_value(v))
+        for n, v in pairs
+    }
+
+
+def capture_value(
+    value: Any,
+    level: int = MAXLEVEL,
+    maxlen: int = MAXLEN,
+    maxsize: int = MAXSIZE,
+    maxfields: int = MAXFIELDS,
+    stopping_cond: Optional[Callable[[Any], bool]] = None,
+) -> Dict[str, Any]:
     cond = stopping_cond if stopping_cond is not None else (lambda _: False)
 
     _type = type(value)
@@ -158,7 +185,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                 "notCapturedReason": cond.__name__,
             }
 
-        value_repr = repr(value)
+        value_repr = serialize(value)
         value_repr_len = len(value_repr)
         return (
             {
@@ -189,7 +216,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                 "size": len(value),
             }
 
-        collection = None  # type: Optional[List[Any]]
+        collection: Optional[List[Any]] = None
         if _type is dict:
             # Mapping
             collection = [
@@ -209,9 +236,11 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                         maxsize=maxsize,
                         maxfields=maxfields,
                         stopping_cond=cond,
-                    ),
+                    )
+                    if not (_isinstance(k, str) and redact(k))
+                    else redacted_value(v),
                 )
-                for _, (k, v) in takewhile(lambda _: not cond(_), zip(range(maxsize), value.items()))
+                for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))
             ]
             data = {
                 "type": "dict",
@@ -230,7 +259,7 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
                     maxfields=maxfields,
                     stopping_cond=cond,
                 )
-                for _, v in takewhile(lambda _: not cond(_), zip(range(maxsize), value))
+                for v in takewhile(lambda _: not cond(_), islice(value, maxsize))
             ]
             data = {
                 "type": qualname(_type),
@@ -252,6 +281,9 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
             "notCapturedReason": "depth",
         }
 
+    if redact_type(qualname(_type)):
+        return redacted_type(_type)
+
     if cond(value):
         return {
             "type": qualname(_type),
@@ -260,8 +292,12 @@ def capture_value(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfiel
 
     fields = get_fields(value)
     captured_fields = {
-        n: capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
-        for _, (n, v) in takewhile(lambda _: not cond(_), zip(range(maxfields), fields.items()))
+        n: (
+            capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
+            if not redact(n)
+            else redacted_value(v)
+        )
+        for n, v in takewhile(lambda _: not cond(_), islice(fields.items(), maxfields))
     }
     data = {
         "type": qualname(_type),
