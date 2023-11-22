@@ -117,6 +117,6 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
             tool_call = tool_call.function
         span.set_tag(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-            integration.trunc(str(tool_call.arguments))
+            integration.trunc(str(tool_call.arguments)),
         )
         span.set_tag("openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(tool_call.name))

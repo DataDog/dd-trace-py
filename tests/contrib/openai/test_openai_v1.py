@@ -205,7 +205,9 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
+async def test_acompletion(
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -1382,7 +1384,9 @@ pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
-    resp = client.completions.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test")
+    resp = client.completions.create(
+        model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+    )
 """,
         env=env,
     )
@@ -1429,7 +1433,9 @@ pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
-        resp = await client.completions.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test")
+        resp = await client.completions.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
 
 asyncio.run(task())
 """,

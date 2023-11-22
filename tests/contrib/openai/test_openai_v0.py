@@ -175,7 +175,7 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acompletion(
-        api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
+    api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
@@ -1829,7 +1829,7 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
         "metrics.openai.response.usage.prompt_tokens",
         "metrics.openai.response.usage.completion_tokens",
     ],
-    async_mode=False
+    async_mode=False,
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
