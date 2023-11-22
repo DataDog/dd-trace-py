@@ -516,8 +516,8 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_achat_completion",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+        token="tests.contrib.openai.test_openai.test_chat_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta._dd.p.tid"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             client = openai.OpenAI(api_key=request_api_key)

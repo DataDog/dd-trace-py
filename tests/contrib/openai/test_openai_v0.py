@@ -482,8 +482,8 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_achat_completion",
-        ignores=["meta.http.useragent", "meta.openai.base_url"],
+        token="tests.contrib.openai.test_openai.test_chat_completion",
+        ignores=["meta.http.useragent", "meta.openai.base_url", "meta._dd.p.tid"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             await openai.ChatCompletion.acreate(
