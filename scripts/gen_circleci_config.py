@@ -25,6 +25,8 @@ def gen_required_suites(template: dict, git_selections: list) -> None:
         # Nothing to generate
         return
 
+    print(required_suites)
+
     jobs = template["workflows"]["test"]["jobs"]
 
     # Create the base venvs
