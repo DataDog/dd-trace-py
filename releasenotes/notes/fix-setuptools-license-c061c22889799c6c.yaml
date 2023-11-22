@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue where ddtrace could not be installed from source when using ``setuptools>=69`` due to a change in the license field.
