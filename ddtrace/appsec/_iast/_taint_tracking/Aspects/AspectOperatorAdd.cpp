@@ -26,7 +26,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
     if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
         const auto& res_new_id = new_pyobject_id(result_o);
-        Py_DECREF(result_o);
+        Py_DecRef(result_o);
         // If left side is already at the maximum taint ranges, we just reuse its
         // ranges, we don't need to look at left side.
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
@@ -39,7 +39,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     }
     if (!to_text_to_add) {
         const auto& res_new_id = new_pyobject_id(result_o);
-        Py_DECREF(result_o);
+        Py_DecRef(result_o);
         set_tainted_object(res_new_id, to_candidate_text, tx_taint_map);
         return res_new_id;
     }
@@ -47,7 +47,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
     auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, (RANGE_START)len_candidate_text);
     const auto& res_new_id = new_pyobject_id(result_o);
-    Py_DECREF(result_o);
+    Py_DecRef(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
 
     return res_new_id;
