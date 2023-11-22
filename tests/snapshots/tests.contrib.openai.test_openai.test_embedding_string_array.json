@@ -33,7 +33,7 @@
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.remaining": 999994,
-      "openai.response.embeddings.embedding-length": 1536,
+      "openai.response.embedding-length": 1536,
       "openai.response.embeddings_count": 2,
       "openai.response.usage.prompt_tokens": 4,
       "openai.response.usage.total_tokens": 4,

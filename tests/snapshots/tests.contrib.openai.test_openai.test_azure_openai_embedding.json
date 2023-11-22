@@ -30,7 +30,7 @@
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.embeddings.embedding-length": 1536,
+      "openai.response.embedding-length": 1536,
       "openai.response.embeddings_count": 1,
       "openai.response.usage.prompt_tokens": 2,
       "openai.response.usage.total_tokens": 2,

@@ -316,7 +316,7 @@ class _EmbeddingHook(_EndpointHook):
         if not resp:
             return
         span.set_metric("openai.response.embeddings_count", len(resp.data))
-        span.set_metric("openai.response.embeddings.embedding-length", len(resp.data[0].embedding))
+        span.set_metric("openai.response.embedding-length", len(resp.data[0].embedding))
         integration.record_usage(span, resp.usage)
         return resp
 
