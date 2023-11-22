@@ -19,6 +19,7 @@ from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
+from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
 from ddtrace.internal.compat import Collection
@@ -217,7 +218,7 @@ def capture_value(
             }
 
         collection: Optional[List[Any]] = None
-        if _type is dict:
+        if _type in BUILTIN_MAPPNG_TYPES:
             # Mapping
             collection = [
                 (
@@ -243,7 +244,7 @@ def capture_value(
                 for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))
             ]
             data = {
-                "type": "dict",
+                "type": qualname(_type),
                 "entries": collection,
                 "size": len(value),
             }
