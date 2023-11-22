@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    This fix resolves an issue when setting the ``message.key`` span tag for kafka serializing producers and deserializing consumers. Serialized keys 
+    are now used for the tag value. If a key is already deserialized by the consumer, no ``message.key`` span tag is set as we do not have access to the
+    serialization function.
