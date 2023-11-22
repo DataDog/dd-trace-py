@@ -1,5 +1,5 @@
 import functools
-from itertools import chain
+import json  # noqa
 import logging
 import os
 from os import environ
