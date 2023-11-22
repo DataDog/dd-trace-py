@@ -5,7 +5,7 @@ import os
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
-
+from ddtrace.internal.utils.formats import asbool
 
 ModuleWatchdog.install()
 
@@ -21,7 +21,7 @@ from ._logger import configure_ddtrace_logger
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
-if os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() == "true":
+if asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true")):
     from ddtrace.internal import telemetry
 
     telemetry.install_excepthook()
