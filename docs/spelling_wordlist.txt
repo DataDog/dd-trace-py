@@ -268,3 +268,5 @@ Enablement
 hotspot
 CMake
 libdatadog
+pubsub
+dynamic instrumentation

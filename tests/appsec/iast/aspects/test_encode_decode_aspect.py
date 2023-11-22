@@ -60,8 +60,21 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     main_string = ddtrace_aspects.add_aspect(main_string, suffix)
     if should_be_tainted:
         assert len(get_tainted_ranges(main_string))
-    ok, res = catch_all(ddtrace_aspects.decode_aspect, (main_string,) + args, kwargs)
-    assert (ok, res) == catch_all(main_string.__class__.decode, (main_string,) + args, kwargs)
+    ok, res = catch_all(
+        ddtrace_aspects.decode_aspect,
+        (
+            main_string.__class__.decode,
+            1,
+            main_string,
+        )
+        + args,
+        kwargs,
+    )
+    assert (ok, res) == catch_all(
+        main_string.__class__.decode,
+        (main_string,) + args,
+        kwargs,
+    )
     if should_be_tainted and ok:
         list_tr = get_tainted_ranges(res)
         assert len(list_tr) == 1
@@ -105,7 +118,16 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     main_string = ddtrace_aspects.add_aspect(main_string, suffix)
     if should_be_tainted:
         assert len(get_tainted_ranges(main_string))
-    ok, res = catch_all(ddtrace_aspects.encode_aspect, (main_string,) + args, kwargs)
+    ok, res = catch_all(
+        ddtrace_aspects.encode_aspect,
+        (
+            main_string.__class__.encode,
+            1,
+            main_string,
+        )
+        + args,
+        kwargs,
+    )
 
     assert (ok, res) == catch_all(main_string.__class__.encode, (main_string,) + args, kwargs)
     if should_be_tainted and ok:
