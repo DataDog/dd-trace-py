@@ -1,24 +1,24 @@
 import pytest
 
-
-try:
-    from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
-    from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
-    from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
-    from ddtrace.appsec._iast._metrics import metric_verbosity
-    from ddtrace.appsec._iast._patch_modules import patch_iast
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._utils import _is_python_version_supported
-    from ddtrace.ext import SpanTypes
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
-    from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-    from tests.utils import DummyTracer
-    from tests.utils import override_env
-    from tests.utils import override_global_config
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
+from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
+from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
+from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+from ddtrace.appsec._iast._metrics import metric_verbosity
+from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._utils import _is_python_version_supported
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
+from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import DummyTracer
+from tests.utils import flaky
+from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
@@ -43,8 +43,7 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
+def test_metric_executed_sink(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -52,8 +51,8 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
 
         tracer = DummyTracer(iast_enabled=True)
 
-        mock_telemetry_lifecycle_writer._namespace.flush()
-        with tracer.trace("test", span_type=SpanTypes.WEB):
+        telemetry_writer._namespace.flush()
+        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             import hashlib
 
             m = hashlib.new("md5")
@@ -62,30 +61,32 @@ def test_metric_executed_sink(mock_telemetry_lifecycle_writer):
             num_vulnerabilities = 10
             for _ in range(0, num_vulnerabilities):
                 m.digest()
-        metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
+
+        metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == [
         "executed.sink",
     ]
+    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") > 0
+    # request.tainted metric is None because AST is not running in this test
+    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_instrumented_propagation(mock_telemetry_lifecycle_writer):
+def test_metric_instrumented_propagation(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
         _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
-    metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
+    metrics_result = telemetry_writer._namespace._metrics_data
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
-def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
+def test_metric_request_tainted(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -98,10 +99,19 @@ def test_metric_request_tainted(mock_telemetry_lifecycle_writer):
                 source_value="bar",
                 source_origin=OriginType.PARAMETER,
             )
-        tracer._on_span_finish(span)
 
-    metrics_result = mock_telemetry_lifecycle_writer._namespace._metrics_data
+    metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
     assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
+    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
+
+
+def test_log_metric(telemetry_writer):
+    _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
+
+    list_metrics_logs = list(telemetry_writer._logs)
+    assert len(list_metrics_logs) == 1
+    assert list_metrics_logs[0]["message"] == "test_format_key_error_and_no_log_metric raises"
+    assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')

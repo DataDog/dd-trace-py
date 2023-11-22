@@ -8,6 +8,7 @@ class TestDjangoPatch(PatchTestCase.Base):
     __module_name__ = "django"
     __patch_func__ = patch
     __unpatch_func__ = None
+    __get_version__ = get_version
 
     def assert_module_patched(self, django):
         import django.apps.registry
@@ -50,8 +51,3 @@ class TestDjangoPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(django.urls.path)
             self.assert_not_double_wrapped(django.urls.re_path)
         self.assert_not_double_wrapped(django.views.generic.base.View.as_view)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

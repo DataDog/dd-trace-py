@@ -2,9 +2,9 @@ import typing
 
 import attr
 
-from . import _lock
 from .. import collector
 from .. import event
+from . import _lock
 
 
 @event.event_class
@@ -18,7 +18,6 @@ class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
-
     ACQUIRE_EVENT_CLASS = AsyncioLockAcquireEvent
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 

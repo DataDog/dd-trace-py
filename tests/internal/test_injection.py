@@ -1,11 +1,8 @@
 from contextlib import contextmanager
-from random import shuffle
 
 import mock
 import pytest
-from six import PY2
 
-from ddtrace.debugging._function.discovery import UnboundMethodType
 from ddtrace.internal.injection import InvalidLine
 from ddtrace.internal.injection import eject_hook
 from ddtrace.internal.injection import eject_hooks
@@ -16,9 +13,6 @@ from ddtrace.internal.utils.inspection import linenos
 
 @contextmanager
 def injected_hook(f, hook, arg, line=None):
-    if PY2 and isinstance(f, UnboundMethodType):
-        f = f.__func__
-
     code = f.__code__
 
     if line is None:
@@ -160,13 +154,11 @@ def test_eject_hooks_same_line():
 
     lo = min(linenos(injection_target)) + 1
     lines = [lo] * 3
-    shuffled_lines = list(lines)
-    shuffle(shuffled_lines)
 
     failed = inject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
-    failed = eject_hooks(injection_target, list(zip(hooks, shuffled_lines, hooks)))
+    failed = eject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
     assert injection_target(1, 2) == (2, 1)
@@ -193,10 +185,7 @@ def test_inject_instance_method():
     lo = min(linenos(Stuff.instancestuff))
     hook = mock.Mock()
     old_method = Stuff.instancestuff
-    if PY2:
-        inject_hook(Stuff.instancestuff.__func__, hook, lo, 0)
-    else:
-        inject_hook(Stuff.instancestuff, hook, lo, 0)
+    inject_hook(Stuff.instancestuff, hook, lo, 0)
 
     stuff = Stuff()
     assert stuff.instancestuff(42) == 42

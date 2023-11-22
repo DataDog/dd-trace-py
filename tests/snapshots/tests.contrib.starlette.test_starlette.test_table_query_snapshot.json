@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "starlette",
       "http.method": "POST",
       "http.route": "/notes",
@@ -40,6 +41,7 @@
        "type": "sql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"
@@ -64,6 +66,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/notes",
@@ -94,6 +97,7 @@
        "type": "sql",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "sqlalchemy",
          "span.kind": "client",
          "sql.db": "test.db"

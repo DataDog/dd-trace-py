@@ -32,8 +32,8 @@ NAME = TEST_NAME = "test.name"
 # Test Parameters
 PARAMETERS = "test.parameters"
 
-# Pytest Result (XFail, XPass)
-RESULT = TEST_RESULT = "pytest.result"
+# Test Result (XFail, XPass)
+RESULT = TEST_RESULT = "test.result"
 
 # Skip Reason
 SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
@@ -50,6 +50,15 @@ TYPE = TEST_TYPE = "test.type"
 # Test File
 # Use when test implementation file is different from test suite name.
 FILE = TEST_FILE = "test.file"
+
+# Test Source File
+SOURCE_FILE = TEST_SOURCE_FILE = "test.source.file"
+
+# Test Source Start
+SOURCE_START = TEST_SOURCE_START = "test.source.start"
+
+# Test Source End
+SOURCE_END = TEST_SOURCE_END = "test.source.end"
 
 # Test Class Hierarchy
 CLASS_HIERARCHY = "test.class_hierarchy"

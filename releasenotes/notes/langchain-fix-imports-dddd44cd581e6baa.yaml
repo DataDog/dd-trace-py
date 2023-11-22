@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an import error with patching langchain versions newer than 0.0.300 due to
+    langchain dropping support for wrapping or importing directly from root. 

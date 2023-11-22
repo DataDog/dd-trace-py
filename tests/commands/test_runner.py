@@ -361,7 +361,7 @@ def test_info_no_configs():
     Health metrics enabled: False
     Priority sampling enabled: True
     Partial flushing enabled: True
-    Partial flush minimum number of spans: 500
+    Partial flush minimum number of spans: 300
     WAF timeout: 5.0 msecs
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None
@@ -524,3 +524,51 @@ def test_ddtrace_re_module():
             (r"[\s,<>]", None),
         )
     )
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_sitecustomize():
+    """When using ddtrace-run we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=False, err=None)
+def test_ddtrace_auto_sitecustomize():
+    """When import ddtrace.auto we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    import ddtrace.auto  # noqa: F401
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_and_auto_sitecustomize():
+    """When using ddtrace-run and import ddtrace.auto we don't double import sitecustomize"""
+    import sys
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+    # Capture the list of all loaded modules
+    starting_modules = set(sys.modules.keys())
+
+    assert "ddtrace.auto" not in starting_modules
+
+    # Setting this to false, and confirming that importing auto doesn't set it to True (sitecustomize code ran)
+    sys.modules["ddtrace.bootstrap.sitecustomize"].loaded = False
+
+    import ddtrace.auto  # noqa: F401
+
+    # Ensure we didn't re-load our sitecustomize module, which sets loaded = True
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded is False
+
+    # Compare the list of imported modules before/after ddtrace.auto to show it is a no-op with
+    # no additional modules imported / side-effects
+    final_modules = set(sys.modules.keys())
+    assert final_modules - starting_modules == set(["ddtrace.auto"])

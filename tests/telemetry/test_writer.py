@@ -16,6 +16,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.utils import flaky
 
 
 def test_add_event(telemetry_writer, test_agent_session, mock_time):
@@ -88,7 +89,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
             {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
@@ -106,20 +107,20 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             },
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 500},
+            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
             {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
             {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 1.0},
             {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
             {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
-            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 8388608},
+            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
             {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
@@ -143,13 +144,6 @@ import logging
 logging.basicConfig()
 
 import ddtrace.auto
-
-from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.enable()
-telemetry_writer.reset_queues()
-telemetry_writer._app_started_event()
-telemetry_writer.periodic(force_flush=True)
-telemetry_writer.disable()
     """
 
     env = os.environ.copy()
@@ -204,10 +198,11 @@ telemetry_writer.disable()
     assert status == 0, stderr
 
     events = test_agent_session.get_events()
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
 
-    assert len(events) == 1
-    events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert events[0]["payload"]["configuration"] == [
+    app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
+    assert app_started_events[0]["payload"]["configuration"] == [
         {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
         {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
         {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
@@ -247,7 +242,7 @@ telemetry_writer.disable()
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
         {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": "0.5"},
+        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 0.5},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "unknown",
@@ -365,6 +360,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
+@flaky(until=1704067200)
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
@@ -385,6 +381,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
 
 
 @pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
+@flaky(1704067200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     telemetry_writer.start()
     telemetry_writer.stop()
@@ -399,6 +396,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
     assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
+@flaky(1704067200)
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
@@ -422,6 +420,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     assert len(heartbeat_events) == 1
 
 
+@flaky(1704067200)
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""

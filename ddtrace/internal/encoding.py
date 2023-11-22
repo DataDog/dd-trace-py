@@ -1,9 +1,9 @@
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
@@ -147,13 +147,6 @@ class JSONEncoderV2(JSONEncoder):
         if not dd_id:
             return "0000000000000000"
         return "%0.16X" % int(dd_id)
-
-    @staticmethod
-    def _decode_id_to_hex(hex_id):
-        # type: (Optional[str]) -> int
-        if not hex_id:
-            return 0
-        return int(hex_id, 16)
 
 
 MSGPACK_ENCODERS = {

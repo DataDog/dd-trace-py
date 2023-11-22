@@ -14,6 +14,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
@@ -173,22 +174,22 @@ def test_wrong_span_name_type_not_sent():
     [
         ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
         ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
+        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    tracer = Tracer()
-    with mock.patch("ddtrace.span.log") as log:
-        with tracer.trace("root") as root:
-            root._meta = meta
-            for _ in range(499):
-                with tracer.trace("child") as child:
-                    child._meta = meta
-        log.exception.assert_called_once_with("error closing trace")
+    with override_global_config(dict(_trace_api=encoding)):
+        tracer = Tracer()
+        with mock.patch("ddtrace.span.log") as log:
+            with tracer.trace("root") as root:
+                root._meta = meta
+                for _ in range(299):
+                    with tracer.trace("child") as child:
+                        child._meta = meta
+            log.exception.assert_called_once_with("error closing trace")
 
 
 @pytest.mark.parametrize(
@@ -196,22 +197,22 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     [
         ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}),
         ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}),
-        ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
+        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @snapshot()
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    tracer = Tracer()
-    with mock.patch("ddtrace.span.log") as log:
-        with tracer.trace("root") as root:
-            root._metrics = metrics
-            for _ in range(499):
-                with tracer.trace("child") as child:
-                    child._metrics = metrics
-        log.exception.assert_called_once_with("error closing trace")
+    with override_global_config(dict(_trace_api=encoding)):
+        tracer = Tracer()
+        with mock.patch("ddtrace.span.log") as log:
+            with tracer.trace("root") as root:
+                root._metrics = metrics
+                for _ in range(299):
+                    with tracer.trace("child") as child:
+                        child._metrics = metrics
+            log.exception.assert_called_once_with("error closing trace")
 
 
 @snapshot()

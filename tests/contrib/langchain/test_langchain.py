@@ -9,6 +9,7 @@ import vcr
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -53,6 +54,9 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
     with override_config("langchain", ddtrace_config_langchain):
         # ensure that mock OpenAI API key is passed in
         os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+        os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
+        os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
+        os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
         patch()
         import langchain
 
@@ -237,7 +241,12 @@ def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain.llms.OpenAI()
-    with pytest.raises(openai.error.InvalidRequestError):
+
+    if parse_version(openai.__version__) >= (1, 0, 0):
+        invalid_error = openai.BadRequestError
+    else:
+        invalid_error = openai.InvalidRequestError
+    with pytest.raises(invalid_error):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 
@@ -1078,9 +1087,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1100,9 +1107,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1127,9 +1132,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1152,9 +1155,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1205,9 +1206,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)

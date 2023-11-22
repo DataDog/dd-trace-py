@@ -8,6 +8,7 @@ from typing import Tuple
 from typing import cast
 
 from ddtrace import config
+from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -21,20 +22,20 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_STYLE_NONE
+from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ..internal.constants import PROPAGATION_STYLE_B3
-from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
+from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
+from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
-from ..internal.constants import _PROPAGATION_STYLE_NONE
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
-from ..span import _MetaDictType
 from ..span import _get_64_highest_order_bits_as_hex
 from ..span import _get_64_lowest_order_bits_as_int
+from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 
@@ -151,6 +152,54 @@ class _DatadogMultiHeader:
         return key.startswith("_dd.p.")
 
     @staticmethod
+    def _get_tags_value(headers):
+        # type: (Dict[str, str]) -> Optional[str]
+        return _extract_header_value(
+            _POSSIBLE_HTTP_HEADER_TAGS,
+            headers,
+            default="",
+        )
+
+    @staticmethod
+    def _extract_meta(tags_value):
+        # Do not fail if the tags are malformed
+        try:
+            meta = {
+                k: v
+                for (k, v) in decode_tagset_string(tags_value).items()
+                if (
+                    k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
+                    and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+                )
+            }
+        except TagsetMaxSizeDecodeError:
+            meta = {
+                "_dd.propagation_error": "extract_max_size",
+            }
+            log.warning("failed to decode x-datadog-tags", exc_info=True)
+        except TagsetDecodeError:
+            meta = {
+                "_dd.propagation_error": "decoding_error",
+            }
+            log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
+        return meta
+
+    @staticmethod
+    def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
+        # combine highest and lowest order hex values to create a 128 bit trace_id
+        return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
+
+    @staticmethod
+    def _higher_order_is_valid(upper_64_bits: str) -> bool:
+        try:
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
+                raise ValueError
+        except ValueError:
+            return False
+
+        return True
+
+    @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
@@ -197,6 +246,7 @@ class _DatadogMultiHeader:
                 headers[_HTTP_HEADER_TAGS] = encode_tagset_values(
                     tags_to_encode, max_size=config._x_datadog_tags_max_length
                 )
+
             except TagsetMaxSizeEncodeError:
                 # We hit the max size allowed, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "inject_max_size"
@@ -238,48 +288,23 @@ class _DatadogMultiHeader:
         )
 
         meta = None
-        tags_value = _extract_header_value(
-            _POSSIBLE_HTTP_HEADER_TAGS,
-            headers,
-            default="",
-        )
-        if tags_value:
-            # Do not fail if the tags are malformed
-            try:
-                meta = {
-                    k: v
-                    for (k, v) in decode_tagset_string(tags_value).items()
-                    if (
-                        k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
-                        and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-                    )
-                }
-            except TagsetMaxSizeDecodeError:
-                meta = {
-                    "_dd.propagation_error": "extract_max_size",
-                }
-                log.warning("failed to decode x-datadog-tags", exc_info=True)
-            except TagsetDecodeError:
-                meta = {
-                    "_dd.propagation_error": "decoding_error",
-                }
-                log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
+        tags_value = _DatadogMultiHeader._get_tags_value(headers)
+        if tags_value:
+            meta = _DatadogMultiHeader._extract_meta(tags_value)
+
+        # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
+        # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+        # Here we reconstruct the full 128 bit trace_id if 128-bit trace id generation is enabled.
         if meta and _HIGHER_ORDER_TRACE_ID_BITS in meta:
-            # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
-            # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
-            # Here we reconstruct the full 128 bit trace_id.
             trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
-            try:
-                if len(trace_id_hob_hex) != 16:
-                    raise ValueError("Invalid size")
-                # combine highest and lowest order hex values to create a 128 bit trace_id
-                trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
-            except ValueError:
+            if _DatadogMultiHeader._higher_order_is_valid(trace_id_hob_hex):
+                if config._128_bit_trace_id_enabled:
+                    trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
+            else:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+                del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
-            # After the full trace id is reconstructed this tag is no longer required
-            del meta[_HIGHER_ORDER_TRACE_ID_BITS]
 
         # Try to parse values into their expected types
         try:
@@ -786,8 +811,8 @@ class _NOP_Propagator:
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
-    PROPAGATION_STYLE_B3: _B3MultiHeader,
-    PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+    PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
+    PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_NONE: _NOP_Propagator,
 }
@@ -795,6 +820,50 @@ _PROP_STYLES = {
 
 class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
+
+    @staticmethod
+    def _extract_configured_contexts_avail(normalized_headers):
+        contexts = []
+        styles_w_ctx = []
+        for prop_style in config._propagation_style_extract:
+            propagator = _PROP_STYLES[prop_style]
+            context = propagator._extract(normalized_headers)
+            if context:
+                contexts.append(context)
+                styles_w_ctx.append(prop_style)
+        return contexts, styles_w_ctx
+
+    @staticmethod
+    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
+        primary_context = contexts[0]
+        links = []
+        for context in contexts[1:]:
+            style_w_ctx = styles_w_ctx[contexts.index(context)]
+            # encoding expects at least trace_id and span_id
+            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
+                links.append(
+                    SpanLink(
+                        context.trace_id,
+                        context.span_id,
+                        flags=1 if context.sampling_priority else 0,
+                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
+                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                        else None,
+                        attributes={
+                            "reason": "terminated_context",
+                            "context_headers": style_w_ctx,
+                        },
+                    )
+                )
+            # if trace_id matches and the propagation style is tracecontext
+            # add the tracestate to the primary context
+            elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
+                # extract and add the raw ts value to the primary_context
+                ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
+                if ts:
+                    primary_context._meta[W3C_TRACESTATE_KEY] = ts
+        primary_context._span_links = links
+        return primary_context
 
     @staticmethod
     def inject(span_context, headers):
@@ -824,9 +893,9 @@ class HTTPPropagator(object):
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3 in config._propagation_style_inject:
+        if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
             _B3MultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
+        if PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)
@@ -835,6 +904,10 @@ class HTTPPropagator(object):
     def extract(headers):
         # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
+        For tracecontext propagation we extract tracestate headers for
+        propagation even if another propagation style is specified before tracecontext,
+        so as to always propagate other vendor's tracestate values by default.
+        This is skipped if the tracer is configured to take the first style it matches.
 
         Here is an example from a web endpoint::
 
@@ -853,16 +926,23 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
-
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            # loop through the extract propagation styles specified in order
-            for prop_style in config._propagation_style_extract:
-                propagator = _PROP_STYLES[prop_style]
-                context = propagator._extract(normalized_headers)  # type: ignore
-                if context is not None:
-                    return context
+            # tracer configured to extract first only
+            if config._propagation_extract_first:
+                # loop through the extract propagation styles specified in order, return whatever context we get first
+                for prop_style in config._propagation_style_extract:
+                    propagator = _PROP_STYLES[prop_style]
+                    context = propagator._extract(normalized_headers)  # type: ignore
+                    if context is not None:
+                        return context
+            # loop through all extract propagation styles
+            else:
+                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+
+                if contexts:
+                    return HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)

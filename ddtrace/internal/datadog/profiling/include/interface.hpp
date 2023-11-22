@@ -5,9 +5,12 @@
 
 #pragma once
 
-#include "exporter.hpp"
+#include <stddef.h>
+#include <stdint.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 void ddup_config_env(const char *env);
 void ddup_config_service(const char *service);
 void ddup_config_version(const char *version);
@@ -49,4 +52,8 @@ void ddup_push_gputime(int64_t gputime, int64_t count);
 void ddup_push_gpu_mem(int64_t gpu_mem, int64_t count);
 void ddup_push_gpu_flops(int64_t gpu_flops, int64_t count);
 void ddup_push_gpu_device_name(const char *device_name);
+
+
+#ifdef __cplusplus
 } // extern "C"
+#endif

@@ -98,11 +98,13 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env={
+        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
         "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED": "1",
         "DD_CIVISIBILITY_ITR_ENABLED": "1",
+        "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     },
     venvs=[
@@ -130,18 +132,81 @@ venv = Venv(
         Venv(
             name="appsec",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/appsec",
+            command="pytest {cmdargs} tests/appsec/appsec/",
+        ),
+        Venv(
+            name="appsec_iast",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
-                "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
+            name="appsec_iast_memcheck",
+            pys=select_pys(min_version="3.8"),
+            command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
+            pkgs={
+                "requests": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "pytest-memray": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
+            name="appsec_integrations",
+            command="pytest {cmdargs} tests/appsec/integrations/",
+            pkgs={
+                "requests": latest,
+                "gunicorn": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
+                # Flask 2.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                # Flask 3.x.x
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",
@@ -158,10 +223,12 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 "httpretty": latest,
                 "wheel": latest,
+                "fastapi": latest,
+                "httpx": latest,
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -185,6 +252,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -262,11 +335,7 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={
-                "httpretty": latest,
-                "gevent": latest,
-                "pytest-asyncio": latest,
-            },
+            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
@@ -511,10 +580,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # celery added support for Python 3.10 in 5.2, no official support for 3.11 yet
-                    # Billiard dependency is incompatible with Python 3.11
-                    # https://github.com/celery/billiard/issues/377
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
@@ -710,20 +776,19 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "elasticsearch": [
-                            "~=7.6.0",
-                            "~=7.8.0",
-                            "~=7.10.0",
-                            # latest,
-                            # FIXME: Elasticsearch introduced a breaking change in 7.14
-                            # which makes it incompatible with previous major versions.
+                            "~=7.13.0",  # latest to support unofficial Elasticsearch servers, released Jul 2021
+                            "~=7.17",
+                            "==8.0.1",  # 8.0.0 has a bug that interferes with tests
+                            latest,
                         ]
                     },
                 ),
                 Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.11.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.13.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.0.1", latest]}),
             ],
         ),
         Venv(
@@ -733,21 +798,23 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "elasticsearch": ["~=1.6.0"],
-                        "elasticsearch6": [latest],
-                        "elasticsearch7": ["<7.14.0"],
+                        "elasticsearch": latest,
+                        "elasticsearch7": latest,
                     },
                 ),
             ],
         ),
         Venv(
-            name="elasticsearch8-patch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_es8_patch.py",
+            name="elasticsearch-async",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
+            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(),
                     pkgs={
-                        "elasticsearch8": [latest],
+                        "elasticsearch[async]": latest,
+                        "elasticsearch7[async]": latest,
+                        "opensearch-py[async]": latest,
                     },
                 ),
             ],
@@ -910,6 +977,19 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="flask_login",
+            command="pytest {cmdargs} tests/contrib/flask_login",
+            pys="3.11",
+            pkgs={
+                "flask": "~=1.0.4",
+                "flask-login": "~=0.6.2",
+                "Jinja2": "~=2.11.0",
+                "markupsafe": "<2.0",
+                "itsdangerous": "<2.0",
+                "werkzeug": "<2.0",
+            },
+        ),
+        Venv(
             name="mako",
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
@@ -1028,6 +1108,14 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="structlog",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/structlog",
+            pkgs={
+                "structlog": ["~=20.2.0", latest],
+            },
         ),
         Venv(
             name="sqlalchemy",
@@ -1189,7 +1277,7 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
+            command="pytest {cmdargs} tests/contrib/pyramid",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
@@ -1310,7 +1398,10 @@ venv = Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
-            env={"DD_CIVISIBILITY_UNITTEST_ENABLED": "1"},
+            env={
+                "DD_PATCH_MODULES": "unittest:true",
+                "DD_AGENT_PORT": "9126",
+            },
             pys=select_pys(),
         ),
         Venv(
@@ -1925,7 +2016,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": latest,
+                "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
                 "flask": latest,
@@ -1956,13 +2047,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": ["==0.27.2", latest],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", latest],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings]": [latest],
+                        "openai[datalib]": [latest],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2148,6 +2239,22 @@ venv = Venv(
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
+            },
+        ),
+        Venv(
+            name="logbook",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/logbook",
+            pkgs={
+                "logbook": ["~=1.0.0", latest],
+            },
+        ),
+        Venv(
+            name="loguru",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/loguru",
+            pkgs={
+                "loguru": ["~=0.4.0", latest],
             },
         ),
         Venv(

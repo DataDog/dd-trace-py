@@ -6,7 +6,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 from ddtrace.internal.constants import COMPONENT
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -14,6 +13,7 @@ from ...internal.compat import iteritems
 from ...internal.schema import SpanDirection
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
+from .. import trace_utils
 
 
 class TraceMiddleware(object):

@@ -1,6 +1,6 @@
 """Instrument mongoengine to report MongoDB queries.
 
-``patch_all`` will automatically patch your mongoengine connect method to make it work.
+``import ddtrace.auto`` will automatically patch your mongoengine connect method to make it work.
 ::
 
     from ddtrace import Pin, patch

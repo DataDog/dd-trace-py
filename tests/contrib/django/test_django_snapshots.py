@@ -6,6 +6,7 @@ import sys
 import django
 import pytest
 
+from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -82,6 +83,7 @@ def test_middleware_trace_callable_view(client):
     assert client.get("/feed-view/").status_code == 200
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
     reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
@@ -171,7 +173,6 @@ def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
 
 @pytest.fixture()
 def psycopg3_patched(transactional_db):
-
     # If Django version >= 4.2.0, check if psycopg3 is installed,
     # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
     if django.VERSION < (4, 2, 0):

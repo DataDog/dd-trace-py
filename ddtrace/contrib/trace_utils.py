@@ -4,6 +4,7 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -12,12 +13,9 @@ from typing import Iterator
 from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
 from typing import cast
-
-import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
@@ -36,6 +34,8 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -492,7 +492,7 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if config._appsec_enabled or config.retrieve_client_ip:
+        if asm_config._asm_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
 
@@ -515,43 +515,42 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if config._appsec_enabled:
-        from ddtrace.appsec._iast._utils import _is_iast_enabled
+    from ddtrace.appsec._iast._utils import _is_iast_enabled
 
-        if _is_iast_enabled():
-            from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-            if request_cookies:
-                asm_check_cookies(request_cookies)
+        if request_cookies:
+            asm_check_cookies(request_cookies)
 
-            if response_cookies:
-                asm_check_cookies(response_cookies)
+        if response_cookies:
+            asm_check_cookies(response_cookies)
 
-        if span.span_type == SpanTypes.WEB:
-            from ddtrace.appsec._asm_request_context import set_waf_address
-            from ddtrace.appsec._constants import SPAN_DATA_NAMES
+    if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
+        from ddtrace.appsec._asm_request_context import set_waf_address
+        from ddtrace.appsec._constants import SPAN_DATA_NAMES
 
-            status_code = str(status_code) if status_code is not None else None
+        status_code = str(status_code) if status_code is not None else None
 
-            addresses = {
-                k: v
-                for k, v in [
-                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
-                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
-                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
-                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
-                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
-                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
-                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
-                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
-                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
-                ]
-                if v is not None
-            }
-            for k, v in addresses.items():
-                set_waf_address(k, v, span)
+        addresses = {
+            k: v
+            for k, v in [
+                (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+                (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+                (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+                (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+                (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+                (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+                (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+                (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+                (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+                (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+                (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
+            ]
+            if v is not None
+        }
+        for k, v in addresses.items():
+            set_waf_address(k, v, span)
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
@@ -647,11 +646,11 @@ def set_user(
     if span is None:
         span = tracer.current_root_span()
     if span:
-        # Required unique identifier of the user
-        str_user_id = str(user_id)
-        span.set_tag_str(user.ID, str_user_id)
-        if propagate:
-            span.context.dd_user_id = str_user_id
+        if user_id:
+            str_user_id = str(user_id)
+            span.set_tag_str(user.ID, str_user_id)
+            if propagate:
+                span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
@@ -665,7 +664,7 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if config._appsec_enabled:
+        if asm_config._asm_enabled:
             from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 
             block_request_if_user_blocked(tracer, user_id)

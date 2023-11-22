@@ -78,3 +78,50 @@ def propagation_path_3_prop(origin_string1, tainted_string_2):
     except Exception:
         pass
     return result
+
+
+def propagation_path_5_prop(origin_string1, tainted_string_2):
+    if type(origin_string1) is str:
+        string1 = str(origin_string1)  # 1 Range
+    else:
+        string1 = str(origin_string1, encoding="utf-8")  # 1 Range
+    if type(tainted_string_2) is str:
+        string2 = str(tainted_string_2)  # 1 Range
+    else:
+        string2 = str(tainted_string_2, encoding="utf-8")  # 1 Range
+    string3 = string1 + string2  # 2 Ranges
+    string4 = "-".join([string3, string3, string3])  # 6 Ranges
+    string5 = string4[1:5]  # 2 Ranges
+    result = ""
+    try:
+        # label propagation_path_5_prop
+        m = open(ROOT_DIR + "/" + string5 + ".txt")
+        result = m.read()
+    except Exception:
+        pass
+    return result
+
+
+def propagation_memory_check(origin_string1, tainted_string_2):
+    if type(origin_string1) is str:
+        string1 = str(origin_string1)  # 1 Range
+    else:
+        string1 = str(origin_string1, encoding="utf-8")  # 1 Range
+    if type(tainted_string_2) is str:
+        string2 = str(tainted_string_2)  # 1 Range
+    else:
+        string2 = str(tainted_string_2, encoding="utf-8")  # 1 Range
+    string3 = string1 + string2  # 2 Ranges
+    string4 = "-".join([string3, string3, string3])  # 6 Ranges
+    string5 = string4[0 : (len(string4) - 1)]
+    string6 = string5.title()
+    string7 = string6.upper()
+    string8 = "%s_notainted" % string7
+    string9 = "notainted_{}".format(string8)
+    try:
+        # label propagation_memory_check
+        m = open(ROOT_DIR + "/" + string9 + ".txt")
+        _ = m.read()
+    except Exception:
+        pass
+    return string9

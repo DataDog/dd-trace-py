@@ -5,14 +5,10 @@ from typing import NamedTuple
 
 import pytest
 
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -98,19 +94,19 @@ class TestOperatorFormatReplacement(BaseReplacement):
     def test_format_when_tainted_str_emoji_strings_then_tainted_result(self):
         # type: () -> None
         self._assert_format_result(
-            taint_escaped_template=u":+-<input1>template⚠️<input1>-+: {}",
-            taint_escaped_parameter=u":+-<input2>parameter⚠️<input2>-+:",
-            expected_result=u"template⚠️ parameter⚠️",
-            escaped_expected_result=u":+-<input1>template⚠️<input1>-+: " u":+-<input2>parameter⚠️<input2>-+:",
+            taint_escaped_template=":+-<input1>template⚠️<input1>-+: {}",
+            taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
+            expected_result="template⚠️ parameter⚠️",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_format_when_tainted_unicode_emoji_strings_then_tainted_result(self):
         # type: () -> None
         self._assert_format_result(
-            taint_escaped_template=u":+-<input1>template⚠️<input1>-+: {}",
-            taint_escaped_parameter=u":+-<input2>parameter⚠️<input2>-+:",
-            expected_result=u"template⚠️ parameter⚠️",
-            escaped_expected_result=u":+-<input1>template⚠️<input1>-+: " u":+-<input2>parameter⚠️<input2>-+:",
+            taint_escaped_template=":+-<input1>template⚠️<input1>-+: {}",
+            taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
+            expected_result="template⚠️ parameter⚠️",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_format_when_tainted_template_range_no_brackets_and_param_not_str_then_tainted(self):
@@ -224,3 +220,10 @@ class TestOperatorFormatReplacement(BaseReplacement):
         #     escaped_expected_result="a:+-<input2>aaaa<input2>-+:a parameter",
         # )
         pass
+
+    def test_format_key_error_and_no_log_metric(self, telemetry_writer):
+        with pytest.raises(KeyError):
+            mod.do_format_key_error("test1")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0

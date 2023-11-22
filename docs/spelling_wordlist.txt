@@ -78,6 +78,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -127,6 +128,8 @@ LLM
 langchain
 lifecycle
 linters
+logbook
+loguru
 lookups
 loopback
 macOS
@@ -161,16 +164,19 @@ ObjectProxy
 packfiles
 parameterized
 parsers
+patcher
 perf
 pid
 plugin
 posix
 postgres
 pre
+prepend
 prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -188,6 +194,7 @@ quickstart
 ratelimit
 redis
 rediscluster
+renderer
 renderers
 resolvers
 repo
@@ -210,8 +217,10 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
+structlog
 subclass
 subdirectory
 subdomains
@@ -222,6 +231,7 @@ testagent
 TestCase
 timestamp
 tokenizer
+tracecontext
 tracestate
 tweens
 uWSGI
@@ -266,3 +276,4 @@ Gitlab
 Enablement
 hotspot
 CMake
+libdatadog

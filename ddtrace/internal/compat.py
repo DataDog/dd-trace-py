@@ -23,8 +23,9 @@ from typing import Union
 import warnings
 
 import six
-from wrapt.wrappers import BoundFunctionWrapper
-from wrapt.wrappers import FunctionWrapper
+
+from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -109,7 +110,6 @@ try:
             or argspec.kwonlydefaults
             or isgeneratorfunction(f)
         )
-
 
 except ImportError:
     from inspect import getargspec as getfullargspec  # type: ignore[assignment]  # noqa: F401
@@ -290,26 +290,9 @@ def maybe_stringify(obj):
     return None
 
 
-def to_bytes_py2(n, length, byteorder):
-    # type: (int, int, str) -> Text
-    """
-    Convert a string to bytes in the format expected by the remote config
-    capabilities string, considering the byteorder, which is needed
-    for Python 2.
-    """
-    if byteorder == "little":
-        order = range(length)
-    elif byteorder == "big":
-        order = reversed(range(length))  # type: ignore[assignment]
-    else:
-        raise ValueError("byteorder must be either 'little' or 'big'")
-
-    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
-
-
 NoneType = type(None)
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long, complex])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 

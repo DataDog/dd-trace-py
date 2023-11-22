@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "openai",
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
@@ -18,7 +19,6 @@
       "openai.request.model": "ada",
       "openai.request.prompt": "hello world",
       "openai.response.choices.0.finish_reason": "length",
-      "openai.response.choices.0.logprobs": "returned",
       "openai.response.choices.0.text": "-to-me they will happen.\\n\\nBoth techniques were invented from experience",
       "openai.response.id": "cmpl-76n21rPkawV6HMF6RAKdLPWqYm0f0",
       "openai.response.model": "ada",
@@ -50,6 +50,7 @@
        "type": "http",
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "requests",
          "http.method": "POST",
          "http.status_code": "200",
