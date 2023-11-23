@@ -15,12 +15,6 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._utils import get_wsgi_header
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.propagation.http import HTTP_BAGGAGE_PREFIX
-from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
@@ -29,6 +23,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
+from ddtrace.propagation.http import HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
