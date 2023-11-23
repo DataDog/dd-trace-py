@@ -45,6 +45,7 @@ def scope(request):
         "headers": [],
         "method": "GET",
         "path": "/",
+        "root_path": "",
         "query_string": b"",
         "scheme": "http",
         "server": ("127.0.0.1", 80),
@@ -151,11 +152,44 @@ def _check_span_tags(scope, span):
         or scope["asgi"].get("spec_version") is None
         or span.get_tag("asgi.spec_version") == scope["asgi"]["spec_version"]
     )
+    assert span.get_tag("http.route") == scope.get("root_path", "") + scope.get("path")
 
 
 @pytest.mark.asyncio
 async def test_basic_asgi(scope, tracer, test_spans):
     app = TraceMiddleware(basic_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({"type": "http.request", "body": b""})
+    response_start = await instance.receive_output(1)
+    assert response_start == {
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }
+    response_body = await instance.receive_output(1)
+    assert response_body == {
+        "type": "http.response.body",
+        "body": b"*",
+    }
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
+    assert request_span.get_tag("span.kind") == "server"
+    _check_span_tags(scope, request_span)
+
+
+@pytest.mark.parametrize("root_path", ["/api/foo/v1", ""])
+@pytest.mark.asyncio
+async def test_asgi_root_path(scope, tracer, test_spans, root_path):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    scope["root_path"] = root_path
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
     response_start = await instance.receive_output(1)
