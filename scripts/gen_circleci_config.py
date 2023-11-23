@@ -8,7 +8,7 @@
 import typing as t
 
 
-def gen_required_suites(template: dict) -> None:
+def gen_required_suites(template: dict, git_selections: list) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import for_each_testrun_needed as fetn
     from suitespec import get_suites
@@ -17,7 +17,9 @@ def gen_required_suites(template: dict) -> None:
     jobs = set(template["jobs"].keys())
 
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite))
+    fetn(
+        suites=sorted(suites & jobs), action=lambda suite: required_suites.append(suite), git_selections=git_selections
+    )
 
     if not required_suites:
         # Nothing to generate
@@ -115,19 +117,28 @@ def gen_c_check(template: dict) -> None:
         template["workflows"]["test"]["jobs"].append("ccheck")
 
 
+def extract_git_commit_selections(git_commit_message: str) -> dict:
+    """Extract the selected suites from git commit message."""
+    suites = set()
+    for token in git_commit_message.split():
+        if token.lower().startswith("circleci:"):
+            suites.update(token[len("circleci:") :].lower().split(","))
+    return list(sorted(suites))
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
 # generally no reason to modify it.
 
-from argparse import ArgumentParser  # noqa
 import logging  # noqa
-from pathlib import Path  # noqa
+import os  # noqa
 import sys  # noqa
+from argparse import ArgumentParser  # noqa
+from pathlib import Path  # noqa
 from time import monotonic_ns as time  # noqa
 
 from ruamel.yaml import YAML  # noqa
-
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)
@@ -150,6 +161,7 @@ sys.path.append(str(ROOT / "tests"))
 with YAML(output=CONFIG_GEN_FILE) as yaml:
     LOGGER.info("Loading configuration template from %s", CONFIG_TEMPLATE_FILE)
     config = yaml.load(CONFIG_TEMPLATE_FILE)
+    git_commit_selections = extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC"))
 
     has_error = False
     LOGGER.info("Configuration generation steps:")
@@ -158,7 +170,10 @@ with YAML(output=CONFIG_GEN_FILE) as yaml:
             desc = func.__doc__.splitlines()[0]
             try:
                 start = time()
-                func(config)
+                if name == "gen_required_suites":
+                    func(config, git_commit_selections)
+                else:
+                    func(config)
                 end = time()
                 LOGGER.info("- %s: %s [took %dms]", name, desc, int((end - start) / 1e6))
             except Exception as e:
