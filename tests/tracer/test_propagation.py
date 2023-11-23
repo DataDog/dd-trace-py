@@ -74,6 +74,7 @@ def test_inject_with_baggage_http_propagation(tracer):
             HTTPPropagator.inject(span.context, headers)
             assert headers[HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
 
+
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
