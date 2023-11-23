@@ -202,6 +202,7 @@ from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
 
+
 @pytest.mark.asyncio
 async def test(scope, tracer, test_spans):
     app = TraceMiddleware(basic_app, tracer=tracer)
@@ -236,7 +237,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
-    assert err == b""
+    assert err == b"", f"STDOUT\n{out.decode()}\nSTDERR\n{err.decode()}"
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
