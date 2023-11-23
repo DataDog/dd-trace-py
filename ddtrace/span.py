@@ -446,7 +446,7 @@ class Span(object):
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def set_baggage_item(self, key, value):
+    def _set_baggage_item(self, key, value):
         # type: (str, Any) -> Span
         """Sets a baggage item in the span context of this span.
         Baggage is used to propagate state between spans (in-process, http/https).
@@ -454,7 +454,7 @@ class Span(object):
         self._context = self.context.with_baggage_item(key, value)
         return self
 
-    def get_baggage_item(self, key):
+    def _get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item from the span context of this span."""
         return self.context.get_baggage_item(key)

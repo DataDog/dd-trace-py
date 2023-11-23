@@ -106,6 +106,13 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+    if context is not None:
+        for key, value in headers.items():
+            if key[: len(HTTP_BAGGAGE_PREFIX)] == HTTP_BAGGAGE_PREFIX:
+                context.set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
+
+
 def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
     """Helper to convert hex ids into Datadog compatible ints."""
@@ -892,7 +899,7 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        if span_context.baggage is not None:
+        if config.propagation_http_baggage_enabled is True and span_context.baggage is not None:
             for key in span_context.baggage:
                 headers[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
@@ -940,17 +947,18 @@ class HTTPPropagator(object):
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
-                    if context is not None:
-                        for key, value in normalized_headers.items():
-                            if key[: len(HTTP_BAGGAGE_PREFIX)] == HTTP_BAGGAGE_PREFIX:
-                                context.set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
-                        return context
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
-                    return HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
