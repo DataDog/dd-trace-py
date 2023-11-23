@@ -63,6 +63,7 @@ def test_inject(tracer):
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
+
 def test_inject_with_baggage_http_propagation(tracer):
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
