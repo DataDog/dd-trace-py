@@ -250,16 +250,35 @@ class ModuleWatchdog(object):
     @property
     def _origin_map(self):
         # type: () -> wvdict[str, ModuleType]
+        def modules_with_origin(modules):
+            result = wvdict()
+
+            for m in modules:
+                module_origin = origin(m)
+                if module_origin is None:
+                    continue
+
+                try:
+                    result[str(module_origin)] = m
+                except TypeError:
+                    # This can happen if the module is a special object that
+                    # does not allow for weak references. Quite likely this is
+                    # an object created by a native extension. We make the
+                    # assumption that this module does not contain valuable
+                    # information that can be used at the Python runtime level.
+                    pass
+
+            return result
+
         if self._om is None:
             try:
-                self._om = wvdict({origin(module): module for module in sys.modules.values()})
+                self._om = modules_with_origin(sys.modules.values())
             except RuntimeError:
                 # The state of sys.modules might have been mutated by another
                 # thread. We try to build the full mapping at the next occasion.
                 # For now we take the more expensive route of building a list of
                 # the current values, which might be incomplete.
-                return wvdict({origin(module): module for module in list(sys.modules.values())})
-
+                return modules_with_origin(list(sys.modules.values()))
         return self._om
 
     def _add_to_meta_path(self):
