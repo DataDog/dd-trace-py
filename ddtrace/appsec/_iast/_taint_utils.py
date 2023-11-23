@@ -18,25 +18,25 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     from ._taint_tracking import taint_pyobject
 
     try:
-        fifo = [(source_key, source_value, main_obj)]
-        for key, value, obj in fifo:
+        fifo = [(source_key, main_obj)]
+        for key, obj in fifo:
             if not obj:
                 continue
             if isinstance(obj, (str, bytes, bytearray)):
-                if override_pyobject_tainted or is_pyobject_tainted(value):
-                    value = taint_pyobject(
+                if override_pyobject_tainted or not is_pyobject_tainted(obj):
+                    taint_pyobject(
                         pyobject=obj,
                         source_name=key,
                         source_value=obj,
-                        source_origin=value,
+                        source_origin=source_value,
                     )
-            elif isinstance(abc.Mapping):
-                for k, v in obj.items():
-                    fifo.append((f"{key}.{{}}", value, k))
-                    fifo.append((f"{key}.{k}", value, v))
-            elif isinstance(abc.Collection):
+            elif isinstance(obj, abc.Mapping):
+                for k, v in list(obj.items()):
+                    fifo.append((f"{key}.{{}}", k))
+                    fifo.append((f"{key}.{k}", v))
+            elif isinstance(obj, abc.Collection):
                 for i, v in enumerate(obj):
-                    fifo.append((f"{key}.[{i}]", value, v))
+                    fifo.append((f"{key}.[{i}]", v))
     except BaseException:
         pass
     finally:
