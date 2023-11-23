@@ -18,7 +18,9 @@ if TYPE_CHECKING:
     from .reporter import Vulnerability
 
 
-_INSIDE_QUOTES_REGEXP = re.compile(r'["\']([^"\']*?)["\']')
+_TEXT_TOKENS_REGEXP = re.compile(r'\b\w+\b')
+_INSIDE_QUOTES_REGEXP = re.compile(r'[\"\']([^"\']*?)[\"\']')
+_INSIDE_QUOTES_REGEXP = re.compile(r'''(['"])(.*?)\1''')
 
 
 @oce.register
@@ -40,8 +42,37 @@ class SqlInjection(VulnerabilityBase):
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {
-                "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),
+                "tokens": set(_TEXT_TOKENS_REGEXP.findall(text)),
             }
             ret[vuln_hash]["token_positions"] = _scrub_get_tokens_positions(text, ret[vuln_hash]["tokens"])
 
         return ret
+
+    @classmethod
+    def _custom_edit_valueparts(cls, vuln):
+        def _maybe_with_source(source, value):
+            if source is not None:
+                return {"value": value, "source": source}
+            return {"value": value}
+        new_valueparts = []
+        print("JJJ original valueParts:\n%s" % vuln.evidence.valueParts)
+        for part in vuln.evidence.valueParts:
+            value = part.get("value")
+
+            if not value or part.get("redacted"):
+                new_valueparts.append(part)
+                continue
+
+            print("JJJ part: %s" % part)
+            prev = 0
+            source = part.get("source")
+            for token in _INSIDE_QUOTES_REGEXP.finditer(value):
+                # JJJ copy source if exists!
+                new_valueparts.append(_maybe_with_source(source, value[prev:token.start(2)]))
+                new_valueparts.append(_maybe_with_source(source, value[token.start(2):token.end(2)]))
+                prev = token.end(2)
+            new_valueparts.append(_maybe_with_source(source, value[prev:]))
+
+        vuln.evidence.valueParts = new_valueparts
+        print("JJJ new valueParts:\n%s" % new_valueparts)
+

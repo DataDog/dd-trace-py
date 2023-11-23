@@ -44,6 +44,7 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     vulnerability = list(span_report.vulnerabilities)[0]
 
     assert vulnerability.type == VULN_CMDI
+    # JJJ also check sources!
     assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
 
 
