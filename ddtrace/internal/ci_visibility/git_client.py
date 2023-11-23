@@ -37,7 +37,8 @@ from .constants import REQUESTS_MODE
 from .telemetry.constants import ERROR_TYPES
 from .telemetry.constants import GIT_TELEMETRY_COMMANDS
 from .telemetry.git import record_git_command
-from .telemetry.git import record_objects_pack
+from .telemetry.git import record_objects_pack_data
+from .telemetry.git import record_objects_pack_request
 from .telemetry.git import record_search_commits
 
 
@@ -111,20 +112,29 @@ class CIVisibilityGitClient(object):
                 log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
         latest_commits = cls._get_latest_commits(cwd=cwd)
+        log.debug("ROMAIN latest commits: %s", latest_commits)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
         if backend_commits is None:
+            log.debug("No backend commits found, returning early.")
             return
+        log.debug("ROMAIN backend commits: %s", backend_commits)
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+
+        log.debug("ROMAIN commits not in backend: %s", commits_not_in_backend)
 
         rev_list = cls._get_filtered_revisions(
             excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
         )
         if rev_list:
+            log.debug("Building and uploading packfiles for revision list: %s", rev_list)
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
                 cls._upload_packfiles(
                     requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
                 )
+        else:
+            log.debug("Revision list empty, no packfiles to build and upload")
+            record_objects_pack_data(0, 0)
 
     @classmethod
     def _get_repository_url(cls, tags=None, cwd=None):
@@ -224,18 +234,49 @@ class CIVisibilityGitClient(object):
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
+        packfiles_uploaded_count = 0
+        packfiles_uploaded_bytes = 0
         for filename in os.listdir(directory):
             if not filename.startswith(rand) or not filename.endswith(PACK_EXTENSION):
                 continue
             file_path = os.path.join(directory, filename)
             content_type, payload = serializer.upload_packfile_encode(repo_url, sha, file_path)
             headers = {"Content-Type": content_type}
-            response = _response or cls._do_request(
-                requests_mode, base_url, "/packfile", payload, serializer, headers=headers
-            )
-            if response.status != 204:
-                return False
-        return True
+            with StopWatch() as stopwatch:
+                error_type = None
+                try:
+                    response = _response or cls._do_request(
+                        requests_mode, base_url, "/packfile", payload, serializer, headers=headers
+                    )
+                    if response.status == 204:
+                        packfiles_uploaded_count += 1
+                        packfiles_uploaded_bytes += len(payload)
+                    elif response.status >= 400:
+                        log.debug(
+                            "Git packfile upload request for file %s (sizee: %s) failed with status: %s",
+                            filename,
+                            len(payload),
+                            response.status,
+                        )
+                        error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+                except ConnectionRefusedError:
+                    error_type = ERROR_TYPES.NETWORK
+                    log.debug("Git packfile upload request for file %s failed: connection refused", filename)
+                except TimeoutError:
+                    error_type = ERROR_TYPES.TIMEOUT
+                    log.debug("Git packfile upload request for file %s (size: %s) timed out", filename, len(payload))
+                finally:
+                    duration = stopwatch.elapsed() * 1000  # StopWatch is in seconds
+                    record_objects_pack_request(duration, error_type)
+
+        record_objects_pack_data(packfiles_uploaded_count, packfiles_uploaded_bytes)
+        log.debug(
+            "Git packfiles upload succeeded, file count: %s, total size: %s",
+            packfiles_uploaded_count,
+            packfiles_uploaded_bytes,
+        )
+
+        return response.status == 204
 
     @classmethod
     def _is_shallow_repository(cls, cwd=None):

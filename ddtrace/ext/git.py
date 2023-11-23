@@ -98,6 +98,9 @@ def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
         git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
     git_cmd.insert(0, "git")
 
+    log.debug("ROMAIN GIT SUBPROCESS COMMAND %s", git_cmd)
+    log.debug("ROMAIN GIT SUBPROCESS COMMAND STRING %s", " ".join(git_cmd))
+
     with StopWatch() as stopwatch:
         process = subprocess.Popen(
             git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd
@@ -239,6 +242,7 @@ def _get_rev_list_with_details(excluded_commit_shas=None, included_commit_shas=N
     if included_commit_shas:
         inclusions = ["%s" % sha for sha in included_commit_shas]
         command.extend(inclusions)
+    log.debug("ROMAIN REV LIST WITH DETAILS COMMAND %s", command)
     return _git_subprocess_cmd_with_details(command, cwd=cwd)
 
 
