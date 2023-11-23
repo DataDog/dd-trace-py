@@ -112,16 +112,12 @@ class CIVisibilityGitClient(object):
                 log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
         latest_commits = cls._get_latest_commits(cwd=cwd)
-        log.debug("ROMAIN latest commits: %s", latest_commits)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
         if backend_commits is None:
             log.debug("No backend commits found, returning early.")
             return
-        log.debug("ROMAIN backend commits: %s", backend_commits)
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-
-        log.debug("ROMAIN commits not in backend: %s", commits_not_in_backend)
 
         rev_list = cls._get_filtered_revisions(
             excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
