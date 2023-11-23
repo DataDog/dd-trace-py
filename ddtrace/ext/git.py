@@ -82,8 +82,8 @@ def is_ref_a_tag(ref):
     return "tags/" in ref if ref else False
 
 
-def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
-    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> _GitSubprocessDetails
+def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
+    # type: (str, Optional[str], Optional[bytes]) -> _GitSubprocessDetails
     """Helper for invoking the git CLI binary
 
     Returns a tuple containing:
@@ -92,11 +92,10 @@ def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
         - the time it took to execute the command, in milliseconds
         - the exit code
     """
-    if isinstance(cmd, six.string_types):
-        git_cmd = cmd.split(" ")
-    else:
-        git_cmd = cmd  # type: list[str]  # type: ignore[no-redef]
-    git_cmd.insert(0, "git")
+    git_cmd = ["git"]
+    git_cmd.extend(cmd)
+
+    log.debug("Executing git command: %s", git_cmd)
 
     with StopWatch() as stopwatch:
         process = subprocess.Popen(
@@ -115,7 +114,10 @@ def _git_subprocess_cmd_with_details(cmd, cwd=None, std_in=None):
 def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    stdout, stderr, _, returncode = _git_subprocess_cmd_with_details(cmd, cwd=cwd, std_in=None)
+    if isinstance(cmd, six.string_types):
+        cmd = cmd.split(" ")
+
+    stdout, stderr, _, returncode = _git_subprocess_cmd_with_details(*cmd, cwd=cwd, std_in=None)
 
     if returncode == 0:
         return stdout
@@ -133,7 +135,9 @@ def _set_safe_directory():
 
 def _extract_clone_defaultremotename_with_details(cwd):
     # type: (Optional[str]) -> _GitSubprocessDetails
-    return _git_subprocess_cmd_with_details("config --default origin --get clone.defaultRemoteName", cwd=cwd)
+    return _git_subprocess_cmd_with_details(
+        "config", "--default", "origin", "--get", "clone.defaultRemoteName", cwd=cwd
+    )
 
 
 def _extract_clone_defaultremotename(cwd=None):
@@ -149,7 +153,7 @@ def _extract_upstream_sha(cwd=None):
 
 def _is_shallow_repository_with_details(cwd=None):
     # type: (Optional[str]) -> Tuple[bool, float, int]
-    stdout, _, duration, returncode = _git_subprocess_cmd_with_details("rev-parse --is-shallow-repository", cwd=cwd)
+    stdout, _, duration, returncode = _git_subprocess_cmd_with_details("rev-parse", "--is-shallow-repository", cwd=cwd)
     is_shallow = stdout.strip() == "true"
     return (is_shallow, duration, returncode)
 
@@ -173,7 +177,7 @@ def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
     if refspec is not None:
         cmd.append(refspec)
 
-    return _git_subprocess_cmd_with_details(cmd, cwd=cwd)
+    return _git_subprocess_cmd_with_details(*cmd, cwd=cwd)
 
 
 def _unshallow_repository(cwd=None, repo=None, refspec=None):
@@ -205,7 +209,7 @@ def extract_git_version(cwd=None):
 
 def _extract_remote_url_with_details(cwd=None):
     # type: (Optional[str]) -> Tuple[str, str, float, int]
-    return _git_subprocess_cmd_with_details("config --get remote.origin.url", cwd=cwd)
+    return _git_subprocess_cmd_with_details("config", "--get remote.origin.url", cwd=cwd)
 
 
 def extract_remote_url(cwd=None):
@@ -214,7 +218,7 @@ def extract_remote_url(cwd=None):
 
 
 def extract_latest_commits_with_details(cwd=None):
-    return _git_subprocess_cmd_with_details(["log", "--format=%H", "-n", "1000" '--since="1 month ago"'], cwd=cwd)
+    return _git_subprocess_cmd_with_details("log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=cwd)
 
 
 def extract_latest_commits(cwd=None):
@@ -239,7 +243,7 @@ def _get_rev_list_with_details(excluded_commit_shas=None, included_commit_shas=N
     if included_commit_shas:
         inclusions = ["%s" % sha for sha in included_commit_shas]
         command.extend(inclusions)
-    return _git_subprocess_cmd_with_details(command, cwd=cwd)
+    return _git_subprocess_cmd_with_details(*command, cwd=cwd)
 
 
 def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
@@ -253,7 +257,7 @@ def _extract_repository_url_with_details(cwd=None):
     # type: (Optional[str]) -> Tuple[str, str, float, int]
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
 
-    return _git_subprocess_cmd_with_details("ls-remote --get-url", cwd=cwd)
+    return _git_subprocess_cmd_with_details("ls-remote", "--get-url", cwd=cwd)
 
 
 def extract_repository_url(cwd=None):
