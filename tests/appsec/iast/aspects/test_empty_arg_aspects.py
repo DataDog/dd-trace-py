@@ -8,7 +8,7 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-import tests.appsec.iast.fixtures.aspects.callees
+import tests.appsec.iast.fixtures.aspects.callees  # noqa: F401
 
 
 def generate_callers_from_callees(callers_file=""):
@@ -39,7 +39,7 @@ def generate_callers_from_callees(callers_file=""):
 
     with open(callers_file, "w", encoding="utf-8") as callers:
         callers.write(
-            f"""
+            """
 import builtins as _builtins
 
 def call_builtin_repr(*args, **kwargs):
