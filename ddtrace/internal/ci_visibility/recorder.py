@@ -154,9 +154,7 @@ class CIVisibility(Service):
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
         self._git_client = None
 
-        if (
-            self._code_coverage_enabled_by_api or self._test_skipping_enabled_by_api
-        ) and ddconfig._ci_visibility_intelligent_testrunner_enabled:
+        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
             if self._requests_mode == REQUESTS_MODE.TRACES:
                 log.warning("Cannot start git client if mode is not agentless or evp proxy")
             else:
