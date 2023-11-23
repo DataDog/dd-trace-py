@@ -12,6 +12,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -31,6 +32,37 @@ def _get_content_length(environ):
         return max(0, int(content_length))
     except ValueError:
         return 0
+
+
+# ASGI
+
+
+async def _on_asgi_request_parse_body(receive, headers):
+    if asm_config._asm_enabled:
+        data_received = await receive()
+        body = data_received.get("body", b"")
+
+        async def receive():
+            return data_received
+
+        content_type = headers.get("content-type") or headers.get("Content-Type")
+        try:
+            if content_type == "application/json" or content_type == "text/json":
+                req_body = json.loads(body.decode())
+            elif content_type in ("application/xml", "text/xml"):
+                req_body = xmltodict.parse(body)
+            elif content_type == "text/plain":
+                req_body = None
+            else:
+                req_body = parse_form_multipart(body.decode(), headers) or None
+            return receive, req_body
+        except BaseException:
+            return receive, None
+
+    return receive, None
+
+
+# FLASK
 
 
 def _on_request_span_modifier(
@@ -277,3 +309,5 @@ core.on("django.func.wrapped", _on_django_func_wrapped)
 core.on("django.wsgi_environ", _on_wsgi_environ)
 core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
+
+core.on("asgi.request.parse.body", _on_asgi_request_parse_body)
