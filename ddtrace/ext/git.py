@@ -95,16 +95,13 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
     git_cmd = ["git"]
     git_cmd.extend(cmd)
 
-    log.warning("Executing git command: %s", git_cmd)
+    log.debug("Executing git command: %s", git_cmd)
 
     with StopWatch() as stopwatch:
         process = subprocess.Popen(
             git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, cwd=cwd
         )
         stdout, stderr = process.communicate(input=std_in)
-
-    log.warning("STDOUT %s", compat.ensure_text(stdout).strip())
-    log.warning("STDERR %s", compat.ensure_text(stderr).strip())
 
     return _GitSubprocessDetails(
         compat.ensure_text(stdout).strip(),
