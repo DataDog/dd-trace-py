@@ -10,6 +10,42 @@ DBAPI_PREFIXES = ("django-",)
 log = get_logger(__name__)
 
 
+# Non Lazy Tainting
+
+
+def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
+    from ._taint_tracking import is_pyobject_tainted
+    from ._taint_tracking import taint_pyobject
+
+    try:
+        fifo = [(source_key, source_value, main_obj)]
+        for key, value, obj in fifo:
+            if not obj:
+                continue
+            if isinstance(obj, (str, bytes, bytearray)):
+                if override_pyobject_tainted or is_pyobject_tainted(value):
+                    value = taint_pyobject(
+                        pyobject=obj,
+                        source_name=key,
+                        source_value=obj,
+                        source_origin=value,
+                    )
+            elif isinstance(abc.Mapping):
+                for k, v in obj.items():
+                    fifo.append((f"{key}.{{}}", value, k))
+                    fifo.append((f"{key}.{k}", value, v))
+            elif isinstance(abc.Collection):
+                for i, v in enumerate(obj):
+                    fifo.append((f"{key}.[{i}]", value, v))
+    except BaseException:
+        pass
+    finally:
+        return main_obj
+
+
+# Lazy Tainting
+
+
 def _is_tainted_struct(obj):
     return hasattr(obj, "_origins")
 
