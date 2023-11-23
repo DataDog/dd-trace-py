@@ -28,7 +28,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     // Ensure no returns are done before this method call
     auto method_name = PyUnicode_FromString("extend");
     PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-    Py_DECREF(method_name);
+    Py_DecRef(method_name);
 
     if (not ctx_map or ctx_map->empty() or to_result == nullptr) {
         Py_RETURN_NONE;
