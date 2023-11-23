@@ -40,7 +40,8 @@ The following environment variables for the tracer are supported:
      default: False
      description: |
          Enables propagation of baggage items through http headers with prefix ``ot-baggage-``.
-
+     version_added:
+       v2.4.0:
    DD_VERSION:
      description: |
          Set an application's version in traces and logs e.g. ``1.2.3``,
