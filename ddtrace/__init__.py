@@ -1,3 +1,4 @@
+import logging
 import sys
 
 
@@ -42,6 +43,14 @@ from .version import get_version  # noqa: E402
 
 
 __version__ = get_version()
+
+try:
+    import freezegun
+
+    logging.debug("freezegun detected, adding ddtrace to the ignore list")
+    freezegun.configure(extend_ignore_list=["ddtrace"])
+except ImportError:
+    pass
 
 # a global tracer instance with integration settings
 tracer = Tracer()
