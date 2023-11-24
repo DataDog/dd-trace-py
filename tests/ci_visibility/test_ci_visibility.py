@@ -1311,48 +1311,50 @@ def test_fetch_tests_to_skip_custom_configurations():
                 "git.commit.sha": "mytestcommitsha1234",
             },
         ),
-        mock.patch(
+    ):
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
             return_value=Response(
                 status=200,
                 body='{"data": []}',
             ),
-        ) as mock_do_request,
-        mock.patch(
-            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
-        ) as mock_build_packfiles,
-    ):
-        mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        CIVisibility.enable(service="test-service")
+        ) as mock_do_request:
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+            ) as mock_build_packfiles:
+                mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails(
+                    "", "", 10, 0
+                )
+                ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+                CIVisibility.enable(service="test-service")
 
-        expected_data_arg = json.dumps(
-            {
-                "data": {
-                    "type": "test_params",
-                    "attributes": {
-                        "service": "test-service",
-                        "env": "test-env",
-                        "repository_url": "git@github.com:TestDog/dd-test-py.git",
-                        "sha": "mytestcommitsha1234",
-                        "configurations": {
-                            "os.architecture": "testarch64",
-                            "os.platform": "Not Actually Linux",
-                            "os.version": "1.2.3-test",
-                            "runtime.name": "CPythonTest",
-                            "runtime.version": "1.2.3",
-                            "custom": {"disk": "slow", "memory": "low"},
-                        },
-                        "test_level": "test",
-                    },
-                }
-            }
-        )
+                expected_data_arg = json.dumps(
+                    {
+                        "data": {
+                            "type": "test_params",
+                            "attributes": {
+                                "service": "test-service",
+                                "env": "test-env",
+                                "repository_url": "git@github.com:TestDog/dd-test-py.git",
+                                "sha": "mytestcommitsha1234",
+                                "configurations": {
+                                    "os.architecture": "testarch64",
+                                    "os.platform": "Not Actually Linux",
+                                    "os.version": "1.2.3-test",
+                                    "runtime.name": "CPythonTest",
+                                    "runtime.version": "1.2.3",
+                                    "custom": {"disk": "slow", "memory": "low"},
+                                },
+                                "test_level": "test",
+                            },
+                        }
+                    }
+                )
 
-        mock_do_request.assert_called_once_with(
-            "POST",
-            "https://api.datadoghq.com/api/v2/ci/tests/skippable",
-            expected_data_arg,
-            {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
-        )
-        CIVisibility.disable()
+                mock_do_request.assert_called_once_with(
+                    "POST",
+                    "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+                    expected_data_arg,
+                    {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
+                )
+                CIVisibility.disable()
