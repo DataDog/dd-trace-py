@@ -135,20 +135,7 @@ class CIVisibilityGitClient(object):
                         requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
                     )
                     return
-
-            log.debug("Failed to build and upload packfiles, trying prefix workaround")
-            with _build_git_packfiles_with_details(rev_list, cwd=cwd, use_prefix_workaround=True) as (
-                packfiles_prefix,
-                packfiles_details,
-            ):
-                record_git_command(
-                    GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
-                )
-                if packfiles_details.returncode == 0:
-                    cls._upload_packfiles(
-                        requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
-                    )
-                    return
+                raise ValueError(packfiles_details.stderr)
         else:
             log.debug("Revision list empty, no packfiles to build and upload")
             record_objects_pack_data(0, 0)

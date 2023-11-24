@@ -18,6 +18,7 @@ from typing import Union
 import six
 
 from ddtrace.internal import compat
+import ddtrace.internal.compat
 from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
@@ -351,28 +352,33 @@ def extract_user_git_metadata(env=None):
 
 
 @contextlib.contextmanager
-def _build_git_packfiles_with_details(revisions, cwd=None, use_prefix_workaround=False):
+def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
     # type: (str, Optional[str], bool) -> Generator
     basename = str(random.randint(1, 1000000))
 
-    with TemporaryDirectory() as tempdir:
-        # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
-        # sometimes fails in certain CI setups with the error message
-        # `unable to rename temporary pack file: Invalid cross-device link`.
-        # The reason why is unclear.
-        #
-        # A workaround is to attempt to generate the pack files in `cwd`.
-        # While this works most of the times, it's not ideal since it affects the git status.
-        # This workaround is intended to be temporary.
-        #
-        # TODO: fix issue and remove workaround.
-        if use_prefix_workaround:
-            if not cwd:
-                cwd = os.getcwd()
-            prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
-        else:
-            prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
+    # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
+    # sometimes fails in certain CI setups with the error message
+    # `unable to rename temporary pack file: Invalid cross-device link`.
+    # The reason why is unclear.
+    #
+    # A workaround is to attempt to generate the pack files in `cwd`.
+    # While this works most of the times, it's not ideal since it affects the git status.
+    # This workaround is intended to be temporary.
+    #
+    # TODO: fix issue and remove workaround.
+    tempdir = None
+    try:
+        tempdir = TemporaryDirectory()
+        basepath = tempdir.name
+    except ValueError:
+        basepath = cwd if cwd else os.getcwd()
+        log.debug("Could not create temporary directory, using local directory", basepath)
 
+    prefix = "{basepath}/{basename}".format(basepath=basepath, basename=basename)
+
+    log.warning("Building packfiles in prefix path: %s", prefix)
+
+    try:
         process_details = _git_subprocess_cmd_with_details(
             "pack-objects",
             "--compression=9",
@@ -382,19 +388,22 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_prefix_workaround
             std_in=revisions.encode("utf-8"),
         )
         yield prefix, process_details
+    finally:
+        if isinstance(tempdir, ddtrace.internal.compat.TemporaryDirectory):
+            log.debug("Cleaning up temporary directory: %s", basepath)
+            tempdir.cleanup()
 
 
 @contextlib.contextmanager
 def build_git_packfiles(revisions, cwd=None):
     # type: (str, Optional[str]) -> Generator
-    basename = str(random.randint(1, 1000000))
-
     with _build_git_packfiles_with_details(revisions, cwd=cwd) as (prefix, process_details):
         if process_details.returncode == 0:
             yield prefix
-        log.debug("Failed to pack objects: %s", process_details.stderr)
-
-    with _build_git_packfiles_with_details(revisions, cwd=cwd, use_prefix_workaround=True) as (prefix, process_details):
-        if process_details.returncode == 0:
-            yield prefix
+            return
+        log.debug(
+            "Failed to pack objects, command return code: %s, error: %s",
+            process_details.returncode,
+            process_details.stderr,
+        )
         raise ValueError(process_details.stderr)
