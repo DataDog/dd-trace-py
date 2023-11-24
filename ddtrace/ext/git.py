@@ -154,6 +154,11 @@ def _is_shallow_repository_with_details(cwd=None):
     return (is_shallow, duration, returncode)
 
 
+def _get_device_for_path(path):
+    # type: (str) -> int
+    return os.stat(path).st_dev
+
+
 def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
     # type (Optional[str], Optional[str], Optional[str]) -> _GitSubprocessDetails
     cmd = [
@@ -356,27 +361,18 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
     # type: (str, Optional[str], bool) -> Generator
     basename = str(random.randint(1, 1000000))
 
-    # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
-    # sometimes fails in certain CI setups with the error message
-    # `unable to rename temporary pack file: Invalid cross-device link`.
-    # The reason why is unclear.
-    #
-    # A workaround is to attempt to generate the pack files in `cwd`.
-    # While this works most of the times, it's not ideal since it affects the git status.
-    # This workaround is intended to be temporary.
-    #
-    # TODO: fix issue and remove workaround.
-    tempdir = None
-    try:
-        tempdir = TemporaryDirectory()
+    # check that the tempdir and cwd are on the same filesystem, otherwise git pack-objects will fail
+    cwd = cwd if cwd else os.getcwd()
+    tempdir = TemporaryDirectory()
+    if _get_device_for_path(cwd) == _get_device_for_path(tempdir.name):
         basepath = tempdir.name
-    except ValueError:
-        basepath = cwd if cwd else os.getcwd()
-        log.debug("Could not create temporary directory, using local directory", basepath)
+    else:
+        log.debug("tempdir %s and cwd %s are on different filesystems, using cwd", tempdir.name, cwd)
+        basepath = cwd
 
     prefix = "{basepath}/{basename}".format(basepath=basepath, basename=basename)
 
-    log.warning("Building packfiles in prefix path: %s", prefix)
+    log.debug("Building packfiles in prefix path: %s", prefix)
 
     try:
         process_details = _git_subprocess_cmd_with_details(

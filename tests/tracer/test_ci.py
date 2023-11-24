@@ -435,7 +435,7 @@ def test_build_git_packfiles(git_repo):
     assert not os.path.isdir(directory)
 
 
-@mock.patch("ddtrace.ext.git.TemporaryDirectory", side_effect=ValueError("Invalid cross-device link"))
+@mock.patch("ddtrace.ext.git._get_device_for_path", side_effect=[1, 2])
 def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
     found_rand = found_idx = found_pack = False
     with git.build_git_packfiles("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as packfiles_path:
