@@ -15,10 +15,8 @@ from ddtrace.ext.git import _get_rev_list_with_details
 from ddtrace.ext.git import _is_shallow_repository_with_details
 from ddtrace.ext.git import _unshallow_repository
 from ddtrace.ext.git import _unshallow_repository_with_details
-from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
-from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
