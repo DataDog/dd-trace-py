@@ -10,6 +10,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
+from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _GitSubprocessDetails
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
@@ -378,57 +379,10 @@ def test_git_client_get_filtered_revisions(git_repo):
     assert filtered_revisions == ""
 
 
-def test_git_client_build_packfiles(git_repo):
-    found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA_1, cwd=git_repo) as packfiles_path:
-        assert packfiles_path
-        parts = packfiles_path.split("/")
-        directory = "/".join(parts[:-1])
-        rand = parts[-1]
-        assert os.path.isdir(directory)
-        for filename in os.listdir(directory):
-            if rand in filename:
-                found_rand = True
-                if filename.endswith(".idx"):
-                    found_idx = True
-                elif filename.endswith(".pack"):
-                    found_pack = True
-            if found_rand and found_idx and found_pack:
-                break
-        else:
-            pytest.fail()
-    assert not os.path.isdir(directory)
-
-
-@mock.patch("ddtrace.ext.git.TemporaryDirectory")
-def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
-    _temp_dir_mock.side_effect = ValueError("Invalid cross-device link")
-    found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA_1, cwd=git_repo) as packfiles_path:
-        assert packfiles_path
-        parts = packfiles_path.split("/")
-        directory = "/".join(parts[:-1])
-        rand = parts[-1]
-        assert os.path.isdir(directory)
-        for filename in os.listdir(directory):
-            if rand in filename:
-                found_rand = True
-                if filename.endswith(".idx"):
-                    found_idx = True
-                elif filename.endswith(".pack"):
-                    found_pack = True
-            if found_rand and found_idx and found_pack:
-                break
-        else:
-            pytest.fail()
-    # CWD is not a temporary dir, so no deleted after using it.
-    assert os.path.isdir(directory)
-
-
 def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA_1, cwd=git_repo) as packfiles_path:
+    with _build_git_packfiles_with_details("%s\n" % TEST_SHA_1, cwd=git_repo) as (packfiles_path, packfiles_details):
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
             dr.return_value = Response(
                 status=200,
@@ -894,9 +848,11 @@ def test_run_protocol_unshallow_git_ge_227():
             _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
             _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
             _get_filtered_revisions=mock.DEFAULT,
-            _build_packfiles=mock.DEFAULT,
             _upload_packfiles=mock.DEFAULT,
-        ):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
                 CIVisibilityGitClient._run_protocol(None, None, None)
 
@@ -912,9 +868,11 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
             _get_latest_commits=classmethod(lambda *args, **kwargs: ["latest1", "latest2"]),
             _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
             _get_filtered_revisions=mock.DEFAULT,
-            _build_packfiles=mock.DEFAULT,
             _upload_packfiles=mock.DEFAULT,
-        ):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
                 CIVisibilityGitClient._run_protocol(None, None, None)
 
@@ -1313,48 +1271,58 @@ class TestFetchTestsToSkip:
 
 
 def test_fetch_tests_to_skip_custom_configurations():
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
-            DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
-            DD_SERVICE="test-service",
-            DD_ENV="test-env",
-        )
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
-    ), mock.patch.multiple(
-        CIVisibilityGitClient,
-        _get_repository_url=mock.DEFAULT,
-        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
-        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
-        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
-        _get_filtered_revisions=mock.DEFAULT,
-        _build_packfiles=mock.DEFAULT,
-        _upload_packfiles=mock.DEFAULT,
-    ), mock.patch(
-        "ddtrace.ext.ci._get_runtime_and_os_metadata",
-        return_value={
-            "os.architecture": "testarch64",
-            "os.platform": "Not Actually Linux",
-            "os.version": "1.2.3-test",
-            "runtime.name": "CPythonTest",
-            "runtime.version": "1.2.3",
-        },
-    ), mock.patch(
-        "ddtrace.ext.ci.tags",
-        return_value={
-            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
-            "git.commit.sha": "mytestcommitsha1234",
-        },
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder._do_request",
-        return_value=Response(
-            status=200,
-            body='{"data": []}',
+    with (
+        override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+                DD_CIVISIBILITY_ITR_ENABLED="1",
+                DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
+                DD_SERVICE="test-service",
+                DD_ENV="test-env",
+            )
         ),
-    ) as mock_do_request:
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+        ),
+        mock.patch.multiple(
+            CIVisibilityGitClient,
+            _get_repository_url=mock.DEFAULT,
+            _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+            _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+            _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=mock.DEFAULT,
+            _upload_packfiles=mock.DEFAULT,
+        ),
+        mock.patch(
+            "ddtrace.ext.ci._get_runtime_and_os_metadata",
+            return_value={
+                "os.architecture": "testarch64",
+                "os.platform": "Not Actually Linux",
+                "os.version": "1.2.3-test",
+                "runtime.name": "CPythonTest",
+                "runtime.version": "1.2.3",
+            },
+        ),
+        mock.patch(
+            "ddtrace.ext.ci.tags",
+            return_value={
+                "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+                "git.commit.sha": "mytestcommitsha1234",
+            },
+        ),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            return_value=Response(
+                status=200,
+                body='{"data": []}',
+            ),
+        ) as mock_do_request,
+        mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles,
+    ):
+        mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
 

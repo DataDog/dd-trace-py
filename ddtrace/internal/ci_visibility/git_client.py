@@ -7,7 +7,9 @@ from typing import Optional  # noqa
 from typing import Tuple  # noqa
 
 from ddtrace.ext import ci
+from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
+from ddtrace.ext.git import _extract_latest_commits_with_details
 from ddtrace.ext.git import _extract_upstream_sha
 from ddtrace.ext.git import _get_rev_list_with_details
 from ddtrace.ext.git import _is_shallow_repository_with_details
@@ -124,10 +126,29 @@ class CIVisibilityGitClient(object):
         )
         if rev_list:
             log.debug("Building and uploading packfiles for revision list: %s", rev_list)
-            with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
-                cls._upload_packfiles(
-                    requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+            with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
+                record_git_command(
+                    GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
                 )
+                if packfiles_details.returncode == 0:
+                    cls._upload_packfiles(
+                        requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                    )
+                    return
+
+            log.debug("Failed to build and upload packfiles, trying prefix workaround")
+            with _build_git_packfiles_with_details(rev_list, cwd=cwd, use_prefix_workaround=True) as (
+                packfiles_prefix,
+                packfiles_details,
+            ):
+                record_git_command(
+                    GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
+                )
+                if packfiles_details.returncode == 0:
+                    cls._upload_packfiles(
+                        requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                    )
+                    return
         else:
             log.debug("Revision list empty, no packfiles to build and upload")
             record_objects_pack_data(0, 0)
@@ -145,7 +166,11 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _get_latest_commits(cls, cwd=None):
         # type: (Optional[str]) -> List[str]
-        return extract_latest_commits(cwd=cwd)
+        latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(cwd=cwd)
+        record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode)
+        if returncode == 0:
+            return latest_commits.split("\n") if latest_commits else []
+        raise ValueError(stderr)
 
     @classmethod
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
@@ -216,12 +241,8 @@ class CIVisibilityGitClient(object):
         filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
             excluded_commits, included_commits, cwd=cwd
         )
-        record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode if returncode != 0 else None)
+        record_git_command(GIT_TELEMETRY_COMMANDS.GET_OBJECTS, duration, returncode if returncode != 0 else None)
         return filtered_revisions
-
-    @classmethod
-    def _build_packfiles(cls, revisions, cwd=None):
-        return build_git_packfiles(revisions, cwd=cwd)
 
     @classmethod
     def _upload_packfiles(cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):

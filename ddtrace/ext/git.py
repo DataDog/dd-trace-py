@@ -140,11 +140,6 @@ def _extract_clone_defaultremotename_with_details(cwd):
     )
 
 
-def _extract_clone_defaultremotename(cwd=None):
-    # type: (Optional[str]) -> str
-    return _extract_clone_defaultremotename_with_details(cwd=cwd)[0]
-
-
 def _extract_upstream_sha(cwd=None):
     # type: (Optional[str]) -> str
     output = _git_subprocess_cmd("rev-parse @{upstream}", cwd=cwd)
@@ -156,11 +151,6 @@ def _is_shallow_repository_with_details(cwd=None):
     stdout, _, duration, returncode = _git_subprocess_cmd_with_details("rev-parse", "--is-shallow-repository", cwd=cwd)
     is_shallow = stdout.strip() == "true"
     return (is_shallow, duration, returncode)
-
-
-def _is_shallow_repository(cwd=None):
-    # type: (Optional[str]) -> bool
-    return _is_shallow_repository_with_details(cwd=cwd)[0]
 
 
 def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
@@ -208,22 +198,28 @@ def extract_git_version(cwd=None):
 
 
 def _extract_remote_url_with_details(cwd=None):
-    # type: (Optional[str]) -> Tuple[str, str, float, int]
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details("config", "--get", "remote.origin.url", cwd=cwd)
 
 
 def extract_remote_url(cwd=None):
-    remote_url, _, _, _ = _extract_remote_url_with_details(cwd=cwd)
-    return remote_url
+    remote_url, error, _, returncode = _extract_remote_url_with_details(cwd=cwd)
+    if returncode == 0:
+        return remote_url
+    raise ValueError(error)
 
 
-def extract_latest_commits_with_details(cwd=None):
+def _extract_latest_commits_with_details(cwd=None):
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details("log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=cwd)
 
 
 def extract_latest_commits(cwd=None):
-    latest_commits, _, _, _ = extract_latest_commits_with_details(cwd=cwd)
-    return latest_commits.split("\n") if latest_commits else []
+    # type: (Optional[str]) -> typing.List[str]
+    latest_commits, error, _, returncode = _extract_latest_commits_with_details(cwd=cwd)
+    if returncode == 0:
+        return latest_commits.split("\n") if latest_commits else []
+    raise ValueError(error)
 
 
 def get_rev_list_excluding_commits(commit_shas, cwd=None):
@@ -254,7 +250,7 @@ def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None
 
 
 def _extract_repository_url_with_details(cwd=None):
-    # type: (Optional[str]) -> Tuple[str, str, float, int]
+    # type: (Optional[str]) -> _GitSubprocessDetails
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
 
     return _git_subprocess_cmd_with_details("ls-remote", "--get-url", cwd=cwd)
@@ -263,7 +259,10 @@ def _extract_repository_url_with_details(cwd=None):
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
-    return _extract_repository_url_with_details(cwd=cwd)[0]
+    stdout, stderr, _, returncode = _extract_repository_url_with_details(cwd=cwd)
+    if returncode == 0:
+        return stdout
+    raise ValueError(stderr)
 
 
 def extract_commit_message(cwd=None):
@@ -352,17 +351,11 @@ def extract_user_git_metadata(env=None):
 
 
 @contextlib.contextmanager
-def build_git_packfiles(revisions, cwd=None):
-    # type: (str, Optional[str]) -> Generator
+def _build_git_packfiles_with_details(revisions, cwd=None, use_prefix_workaround=False):
+    # type: (str, Optional[str], bool) -> Generator
     basename = str(random.randint(1, 1000000))
-    try:
-        with TemporaryDirectory() as tempdir:
-            prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
-            _git_subprocess_cmd(
-                "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
-            )
-            yield prefix
-    except ValueError:
+
+    with TemporaryDirectory() as tempdir:
         # The generation of pack files in the temporary folder (`TemporaryDirectory()`)
         # sometimes fails in certain CI setups with the error message
         # `unable to rename temporary pack file: Invalid cross-device link`.
@@ -373,11 +366,35 @@ def build_git_packfiles(revisions, cwd=None):
         # This workaround is intended to be temporary.
         #
         # TODO: fix issue and remove workaround.
-        if not cwd:
-            cwd = os.getcwd()
+        if use_prefix_workaround:
+            if not cwd:
+                cwd = os.getcwd()
+            prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
+        else:
+            prefix = "{tempdir}/{basename}".format(tempdir=tempdir, basename=basename)
 
-        prefix = "{tempdir}/{basename}".format(tempdir=cwd, basename=basename)
-        _git_subprocess_cmd(
-            "pack-objects --compression=9 --max-pack-size=3m %s" % prefix, cwd=cwd, std_in=revisions.encode("utf-8")
+        process_details = _git_subprocess_cmd_with_details(
+            "pack-objects",
+            "--compression=9",
+            "--max-pack-size=3m",
+            prefix,
+            cwd=cwd,
+            std_in=revisions.encode("utf-8"),
         )
-        yield prefix
+        yield prefix, process_details
+
+
+@contextlib.contextmanager
+def build_git_packfiles(revisions, cwd=None):
+    # type: (str, Optional[str]) -> Generator
+    basename = str(random.randint(1, 1000000))
+
+    with _build_git_packfiles_with_details(revisions, cwd=cwd) as (prefix, process_details):
+        if process_details.returncode == 0:
+            yield prefix
+        log.debug("Failed to pack objects: %s", process_details.stderr)
+
+    with _build_git_packfiles_with_details(revisions, cwd=cwd, use_prefix_workaround=True) as (prefix, process_details):
+        if process_details.returncode == 0:
+            yield prefix
+        raise ValueError(process_details.stderr)
