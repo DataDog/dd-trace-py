@@ -26,6 +26,7 @@ class _DeepTaintCommand:
     store_struct: Union[list, dict]
     key: Optional[List[str]] = None
     struct: Optional[Union[list, dict]] = None
+    is_key: bool = False
 
     def store(self, value):
         if isinstance(self.store_struct, list):
@@ -56,6 +57,8 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
         for k, v in wanted_object.items():
             dict.__setitem__(res, k, v)
         return res
+    if wanted_type == ("werkzeug.datastructures.structures", "ImmutableMultiDict"):
+        return initial_object.__class__(wanted_object)
     return wanted_object
 
 
@@ -86,7 +89,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                             pyobject=command.obj,
                             source_name=command.source_key,
                             source_value=command.obj,
-                            source_origin=source_value if command.key is not None else source_key,
+                            source_origin=source_key if command.is_key else source_value,
                         )
                         command.store(new_obj)
                     else:
@@ -99,7 +102,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     todo = []
                     for k, v in list(iterable):
                         key_store = []
-                        todo.append(_DeepTaintCommand(True, k, k, key_store))
+                        todo.append(_DeepTaintCommand(True, k, k, key_store, is_key=True))
                         todo.append(_DeepTaintCommand(True, k, v, res, key_store))
                     stack.extend(todo[::-1])
                 elif isinstance(command.obj, abc.Sequence):

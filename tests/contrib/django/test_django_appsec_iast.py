@@ -140,7 +140,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type, filename=TEST_FILE)
 
         assert loaded["sources"] == [
-            {"origin": "http.request.parameter.name", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
+            {"origin": "http.request.parameter", "name": "q", "value": "SELECT 1 FROM sqlite_master"}
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["evidence"] == {
