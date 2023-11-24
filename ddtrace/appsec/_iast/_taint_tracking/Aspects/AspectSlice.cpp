@@ -49,18 +49,17 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
     TaintRangeRefs index_range_map_result;
     long start_int = PyLong_AsLong(start);
     long stop_int = index_range_map.size();
-    if (stop != NULL){
+    if (stop != NULL) {
         stop_int = PyLong_AsLong(stop);
-        if (stop_int > index_range_map.size()){
+        if (stop_int > index_range_map.size()) {
             stop_int = index_range_map.size();
         }
     }
     long step_int = 1;
-    if (step != NULL){
+    if (step != NULL) {
         step_int = PyLong_AsLong(step);
-
     }
-    for (auto i=start_int; i < stop_int; i+=step_int) {
+    for (auto i = start_int; i < stop_int; i += step_int) {
         index_range_map_result.emplace_back(index_range_map[i]);
     }
 
