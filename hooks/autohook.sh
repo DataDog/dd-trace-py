@@ -50,6 +50,7 @@ install() {
 
 
 main() {
+    git config --local include.path ../.gitconfig
     calling_file=$(basename $0)
 
     if [[ $calling_file == "autohook.sh" ]]

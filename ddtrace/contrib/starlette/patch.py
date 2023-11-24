@@ -9,6 +9,7 @@ from starlette.middleware import Middleware
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
@@ -16,6 +17,9 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.span import Span
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
+from ...internal import core
+from .. import trace_utils
 
 
 log = get_logger(__name__)
@@ -127,5 +131,10 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans,
             resource_paths,
         )
+    if request_spans:
+        trace_utils.set_http_meta(request_spans[0], "starlette", request_path_params=scope.get("path_params"))
+    core.dispatch("asgi.start_request", "starlette")
+    if core.get_item(HTTP_REQUEST_BLOCKED):
+        raise trace_utils.InterruptException("starlette")
 
     return wrapped(*args, **kwargs)

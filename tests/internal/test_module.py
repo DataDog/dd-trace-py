@@ -402,3 +402,17 @@ def test_module_watchdog_no_lazy_force_load():
         lazy.__spec__
     except AttributeError:
         pass
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_module_watchdog_weakref():
+    """Check that we can ignore entries in sys.modules that cannot be weakref'ed."""
+    import sys
+
+    sys.modules["bogus"] = str.__init__  # Cannot create weak ref to method_descriptor
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    instance = ModuleWatchdog._instance
+    instance._om = None
+    assert ModuleWatchdog._instance._origin_map
