@@ -40,6 +40,25 @@ class _DeepTaintCommand:
         return self.__class__(False, self.source_key, self.obj, self.store_struct, self.key, struct)
 
 
+def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
+    if initial_object.__class__ is wanted_object.__class__:
+        return wanted_object
+    #### custom tailor actions
+    wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
+    if wanted_type == ("builtins", "tuple"):
+        return tuple(wanted_object)
+    if wanted_type == ("django.http.request", "HttpHeaders"):
+        res = initial_object.__class__({})
+        res._store = {k.lower(): (k, v) for k, v in wanted_object.items()}
+        return res
+    if wanted_type == ("django.http.request", "QueryDict"):
+        res = initial_object.__class__()
+        for k, v in wanted_object.items():
+            dict.__setitem__(res, k, v)
+        return res
+    return wanted_object
+
+
 def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
     """taint any structured object
     use a queue like mechanism to avoid recursion
@@ -55,8 +74,9 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     try:
         # fifo contains tuple (pre/post:bool, source key, object to taint,
         # key to use, struct to store result, struct to )
-        fifo = [_DeepTaintCommand(True, source_key, main_obj, main_res)]
-        for command in fifo:
+        stack = [_DeepTaintCommand(True, source_key, main_obj, main_res)]
+        while stack:
+            command = stack.pop()
             if command.pre:  # first processing of the object
                 if not command.obj:
                     command.store(command.obj)
@@ -73,27 +93,24 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                         command.store(command.obj)
                 elif isinstance(command.obj, abc.Mapping):
                     res = {}
-                    for k, v in list(command.obj.items()):
+                    stack.append(command.post(res))
+                    # use dict fondamental enumeration if possible to bypass any override of custom classes
+                    iterable = dict.items(command.obj) if isinstance(command.obj, dict) else command.obj.items()
+                    todo = []
+                    for k, v in list(iterable):
                         key_store = []
-                        fifo.append(_DeepTaintCommand(True, k, k, key_store))
-                        fifo.append(_DeepTaintCommand(True, k, v, res, key_store))
-                    fifo.append(command.post(res))
-                elif isinstance(command.obj, abc.Collection):
+                        todo.append(_DeepTaintCommand(True, k, k, key_store))
+                        todo.append(_DeepTaintCommand(True, k, v, res, key_store))
+                    stack.extend(todo[::-1])
+                elif isinstance(command.obj, abc.Sequence):
                     res = []
-                    for i, v in enumerate(command.obj):
-                        fifo.append(_DeepTaintCommand(True, command.source_key, v, res))
-                    fifo.append(command.post(res))
+                    stack.append(command.post(res))
+                    todo = [_DeepTaintCommand(True, command.source_key, v, res) for v in command.obj]
+                    stack.extend(todo[::-1])
                 else:
                     command.store(command.obj)
-            else:  # we processed all sub objects and we can now process the structure
-                if isinstance(command.obj, (dict, list)):
-                    command.store(command.struct)
-                else:
-                    try:
-                        new_obj = command.obj.__class__(command.struct)
-                        command.store(new_obj or command.obj)
-                    except BaseException:
-                        command.store(command.obj)
+            else:
+                command.store(build_new_tainted_object_from_generic_object(command.obj, command.struct))
     except BaseException:
         log.debug("taint_structure error", exc_info=True)
         pass

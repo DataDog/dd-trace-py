@@ -225,8 +225,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 source_origin=OriginType.BODY,
             )
 
-        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
-
         http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
@@ -243,6 +241,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
+        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
         if fn_kwargs:
             try:
                 for k, v in fn_kwargs.items():
