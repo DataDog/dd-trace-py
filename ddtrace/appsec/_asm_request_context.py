@@ -416,7 +416,6 @@ def _on_set_request_tags(request, span, flask_config):
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,

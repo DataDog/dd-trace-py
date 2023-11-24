@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 from collections import abc
+import dataclasses
+from typing import Any
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 
@@ -13,34 +17,79 @@ log = get_logger(__name__)
 # Non Lazy Tainting
 
 
+@dataclasses.dataclass
+class _DeepTaintCommand:
+    pre: bool
+    source_key: str
+    obj: Any
+    store_struct: Union[list, dict]
+    key: Optional[list[str]] = None
+    struct: Optional[Union[list, dict]] = None
+
+    def store(self, value):
+        if isinstance(self.store_struct, list):
+            self.store_struct.append(value)
+        else:
+            key = self.key[0] if self.key else None
+            self.store_struct[key] = value
+
+    def post(self, struct):
+        return self.__class__(False, self.source_key, self.obj, self.store, self.key, struct)
+
+
 def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
+    """taint any structured object
+    use a queue like mechanism to avoid recursion
+    Best effort: mutate mutable structures and rebuild immutable ones if possible
+    """
     from ._taint_tracking import is_pyobject_tainted
     from ._taint_tracking import taint_pyobject
 
+    main_res = []
     try:
-        fifo = [(source_key, main_obj)]
-        for key, obj in fifo:
-            if not obj:
-                continue
-            if isinstance(obj, (str, bytes, bytearray)):
-                if override_pyobject_tainted or not is_pyobject_tainted(obj):
-                    taint_pyobject(
-                        pyobject=obj,
-                        source_name=key,
-                        source_value=obj,
-                        source_origin=source_value,
-                    )
-            elif isinstance(obj, abc.Mapping):
-                for k, v in list(obj.items()):
-                    fifo.append((f"{key}.{{}}", k))
-                    fifo.append((f"{key}.{k}", v))
-            elif isinstance(obj, abc.Collection):
-                for i, v in enumerate(obj):
-                    fifo.append((f"{key}.[{i}]", v))
+        # fifo contains tuple (pre/post:bool, source key, object to taint,
+        # key to use, struct to store result, struct to )
+        fifo = [_DeepTaintCommand(True, source_key, main_obj, main_res)]
+        for command in fifo:
+            if command.pre:  # first processing of the object
+                if not command.obj:
+                    command.store(command.obj)
+                elif isinstance(command.obj, (str, bytes, bytearray)):
+                    if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
+                        new_obj = taint_pyobject(
+                            pyobject=command.obj,
+                            source_name=command.source_key,
+                            source_value=command.obj,
+                            source_origin=source_value,
+                        )
+                        command.store(new_obj)
+                elif isinstance(command.obj, abc.Mapping):
+                    res = {}
+                    for k, v in list(command.obj.items()):
+                        key_store = []
+                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.{{}}", k, key_store))
+                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.{k}", v, res, key_store))
+                    fifo.append(command.post(res))
+                elif isinstance(command.obj, abc.Collection):
+                    res = []
+                    for i, v in enumerate(command.obj):
+                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.[{i}]", v, res))
+                    fifo.append(command.post(res))
+                else:
+                    command.store(command.obj)
+            else:  # we processed all sub objects and we can now process the structure
+                if isinstance(command.obj, (dict, list)):
+                    command.store(command.struct)
+                else:
+                    try:
+                        command.store(command.obj.__class__(command.struct))
+                    except BaseException:
+                        command.store(command.obj)
     except BaseException:
+        log.debug("taint_structure error", exc_info=True)
         pass
     finally:
-        return main_obj
+        return main_res[0] if main_res else main_obj
 
 
 # Lazy Tainting
