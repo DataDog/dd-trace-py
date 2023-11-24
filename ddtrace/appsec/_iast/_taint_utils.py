@@ -2,6 +2,7 @@
 from collections import abc
 import dataclasses
 from typing import Any
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -23,18 +24,20 @@ class _DeepTaintCommand:
     source_key: str
     obj: Any
     store_struct: Union[list, dict]
-    key: Optional[list[str]] = None
+    key: Optional[List[str]] = None
     struct: Optional[Union[list, dict]] = None
 
     def store(self, value):
         if isinstance(self.store_struct, list):
             self.store_struct.append(value)
-        else:
+        elif isinstance(self.store_struct, dict):
             key = self.key[0] if self.key else None
             self.store_struct[key] = value
+        else:
+            raise ValueError(f"store_struct of type {type(self.store_struct)}")
 
     def post(self, struct):
-        return self.__class__(False, self.source_key, self.obj, self.store, self.key, struct)
+        return self.__class__(False, self.source_key, self.obj, self.store_struct, self.key, struct)
 
 
 def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
@@ -44,6 +47,9 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     """
     from ._taint_tracking import is_pyobject_tainted
     from ._taint_tracking import taint_pyobject
+
+    if not main_obj:
+        return main_obj
 
     main_res = []
     try:
@@ -60,20 +66,22 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                             pyobject=command.obj,
                             source_name=command.source_key,
                             source_value=command.obj,
-                            source_origin=source_value,
+                            source_origin=source_value if command.key is not None else source_key,
                         )
                         command.store(new_obj)
+                    else:
+                        command.store(command.obj)
                 elif isinstance(command.obj, abc.Mapping):
                     res = {}
                     for k, v in list(command.obj.items()):
                         key_store = []
-                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.{{}}", k, key_store))
-                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.{k}", v, res, key_store))
+                        fifo.append(_DeepTaintCommand(True, k, k, key_store))
+                        fifo.append(_DeepTaintCommand(True, k, v, res, key_store))
                     fifo.append(command.post(res))
                 elif isinstance(command.obj, abc.Collection):
                     res = []
                     for i, v in enumerate(command.obj):
-                        fifo.append(_DeepTaintCommand(True, f"{command.source_key}.[{i}]", v, res))
+                        fifo.append(_DeepTaintCommand(True, command.source_key, v, res))
                     fifo.append(command.post(res))
                 else:
                     command.store(command.obj)
@@ -82,7 +90,8 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     command.store(command.struct)
                 else:
                     try:
-                        command.store(command.obj.__class__(command.struct))
+                        new_obj = command.obj.__class__(command.struct)
+                        command.store(new_obj or command.obj)
                     except BaseException:
                         command.store(command.obj)
     except BaseException:

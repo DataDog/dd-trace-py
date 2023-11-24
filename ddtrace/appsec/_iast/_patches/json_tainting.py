@@ -7,6 +7,7 @@ from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
 from .._taint_utils import LazyTaintDict
 from .._taint_utils import LazyTaintList
+from .._taint_utils import taint_structure
 
 
 log = get_logger(__name__)
@@ -54,9 +55,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                 # take the first source as main source
                 source = ranges[0].source
                 if isinstance(obj, dict):
-                    obj = LazyTaintDict(obj, origins=(source.origin, source.origin))
+                    obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, list):
-                    obj = LazyTaintList(obj, origins=(source.origin, source.origin))
+                    obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, (str, bytes, bytearray)):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)
                 pass
