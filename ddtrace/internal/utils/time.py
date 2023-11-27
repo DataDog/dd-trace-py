@@ -1,5 +1,4 @@
 from datetime import datetime
-from datetime import timedelta
 from types import TracebackType
 from typing import Optional
 from typing import Type  # noqa:F401

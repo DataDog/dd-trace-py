@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-import six
 
 from tests.utils import call_program
 

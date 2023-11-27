@@ -10,7 +10,6 @@ import typing  # noqa:F401
 import uuid
 
 import pytest
-import six
 from six.moves import _thread
 
 import ddtrace  # noqa:F401

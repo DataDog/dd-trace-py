@@ -2,8 +2,6 @@ from collections import Counter
 import os
 
 import pytest
-import six
-from six.moves import _thread
 
 from ddtrace.internal import forksafe
 

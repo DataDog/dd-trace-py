@@ -6,7 +6,6 @@ from unittest.case import SkipTest
 
 import mock
 import pytest
-import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
