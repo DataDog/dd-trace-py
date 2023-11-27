@@ -541,7 +541,6 @@ class _EditHook(_EndpointHook):
         if not resp:
             return
         choices = resp.choices
-        span.set_metric("openai.response.choices_count", len(choices))
         if integration.is_pc_sampled_span(span):
             for choice in choices:
                 idx = choice.index

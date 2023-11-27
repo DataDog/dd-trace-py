@@ -68,6 +68,7 @@
          "openai.request.top_p": "1",
          "openai.response.choices.0.finish_reason": "stop",
          "openai.response.choices.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
+         "openai.response.created": "1687283761",
          "openai.response.id": "cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP",
          "openai.response.model": "text-davinci-003",
          "openai.user.api_key": "sk-...key>"
@@ -76,9 +77,7 @@
          "_dd.measured": 1,
          "_sample_rate": 1.0,
          "openai.organization.ratelimit.requests.remaining": 2999,
-         "openai.organization.ratelimit.tokens.remaining": 249744,
-         "openai.response.choices_count": 1,
-         "openai.response.created": 1687283761
+         "openai.organization.ratelimit.tokens.remaining": 249744
        },
        "duration": 4715068,
        "start": 1694032721930990214
