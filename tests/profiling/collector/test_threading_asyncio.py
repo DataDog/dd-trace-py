@@ -1,9 +1,6 @@
 import pytest
 
-from . import _asyncio_compat
 
-
-@pytest.mark.skipif(not _asyncio_compat.PY36_AND_LATER, reason="Python > 3.5 needed")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_CAPTURE_PCT="100"),
     err=None,
@@ -35,10 +32,10 @@ def test_lock_acquire_events():
 
     lock_found = 0
     for event in events[collector_threading.ThreadingLockAcquireEvent]:
-        if event.lock_name == "test_threading_asyncio.py:19":
+        if event.lock_name == "test_threading_asyncio.py:16":
             assert event.task_name.startswith("Task-")
             lock_found += 1
-        elif event.lock_name == "test_threading_asyncio.py:23":
+        elif event.lock_name == "test_threading_asyncio.py:20":
             assert event.task_name is None
             assert event.thread_name == "foobar"
             lock_found += 1

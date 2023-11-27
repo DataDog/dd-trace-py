@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-import six
 
 from tests.utils import call_program
 
@@ -81,12 +80,7 @@ def test_fork_gevent(monkeypatch):
     assert exitcode == 0
 
 
-atleast_py37 = sys.version_info[:2] >= (3, 7)
-
-if atleast_py37:
-    methods = multiprocessing.get_all_start_methods()
-else:
-    methods = []
+methods = multiprocessing.get_all_start_methods()
 
 
 @pytest.mark.parametrize(
