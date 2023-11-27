@@ -4,9 +4,7 @@ import sys
 from types import ModuleType  # noqa
 import typing  # noqa
 
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.module import find_loader
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 
