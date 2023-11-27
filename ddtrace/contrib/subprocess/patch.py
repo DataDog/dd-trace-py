@@ -5,12 +5,12 @@ import re
 import shlex
 import subprocess  # nosec
 from threading import RLock
-from typing import Deque  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Tuple  # noqa
-from typing import Union  # noqa
-from typing import cast  # noqa
+from typing import Deque  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import cast  # noqa:F401
 
 import attr
 import six
@@ -331,7 +331,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
-    except:  # noqa
+    except:  # noqa:E722
         log.debug(
             "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True
         )
@@ -346,7 +346,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
         return ret
-    except:  # noqa
+    except:  # noqa:E722
         log.debug(
             "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
         )
@@ -369,7 +369,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 ret = wrapped(*args, **kwargs)
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
                 return ret
-    except:  # noqa
+    except:  # noqa:E722
         log.debug(
             "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
         )
@@ -388,7 +388,7 @@ def _traced_py2popen(module, pin, wrapped, instance, args, kwargs):
             if subcmd.truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "true")
             span.set_tag_str(COMMANDS.COMPONENT, "os")
-    except:  # noqa
+    except:  # noqa:E722
         log.debug(
             "Could not trace subprocess execution for os.popen*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
         )
@@ -415,7 +415,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             else:
                 core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
-    except:  # noqa
+    except:  # noqa:E722
         log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
 
     return wrapped(*args, **kwargs)
@@ -439,6 +439,6 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
-    except:  # noqa
+    except:  # noqa:E722
         log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
         return wrapped(*args, **kwargs)

@@ -1,6 +1,6 @@
 import os
-from typing import List  # noqa
-from typing import Tuple  # noqa
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT

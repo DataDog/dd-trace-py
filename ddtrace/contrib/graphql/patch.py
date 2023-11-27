@@ -9,11 +9,11 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa
-    from typing import Dict  # noqa
-    from typing import Iterable  # noqa
-    from typing import Tuple  # noqa
-    from typing import Union  # noqa
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
 
 import graphql

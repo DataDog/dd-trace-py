@@ -1,17 +1,17 @@
 from itertools import groupby
 import json
 import os
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa
-    from typing import Iterable  # noqa
-    from typing import List  # noqa
-    from typing import Optional  # noqa
-    from typing import Tuple  # noqa
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -75,7 +75,7 @@ def build_payload(coverage, root_dir, test_id=None):
         {
             "filename": <String>,
             "segments": [
-                [Int, Int, Int, Int, Int],  # noqa
+                [Int, Int, Int, Int, Int],  # noqa:F401
             ]
         },
         ...

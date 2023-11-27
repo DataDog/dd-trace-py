@@ -2,10 +2,10 @@ import os
 import signal
 import subprocess
 import time
-from typing import Callable  # noqa
-from typing import Dict  # noqa
-from typing import Generator  # noqa
-from typing import List  # noqa
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
 
 import pytest
 

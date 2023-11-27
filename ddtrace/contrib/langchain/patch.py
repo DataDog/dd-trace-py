@@ -1,9 +1,9 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import Optional  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
@@ -36,7 +36,7 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa
+    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -762,11 +762,11 @@ def patch():
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
-    from langchain import embeddings  # noqa
-    from langchain import vectorstores  # noqa
-    from langchain.chains.base import Chain  # noqa
-    from langchain.chat_models.base import BaseChatModel  # noqa
-    from langchain.llms.base import BaseLLM  # noqa
+    from langchain import embeddings  # noqa:F401
+    from langchain import vectorstores  # noqa:F401
+    from langchain.chains.base import Chain  # noqa:F401
+    from langchain.chat_models.base import BaseChatModel  # noqa:F401
+    from langchain.llms.base import BaseLLM  # noqa:F401
 
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))

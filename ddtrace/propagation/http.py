@@ -1,11 +1,11 @@
 import re
-from typing import Dict  # noqa
-from typing import FrozenSet  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Text  # noqa
-from typing import Tuple  # noqa
-from typing import cast  # noqa
+from typing import Dict  # noqa:F401
+from typing import FrozenSet  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import config
 from ddtrace.tracing._span_link import SpanLink

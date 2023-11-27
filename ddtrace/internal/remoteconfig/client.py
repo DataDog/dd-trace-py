@@ -5,13 +5,13 @@ import json
 import os
 import re
 import sys
-from typing import TYPE_CHECKING  # noqa
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Mapping  # noqa
-from typing import Optional  # noqa
-from typing import Set  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 import uuid
 
 import attr
@@ -33,14 +33,14 @@ from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
-from ._pubsub import PubSub  # noqa
+from ._pubsub import PubSub  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa
-    from typing import MutableMapping  # noqa
-    from typing import Tuple  # noqa
-    from typing import Union  # noqa
+    from typing import Callable  # noqa:F401
+    from typing import MutableMapping  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 

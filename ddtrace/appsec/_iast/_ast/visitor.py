@@ -4,9 +4,9 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
-from typing import Any  # noqa
-from typing import List  # noqa
-from typing import Set  # noqa
+from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
 
 from six import iteritems
 

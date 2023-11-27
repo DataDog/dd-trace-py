@@ -6,12 +6,12 @@ import os
 import re
 from sys import builtin_module_names
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Tuple
 
 
 if TYPE_CHECKING:
-    from typing import Optional  # noqa
+    from typing import Optional  # noqa:F401
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version

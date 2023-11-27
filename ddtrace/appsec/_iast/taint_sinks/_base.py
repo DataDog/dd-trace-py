@@ -1,7 +1,7 @@
 import os
 import time
-from typing import TYPE_CHECKING  # noqa
-from typing import cast  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
@@ -26,14 +26,14 @@ from ..reporter import Vulnerability
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa
-    from typing import Callable  # noqa
-    from typing import Dict  # noqa
-    from typing import List  # noqa
-    from typing import Optional  # noqa
-    from typing import Set  # noqa
-    from typing import Text  # noqa
-    from typing import Union  # noqa
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Set  # noqa:F401
+    from typing import Text  # noqa:F401
+    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 

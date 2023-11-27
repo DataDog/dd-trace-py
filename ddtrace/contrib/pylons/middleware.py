@@ -2,7 +2,7 @@ import json
 import sys
 from typing import Any
 from typing import Dict
-from typing import Tuple  # noqa
+from typing import Tuple  # noqa:F401
 
 from pylons import config
 import webob

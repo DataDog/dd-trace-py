@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:I001
 from types import ModuleType
 import asyncpg
 
@@ -24,10 +24,10 @@ from ..trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa
-    from typing import Union  # noqa
+    from typing import Dict  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from asyncpg.prepared_stmt import PreparedStatement  # noqa
+    from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
 
 
 DBMS_NAME = "postgresql"

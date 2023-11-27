@@ -17,13 +17,13 @@ from types import BuiltinMethodType
 from types import FunctionType
 from types import MethodType
 from types import TracebackType
-from typing import Any  # noqa
-from typing import AnyStr  # noqa
-from typing import Optional  # noqa
-from typing import Text  # noqa
-from typing import Tuple  # noqa
-from typing import Type  # noqa
-from typing import Union  # noqa
+from typing import Any  # noqa:F401
+from typing import AnyStr  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
+from typing import Union  # noqa:F401
 import warnings
 
 import six
@@ -102,7 +102,7 @@ else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 try:
-    from inspect import getfullargspec  # noqa
+    from inspect import getfullargspec  # noqa:F401
 
     def is_not_void_function(f, argspec):
         return (
@@ -272,9 +272,9 @@ def get_connection_response(
 
 
 try:
-    import contextvars  # noqa
+    import contextvars  # noqa:F401
 except ImportError:
-    from ddtrace.vendor import contextvars  # type: ignore  # noqa
+    from ddtrace.vendor import contextvars  # type: ignore  # noqa:F401
 
     CONTEXTVARS_IS_AVAILABLE = False
 else:
@@ -282,9 +282,9 @@ else:
 
 
 try:
-    from collections.abc import Iterable  # noqa
+    from collections.abc import Iterable  # noqa:F401
 except ImportError:
-    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa:F401
 
 
 def maybe_stringify(obj):
@@ -325,11 +325,11 @@ BUILTIN = "__builtin__" if PY2 else "builtins"
 
 
 try:
-    from typing import Collection  # noqa
+    from typing import Collection  # noqa:F401
 except ImportError:
-    from typing import List  # noqa
-    from typing import Set  # noqa
-    from typing import Union  # noqa
+    from typing import List  # noqa:F401
+    from typing import Set  # noqa:F401
+    from typing import Union  # noqa:F401
 
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import threading
-import typing  # noqa
+import typing  # noqa:F401
 
 import attr
 

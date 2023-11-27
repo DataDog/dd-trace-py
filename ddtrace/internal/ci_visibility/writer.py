@@ -1,5 +1,5 @@
 import os
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional
 
 import ddtrace
@@ -25,10 +25,10 @@ from .encoder import CIVisibilityEncoderV01
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa
-    from typing import List  # noqa
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
 
-    from ...sampler import BaseSampler  # noqa
+    from ...sampler import BaseSampler  # noqa:F401
 
 
 class CIVisibilityEventClient(WriterClientBase):

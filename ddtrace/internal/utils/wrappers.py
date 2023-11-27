@@ -1,7 +1,7 @@
-from typing import Any  # noqa
-from typing import Callable  # noqa
-from typing import Optional  # noqa
-from typing import TypeVar  # noqa
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import TypeVar  # noqa:F401
 
 from ddtrace.vendor import wrapt
 

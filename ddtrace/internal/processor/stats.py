@@ -25,13 +25,13 @@ from . import SpanProcessor
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from typing import DefaultDict  # noqa
-    from typing import Dict  # noqa
-    from typing import List  # noqa
-    from typing import Optional  # noqa
-    from typing import Union  # noqa
+    from typing import DefaultDict  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from ddtrace import Span  # noqa
+    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)

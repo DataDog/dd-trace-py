@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING  # noqa
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import Optional  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import ddtrace
 

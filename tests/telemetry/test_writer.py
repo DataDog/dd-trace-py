@@ -1,7 +1,7 @@
 import os
 import time
-from typing import Any  # noqa
-from typing import Dict  # noqa
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 
 import httpretty
 import mock

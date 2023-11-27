@@ -2,10 +2,10 @@ import os
 import re
 import shlex
 import subprocess  # nosec
-from typing import TYPE_CHECKING  # noqa
-from typing import List  # noqa
-from typing import Set  # noqa
-from typing import Union  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
 
@@ -26,11 +26,11 @@ from ._base import _check_positions_contained
 
 
 if TYPE_CHECKING:
-    from typing import Any  # noqa
-    from typing import Dict  # noqa
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
 
-    from ..reporter import IastSpanReporter  # noqa
-    from ..reporter import Vulnerability  # noqa
+    from ..reporter import IastSpanReporter  # noqa:F401
+    from ..reporter import Vulnerability  # noqa:F401
 
 
 log = get_logger(__name__)

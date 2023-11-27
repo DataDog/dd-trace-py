@@ -5,18 +5,18 @@ limit. It will measure operations being executed in a request and it will deacti
 """
 import os
 import threading
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Set  # noqa
-    from typing import Tuple  # noqa
-    from typing import Type  # noqa
+    from typing import Set  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Type  # noqa:F401
 
-    from ddtrace.span import Span  # noqa
+    from ddtrace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 

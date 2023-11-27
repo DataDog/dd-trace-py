@@ -1,19 +1,19 @@
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Union  # noqa
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 import opentracing
 from opentracing import Format
-from opentracing import Scope  # noqa
-from opentracing import ScopeManager  # noqa
+from opentracing import Scope  # noqa:F401
+from opentracing import ScopeManager  # noqa:F401
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
 from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
-from ddtrace.context import Context as DatadogContext  # noqa
+from ddtrace.context import Context as DatadogContext  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException

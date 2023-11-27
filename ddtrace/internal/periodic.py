@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 import threading
-import typing  # noqa
+import typing  # noqa:F401
 
 import attr
 

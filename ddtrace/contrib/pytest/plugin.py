@@ -14,7 +14,7 @@ to be run at specific points during pytest execution. The most important hooks u
 from doctest import DocTest
 import json
 import re
-from typing import Dict  # noqa
+from typing import Dict  # noqa:F401
 
 from _pytest.nodes import get_fslocation_from_item
 import pytest

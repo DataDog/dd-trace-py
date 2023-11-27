@@ -1,4 +1,4 @@
-import typing  # noqa
+import typing  # noqa:F401
 
 import wrapt
 

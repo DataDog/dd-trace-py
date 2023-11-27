@@ -3,13 +3,13 @@ import itertools
 import os
 import sys
 import time
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Set  # noqa
-from typing import Tuple  # noqa
-from typing import Union  # noqa
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -90,10 +90,10 @@ from .data import get_host_info
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
-from .metrics import MetricTagType  # noqa
+from .metrics import MetricTagType  # noqa:F401
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType  # noqa
+from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
 log = get_logger(__name__)

@@ -28,9 +28,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.tracing._span_link import SpanLink
-from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa
-from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa
-from tests.contrib.fastapi.test_fastapi import tracer  # noqa
+from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
+from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
+from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
 
 from ..utils import override_global_config
 
@@ -288,7 +288,7 @@ def test_extract(tracer):  # noqa: F811
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 

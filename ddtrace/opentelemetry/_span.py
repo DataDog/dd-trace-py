@@ -16,16 +16,16 @@ from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
-    from typing import Callable  # noqa
-    from typing import Mapping  # noqa
-    from typing import Optional  # noqa
-    from typing import Union  # noqa
+    from typing import Callable  # noqa:F401
+    from typing import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from opentelemetry.util.types import Attributes  # noqa
-    from opentelemetry.util.types import AttributeValue  # noqa
+    from opentelemetry.util.types import Attributes  # noqa:F401
+    from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace.internal.compat import NumericType  # noqa
-    from ddtrace.span import Span as DDSpan  # noqa
+    from ddtrace.internal.compat import NumericType  # noqa:F401
+    from ddtrace.span import Span as DDSpan  # noqa:F401
 
 
 log = get_logger(__name__)

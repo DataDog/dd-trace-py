@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
 
 import six
 
@@ -12,10 +12,10 @@ from ._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
-    from typing import Any  # noqa
-    from typing import Dict  # noqa
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
 
-    from .reporter import Vulnerability  # noqa
+    from .reporter import Vulnerability  # noqa:F401
 
 
 _INSIDE_QUOTES_REGEXP = re.compile(r'["\']([^"\']*?)["\']')

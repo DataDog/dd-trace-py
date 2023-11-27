@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Optional  # noqa
-    from typing import Text  # noqa
-    from typing import Tuple  # noqa
+    from typing import Optional  # noqa:F401
+    from typing import Text  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 
 FIRST_FRAME_NO_DDTRACE = 1

@@ -1,8 +1,8 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import mock
 import pytest
@@ -17,7 +17,7 @@ from tests.utils import override_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa
+    from ddtrace import Span  # noqa:F401
 
 
 def pytest_configure(config):

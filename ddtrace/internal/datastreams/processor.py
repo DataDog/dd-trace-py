@@ -8,12 +8,12 @@ import struct
 import threading
 import time
 import typing
-from typing import DefaultDict  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import NamedTuple  # noqa
-from typing import Optional  # noqa
-from typing import Union  # noqa
+from typing import DefaultDict  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import NamedTuple  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto

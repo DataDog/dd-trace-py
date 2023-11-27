@@ -4,7 +4,7 @@ import attr
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from .. import recorder  # noqa
+    from .. import recorder  # noqa:F401
 
 
 class ExportError(Exception):

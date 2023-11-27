@@ -6,15 +6,15 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa
-    from typing import Dict  # noqa
-    from typing import Mapping  # noqa
-    from typing import Optional  # noqa
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
 
-    from ddtrace import Pin  # noqa
-    from ddtrace import Span  # noqa
-    from ddtrace import Tracer  # noqa
-    from ddtrace.settings import Config  # noqa
+    from ddtrace import Pin  # noqa:F401
+    from ddtrace import Span  # noqa:F401
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.settings import Config  # noqa:F401
 
 from six.moves.urllib.parse import quote
 

@@ -5,14 +5,14 @@ import sys
 from types import ModuleType
 from typing import Any
 from typing import Callable
-from typing import DefaultDict  # noqa
+from typing import DefaultDict  # noqa:F401
 from typing import Dict
 from typing import Iterable
-from typing import List  # noqa
+from typing import List  # noqa:F401
 from typing import Optional
-from typing import Set  # noqa
-from typing import Tuple  # noqa
-from typing import Type  # noqa
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
 from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict

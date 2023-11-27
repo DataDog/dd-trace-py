@@ -1,9 +1,9 @@
 import inspect
-from typing import Any  # noqa
-from typing import Awaitable  # noqa
-from typing import Callable  # noqa
-from typing import Iterable  # noqa
-from typing import Union  # noqa
+from typing import Any  # noqa:F401
+from typing import Awaitable  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import Union  # noqa:F401
 
 import grpc
 from grpc import aio
@@ -12,8 +12,8 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
-from ddtrace import Pin  # noqa
-from ddtrace import Span  # noqa
+from ddtrace import Pin  # noqa:F401
+from ddtrace import Span  # noqa:F401
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation

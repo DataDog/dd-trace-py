@@ -2,9 +2,9 @@ from __future__ import absolute_import
 
 from importlib import import_module
 from types import TracebackType
-from typing import Any  # noqa
-from typing import Callable  # noqa
-from typing import List  # noqa
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional
 from typing import Type
 

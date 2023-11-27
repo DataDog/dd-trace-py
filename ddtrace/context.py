@@ -1,12 +1,12 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING  # noqa
-from typing import Any  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import Optional
-from typing import Text  # noqa
+from typing import Text  # noqa:F401
 
-from ddtrace.tracing._span_link import SpanLink  # noqa
+from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -20,9 +20,9 @@ from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_memb
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple  # noqa
+    from typing import Tuple  # noqa:F401,I001
 
-    from .span import Span  # noqa
+    from .span import Span  # noqa:F401
 
     from .span import _MetaDictType
     from .span import _MetricDictType

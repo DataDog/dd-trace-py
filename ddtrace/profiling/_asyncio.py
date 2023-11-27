@@ -1,8 +1,8 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType  # noqa
-import typing  # noqa
+from types import ModuleType  # noqa:F401
+import typing  # noqa:F401
 
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value

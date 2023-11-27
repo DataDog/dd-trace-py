@@ -1,8 +1,8 @@
 import asyncio
 import functools
-from typing import Callable  # noqa
-from typing import Tuple  # noqa
-from typing import Union  # noqa
+from typing import Callable  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 import grpc
 from grpc import aio

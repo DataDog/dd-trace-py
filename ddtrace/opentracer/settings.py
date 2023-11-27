@@ -1,7 +1,7 @@
 from collections import namedtuple
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 
 
 # Keys used for the configuration dict

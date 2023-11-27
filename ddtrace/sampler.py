@@ -4,11 +4,11 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-from typing import TYPE_CHECKING  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Tuple  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 import six
 
@@ -34,7 +34,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .span import Span  # noqa
+    from .span import Span  # noqa:F401
 
 
 log = get_logger(__name__)

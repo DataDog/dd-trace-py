@@ -1,9 +1,9 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa
-from typing import Any  # noqa
-from typing import Dict  # noqa
-from typing import Optional  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from openai import version
 
@@ -24,7 +24,7 @@ from .utils import _format_openai_api_key
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa
+    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)

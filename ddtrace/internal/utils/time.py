@@ -2,7 +2,7 @@ from datetime import datetime
 from datetime import timedelta
 from types import TracebackType
 from typing import Optional
-from typing import Type  # noqa
+from typing import Type  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger

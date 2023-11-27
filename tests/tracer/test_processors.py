@@ -1,4 +1,4 @@
-from typing import Any  # noqa
+from typing import Any  # noqa:F401
 
 import attr
 import mock

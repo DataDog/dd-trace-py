@@ -5,11 +5,11 @@ import logging
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING  # noqa
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import TextIO  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import TextIO  # noqa:F401
 
 import six
 
@@ -25,7 +25,7 @@ from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from ...sampler import BasePrioritySampler
-from ...sampler import BaseSampler  # noqa
+from ...sampler import BaseSampler  # noqa:F401
 from .. import compat
 from .. import periodic
 from .. import service
@@ -40,15 +40,15 @@ from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV3
 from .writer_client import AgentWriterClientV4
-from .writer_client import WriterClientBase  # noqa
+from .writer_client import WriterClientBase  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple  # noqa
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace import Span  # noqa
+    from ddtrace import Span  # noqa:F401
 
-    from .agent import ConnectionType  # noqa
+    from .agent import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)

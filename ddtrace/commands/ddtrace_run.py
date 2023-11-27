@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-import typing  # noqa
+import typing  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.compat import PY2
