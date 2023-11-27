@@ -18,8 +18,6 @@ from typing import Union
 import six
 
 from ddtrace.internal import compat
-import ddtrace.internal.compat
-from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
 
@@ -363,7 +361,7 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
 
     # check that the tempdir and cwd are on the same filesystem, otherwise git pack-objects will fail
     cwd = cwd if cwd else os.getcwd()
-    tempdir = TemporaryDirectory()
+    tempdir = compat.TemporaryDirectory()
     if _get_device_for_path(cwd) == _get_device_for_path(tempdir.name):
         basepath = tempdir.name
     else:
@@ -385,7 +383,7 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
         )
         yield prefix, process_details
     finally:
-        if isinstance(tempdir, ddtrace.internal.compat.TemporaryDirectory):
+        if isinstance(tempdir, compat.TemporaryDirectory):
             log.debug("Cleaning up temporary directory: %s", basepath)
             tempdir.cleanup()
 
