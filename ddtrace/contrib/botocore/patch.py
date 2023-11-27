@@ -519,29 +519,15 @@ def patched_api_call(original_func, instance, args, kwargs):
             if result is not None and "Messages" in result:
                 if len(result["Messages"]) == 1:
                     message = result["Messages"][0]
-                    if (
-                        "MessageAttributes" in message
-                        and "_datadog" in message["MessageAttributes"]
-                        and "StringValue" in message["MessageAttributes"]["_datadog"]
-                    ):
-                        context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
-                        ctx = HTTPPropagator().extract(context_json)
-                    elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
-                        context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+                    context_json = extract_trace_context_json(message)
+                    if context_json is not None:
                         ctx = HTTPPropagator().extract(context_json)
                 elif len(result["Messages"]) > 1:
                     prev_ctx = None
                     for message in result["Messages"]:
                         prev_ctx = ctx
-                        if (
-                            "MessageAttributes" in message
-                            and "_datadog" in message["MessageAttributes"]
-                            and "StringValue" in message["MessageAttributes"]["_datadog"]
-                        ):
-                            context_json = message["MessageAttributes"]["_datadog"]["StringValue"]
-                            ctx = HTTPPropagator().extract(context_json)
-                        elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
-                            context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+                        context_json = extract_trace_context_json(message)
+                        if context_json is not None:
                             ctx = HTTPPropagator().extract(context_json)
 
                         # only want parenting for batches if all contexts are the same
@@ -690,37 +676,9 @@ def patched_api_call(original_func, instance, args, kwargs):
                                 except ValueError:
                                     log.debug("Unable to parse message body, treat as non-json")
 
-                            if message_body and message_body.get("Type") == "Notification":
-                                # This is potentially a DSM SNS notification
-                                if (
-                                    "MessageAttributes" in message_body
-                                    and "_datadog" in message_body["MessageAttributes"]
-                                    and message_body["MessageAttributes"]["_datadog"]["Type"] == "Binary"
-                                ):
-                                    context_json = json.loads(
-                                        base64.b64decode(
-                                            message_body["MessageAttributes"]["_datadog"]["Value"]
-                                        ).decode()
-                                    )
-                            elif (
-                                "MessageAttributes" in message
-                                and "_datadog" in message["MessageAttributes"]
-                                and "StringValue" in message["MessageAttributes"]["_datadog"]
-                            ):
-                                # The message originated from SQS
-                                message_body = message
-                                context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
-                            elif (
-                                "MessageAttributes" in message
-                                and "_datadog" in message["MessageAttributes"]
-                                and "BinaryValue" in message["MessageAttributes"]["_datadog"]
-                            ):
-                                # Raw message delivery
-                                message_body = message
-                                context_json = json.loads(
-                                    message_body["MessageAttributes"]["_datadog"]["BinaryValue"].decode()
-                                )
-                            else:
+                            # try to extract trace context from the request
+                            context_json = extract_trace_context_json(message_body)
+                            if context_json is None:
                                 log.debug("DataStreams did not handle message: %r", message)
 
                             pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
@@ -729,6 +687,10 @@ def patched_api_call(original_func, instance, args, kwargs):
 
                 except Exception:
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
+
+                # raise error if it was encountered before the span was started
+                if err:
+                    raise err
 
                 return result
 
@@ -741,6 +703,10 @@ def patched_api_call(original_func, instance, args, kwargs):
                         record_data_streams_path_for_kinesis_stream(pin, params, result)
                     except Exception:
                         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
+
+                # raise error if it was encountered before the span was started
+                if err:
+                    raise err
 
                 _set_response_metadata_tags(span, result)
                 return result
@@ -786,3 +752,33 @@ def get_aws_trace_headers(headers_string):
             key, value = part.split("=")
             trace_id_dict[key.strip()] = value.strip()
     return trace_id_dict
+
+
+def extract_trace_context_json(message):
+    context_json = None
+    if message and message.get("Type") == "Notification":
+        # This is potentially a DSM SNS notification
+        if (
+            "MessageAttributes" in message
+            and "_datadog" in message["MessageAttributes"]
+            and message["MessageAttributes"]["_datadog"]["Type"] == "Binary"
+        ):
+            context_json = json.loads(base64.b64decode(message["MessageAttributes"]["_datadog"]["Value"]).decode())
+    elif (
+        "MessageAttributes" in message
+        and "_datadog" in message["MessageAttributes"]
+        and "StringValue" in message["MessageAttributes"]["_datadog"]
+    ):
+        # The message originated from SQS
+        context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+    elif (
+        "MessageAttributes" in message
+        and "_datadog" in message["MessageAttributes"]
+        and "BinaryValue" in message["MessageAttributes"]["_datadog"]
+    ):
+        # Raw message delivery
+        context_json = json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode())
+    elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
+        # this message contains AWS tracing propagation
+        context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+    return context_json
