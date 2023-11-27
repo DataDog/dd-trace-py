@@ -97,7 +97,7 @@ def _lines(coverage, context):
 
     return {
         k: segments(v.keys()) if isinstance(v, dict) else segments(v)  # type: ignore
-        for k, v in coverage._collector.data.items()
+        for k, v in list(coverage._collector.data.items())
     }
 
 
