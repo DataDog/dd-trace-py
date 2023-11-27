@@ -3,8 +3,6 @@ import json
 import logging
 import os
 
-import fastapi
-import httpx
 import pytest
 
 from ddtrace.context import Context
@@ -30,9 +28,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.tracing._span_link import SpanLink
-from tests.contrib.fastapi.test_fastapi import client
-from tests.contrib.fastapi.test_fastapi import test_spans
-from tests.contrib.fastapi.test_fastapi import tracer
 
 from ..utils import override_global_config
 
