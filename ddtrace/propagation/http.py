@@ -844,7 +844,6 @@ class AWSXRayPropagator:
                 # convert from string as milliseconds to nanoseconds
                 value = int(value) * 1000000
                 key = "e2e-start-time"
-        breakpoint()
         if trace_id is not None and span_id is not None:
             return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sampling_priority, dd_origin=dd_origin)
         else:
