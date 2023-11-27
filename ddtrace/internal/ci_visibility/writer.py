@@ -1,10 +1,10 @@
 import os
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional
+from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.dogstatsd import DogStatsd
+from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import agent
 from .. import service
@@ -83,7 +83,7 @@ class CIVisibilityWriter(HTTPWriter):
         sampler=None,  # type: Optional[BaseSampler]
         processing_interval=None,  # type: Optional[float]
         timeout=None,  # type: Optional[float]
-        dogstatsd: Optional[DogStatsd] = None,
+        dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         api_version=None,  # type: Optional[str]
