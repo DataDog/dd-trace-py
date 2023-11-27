@@ -272,9 +272,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                     "temperature": kwargs.get("temperature"),
                     "max_tokens": kwargs.get("max_tokens"),
                 },
-                "output": {
-                    "completions": [{"content": choice.text} for choice in unique_choices]
-                }
+                "output": {"completions": [{"content": choice.text} for choice in unique_choices]},
             }
             self.llm_record(span, attrs_dict)
 
@@ -306,7 +304,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                             "role": choice.message.role,
                         }
                     ]
-                }
+                },
             }
             self.llm_record(span, attrs_dict)
 
