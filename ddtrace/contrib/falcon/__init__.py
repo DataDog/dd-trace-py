@@ -32,9 +32,9 @@ and modify spans created by this integration.
 
 Example::
 
+    import ddtrace.auto
     import falcon
-    from ddtrace import config, patch_all
-    patch_all()
+    from ddtrace import config
 
     app = falcon.API()
 

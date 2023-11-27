@@ -146,7 +146,7 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
 
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    class MockPubsub:
+    class MockPubsub(PubSub):
         def stop(self, *args, **kwargs):
             pass
 
@@ -165,10 +165,15 @@ def test_remote_config_register_auto_enable(remote_config_worker):
 
 def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     remoteconfig_poller.disable()
+
+    class MockPubsub(PubSub):
+        def stop(self, *args, **kwargs):
+            pass
+
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
+        remoteconfig_poller.register("LIVE_DEBUGGER", MockPubsub())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -233,7 +238,6 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
 
-            mock_pubsub.start_subscriber()
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
@@ -263,7 +267,6 @@ def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worke
         with RemoteConfigPoller() as rc:
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
             rc._online()
             mock_send_request.assert_called_once()
             sleep(0.5)
@@ -353,7 +356,6 @@ def test_remote_configuration_payload_with_errors_signed_wrong_data(mock_send_re
             mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
@@ -376,7 +378,6 @@ def test_remote_configuration_payload_with_errors_signed_wrong_data_recover_from
         with RemoteConfigPoller() as rc:
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
             for _ in range(0, 2):
                 msg = b'{"asm":{"enabled":true}}'
                 expires_date = datetime.datetime.strftime(

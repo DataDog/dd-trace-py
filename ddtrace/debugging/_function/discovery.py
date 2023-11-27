@@ -3,8 +3,6 @@ from collections import deque
 from functools import partial
 from pathlib import Path
 
-from six import PY2
-
 from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
@@ -25,7 +23,6 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
@@ -39,21 +36,6 @@ FunctionContainerType = Union[type, property, classmethod, staticmethod, Tuple, 
 ContainerKey = Union[str, int, Type[staticmethod], Type[classmethod]]
 
 CONTAINER_TYPES = (type, property, classmethod, staticmethod)
-
-if PY < (3, 7):
-    # DEV: Prior to Python 3.7 the ``cell_content`` attribute of ``Cell``
-    # objects can only be mutated with the C API.
-    import ctypes
-
-    PyCell_Set = ctypes.pythonapi.PyCell_Set
-    PyCell_Set.argtypes = (ctypes.py_object, ctypes.py_object)
-    PyCell_Set.restype = ctypes.c_int
-
-    set_cell_contents = PyCell_Set
-else:
-
-    def set_cell_contents(cell, contents):  # type: ignore[misc]
-        cell.cell_contents = contents
 
 
 class FullyNamed(Protocol):
@@ -119,9 +101,6 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         return next(self._iter)
 
     next = __next__
-
-
-UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
 
 
 def _undecorate(f: FunctionType, name: str, path: Path) -> FunctionType:
@@ -248,9 +227,6 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
         seen_containers.add(id(c._container))
 
         for k, o in c:
-            if PY2 and _isinstance(o, UnboundMethodType):
-                o = o.__func__
-
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
             if code is not None:
                 local_name = _local_name(k, o) if isinstance(k, str) else o.__name__

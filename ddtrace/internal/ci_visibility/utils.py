@@ -10,12 +10,25 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def get_source_file_path_for_test_method(test_method_object) -> typing.Union[str, None]:
+def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
     try:
-        source_file_path = os.path.relpath(inspect.getfile(test_method_object))
+        relative_path = os.path.relpath(path, start=start_directory)
+    except ValueError:
+        log.debug(
+            "Tried to collect relative path but it is using different drive paths on Windows, "
+            "using absolute path instead",
+        )
+        return os.path.abspath(path)
+    return relative_path
+
+
+def get_source_file_path_for_test_method(test_method_object, repo_directory: str) -> typing.Union[str, None]:
+    try:
+        file_object = inspect.getfile(test_method_object)
     except TypeError:
-        return None
-    return source_file_path
+        return ""
+
+    return get_relative_or_absolute_path_for_path(file_object, repo_directory)
 
 
 def get_source_lines_for_test_method(
@@ -30,16 +43,21 @@ def get_source_lines_for_test_method(
     return start_line, end_line
 
 
-def _add_start_end_source_file_path_data_to_span(span: ddtrace.Span, test_method_object, test_name: str):
+def _add_start_end_source_file_path_data_to_span(
+    span: ddtrace.Span, test_method_object, test_name: str, repo_directory: str
+):
     if not test_method_object:
         log.debug(
             "Tried to collect source start/end lines for test method %s but test method object could not be found",
             test_name,
         )
         return
-    source_file_path = get_source_file_path_for_test_method(test_method_object)
+    source_file_path = get_source_file_path_for_test_method(test_method_object, repo_directory)
     if not source_file_path:
-        log.debug("Tried to collect file path for test %s but it is a built-in Python function", test_name)
+        log.debug(
+            "Tried to collect file path for test %s but it is a built-in Python function",
+            test_name,
+        )
         return
     start_line, end_line = get_source_lines_for_test_method(test_method_object)
     if not start_line or not end_line:

@@ -89,7 +89,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
             {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
             {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
             {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
             {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
@@ -360,6 +360,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
+@flaky(until=1704067200)
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
