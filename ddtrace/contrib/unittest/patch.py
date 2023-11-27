@@ -152,14 +152,6 @@ def _store_suite_identifier(module):
                 _set_identifier(suite, "suite")
 
 
-def _is_test_module(item) -> bool:
-    return hasattr(item, "_datadog_object") and item._datadog_object == "module"
-
-
-def _is_test_suite(item) -> bool:
-    return hasattr(item, "_datadog_object") and item._datadog_object == "suite"
-
-
 def _is_test(item) -> bool:
     if (
         type(item) == unittest.TestSuite
@@ -183,10 +175,6 @@ def _extract_command_name_from_session(session: unittest.TextTestRunner) -> str:
 def _extract_test_method_name(test_object) -> str:
     """Extract test method name from `unittest` instance."""
     return getattr(test_object, "_testMethodName", "")
-
-
-def _extract_suite_name(item) -> str:
-    return type(item._tests[0]).__name__
 
 
 def _extract_session_span() -> Union[ddtrace.Span, None]:
@@ -219,10 +207,6 @@ def _update_status_item(item: ddtrace.Span, status: str):
 def _extract_suite_name_from_test_method(item) -> str:
     item_type = type(item)
     return getattr(item_type, "__name__", "")
-
-
-def _extract_module_name_from_test_method(item) -> str:
-    return getattr(item, "__module__", "")
 
 
 def _extract_module_name_from_module(item) -> str:
@@ -306,14 +290,6 @@ def _is_valid_module_suite_call(func) -> bool:
     return type(func).__name__ == "method" or type(func).__name__ == "instancemethod"
 
 
-def _is_suite_span(span: ddtrace.Span) -> bool:
-    return span.get_tag(_EVENT_TYPE) == _SUITE_TYPE
-
-
-def _is_test_span(span: ddtrace.Span) -> bool:
-    return span.get_tag(_EVENT_TYPE) == SpanTypes.TEST
-
-
 def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     return (
         hasattr(instance, "progName")
@@ -330,10 +306,6 @@ def _extract_test_method_object(test_object):
 
 def _is_invoked_by_text_test_runner() -> bool:
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
-
-
-def _generate_module_suite_test_path(test_module_path: str, test_suite_name: str, test_name: str) -> str:
-    return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
 
 
 def _generate_module_suite_path(test_module_path: str, test_suite_name: str) -> str:
@@ -529,7 +501,7 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 
 def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
-    test_suite_name = str(obj).split(".")[0].split()[1]  
+    test_suite_name = str(obj).split(".")[0].split()[1]
     test_module_path = get_relative_or_absolute_path_for_path(obj.__code__.co_filename, os.getcwd())
     test_module_suite_name = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
@@ -603,10 +575,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 if _is_test_coverage_enabled(instance):
                     if not hasattr(unittest, "_coverage"):
                         unittest._coverage = _start_coverage(root_directory)
-                        
                     _switch_coverage_context(unittest._coverage, fqn_test)
-                    coverage = _start_coverage(root_directory)
-                    instance._coverage = coverage
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):

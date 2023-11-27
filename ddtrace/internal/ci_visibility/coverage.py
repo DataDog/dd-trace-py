@@ -1,10 +1,10 @@
 from itertools import groupby
 import json
-import os
 from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.logger import get_logger
 
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
 
 log = get_logger(__name__)
-_global_relative_file_paths_for_cov = {}
+_global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
 
 try:
     from coverage import Coverage
@@ -51,21 +51,29 @@ def _start_coverage(root_dir: str):
     return coverage
 
 
-def _switch_coverage_context(coverage: Coverage, unique_test_name: str):
-    coverage._collector.data.clear()
-    coverage.switch_context(unique_test_name)
+def _coverage_has_valid_data(coverage_data: Coverage):
+    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
+        log.warning("No coverage collector or data found for item")
+        return False
+    return True
+
+
+def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
+    if not _coverage_has_valid_data(coverage_data):
+        return
+    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    coverage_data.switch_context(unique_test_name)
 
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
     span_id = str(span.trace_id)
-    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
-        log.warning("No coverage collector or data found for item")
+    if not _coverage_has_valid_data(coverage_data):
         return
     span.set_tag_str(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )
-    coverage_data._collector.data.clear()
+    coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
 def segments(lines):
@@ -127,7 +135,9 @@ def build_payload(coverage, root_dir, test_id=None):
     files_data = []
     for filename, lines in _lines(coverage, test_id).items():
         if filename not in _global_relative_file_paths_for_cov[root_dir_str]:
-            _global_relative_file_paths_for_cov[root_dir_str][filename] = os.path.relpath(filename, root_dir_str)
+            _global_relative_file_paths_for_cov[root_dir_str][filename] = get_relative_or_absolute_path_for_path(
+                filename, root_dir_str
+            )
         if lines:
             files_data.append(
                 {"filename": _global_relative_file_paths_for_cov[root_dir_str][filename], "segments": lines}
