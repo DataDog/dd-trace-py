@@ -1750,24 +1750,11 @@ venv = Venv(
             name="redis",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pys=select_pys(min_version="3.7", max_version="3.11"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "pytest-asyncio": latest,
-                        "redis": [
-                            "~=4.1",
-                            "~=4.3",
-                            latest,
-                        ],
-                    },
-                ),
-                Venv(
-                    # redis added support for Python 3.11 in 4.3
-                    pys="3.11",
-                    command="pytest {cmdargs} tests/contrib/redis",
-                    pkgs={
-                        "pytest-asyncio": latest,
-                        "redis": ["~=4.3", latest],
+                        "redis": ["~=4.6", "~=5.0", latest],
                     },
                 ),
                 # FIXME[python-3.12]: blocked on redis release https://github.com/redis/redis-py/pull/2873
@@ -1882,20 +1869,6 @@ venv = Venv(
                 "reno": latest,
             },
             command="reno {cmdargs}",
-        ),
-        Venv(
-            name="aioredis",
-            # aioredis was merged into redis as of v2.0.1, no longer maintained and does not support Python 3.11 onward
-            pys=select_pys(min_version="3.7", max_version="3.10"),
-            command="pytest {cmdargs} tests/contrib/aioredis",
-            pkgs={
-                "pytest-asyncio": latest,
-                "aioredis": [
-                    "~=1.3.0",
-                    latest,
-                ],
-                "typing-extensions": latest,
-            },
         ),
         Venv(
             name="asyncpg",
