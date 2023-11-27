@@ -1,8 +1,0 @@
-rulesets:
-  - python-best-practices
-  - python-security
-#  - python-code-style
-  - python-inclusive
-  - python-design
-ignore-paths:
-  - /build
