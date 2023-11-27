@@ -64,7 +64,3 @@ def get_event_loop_for_thread(thread_id):
     global THREAD_LINK
 
     return THREAD_LINK.get_object(thread_id) if THREAD_LINK is not None else None
-
-
-def is_asyncio_available():
-    return find_loader("asyncio") is not None
