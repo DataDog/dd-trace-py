@@ -28,6 +28,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.tracing._span_link import SpanLink
+from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa
+from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa
+from tests.contrib.fastapi.test_fastapi import tracer  # noqa
 
 from ..utils import override_global_config
 
@@ -35,7 +38,7 @@ from ..utils import override_global_config
 NOT_SET = object()
 
 
-def test_inject(tracer):
+def test_inject(tracer):  # noqa: F811
     meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
@@ -61,7 +64,7 @@ def test_inject_128bit_trace_id_datadog():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
@@ -87,7 +90,7 @@ def test_inject_128bit_trace_id_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -109,7 +112,7 @@ def test_inject_128bit_trace_id_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -131,7 +134,7 @@ def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -145,7 +148,7 @@ def test_inject_128bit_trace_id_tracecontext():
             assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
 
 
-def test_inject_tags_unicode(tracer):
+def test_inject_tags_unicode(tracer):  # noqa: F811
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
     meta = {"_dd.p.test": "unicode"}
@@ -160,7 +163,7 @@ def test_inject_tags_unicode(tracer):
         assert tags == set(["_dd.p.test=unicode"])
 
 
-def test_inject_tags_bytes(tracer):
+def test_inject_tags_bytes(tracer):  # noqa: F811
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
     # FIXME: W3C does not support byte headers
@@ -181,7 +184,7 @@ def test_inject_tags_bytes(tracer):
             assert tags == set(["_dd.p.test=bytes"])
 
 
-def test_inject_tags_unicode_error(tracer):
+def test_inject_tags_unicode_error(tracer):  # noqa: F811
     """Unicode characters are not allowed"""
     meta = {"_dd.p.test": "unicode value ☺️"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -194,7 +197,7 @@ def test_inject_tags_unicode_error(tracer):
         assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
 
-def test_inject_tags_large(tracer):
+def test_inject_tags_large(tracer):  # noqa: F811
     """When we have a single large tag that won't fit"""
     # DEV: Limit is 512 for x-datadog-tags
     meta = {"_dd.p.dm": ("x" * 512)[len("_dd.p.dm") - 1 :]}
@@ -208,7 +211,7 @@ def test_inject_tags_large(tracer):
         assert ctx._meta["_dd.propagation_error"] == "inject_max_size"
 
 
-def test_inject_tags_invalid(tracer):
+def test_inject_tags_invalid(tracer):  # noqa: F811
     # DEV: "=" and "," are not allowed in keys or values
     meta = {"_dd.p.test": ",value="}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -221,7 +224,7 @@ def test_inject_tags_invalid(tracer):
         assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
 
-def test_inject_tags_disabled(tracer):
+def test_inject_tags_disabled(tracer):  # noqa: F811
     with override_global_config(dict(_x_datadog_tags_enabled=False)):
         meta = {"_dd.p.test": "value"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -234,7 +237,7 @@ def test_inject_tags_disabled(tracer):
             assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_inject_tags_previous_error(tracer):
+def test_inject_tags_previous_error(tracer):  # noqa: F811
     """When we have previously gotten an error, do not try to propagate tags"""
     # This value is valid
     meta = {"_dd.p.test": "value", "_dd.propagation_error": "some fake test value"}
@@ -247,7 +250,7 @@ def test_inject_tags_previous_error(tracer):
         assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_extract(tracer):
+def test_extract(tracer):  # noqa: F811
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
@@ -289,7 +292,7 @@ def test_extract_128bit_trace_ids_datadog():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -323,7 +326,7 @@ def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -350,7 +353,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -376,7 +379,7 @@ def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -395,7 +398,7 @@ def test_extract_128bit_trace_ids_tracecontext():
                 assert child_span.trace_id == trace_id
 
 
-def test_extract_unicode(tracer):
+def test_extract_unicode(tracer):  # noqa: F811
     """
     When input data is unicode
       we decode everything to str for Python2
@@ -470,7 +473,7 @@ def test_extract_dm(x_datadog_tags, expected_trace_tags):
     assert context._meta == expected
 
 
-def test_WSGI_extract(tracer):
+def test_WSGI_extract(tracer):  # noqa: F811
     """Ensure we support the WSGI formatted headers as well."""
     headers = {
         "HTTP_X_DATADOG_TRACE_ID": "1234",
@@ -494,7 +497,7 @@ def test_WSGI_extract(tracer):
         }
 
 
-def test_extract_invalid_tags(tracer):
+def test_extract_invalid_tags(tracer):  # noqa: F811
     # Malformed tags do not fail to extract the rest of the context
     headers = {
         "x-datadog-trace-id": "1234",
@@ -518,7 +521,7 @@ def test_extract_invalid_tags(tracer):
         }
 
 
-def test_extract_tags_large(tracer):
+def test_extract_tags_large(tracer):  # noqa: F811
     """When we have a tagset larger than the extract limit"""
     # DEV: Limit is 512
     headers = {
@@ -586,7 +589,7 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
     assert context._meta == {}
 
 
-def test_get_wsgi_header(tracer):
+def test_get_wsgi_header(tracer):  # noqa: F811
     assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
@@ -1939,12 +1942,12 @@ def test_mutliple_context_interactions(name, styles, headers, expected_context):
         assert context == expected_context
 
 
-def test_span_links_set_on_root_span_not_child(client, tracer, test_spans):
-    response = client.get("/", headers={"sleep": "False", **ALL_HEADERS})
+def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_test_spans):  # noqa: F811
+    response = fastapi_client.get("/", headers={"sleep": "False", **ALL_HEADERS})
     assert response.status_code == 200
     assert response.json() == {"Homepage Read": "Success"}
 
-    spans = test_spans.pop_traces()
+    spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
     assert spans[0][0]._links == [
         SpanLink(
