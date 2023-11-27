@@ -1,6 +1,9 @@
 import contextlib
 import socket
 import sys
+from urllib.request import Request
+from urllib.request import build_opener
+from urllib.request import urlopen
 
 import pytest
 
@@ -10,7 +13,6 @@ from ddtrace.contrib.httplib import patch
 from ddtrace.contrib.httplib import unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.ext import http
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
@@ -23,16 +25,6 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
 
 
-if PY2:
-    from urllib2 import Request
-    from urllib2 import build_opener
-    from urllib2 import urlopen
-else:
-    from urllib.request import Request
-    from urllib.request import build_opener
-    from urllib.request import urlopen
-
-
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "localhost:8001"
 URL_200 = "http://{}/status/200".format(SOCKET)
@@ -40,9 +32,8 @@ URL_500 = "http://{}/status/500".format(SOCKET)
 URL_404 = "http://{}/status/404".format(SOCKET)
 
 
-# Base test mixin for shared tests between Py2 and Py3
 class HTTPLibBaseMixin(object):
-    SPAN_NAME = "httplib.request" if PY2 else "http.client.request"
+    SPAN_NAME = "http.client.request"
 
     def to_str(self, value):
         return value.decode("utf-8")
@@ -61,7 +52,7 @@ class HTTPLibBaseMixin(object):
 
 # Main test cases for httplib/http.client and urllib2/urllib.request
 class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
-    SPAN_NAME = "httplib.request" if PY2 else "http.client.request"
+    SPAN_NAME = "http.client.request"
 
     def to_str(self, value):
         """Helper method to decode a string or byte object to a string"""
@@ -803,76 +794,3 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertEqual(span.name, "http.client.request")
-
-
-# Additional Python2 test cases for urllib
-if PY2:
-    import urllib
-
-    class HTTPLibPython2Test(HTTPLibBaseMixin, TracerTestCase):
-        def test_urllib_request(self):
-            """
-            When making a request via urllib.urlopen
-               we return the original response
-               we capture a span for the request
-            """
-            with override_global_tracer(self.tracer):
-                resp = urllib.urlopen(URL_200)
-
-            self.assertEqual(resp.read(), "")
-            self.assertEqual(resp.getcode(), 200)
-
-            spans = self.pop_spans()
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assert_is_not_measured(span)
-            self.assertEqual(span.span_type, "http")
-            self.assertIsNone(span.service)
-            self.assertEqual(span.name, "httplib.request")
-            self.assertEqual(span.error, 0)
-            self.assertEqual(span.get_tag("http.method"), "GET")
-            assert_span_http_status_code(span, 200)
-            self.assertEqual(span.get_tag("http.url"), URL_200)
-            self.assertEqual(span.get_tag("component"), "httplib")
-            self.assertEqual(span.get_tag("span.kind"), "client")
-            self.assertEqual(span.get_tag("out.host"), "localhost")
-
-        def test_urllib_request_https(self):
-            """
-            When making a request via urllib.urlopen
-               when making an HTTPS connection
-                   we return the original response
-                   we capture a span for the request
-            """
-
-            # TODO: figure out how to use https in our local httpbin container
-            class DDAPPopener(urllib.FancyURLopener):
-                # Specify different user agent than urllib's default URLopener:
-                # https://python.readthedocs.io/en/v2.7.2/library/urllib.html#urllib._urlopener
-                version = "ddtrace-test"
-
-            urllib._urlopener = DDAPPopener()
-            url = "https://icanhazdadjoke.com/j/R7UfaahVfFd"
-            with override_global_tracer(self.tracer):
-                resp = urllib.urlopen(url)
-
-            self.assertIn(
-                "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
-                resp.read(),
-            )
-            self.assertEqual(resp.getcode(), 200)
-
-            spans = self.pop_spans()
-            self.assertEqual(len(spans), 1)
-            span = spans[0]
-            self.assert_is_not_measured(span)
-            self.assertEqual(span.span_type, "http")
-            self.assertIsNone(span.service)
-            self.assertEqual(span.name, "httplib.request")
-            self.assertEqual(span.error, 0)
-            self.assertEqual(span.get_tag("http.method"), "GET")
-            assert_span_http_status_code(span, 200)
-            self.assertEqual(span.get_tag("http.url"), url)
-            self.assertEqual(span.get_tag("component"), "httplib")
-            self.assertEqual(span.get_tag("span.kind"), "client")
-            self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")

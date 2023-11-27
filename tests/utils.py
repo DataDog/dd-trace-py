@@ -21,7 +21,6 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
@@ -1133,11 +1132,7 @@ def call_program(*args, **kwargs):
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
-        if PY2:
-            # Python 2 doesn't support timeout
-            stdout, stderr = subp.communicate()
-        else:
-            stdout, stderr = subp.communicate(timeout=timeout)
+        stdout, stderr = subp.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)

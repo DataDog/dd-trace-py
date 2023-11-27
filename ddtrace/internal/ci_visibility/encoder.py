@@ -14,8 +14,6 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
@@ -77,27 +75,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     @staticmethod
     def _pack_payload(payload):
-        if PY2:
-            payload = CIVisibilityEncoderV01._py2_payload_force_unicode_strings(payload)
-
         return msgpack_packb(payload)
-
-    @staticmethod
-    def _py2_payload_force_unicode_strings(payload):
-        def _ensure_text_strings(o):
-            if type(o) == str:
-                return ensure_text(o)
-            return o
-
-        if type(payload) == list:
-            return [CIVisibilityEncoderV01._py2_payload_force_unicode_strings(item) for item in payload]
-        if type(payload) == dict:
-            return {
-                _ensure_text_strings(k): CIVisibilityEncoderV01._py2_payload_force_unicode_strings(v)
-                for k, v in payload.items()
-            }
-
-        return _ensure_text_strings(payload)
 
     def _convert_span(self, span, dd_origin):
         # type: (Span, str) -> Dict[str, Any]

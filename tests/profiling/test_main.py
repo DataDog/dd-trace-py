@@ -58,7 +58,6 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     return filename, pid
 
 
-@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")

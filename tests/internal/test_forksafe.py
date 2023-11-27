@@ -144,10 +144,7 @@ def test_hook_exception():
     assert exit_code == 12
 
 
-if six.PY2:
-    lock_release_exc_type = _thread.error
-else:
-    lock_release_exc_type = RuntimeError
+lock_release_exc_type = RuntimeError
 
 
 def test_lock_basic():

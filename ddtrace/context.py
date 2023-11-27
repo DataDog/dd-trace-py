@@ -11,7 +11,6 @@ from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
-from .internal.compat import PY2
 from .internal.compat import NumericType
 from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
@@ -191,10 +190,7 @@ class Context(object):
         """Get the user ID of the trace."""
         user_id = self._meta.get(USER_ID_KEY)
         if user_id:
-            if not PY2:
-                return str(base64.b64decode(user_id), encoding="utf-8")
-            else:
-                return str(base64.b64decode(user_id))
+            return str(base64.b64decode(user_id), encoding="utf-8")
         return None
 
     @dd_user_id.setter
@@ -206,11 +202,7 @@ class Context(object):
                 if USER_ID_KEY in self._meta:
                     del self._meta[USER_ID_KEY]
                 return
-            if not PY2:
-                value = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
-            else:
-                value = str(base64.b64encode(bytes(value)))
-            self._meta[USER_ID_KEY] = value
+            self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
 
     def __eq__(self, other):
         # type: (Any) -> bool

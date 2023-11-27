@@ -5,7 +5,6 @@ import os
 
 import mock
 import pytest
-import six
 
 from ddtrace.ext import ci
 from ddtrace.ext import git
@@ -189,10 +188,7 @@ def test_git_executable_not_found_error(git_repo_empty):
     """If git executable not available, should raise internally, log, and not extract any tags."""
     with mock.patch("ddtrace.ext.ci.git.log") as log:
         with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
-            if six.PY2:
-                mock_popen.side_effect = OSError()
-            else:
-                mock_popen.side_effect = FileNotFoundError()
+            mock_popen.side_effect = FileNotFoundError()
             extracted_tags = git.extract_git_metadata(cwd=git_repo_empty)
         log.error.assert_called_with("Git executable not found, cannot extract git metadata.")
 

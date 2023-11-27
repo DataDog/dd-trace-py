@@ -250,7 +250,6 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
     def test_log_strformat_style(self):
         def func():
             with self.tracer.trace("test.logging") as span:
@@ -282,7 +281,6 @@ class LoggingTestCase(TracerTestCase):
                 ).format(span._trace_id_64bits, span.span_id)
                 assert expected == lines[0]
 
-    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
     def test_log_strformat_style_format(self):
         # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
         # records which does not properly configure `record.message` attribute

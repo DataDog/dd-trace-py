@@ -8,7 +8,6 @@ import threading
 import time
 
 import pytest
-import six
 from six.moves import BaseHTTPServer
 
 import ddtrace
@@ -83,10 +82,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         length = int(self.headers["Content-Length"])
         body = self.rfile.read(length)
         mmpart = b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n" + body
-        if six.PY2:
-            msg = email.parser.Parser().parsestr(mmpart)
-        else:
-            msg = email.parser.BytesParser().parsebytes(mmpart)
+        msg = email.parser.BytesParser().parsebytes(mmpart)
         if not msg.is_multipart():
             self.send_error(400, "No multipart")
             return
