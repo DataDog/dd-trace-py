@@ -795,7 +795,6 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
         return grpc.unary_unary_rpc_method_handler(self._handler)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="flaky on older python versions")
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
 def test_method_service(patch_grpc):
     def handler(request, context):

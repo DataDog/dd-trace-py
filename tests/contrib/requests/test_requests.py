@@ -715,10 +715,7 @@ def test_extract_hostname(uri, hostname):
 
 
 def test_extract_hostname_invalid_port():
-    if sys.version_info < (3, 6):
-        assert _extract_hostname("http://localhost:-1/") == "localhost"
-    else:
-        assert _extract_hostname("http://localhost:-1/") == "localhost:?"
+    assert _extract_hostname("http://localhost:-1/") == "localhost:?"
 
 
 @pytest.mark.parametrize(
