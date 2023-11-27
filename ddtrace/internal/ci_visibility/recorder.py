@@ -11,6 +11,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
@@ -107,6 +108,8 @@ class CIVisibility(Service):
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
+
+        telemetry.telemetry_writer.enable()
 
         if tracer:
             self.tracer = tracer
@@ -437,6 +440,8 @@ class CIVisibility(Service):
         cls._instance.stop()
         cls._instance = None
         cls.enabled = False
+
+        telemetry.telemetry_writer.periodic(force_flush=True)
 
         log.debug("%s disabled", cls.__name__)
 

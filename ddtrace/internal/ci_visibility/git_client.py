@@ -24,6 +24,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .. import compat
+from .. import telemetry
 from ..utils.http import Response
 from ..utils.http import get_connection
 from ..utils.time import StopWatch
@@ -100,43 +101,49 @@ class CIVisibilityGitClient(object):
     ):
         # type: (...) -> None
         log.setLevel(log_level)
-        if _tags is None:
-            _tags = {}
-        repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
+        telemetry.telemetry_writer.enable()
+        try:
+            if _tags is None:
+                _tags = {}
+            repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
-        if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
-            log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-            try:
-                cls._unshallow_repository(cwd=cwd)
-            except ValueError:
-                log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
+            if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
+                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                try:
+                    cls._unshallow_repository(cwd=cwd)
+                except ValueError:
+                    log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
-        latest_commits = cls._get_latest_commits(cwd=cwd)
-        backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
-        if backend_commits is None:
-            log.debug("No backend commits found, returning early.")
-            return
+            latest_commits = cls._get_latest_commits(cwd=cwd)
+            backend_commits = cls._search_commits(
+                requests_mode, base_url, repo_url, latest_commits, serializer, _response
+            )
+            if backend_commits is None:
+                log.debug("No backend commits found, returning early.")
+                return
 
-        commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+            commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        rev_list = cls._get_filtered_revisions(
-            excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
-        )
-        if rev_list:
-            log.debug("Building and uploading packfiles for revision list: %s", rev_list)
-            with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
-                record_git_command(
-                    GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
-                )
-                if packfiles_details.returncode == 0:
-                    cls._upload_packfiles(
-                        requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+            rev_list = cls._get_filtered_revisions(
+                excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
+            )
+            if rev_list:
+                log.debug("Building and uploading packfiles for revision list: %s", rev_list)
+                with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
+                    record_git_command(
+                        GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
                     )
-                    return
-                raise ValueError(packfiles_details.stderr)
-        else:
-            log.debug("Revision list empty, no packfiles to build and upload")
-            record_objects_pack_data(0, 0)
+                    if packfiles_details.returncode == 0:
+                        cls._upload_packfiles(
+                            requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                        )
+                        return
+                    raise ValueError(packfiles_details.stderr)
+            else:
+                log.debug("Revision list empty, no packfiles to build and upload")
+                record_objects_pack_data(0, 0)
+        finally:
+            telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod
     def _get_repository_url(cls, tags=None, cwd=None):
