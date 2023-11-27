@@ -81,6 +81,17 @@ def gen_pre_checks(template: dict) -> None:
         command="python -m tests.suitespec",
         paths={"tests/.suitespec.json", "tests/suitespec.py"},
     )
+    check(
+        name="Generated autopatch tests",
+        command=lsstr(
+            """
+            python scripts/contrib-patch-tests.py
+            ./scripts/check-diff "tests/contrib"
+                "Missing contrib patch tests. Run the scripts/contrib-patch-tests.py script and commit the result."
+            """
+        ),
+        paths={"ddtrace/contrib/*"},
+    )
 
 
 def gen_build_docs(template: dict) -> None:
@@ -136,9 +147,16 @@ import os  # noqa
 import sys  # noqa
 from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
+from textwrap import dedent  # noqa
 from time import monotonic_ns as time  # noqa
 
 from ruamel.yaml import YAML  # noqa
+from ruamel.yaml.scalarstring import LiteralScalarString  # noqa
+
+
+def lsstr(s: str) -> LiteralScalarString:
+    return LiteralScalarString(dedent(s))
+
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)
