@@ -15,7 +15,7 @@ FIXTURES_RANDOM_MODULE_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_rando
 FIXTURES_RANDOM_SECURE_MODULE_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_random_secure_module.py"
 FIXTURES_SECRETS_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_secrets.py"
 
-WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info < (3, 12, 0))
+WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info)
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")

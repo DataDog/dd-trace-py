@@ -3,17 +3,18 @@ from collections import defaultdict
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any  # noqa
-from typing import Callable  # noqa
+from typing import Any
+from typing import Callable
 from typing import DefaultDict  # noqa
-from typing import Dict  # noqa
+from typing import Dict
+from typing import Iterable
 from typing import List  # noqa
-from typing import Optional  # noqa
+from typing import Optional
 from typing import Set  # noqa
 from typing import Tuple  # noqa
 from typing import Type  # noqa
-from typing import Union  # noqa
-from typing import cast  # noqa
+from typing import Union
+from typing import cast
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.compat import PY2
@@ -364,20 +365,31 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def __init__(self):
         # type: () -> None
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
+        self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
     @property
-    def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
-        def modules_with_origin(modules):
-            result = wvdict({str(origin(m)): m for m in modules})
-            try:
-                del result[None]
-            except KeyError:
-                pass
-            return result
+    def _origin_map(self) -> Dict[str, ModuleType]:
+        def modules_with_origin(modules: Iterable[ModuleType]) -> Dict[str, Any]:
+            result: wvdict = wvdict()
+
+            for m in modules:
+                module_origin = origin(m)
+                if module_origin is None:
+                    continue
+
+                try:
+                    result[str(module_origin)] = m
+                except TypeError:
+                    # This can happen if the module is a special object that
+                    # does not allow for weak references. Quite likely this is
+                    # an object created by a native extension. We make the
+                    # assumption that this module does not contain valuable
+                    # information that can be used at the Python runtime level.
+                    pass
+
+            return cast(Dict[str, Any], result)
 
         if self._om is None:
             try:

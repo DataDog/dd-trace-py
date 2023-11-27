@@ -1,3 +1,7 @@
+from collections import Counter
+from collections import OrderedDict
+from collections import defaultdict
+from collections import deque
 from inspect import isgeneratorfunction
 import ipaddress
 import os
@@ -290,27 +294,12 @@ def maybe_stringify(obj):
     return None
 
 
-def to_bytes_py2(n, length, byteorder):
-    # type: (int, int, str) -> Text
-    """
-    Convert a string to bytes in the format expected by the remote config
-    capabilities string, considering the byteorder, which is needed
-    for Python 2.
-    """
-    if byteorder == "little":
-        order = range(length)
-    elif byteorder == "big":
-        order = reversed(range(length))  # type: ignore[assignment]
-    else:
-        raise ValueError("byteorder must be either 'little' or 'big'")
-
-    return "".join(chr((n >> i * 8) & 0xFF) for i in order)
-
-
 NoneType = type(None)
 
 BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long, complex])
-BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
+BUILTIN_MAPPNG_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
+BUILTIN_SEQUENCE_TYPES = frozenset([list, tuple, set, frozenset, deque])
+BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPNG_TYPES | BUILTIN_SEQUENCE_TYPES
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 
 

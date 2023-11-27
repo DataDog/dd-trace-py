@@ -63,7 +63,7 @@ def str_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].str(*args[1:], **kwargs)
 
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 check_offset = args[0].decode("utf-8")
@@ -89,7 +89,7 @@ def bytes_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytes(*args[1:], **kwargs)
 
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
         except Exception as e:
@@ -108,7 +108,7 @@ def bytearray_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytearray(*args[1:], **kwargs)
 
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
         except Exception as e:
@@ -123,6 +123,9 @@ def join_aspect(orig_function, flag_added_args, *args, **kwargs):
     if not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
+        return orig_function(*args, **kwargs)
+
+    if not args:
         return orig_function(*args, **kwargs)
 
     joiner = args[0]
@@ -327,6 +330,9 @@ def format_aspect(
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    if not args:
+        return orig_function(*args, **kwargs)
+
     candidate_text = args[0]  # type: str
     args = args[flag_added_args:]
 
@@ -377,6 +383,9 @@ def format_map_aspect(
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    if orig_function and not args:
+        return orig_function(*args, **kwargs)
+
     candidate_text = args[0]  # type: str
     args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
@@ -421,7 +430,7 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     result = repr(*args, **kwargs)
 
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 check_offset = args[0].decode("utf-8")
@@ -518,7 +527,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
 
 
 def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
-    if orig_function and not flag_added_args:
+    if orig_function and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
         return orig_function(*args, **kwargs)
@@ -541,7 +550,7 @@ def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
 
 
 def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
-    if orig_function and not flag_added_args:
+    if orig_function and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
         return orig_function(*args, **kwargs)
@@ -566,7 +575,7 @@ def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
 def upper_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -586,7 +595,7 @@ def upper_aspect(
 def lower_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -606,7 +615,7 @@ def lower_aspect(
 def swapcase_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -625,7 +634,7 @@ def swapcase_aspect(
 def title_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -644,7 +653,7 @@ def title_aspect(
 def capitalize_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -665,7 +674,7 @@ def casefold_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
     if orig_function:
-        if not isinstance(orig_function, BuiltinFunctionType):
+        if not isinstance(orig_function, BuiltinFunctionType) or not args:
             if flag_added_args > 0:
                 args = args[flag_added_args:]
             return orig_function(*args, **kwargs)
@@ -693,7 +702,7 @@ def casefold_aspect(
 def translate_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)

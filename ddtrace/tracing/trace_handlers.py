@@ -143,7 +143,7 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         )
 
 
-def _make_block_content(ctx, construct_url):
+def _wsgi_make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -172,6 +172,54 @@ def _make_block_content(ctx, construct_url):
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)
+        if query_string and middleware._config.trace_query_string:
+            req_span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            req_span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            req_span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+    return status, resp_headers, content
+
+
+def _asgi_make_block_content(ctx, url):
+    middleware = ctx.get_item("middleware")
+    req_span = ctx.get_item("req_span")
+    headers = ctx.get_item("headers")
+    environ = ctx.get_item("environ")
+    if req_span is None:
+        raise ValueError("request span not found")
+    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+    desired_type = block_config.get("type", "auto")
+    ctype = None
+    if desired_type == "none":
+        content = ""
+        resp_headers = [
+            (b"content-type", b"text/plain; charset=utf-8"),
+            (b"location", block_config.get("location", "").encode()),
+        ]
+    else:
+        if desired_type == "auto":
+            ctype = (
+                "text/html" if "text/html" in headers.get("Accept", headers.get("accept", "")).lower() else "text/json"
+            )
+        else:
+            ctype = "text/" + block_config["type"]
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
+        resp_headers = [(b"content-type", ctype.encode())]
+    status = block_config.get("status_code", 403)
+    try:
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        if ctype is not None:
+            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(middleware.integration_config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
             req_span.set_tag_str(http.QUERY_STRING, query_string)
         method = environ.get("REQUEST_METHOD")
@@ -496,7 +544,8 @@ def _on_django_after_request_headers_post(
 
 
 def listen():
-    core.on("wsgi.block.started", _make_block_content)
+    core.on("wsgi.block.started", _wsgi_make_block_content)
+    core.on("asgi.block.started", _asgi_make_block_content)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)

@@ -169,7 +169,9 @@ class CIVisibility(Service):
 
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
-        if not coverage_enabled_by_api:
+        if not coverage_enabled_by_api and not asbool(
+            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+        ):
             return False
         if compat.PY2:
             log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
@@ -240,8 +242,6 @@ class CIVisibility(Service):
             return False, False
 
         attributes = parsed["data"]["attributes"]
-        if asbool(os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)):
-            return True, attributes["tests_skipping"]
         return attributes["code_coverage"], attributes["tests_skipping"]
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
