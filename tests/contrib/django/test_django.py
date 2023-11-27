@@ -29,7 +29,6 @@ from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
@@ -1874,7 +1873,6 @@ def test_template_no_instrumented(test_spans):
         assert len(spans) == 0
 
 
-@pytest.mark.skipif(PY2, reason="pathlib is not part of the Python 2 stdlib")
 def test_template_name(test_spans):
     from pathlib import PosixPath
 

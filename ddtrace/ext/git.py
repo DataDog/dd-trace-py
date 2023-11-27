@@ -24,10 +24,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
 
 
-if six.PY2:
-    GitNotFoundError = OSError
-else:
-    GitNotFoundError = FileNotFoundError
+GitNotFoundError = FileNotFoundError
 
 # Git Branch
 BRANCH = "git.branch"
