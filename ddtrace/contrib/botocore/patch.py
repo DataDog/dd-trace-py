@@ -519,7 +519,11 @@ def patched_api_call(original_func, instance, args, kwargs):
             if result is not None and "Messages" in result:
                 if len(result["Messages"]) == 1:
                     message = result["Messages"][0]
-                    if "MessageAttributes" in message:
+                    if (
+                        "MessageAttributes" in message
+                        and "_datadog" in message["MessageAttributes"]
+                        and "StringValue" in message["MessageAttributes"]["_datadog"]
+                    ):
                         context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
                         ctx = HTTPPropagator().extract(context_json)
                     elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
@@ -529,7 +533,11 @@ def patched_api_call(original_func, instance, args, kwargs):
                     prev_ctx = None
                     for message in result["Messages"]:
                         prev_ctx = ctx
-                        if "MessageAttributes" in message:
+                        if (
+                            "MessageAttributes" in message
+                            and "_datadog" in message["MessageAttributes"]
+                            and "StringValue" in message["MessageAttributes"]["_datadog"]
+                        ):
                             context_json = message["MessageAttributes"]["_datadog"]["StringValue"]
                             ctx = HTTPPropagator().extract(context_json)
                         elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
