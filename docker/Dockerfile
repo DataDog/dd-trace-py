@@ -69,6 +69,7 @@ RUN curl https://sh.rustup.rs -sSf | \
 RUN git clone --depth 1 --branch v2.3.21 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
-  && cd -
+  && cd - \
+  && pip install 'virtualenv<=20.24.6'
 
 CMD ["/bin/bash"]
