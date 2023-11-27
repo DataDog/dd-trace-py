@@ -4,7 +4,6 @@ import sys
 from types import ModuleType
 import typing
 
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import find_loader
 from ddtrace.internal.utils import get_argument_value
