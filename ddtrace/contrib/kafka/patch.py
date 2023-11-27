@@ -19,6 +19,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 
 
@@ -27,14 +28,6 @@ _Consumer = confluent_kafka.Consumer
 _SerializingProducer = confluent_kafka.SerializingProducer if hasattr(confluent_kafka, "SerializingProducer") else None
 _DeserializingConsumer = (
     confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
-)
-_SerializationContext = (
-    confluent_kafka.serialization.SerializationContext
-    if hasattr(confluent_kafka.serialization, "SerializationContext")
-    else None
-)
-_MessageField = (
-    confluent_kafka.serialization.MessageField if hasattr(confluent_kafka.serialization, "MessageField") else None
 )
 
 
@@ -52,6 +45,13 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(confluent_kafka, "__version__", "")
+
+
+KAFKA_VERSION_TUPLE = parse_version(get_version())
+
+
+_SerializationContext = confluent_kafka.serialization.SerializationContext if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
+_MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
 
 
 class TracedProducerMixin:
@@ -163,11 +163,10 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
 
-        if isinstance(instance, _SerializingProducer):
-            if hasattr(instance, "_key_serializer"):
-                serialized_key = serialize_key(instance, topic, message_key, headers)
-                if serialized_key is not None:
-                    span.set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
+        if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
+            serialized_key = serialize_key(instance, topic, message_key, headers)
+            if serialized_key is not None:
+                span.set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
         else:
             span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
 
@@ -209,7 +208,7 @@ def traced_poll(func, instance, args, kwargs):
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
             if (
-                not isinstance(instance, _DeserializingConsumer)
+                (_DeserializingConsumer is not None and not isinstance(instance, _DeserializingConsumer))
                 or isinstance(message_key, str)
                 or isinstance(message_key, bytes)
             ):
@@ -235,11 +234,15 @@ def traced_commit(func, instance, args, kwargs):
 
 
 def serialize_key(instance, topic, key, headers):
-    ctx = _SerializationContext(topic, _MessageField.KEY, headers)
-    if instance._key_serializer is not None:
-        try:
-            key = instance._key_serializer(key, ctx)
-            return key
-        except Exception:
-            log.warning("Failed to set Consumer key tag", key, exc_info=True)
+    if _SerializationContext is not None and _MessageField is not None:
+        ctx = _SerializationContext(topic, _MessageField.KEY, headers)
+        if hasattr(instance, "_key_serializer") and instance._key_serializer is not None:
+            try:
+                key = instance._key_serializer(key, ctx)
+                return key
+            except Exception:
+                log.warning("Failed to set Consumer key tag: ", key, exc_info=True)
+                return None
+        else:
+            log.warning("Failed to set Consumer key tag, no method available to serialize key: ", key, exc_info=True)
             return None
