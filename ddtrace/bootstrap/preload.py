@@ -67,7 +67,7 @@ if config._remote_config_enabled:
 
     remoteconfig_poller.enable()
 
-if asm_config._asm_enabled or config._remote_config_enabled:
+if config._appsec_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
     enable_appsec_rc()
