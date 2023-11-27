@@ -12,7 +12,7 @@ jobs:
   build-and-publish:
     uses: ./.github/workflows/build-and-publish-image.yml
     with:
-      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
+      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:0f49c377e3568020d82e8fa2b4f314900deb8f8d'
       platforms: 'linux/amd64,linux/arm64/v8'
       build-args: ''
       context: ./docker
