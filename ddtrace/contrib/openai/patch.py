@@ -286,6 +286,11 @@ class _OpenAIIntegration(BaseLLMIntegration):
         #  so we need to send unique prompt-response records if there are multiple responses (n > 1).
         for choice in choices:
             messages = kwargs.get("messages", [])
+            content = getattr(choice, "content", None)
+            if getattr(choice.message, "function_call", None):
+                content = choice.message.function_call.arguments
+            elif getattr(choice.message, "tool_calls", None):
+                content = choice.message.tool_calls.function.arguments
             attrs_dict = {
                 "type": "chat",
                 "id": resp.id,
@@ -293,14 +298,14 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 "model": resp.model,
                 "model_provider": "openai",
                 "input": {
-                    "messages": [{"content": m.get("content", ""), "role": m.get("role", "")} for m in messages],
+                    "messages": [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in messages],
                     "temperature": kwargs.get("temperature"),
                     "max_tokens": kwargs.get("max_tokens"),
                 },
                 "output": {
                     "completions": [
                         {
-                            "content": choice.message.content,
+                            "content": str(content),
                             "role": choice.message.role,
                         }
                     ]

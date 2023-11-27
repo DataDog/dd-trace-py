@@ -24,6 +24,32 @@ pytestmark = pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) >= (1, 0, 0), reason="This module only tests openai < 1.0"
 )
 
+chat_completion_input_description = """
+    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
+    David is an active member of the university's Chess Club and the South Asian Student Association.
+    He hopes to pursue a career in software engineering after graduating.
+    """
+chat_completion_custom_functions = [
+    {
+        "name": "extract_student_info",
+        "description": "Get the student information from the body of the input text",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the person"},
+                "major": {"type": "string", "description": "Major subject."},
+                "school": {"type": "string", "description": "The university name."},
+                "grades": {"type": "integer", "description": "GPA of the student."},
+                "clubs": {
+                    "type": "array",
+                    "description": "School clubs for extracurricular activities. ",
+                    "items": {"type": "string", "description": "Name of School Club"},
+                },
+            },
+        },
+    },
+]
+
 
 @pytest.fixture(scope="session")
 def openai_vcr():
@@ -384,37 +410,11 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
 def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    student_description = """
-    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
-    David is an active member of the university's Chess Club and the South Asian Student Association.
-    He hopes to pursue a career in software engineering after graduating.
-    """
-    student_custom_functions = [
-        {
-            "name": "extract_student_info",
-            "description": "Get the student information from the body of the input text",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Name of the person"},
-                    "major": {"type": "string", "description": "Major subject."},
-                    "school": {"type": "string", "description": "The university name."},
-                    "grades": {"type": "integer", "description": "GPA of the student."},
-                    "clubs": {
-                        "type": "array",
-                        "description": "School clubs for extracurricular activities. ",
-                        "items": {"type": "string", "description": "Name of School Club"},
-                    },
-                },
-            },
-        },
-    ]
-
     with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": student_description}],
-            functions=student_custom_functions,
+            messages=[{"role": "user", "content": chat_completion_input_description}],
+            functions=chat_completion_custom_functions,
             function_call="auto",
             user="ddtrace-test",
         )
@@ -427,37 +427,11 @@ def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
 def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    student_description = """
-    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
-    David is an active member of the university's Chess Club and the South Asian Student Association.
-    He hopes to pursue a career in software engineering after graduating.
-    """
-    student_custom_functions = [
-        {
-            "name": "extract_student_info",
-            "description": "Get the student information from the body of the input text",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Name of the person"},
-                    "major": {"type": "string", "description": "Major subject."},
-                    "school": {"type": "string", "description": "The university name."},
-                    "grades": {"type": "integer", "description": "GPA of the student."},
-                    "clubs": {
-                        "type": "array",
-                        "description": "School clubs for extracurricular activities. ",
-                        "items": {"type": "string", "description": "Name of School Club"},
-                    },
-                },
-            },
-        },
-    ]
-
     with openai_vcr.use_cassette("chat_completion_tool_call.yaml"):
         openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": student_description}],
-            tools=[{"type": "function", "function": student_custom_functions[0]}],
+            messages=[{"role": "user", "content": chat_completion_input_description}],
+            tools=[{"type": "function", "function": chat_completion_custom_functions[0]}],
             tool_choice="auto",
             user="ddtrace-test",
         )
@@ -2331,6 +2305,8 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion.yaml"):
         input_messages = [
             {"role": "system", "content": "You are a helpful assistant."},
@@ -2376,6 +2352,60 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "model_provider": "openai",
                     "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
                     "output": {"completions": [{"content": resp.choices[1].message.content, "role": "assistant"}]},
+                }
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-a-real-api-key>",
+            _app_key="<not-a-real-app-key",
+            llmobs_enabled=True,
+            llmobs_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llmobs_chat_completion_function_call(
+    openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer
+):
+    """Test that function call chat completion calls are recorded as LLMObs events correctly."""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
+        resp = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": chat_completion_input_description}],
+            functions=chat_completion_custom_functions,
+            function_call="auto",
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "dd.trace_id": str(trace_id),
+                    "dd.span_id": str(span_id),
+                    "type": "chat",
+                    "id": resp.id,
+                    "timestamp": resp.created * 1000,
+                    "model": resp.model,
+                    "model_provider": "openai",
+                    "input": {"messages": chat_completion_input_description, "temperature": None, "max_tokens": None},
+                    "output": {
+                        "completions": [
+                            {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
+                        ]
+                    },
                 }
             ),
         ]
