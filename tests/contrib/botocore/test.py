@@ -10,7 +10,6 @@ import botocore.exceptions
 import botocore.session
 import mock
 from moto import mock_dynamodb
-from moto import mock_stepfunctions
 from moto import mock_ec2
 from moto import mock_events
 from moto import mock_kinesis
@@ -19,6 +18,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+from moto import mock_stepfunctions
 import pytest
 
 from tests.utils import get_128_bit_trace_id_from_headers
