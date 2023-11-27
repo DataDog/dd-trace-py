@@ -21,15 +21,16 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -131,6 +132,7 @@ def override_global_config(values):
         "_trace_writer_interval_seconds",
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
+        "_span_traceback_max_size",
     ]
 
     asm_config_keys = [
@@ -1110,11 +1112,6 @@ class AnyStr(object):
         return isinstance(other, str)
 
 
-class AnyStringWithText(str):
-    def __eq__(self, other):
-        return self in other
-
-
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
@@ -1135,11 +1132,7 @@ def call_program(*args, **kwargs):
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
-        if PY2:
-            # Python 2 doesn't support timeout
-            stdout, stderr = subp.communicate()
-        else:
-            stdout, stderr = subp.communicate(timeout=timeout)
+        stdout, stderr = subp.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
@@ -1242,6 +1235,14 @@ def add_dd_env_variables_to_headers(headers):
     return headers
 
 
+def get_128_bit_trace_id_from_headers(headers):
+    tags_value = _DatadogMultiHeader._get_tags_value(headers)
+    meta = _DatadogMultiHeader._extract_meta(tags_value)
+    return _DatadogMultiHeader._put_together_trace_id(
+        meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
+    )
+
+
 def _get_skipped_item(item, skip_reason):
     if not inspect.isfunction(item) and not inspect.isclass(item):
         raise ValueError(f"Unexpected skipped object: {item}")
@@ -1249,7 +1250,7 @@ def _get_skipped_item(item, skip_reason):
     if not hasattr(item, "pytestmark"):
         item.pytestmark = []
 
-    item.pytestmark.append(pytest.mark.skip(reason=skip_reason))
+    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
 
     return item
 

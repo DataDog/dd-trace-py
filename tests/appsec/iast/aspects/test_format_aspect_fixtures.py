@@ -5,14 +5,10 @@ from typing import NamedTuple
 
 import pytest
 
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -224,3 +220,10 @@ class TestOperatorFormatReplacement(BaseReplacement):
         #     escaped_expected_result="a:+-<input2>aaaa<input2>-+:a parameter",
         # )
         pass
+
+    def test_format_key_error_and_no_log_metric(self, telemetry_writer):
+        with pytest.raises(KeyError):
+            mod.do_format_key_error("test1")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0

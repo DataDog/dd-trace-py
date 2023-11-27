@@ -8,11 +8,13 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "openai",
       "language": "python",
       "openai.api_base": "https://test-openai.openai.azure.com/",
       "openai.api_type": "azure",
       "openai.api_version": "2023-05-15",
+      "openai.base_url": "https://test-openai.openai.azure.com//openai/deployments/test-openai/",
       "openai.request.endpoint": "/v1/embeddings",
       "openai.request.input": "Hello world",
       "openai.request.method": "POST",

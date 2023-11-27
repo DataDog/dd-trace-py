@@ -10,6 +10,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "elasticsearch",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "",
@@ -42,6 +43,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "",

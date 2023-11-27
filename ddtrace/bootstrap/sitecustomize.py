@@ -2,6 +2,17 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+#  _____ ___  _________  _____ ______  _____   ___   _   _  _____
+# |_   _||  \/  || ___ \|  _  || ___ \|_   _| / _ \ | \ | ||_   _|
+#   | |  | .  . || |_/ /| | | || |_/ /  | |  / /_\ \|  \| |  | |
+#   | |  | |\/| ||  __/ | | | ||    /   | |  |  _  || . ` |  | |
+#  _| |_ | |  | || |    \ \_/ /| |\ \   | |  | | | || |\  |  | |
+#  \___/ \_|  |_/\_|     \___/ \_| \_|  \_/  \_| |_/\_| \_/  \_/
+# DO NOT MODIFY THIS FILE!
+# Only do so if you know what you're doing. This file contains boilerplate code
+# to allow injecting a custom sitecustomize.py file into the Python process to
+# perform the correct initialisation for the library. All the actual
+# initialisation logic should be placed in preload.py.
 from ddtrace import LOADED_MODULES  # isort:skip
 
 import logging  # noqa
@@ -11,17 +22,10 @@ import warnings  # noqa
 
 from ddtrace import config  # noqa
 from ddtrace._logger import _configure_log_injection
-from ddtrace.debugging._config import di_config  # noqa
-from ddtrace.debugging._config import ed_config  # noqa
-from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.module import ModuleWatchdog  # noqa
 from ddtrace.internal.module import find_loader  # noqa
-from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
-from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
-from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.settings.asm import config as asm_config  # noqa
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config.logs_injection:
@@ -43,10 +47,6 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
         )
 
 
-if PY2:
-    _unloaded_modules = []
-
-
 def is_module_installed(module_name):
     return find_loader(module_name) is not None
 
@@ -54,10 +54,6 @@ def is_module_installed(module_name):
 def cleanup_loaded_modules():
     def drop(module_name):
         # type: (str) -> None
-        if PY2:
-            # Store a reference to deleted modules to avoid them being garbage
-            # collected
-            _unloaded_modules.append(sys.modules[module_name])
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)
@@ -88,15 +84,9 @@ def cleanup_loaded_modules():
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
         ]
     )
-    if PY2:
-        KEEP_MODULES_PY2 = frozenset(["encodings", "codecs", "copy_reg"])
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
-
-        if PY2:
-            if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES_PY2):
-                continue
 
         drop(m)
 
@@ -127,61 +117,9 @@ def cleanup_loaded_modules():
 
 
 try:
-    from ddtrace import tracer
+    import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
 
-    profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
-
-    if profiling:
-        log.debug("profiler enabled via environment variable")
-        import ddtrace.profiling.auto  # noqa: F401
-
-    if di_config.enabled or ed_config.enabled:
-        from ddtrace.debugging import DynamicInstrumentation
-
-        DynamicInstrumentation.enable()
-
-    if config._runtime_metrics_enabled:
-        RuntimeWorker.enable()
-
-    if asbool(os.getenv("DD_IAST_ENABLED", False)):
-        from ddtrace.appsec._iast._utils import _is_python_version_supported
-
-        if _is_python_version_supported():
-            from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-            from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-            ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
-
-    if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
-        from ddtrace import patch_all
-
-        # We need to clean up after we have imported everything we need from
-        # ddtrace, but before we register the patch-on-import hooks for the
-        # integrations.
-        cleanup_loaded_modules()
-        modules_to_patch = os.getenv("DD_PATCH_MODULES")
-        modules_to_str = parse_tags_str(modules_to_patch)
-        modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
-        patch_all(**modules_to_bool)
-
-        if config.trace_methods:
-            _install_trace_methods(config.trace_methods)
-    else:
-        cleanup_loaded_modules()
-
-    # Only the import of the original sitecustomize.py is allowed after this
-    # point.
-
-    if "DD_TRACE_GLOBAL_TAGS" in os.environ:
-        env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
-        tracer.set_tags(parse_tags_str(env_tags))
-
-    if sys.version_info >= (3, 7) and config._otel_enabled:
-        from opentelemetry.trace import set_tracer_provider
-
-        from ddtrace.opentelemetry import TracerProvider
-
-        set_tracer_provider(TracerProvider())
+    cleanup_loaded_modules()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
@@ -195,6 +133,11 @@ try:
         # will be `None`.
         ddtrace_sitecustomize = sys.modules["sitecustomize"]
         del sys.modules["sitecustomize"]
+
+        # Cache this module under it's fully qualified package name
+        if "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize
+
         try:
             import sitecustomize  # noqa
         except ImportError:
@@ -218,22 +161,15 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if config._remote_config_enabled:
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-        remoteconfig_poller.enable()
-
-    if asm_config._asm_enabled or config._remote_config_enabled:
-        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-
-        enable_appsec_rc()
-
     config._ddtrace_bootstrapped = True
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
-    tracer._generate_diagnostic_logs()
+
+    for f in preload.post_preload:
+        f()
+
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)

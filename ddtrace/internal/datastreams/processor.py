@@ -38,20 +38,8 @@ from .encoding import encode_var_int_64
 from .fnv import fnv1_64
 
 
-if six.PY3:
-
-    def gzip_compress(payload):
-        return gzip.compress(payload, 1)
-
-else:
-    import StringIO
-
-    def gzip_compress(payload):
-        compressed_data = StringIO.StringIO()
-        gzipper = gzip.GzipFile(fileobj=compressed_data, mode="wb", compresslevel=1)
-        gzipper.write(payload)
-        gzipper.close()
-        return compressed_data.getvalue()
+def gzip_compress(payload):
+    return gzip.compress(payload, 1)
 
 
 """
@@ -344,7 +332,7 @@ class DataStreamsProcessor(PeriodicService):
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+    def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
         """
         type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
@@ -364,7 +352,7 @@ class DataStreamsProcessor(PeriodicService):
             # when producing
             payload_size += len(ctx.encode())
             payload_size += len(PROPAGATION_KEY)
-        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size)
+        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
 
@@ -398,15 +386,8 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        if six.PY3:
-
-            def get_bytes(s):
-                return bytes(s, encoding="utf-8")
-
-        else:
-
-            def get_bytes(s):
-                return bytes(s)
+        def get_bytes(s):
+            return bytes(s, encoding="utf-8")
 
         b = get_bytes(self.service) + get_bytes(self.env)
         for t in tags:
@@ -415,7 +396,13 @@ class DataStreamsCtx:
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
-        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+        self,
+        tags,
+        now_sec=None,
+        edge_start_sec_override=None,
+        pathway_start_sec_override=None,
+        payload_size=0,
+        span=None,
     ):
         """
         type: (List[str], float, float, float) -> None
@@ -455,6 +442,8 @@ class DataStreamsCtx:
 
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
+        if span:
+            span.set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = now_sec - self.current_edge_start_sec
         pathway_latency_sec = now_sec - self.pathway_start_sec
         self.hash = hash_value

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds DSM ``pathway.hash`` tag to spans when DSM is enabled. This allows traces from the instrumented service to show up in the DSM traces tab.

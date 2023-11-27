@@ -4,7 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
@@ -66,7 +65,7 @@ def _get_application(key):
         "language_version": _format_version_info(sys.version_info),
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
-        "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
+        "runtime_version": _format_version_info(sys.implementation.version),
         "products": _get_products(),
     }
 

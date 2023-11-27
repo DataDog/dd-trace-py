@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal import telemetry
-from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
@@ -71,6 +70,7 @@ PATCH_MODULES = {
     "jinja2": True,
     "mako": True,
     "flask": True,
+    "flask_login": True,
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
@@ -78,6 +78,7 @@ PATCH_MODULES = {
     "pylons": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    "logbook": config.logs_injection,
     "logging": config.logs_injection,
     "loguru": config.logs_injection,
     "structlog": config.logs_injection,
@@ -134,7 +135,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
-    "httplib": ("httplib" if PY2 else "http.client",),
+    "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
 }
 

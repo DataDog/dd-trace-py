@@ -6,8 +6,6 @@ from webtest import TestApp
 
 from ddtrace import config
 from ddtrace.contrib.wsgi import wsgi
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -260,15 +258,15 @@ def test_200():
     assert resp.status_int == 200
 
 
-@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
-def test_500():
+@snapshot(ignores=["meta.error.stack"])
+def test_500_py3():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
-@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
-def test_base_exception_in_wsgi_app():
+@snapshot(ignores=["meta.error.stack"])
+def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
     # a BaseException is raised.
     app = TestApp(wsgi.DDWSGIMiddleware(application))

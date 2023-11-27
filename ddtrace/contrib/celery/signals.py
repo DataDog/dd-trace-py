@@ -189,8 +189,16 @@ def trace_failure(*args, **kwargs):
         ex = kwargs.get("einfo")
         if ex is None:
             return
-        if hasattr(task, "throws") and isinstance(ex.exception, task.throws):
-            return
+
+        if hasattr(task, "throws"):
+            original_exception = ex.exception
+            if hasattr(original_exception, "exc"):
+                # Python 3.11+ support: The original exception is wrapped in an `exc` attribute
+                original_exception = original_exception.exc
+
+            if isinstance(original_exception, task.throws):
+                return
+
         span.set_exc_info(ex.type, ex.exception, ex.tb)
 
 
