@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: This removes the aioredis integration. aioredis' latest release is two years old and its functionality
+    is included in all of the versions of the redis library that ddtrace supports, so keeping a separate integration
+    for it is redundant.
