@@ -11,19 +11,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def fromisoformat_py2(t):
-    # type: (str) -> datetime
-    """Alternative function to datetime.fromisoformat that does not exist in python 2. This function parses dates with
-    this format: 2022-09-01T01:00:00+02:00
-    """
-    ret = datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S")
-    if t[19] == "+":
-        ret -= timedelta(hours=int(t[20:22]), minutes=int(t[23:]))
-    elif t[19] == "-":
-        ret += timedelta(hours=int(t[20:22]), minutes=int(t[23:]))
-    return ret
-
-
 def parse_isoformat(date):
     # type: (str) -> Optional[datetime]
     if date.endswith("Z"):
@@ -32,10 +19,7 @@ def parse_isoformat(date):
         except ValueError:
             return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
     try:
-        if hasattr(datetime, "fromisoformat"):
-            return datetime.fromisoformat(date)
-        else:
-            return fromisoformat_py2(date)
+        return datetime.fromisoformat(date)
     except (ValueError, IndexError):
         log.debug("unsupported isoformat: %s", date)
     return None

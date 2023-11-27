@@ -8,12 +8,7 @@ import sys
 import typing
 
 import ddtrace
-from ddtrace.internal.compat import PY2
 
-
-if PY2:
-    # Python 2 does not have PermissionError but Python 3 does.
-    PermissionError = None  # noqa: A001
 
 if hasattr(shutil, "which"):
     _which = shutil.which
