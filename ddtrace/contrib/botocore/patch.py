@@ -491,6 +491,7 @@ def patched_api_call(original_func, instance, args, kwargs):
     ctx = None
     operation = None
     start_ns = None
+    func_run_err = None
     if args:
         operation = get_argument_value(args, kwargs, 0, "operation_name")
         params = get_argument_value(args, kwargs, 1, "api_params")
@@ -509,13 +510,12 @@ def patched_api_call(original_func, instance, args, kwargs):
             elif "AWSTraceHeader" not in params["AttributeNames"]:
                 params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
 
-            err = None
             try:
                 start_ns = time_ns()
                 func_run = True
                 result = original_func(*args, **kwargs)
             except Exception as e:
-                err = e
+                func_run_err = e
             if result is not None and "Messages" in result:
                 if len(result["Messages"]) == 1:
                     message = result["Messages"][0]
@@ -689,8 +689,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
                 # raise error if it was encountered before the span was started
-                if err:
-                    raise err
+                if func_run_err:
+                    raise func_run_err
 
                 return result
 
@@ -705,8 +705,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
                 # raise error if it was encountered before the span was started
-                if err:
-                    raise err
+                if func_run_err:
+                    raise func_run_err
 
                 _set_response_metadata_tags(span, result)
                 return result
