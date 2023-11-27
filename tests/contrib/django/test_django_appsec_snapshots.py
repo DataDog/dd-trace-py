@@ -81,6 +81,7 @@ def test_appsec_enabled():
     ignores=[
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
+        "meta.http.response.headers.content-type",  # depends of the Django version
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
