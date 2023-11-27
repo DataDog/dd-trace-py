@@ -5,17 +5,10 @@ from typing import NamedTuple
 
 import pytest
 
-from tests.utils import override_env
-from tests.utils import override_global_config
-
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
