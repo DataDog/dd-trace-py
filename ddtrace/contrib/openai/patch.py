@@ -26,6 +26,8 @@ from .utils import _format_openai_api_key
 if TYPE_CHECKING:
     from ddtrace import Span
 
+    pass
+
 
 log = get_logger(__name__)
 
