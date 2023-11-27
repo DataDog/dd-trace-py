@@ -286,7 +286,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
         #  so we need to send unique prompt-response records if there are multiple responses (n > 1).
         for choice in choices:
             messages = kwargs.get("messages", [])
-            content = getattr(choice, "content", None)
+            content = getattr(choice.message, "content", None)
             if getattr(choice.message, "function_call", None):
                 content = choice.message.function_call.arguments
             elif getattr(choice.message, "tool_calls", None):

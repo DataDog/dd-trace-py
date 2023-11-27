@@ -2016,7 +2016,11 @@ def test_llmobs_chat_completion_function_call(
                     "timestamp": resp.created * 1000,
                     "model": resp.model,
                     "model_provider": "openai",
-                    "input": {"messages": chat_completion_input_description, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": [{"content": chat_completion_input_description, "role": "user"}],
+                        "temperature": None,
+                        "max_tokens": None,
+                    },
                     "output": {
                         "completions": [
                             {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
