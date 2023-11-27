@@ -173,9 +173,6 @@ class CIVisibility(Service):
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
             return False
-        if compat.PY2:
-            log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
-            return False
         if not is_coverage_available():
             log.warning(
                 "CI Visibility code coverage tracking is enabled, but either the `coverage` package is not installed."

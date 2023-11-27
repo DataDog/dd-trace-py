@@ -38,20 +38,8 @@ from .encoding import encode_var_int_64
 from .fnv import fnv1_64
 
 
-if six.PY3:
-
-    def gzip_compress(payload):
-        return gzip.compress(payload, 1)
-
-else:
-    import StringIO
-
-    def gzip_compress(payload):
-        compressed_data = StringIO.StringIO()
-        gzipper = gzip.GzipFile(fileobj=compressed_data, mode="wb", compresslevel=1)
-        gzipper.write(payload)
-        gzipper.close()
-        return compressed_data.getvalue()
+def gzip_compress(payload):
+    return gzip.compress(payload, 1)
 
 
 """
@@ -398,15 +386,8 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        if six.PY3:
-
-            def get_bytes(s):
-                return bytes(s, encoding="utf-8")
-
-        else:
-
-            def get_bytes(s):
-                return bytes(s)
+        def get_bytes(s):
+            return bytes(s, encoding="utf-8")
 
         b = get_bytes(self.service) + get_bytes(self.env)
         for t in tags:
