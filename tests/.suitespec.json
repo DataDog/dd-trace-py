@@ -68,7 +68,6 @@
         "redis": [
             "ddtrace/contrib/rediscluster/*",
             "ddtrace/contrib/redis/*",
-            "ddtrace/contrib/aioredis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -1038,15 +1037,6 @@
             "@dbapi",
             "@pg",
             "tests/contrib/aiopg/*"
-        ],
-        "aioredis": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@redis",
-            "tests/contrib/aioredis/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "aredis": [
             "@bootstrap",
