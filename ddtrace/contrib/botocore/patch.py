@@ -497,10 +497,17 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     if config.botocore["distributed_tracing"]:
         if endpoint_name == "sqs" and operation == "ReceiveMessage":
+            # Ensure we have Datadog MessageAttribute enabled
             if "MessageAttributeNames" not in params:
                 params.update({"MessageAttributeNames": ["_datadog"]})
             elif "_datadog" not in params["MessageAttributeNames"]:
                 params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+
+            # Ensure we have AWS attribute enabled for interoperability with dd-trace-java aws propagation
+            if "AttributeNames" not in params:
+                params.update({"AttributeNames": ["AWSTraceHeader"]})
+            elif "AWSTraceHeader" not in params["AttributeNames"]:
+                params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
 
             err = None
             try:
@@ -515,12 +522,18 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if "MessageAttributes" in message:
                         context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
                         ctx = HTTPPropagator().extract(context_json)
+                    elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
+                        context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+                        ctx = HTTPPropagator().extract(context_json)
                 elif len(result["Messages"]) > 1:
                     prev_ctx = None
                     for message in result["Messages"]:
                         prev_ctx = ctx
                         if "MessageAttributes" in message:
-                            context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+                            context_json = message["MessageAttributes"]["_datadog"]["StringValue"]
+                            ctx = HTTPPropagator().extract(context_json)
+                        elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
+                            context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
                             ctx = HTTPPropagator().extract(context_json)
 
                         # only want parenting for batches if all contexts are the same
@@ -738,7 +751,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
 def _set_response_metadata_tags(span, result):
     # type: (Span, Dict[str, Any]) -> None
-    if not result.get("ResponseMetadata"):
+    if not result or not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]
 
@@ -755,3 +768,13 @@ def _set_response_metadata_tags(span, result):
 
     if "RequestId" in response_meta:
         span.set_tag_str("aws.requestid", response_meta["RequestId"])
+
+
+def get_aws_trace_headers(headers_string):
+    trace_id_dict = {}
+    trace_id_parts = headers_string.split(";")
+    for part in trace_id_parts:
+        if "=" in part:
+            key, value = part.split("=")
+            trace_id_dict[key.strip()] = value.strip()
+    return trace_id_dict
