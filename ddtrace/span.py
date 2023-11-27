@@ -12,6 +12,8 @@ from typing import Union
 
 import six
 
+from ddtrace.tracing._span_link import SpanLink
+
 from . import config
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
 from .constants import ERROR_MSG
@@ -46,7 +48,6 @@ from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import set_sampling_decision_maker
-from .tracing import _span_link
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -111,7 +112,7 @@ class Span(object):
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         span_api=SPAN_API_DATADOG,  # type: str
-        links=None,  # type: Optional[List[_span_link.SpanLink]]
+        links=None,  # type: Optional[List[SpanLink]]
     ):
         # type: (...) -> None
         """
@@ -387,10 +388,6 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key: _TagNameType) -> None:
-        if key in self._meta:
-            del self._meta[key]
-
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
@@ -549,7 +546,7 @@ class Span(object):
             attributes = dict()
 
         self._links.append(
-            _span_link.SpanLink(
+            SpanLink(
                 trace_id=trace_id,
                 span_id=span_id,
                 tracestate=tracestate,

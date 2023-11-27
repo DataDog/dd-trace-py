@@ -53,6 +53,7 @@ class ASM_Environment:
         self.callbacks: Dict[str, Any] = {}
         self.telemetry: Dict[str, Any] = {}
         self.addresses_sent: Set[str] = set()
+        self.must_call_globals: bool = True
 
 
 def _get_asm_context() -> ASM_Environment:
@@ -96,10 +97,11 @@ def unregister(span: Span) -> None:
     env = _get_asm_context()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
-    elif env.span is span:
+    elif env.span is span and env.must_call_globals:
         # needed for api security flushing information before end of the span
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
+        env.must_call_globals = False
 
 
 class _DataHandler:
@@ -125,7 +127,8 @@ class _DataHandler:
     def finalise(self):
         if self.active:
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, [])
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+            env.must_call_globals = False
             if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
                 callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
@@ -443,10 +446,14 @@ def _set_headers_and_response(response, headers, *_):
             set_body_response(response)
 
 
+def _call_waf_first(integration, *_):
+    log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
+    call_waf_callback()
+
+
 def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     call_waf_callback()
-    return get_headers().get("Accept", "").lower()
 
 
 def _on_block_decided(callback):
@@ -464,9 +471,13 @@ def listen_context_handlers():
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf)
+
     core.on("django.start_response.post", _call_waf)
     core.on("django.finalize_response", _call_waf)
     core.on("django.after_request_headers", _get_headers_if_appsec)
     core.on("django.extract_body", _get_headers_if_appsec)
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
+
+    core.on("asgi.start_request", _call_waf_first)
+    core.on("asgi.start_response", _call_waf)

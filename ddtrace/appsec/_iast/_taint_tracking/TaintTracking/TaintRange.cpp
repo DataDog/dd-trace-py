@@ -361,7 +361,6 @@ pyexport_taintrange(py::module& m)
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange_")
       // Normal constructor disabled on the Python side, see above
-      // .def(py::init<int, int, Source>(), "start"_a = "", "length"_a, "source"_a)
       .def_readonly("start", &TaintRange::start)
       .def_readonly("length", &TaintRange::length)
       .def_readonly("source", &TaintRange::source)
@@ -369,7 +368,6 @@ pyexport_taintrange(py::module& m)
       .def("__repr__", &TaintRange::toString)
       .def("__hash__", &TaintRange::get_hash)
       .def("get_hash", &TaintRange::get_hash)
-      // FIXME: check source to for these two?
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

@@ -8,6 +8,7 @@ from typing import Tuple
 from typing import cast
 
 from ddtrace import config
+from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -833,19 +834,35 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
-    def _resolve_tracestate_context(contexts, styles_w_ctx, normalized_headers):
+    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
         primary_context = contexts[0]
-        # if tracecontext context and it's not the first, we should compare trace_id's
-        # to potentially add tracestate to primary_context
-        if (
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT in styles_w_ctx
-            and not styles_w_ctx[0] == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-        ):
-            if contexts[styles_w_ctx.index(_PROPAGATION_STYLE_W3C_TRACECONTEXT)].trace_id == primary_context.trace_id:
+        links = []
+        for context in contexts[1:]:
+            style_w_ctx = styles_w_ctx[contexts.index(context)]
+            # encoding expects at least trace_id and span_id
+            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
+                links.append(
+                    SpanLink(
+                        context.trace_id,
+                        context.span_id,
+                        flags=1 if context.sampling_priority else 0,
+                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
+                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                        else None,
+                        attributes={
+                            "reason": "terminated_context",
+                            "context_headers": style_w_ctx,
+                        },
+                    )
+                )
+            # if trace_id matches and the propagation style is tracecontext
+            # add the tracestate to the primary context
+            elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
                 # extract and add the raw ts value to the primary_context
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
+        primary_context._span_links = links
         return primary_context
 
     @staticmethod
@@ -925,7 +942,7 @@ class HTTPPropagator(object):
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
-                    return HTTPPropagator._resolve_tracestate_context(contexts, styles_w_ctx, normalized_headers)
+                    return HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
