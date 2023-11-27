@@ -368,7 +368,6 @@ def test_module_watchdog_propagation():
     Alice.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="LazyLoader was introduced in Python 3.5")
 @pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
 def test_module_watchdog_no_lazy_force_load():
     """Test that the module watchdog does not force-load lazy modules.

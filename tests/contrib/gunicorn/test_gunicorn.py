@@ -39,10 +39,7 @@ IMPORT_AUTO = "import ddtrace.auto"
 
 
 def parse_payload(data):
-    decoded = data
-    if sys.version_info[1] == 5:
-        decoded = data.decode("utf-8")
-    return json.loads(decoded)
+    return json.loads(data)
 
 
 def _gunicorn_settings_factory(

@@ -1,4 +1,5 @@
 import abc
+import contextvars
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -8,7 +9,6 @@ import six
 
 from . import _hooks
 from .context import Context  # noqa:F401
-from .internal.compat import contextvars
 from .internal.logger import get_logger
 from .span import Span
 

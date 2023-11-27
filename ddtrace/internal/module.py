@@ -131,9 +131,6 @@ def find_loader(fullname):
     return getattr(find_spec(fullname), "loader", None)
 
 
-LEGACY_DICT_COPY = sys.version_info < (3, 6)
-
-
 class _ImportHookChainedLoader(Loader):
     def __init__(self, loader):
         # type: (Loader) -> None

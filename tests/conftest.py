@@ -37,9 +37,7 @@ from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
-code_to_pyc = getattr(
-    importlib._bootstrap_external, "_code_to_bytecode" if sys.version_info < (3, 7) else "_code_to_timestamp_pyc"
-)
+code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
 def pytest_configure(config):

@@ -58,7 +58,6 @@ class PytestTestCase(TracerTestCase):
 
         emit_integration_and_version_to_test_agent("pytest", version)
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):
         """Test with --ddtrace-patch-all."""
         py_file = self.testdir.makepyfile(
@@ -76,7 +75,6 @@ class PytestTestCase(TracerTestCase):
 
         assert len(spans) == 0
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all_init(self):
         """Test with ddtrace-patch-all via ini."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")

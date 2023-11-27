@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from ddtrace.appsec._iast import oce
@@ -29,16 +27,14 @@ def iast_span(tracer, env, request_sampling="100"):
             weak_cipher_patch()
             path_traversal_patch()
             sqli_sqlite_patch()
-            if sys.version_info >= (3, 6):
-                json_patch()
+            json_patch()
             oce.acquire_request(span)
             yield span
             oce.release_request()
             weak_hash_unpatch()
             weak_cipher_unpatch()
             sqli_sqlite_unpatch()
-            if sys.version_info >= (3, 6):
-                json_unpatch()
+            json_unpatch()
 
 
 @pytest.fixture
