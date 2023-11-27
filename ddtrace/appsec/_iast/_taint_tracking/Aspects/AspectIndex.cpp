@@ -16,7 +16,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintR
     }
 
     const auto& res_new_id = new_pyobject_id(result_o);
-    Py_DECREF(result_o);
+    Py_DecRef(result_o);
 
     if (ranges_to_set.empty()) {
         return res_new_id;

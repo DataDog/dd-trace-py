@@ -339,7 +339,10 @@ class CMakeBuild(build_ext):
             super().build_extension(ext)
 
         if not DEBUG_COMPILE:
-            self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+            try:
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+            except Exception as e:
+                print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext):
         # Define the build and output directories

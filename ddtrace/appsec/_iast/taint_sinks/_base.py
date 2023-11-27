@@ -14,6 +14,7 @@ from ddtrace.settings.asm import config as asm_config
 from ..._deduplications import deduplication
 from .. import oce
 from .._overhead_control_engine import Operation
+from .._stacktrace import get_info_frame
 from .._utils import _has_to_scrub
 from .._utils import _is_evidence_value_parts
 from .._utils import _scrub
@@ -23,13 +24,6 @@ from ..reporter import Location
 from ..reporter import Source
 from ..reporter import Vulnerability
 
-
-try:
-    # Python >= 3.4
-    from .._stacktrace import get_info_frame
-except ImportError:
-    # Python 2
-    from .._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any

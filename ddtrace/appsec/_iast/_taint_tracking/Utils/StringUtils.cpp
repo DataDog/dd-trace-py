@@ -70,7 +70,7 @@ copy_string_new_str_id(PyObject* source)
     // unicode_decode_utf8.
     PyObject* newobj = PyUnicode_New(length, maxchar);
     memcpy(PyUnicode_DATA(newobj), PyUnicode_DATA(source), byte_length);
-    Py_DECREF(source);
+    Py_DecRef(source);
     return newobj;
 }
 
