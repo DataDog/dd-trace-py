@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Text
 from typing import Tuple
+from typing import Union
 from typing import cast
 
 from ddtrace import config
@@ -813,7 +814,7 @@ class _NOP_Propagator:
 class AWSXRayPropagator:
     @staticmethod
     def _extract(headers):
-        # type: (Dict[str, str]) -> None
+        # type: (Dict[str, str]) -> Union[Context, None]
         trace_id = None
         span_id = None
         sampling_priority = None
@@ -842,8 +843,9 @@ class AWSXRayPropagator:
                 dd_origin = str(value)
             elif key == "t0":
                 # convert from string as milliseconds to nanoseconds
-                value = int(value) * 1000000
-                key = "e2e-start-time"
+                # value = int(value) * 1000000
+                # key = "e2e-start-time"
+                pass
         if trace_id is not None and span_id is not None:
             return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sampling_priority, dd_origin=dd_origin)
         else:
