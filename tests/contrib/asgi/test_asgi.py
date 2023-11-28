@@ -58,11 +58,6 @@ def scope(request):
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
     yield tracer
 
 

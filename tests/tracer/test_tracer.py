@@ -616,8 +616,7 @@ class TracerTestCases(TracerTestCase):
         assert span.context.dd_user_id is None
         assert not user_id
 
-    @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
-    def test_tracer_set_user_propagation_string_error_py3(self):
+    def test_tracer_set_user_propagation_string_error(self):
         span = self.trace("fake_span")
         user_id_string = "ユーザーID"
         set_user(

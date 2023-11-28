@@ -37,6 +37,7 @@ if _is_python_version_supported():
     from ._native.taint_tracking import taint_range as TaintRange
 
     new_pyobject_id = ops.new_pyobject_id
+    set_ranges_from_values = ops.set_ranges_from_values
     is_pyobject_tainted = is_tainted
 
 if TYPE_CHECKING:
@@ -89,16 +90,17 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    pyobject_newid = new_pyobject_id(pyobject)
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8")
+    if isinstance(source_name, OriginType):
+        source_name = origin_to_str(source_name)
+
     if isinstance(source_value, (bytes, bytearray)):
         source_value = str(source_value, encoding="utf8")
     if source_origin is None:
         source_origin = OriginType.PARAMETER
-    source = Source(source_name, source_value, source_origin)
-    pyobject_range = TaintRange(0, len(pyobject), source)
-    set_ranges(pyobject_newid, [pyobject_range])
+
+    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
     _set_metric_iast_executed_source(source_origin)
     return pyobject_newid
 
