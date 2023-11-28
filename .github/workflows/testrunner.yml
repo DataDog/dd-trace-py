@@ -3,7 +3,7 @@ name: Testrunner
 on:
   push:
     branches:
-      - '1.x'
+      - '2.x'
   pull_request:
     paths:
       - 'docker/**'
