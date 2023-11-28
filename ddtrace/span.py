@@ -457,7 +457,7 @@ class Span(object):
     def _get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item from the span context of this span."""
-        return self.context.get_baggage_item(key)
+        return self.context._get_baggage_item(key)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
