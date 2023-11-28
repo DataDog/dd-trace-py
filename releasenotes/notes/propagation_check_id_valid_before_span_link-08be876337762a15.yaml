@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    propagation: This fix resolves an issue where a ``Context`` generated from extracted headers could
+    lack a span_id or trace_id, leading ``SpanLink`` encoding errors.

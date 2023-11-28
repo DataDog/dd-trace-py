@@ -26,7 +26,6 @@ def test_taint_ranges_as_evidence_info_nothing_tainted():
     assert sources == []
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_taint_ranges_as_evidence_info_all_tainted():
     arg = "all tainted"
     input_info = Source("request_body", arg, OriginType.PARAMETER)
@@ -36,7 +35,6 @@ def test_taint_ranges_as_evidence_info_all_tainted():
     assert sources == [input_info]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_taint_ranges_as_evidence_info_tainted_op1_add():
     arg = "tainted part"
     input_info = Source("request_body", arg, OriginType.PARAMETER)
@@ -49,7 +47,6 @@ def test_taint_ranges_as_evidence_info_tainted_op1_add():
     assert sources == [input_info]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_taint_ranges_as_evidence_info_tainted_op2_add():
     arg = "tainted part"
     input_info = Source("request_body", arg, OriginType.PARAMETER)
@@ -62,7 +59,6 @@ def test_taint_ranges_as_evidence_info_tainted_op2_add():
     assert sources == [input_info]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     arg = "tainted part"
     input_info = Source("request_body", arg, OriginType.PARAMETER)
@@ -75,7 +71,6 @@ def test_taint_ranges_as_evidence_info_same_tainted_op1_and_op3_add():
     assert sources == [input_info]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     arg1 = "tainted body"
     arg2 = "tainted header"

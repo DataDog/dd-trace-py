@@ -119,7 +119,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, mock_logs, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
@@ -157,49 +157,19 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_me
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                2,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                12,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                14,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 2, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.completion", 12, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.total", 14, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.tokens", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.tokens", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
+    mock_logs.start.assert_not_called()
+    mock_logs.enqueue.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -254,50 +224,19 @@ async def test_acompletion(
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                10,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                150,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                160,
-                tags=expected_tags + ["openai.estimated:false"],
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.requests",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.remaining.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.gauge(
-                "ratelimit.tokens",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 10, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.completion", 150, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("tokens.total", 160, tags=expected_tags + ["openai.estimated:false"]),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.requests", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.remaining.tokens", mock.ANY, tags=expected_tags),
+            mock.call.gauge("ratelimit.tokens", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
-    mock_logs.assert_not_called()
+    mock_logs.start.assert_not_called()
+    mock_logs.enqueue.assert_not_called()
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")

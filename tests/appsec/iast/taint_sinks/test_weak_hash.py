@@ -28,7 +28,6 @@ WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_weak_hash.py"
         ("sha1", "hexdigest"),
     ],
 )
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_hashlib(iast_span_defaults, hash_func, method):
     parametrized_week_hash(hash_func, method)
 
@@ -44,7 +43,6 @@ def test_weak_hash_hashlib(iast_span_defaults, hash_func, method):
     assert list(span_report.vulnerabilities)[0].hash == hash_value
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("hash_func", ["md5", "sha1"])
 def test_weak_hash_hashlib_no_digest(iast_span_md5_and_sha1_configured, hash_func):
     import hashlib
@@ -69,7 +67,6 @@ def test_weak_hash_secure_hash(iast_span_md5_and_sha1_configured, hash_func, met
     assert span_report is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_new(iast_span_defaults):
     hashlib_new()
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
@@ -82,7 +79,6 @@ def test_weak_hash_new(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].hash == hash_value
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_new_with_child_span(tracer, iast_span_defaults):
     with tracer.trace("test_child") as span:
         hashlib_new()
@@ -105,7 +101,6 @@ def test_weak_hash_new_with_child_span(tracer, iast_span_defaults):
     assert list(span_report2.vulnerabilities)[0].hash == hash_value
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_md5_builtin_py3_unpatched(iast_span_md5_and_sha1_configured):
     import _md5
 
@@ -119,7 +114,6 @@ def test_weak_hash_md5_builtin_py3_unpatched(iast_span_md5_and_sha1_configured):
     assert span_report is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_md5_builtin_py3_md5_and_sha1_configured(iast_span_defaults):
     import _md5
 
@@ -134,7 +128,6 @@ def test_weak_hash_md5_builtin_py3_md5_and_sha1_configured(iast_span_defaults):
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_md5_builtin_py3_only_md4_configured(iast_span_only_md4):
     import _md5
 
@@ -147,7 +140,6 @@ def test_weak_hash_md5_builtin_py3_only_md4_configured(iast_span_only_md4):
     assert span_report is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_md5_builtin_py3_only_md5_configured(iast_span_only_md5):
     import _md5
 
@@ -162,7 +154,6 @@ def test_weak_hash_md5_builtin_py3_only_md5_configured(iast_span_only_md5):
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_md5_builtin_py3_only_sha1_configured(iast_span_only_sha1):
     import _md5
 
@@ -173,20 +164,6 @@ def test_weak_hash_md5_builtin_py3_only_sha1_configured(iast_span_only_sha1):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_only_sha1)
 
     assert span_report is None
-
-
-@pytest.mark.skipif(sys.version_info > (3, 0, 0), reason="md5 works only in Python 2")
-def test_weak_hash_md5_builtin_py2(iast_span_defaults):
-    import md5
-
-    m = md5.md5()
-    m.update(b"Nobody inspects")
-    m.update(b" the spammish repetition")
-    m.digest()
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
-    assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
-    assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
 
 
 def test_weak_hash_pycryptodome_hashes_md5(iast_span_defaults):
@@ -228,7 +205,6 @@ def test_weak_hash_pycryptodome_hashes_sha1_only_md5_configured(iast_span_only_m
     assert span_report is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_weak_hash_pycryptodome_hashes_sha1_only_sha1_configured(iast_span_only_sha1):
     from Crypto.Hash import SHA1
 

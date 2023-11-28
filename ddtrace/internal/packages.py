@@ -32,10 +32,6 @@ except AttributeError:
         if isinstance(path, (str, bytes)):
             return path
 
-        # Hack for Python 3.5: there's no __fspath__ :(
-        if sys.version_info[:2] == (3, 5) and isinstance(path, pathlib.Path):
-            return str(path)
-
         # Work from the object's type to match method resolution of other magic
         # methods.
         path_type = type(path)
@@ -131,8 +127,3 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
-
-
-def is_third_party(filename):
-    # type: (str) -> bool
-    return filename_to_package(filename) is not None

@@ -150,13 +150,19 @@ def _get_pr_number():
         return 0
 
 
-def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]):
+def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.List[str]):
     # Used in CircleCI config
     pr_number = _get_pr_number()
 
     for suite in suites:
         if pr_number <= 0:
             # If we don't have a valid PR number we run all tests
+            action(suite)
+            continue
+
+        if any(x in git_selections for x in ("all", suite)):
+            # If "all" or current suite is annotated
+            # in git commit we run the suite
             action(suite)
             continue
 

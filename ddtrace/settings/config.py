@@ -28,6 +28,7 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -264,9 +265,11 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
-        512
-    )  # type: multiprocessing.Queue
+    _extra_services_queue = (
+        None
+        if in_aws_lambda()
+        else multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)
+    )  # type: multiprocessing.Queue | None
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -490,6 +493,8 @@ class Config(object):
         return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
+        if self._extra_services_queue is None:
+            return
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
@@ -498,7 +503,8 @@ class Config(object):
 
     def _get_extra_services(self):
         # type: () -> set[str]
-
+        if self._extra_services_queue is None:
+            return set()
         try:
             while True:
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))

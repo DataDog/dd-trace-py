@@ -70,6 +70,13 @@ tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
+# LLM Obs
+ddtrace/internal/llmobs/           @DataDog/ml-observability
+ddtrace/contrib/openai             @DataDog/ml-observability
+ddtrace/contrib/langchain          @DataDog/ml-observability
+tests/contrib/openai               @DataDog/ml-observability
+tests/contrib/langchain            @DataDog/ml-observability
+
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
