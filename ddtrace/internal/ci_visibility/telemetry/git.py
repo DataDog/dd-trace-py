@@ -65,8 +65,9 @@ def record_settings(
     telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_COUNT, 1)
     telemetry_writer.add_distribution_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_MS, duration)
 
-    if response_tags:
-        telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags))
+    telemetry_writer.add_count_metric(
+        _NAMESPACE, GIT_TELEMETRY.SETTINGS_RESPONSE, 1, tuple(response_tags) if response_tags else None
+    )
     if error is not None:
         error_tags = (("error", error),)
         telemetry_writer.add_count_metric(_NAMESPACE, GIT_TELEMETRY.SETTINGS_ERRORS, 1, error_tags)
