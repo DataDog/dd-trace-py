@@ -48,6 +48,7 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
     wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
     if wanted_type == ("builtins", "tuple"):
         return tuple(wanted_object)
+    # Django
     if wanted_type == ("django.http.request", "HttpHeaders"):
         res = initial_object.__class__({})
         res._store = {k.lower(): (k, v) for k, v in wanted_object.items()}
@@ -57,8 +58,13 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
         for k, v in wanted_object.items():
             dict.__setitem__(res, k, v)
         return res
+    # Flask @+
     if wanted_type == ("werkzeug.datastructures.structures", "ImmutableMultiDict"):
         return initial_object.__class__(wanted_object)
+    # Flask 1
+    if wanted_type == ("werkzeug.datastructures", "ImmutableMultiDict"):
+        return initial_object.__class__(wanted_object)
+
     # if the class is unknown, return the initial object
     # this may prevent interned string to be tainted but ensure
     # that normal behavior of the code is not changed.
