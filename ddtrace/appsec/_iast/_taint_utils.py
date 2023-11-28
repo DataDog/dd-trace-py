@@ -7,6 +7,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
@@ -525,3 +526,13 @@ def check_tainted_args(args, kwargs, tracer, integration_name, method):
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False
+
+
+if asm_config._iast_lazy_taint:
+    # redefining taint_structure to use lazy object if required
+
+    def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):  # ignore F811
+        if isinstance(main_obj, abc.Mapping):
+            return LazyTaintDict(main_obj, source_key, source_value, override_pyobject_tainted)
+        elif isinstance(main_obj, abc.Sequence):
+            return LazyTaintList(main_obj, source_key, source_value, override_pyobject_tainted)

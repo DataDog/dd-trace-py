@@ -56,16 +56,6 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
 
         assert is_fully_tainted(res)
 
-        # assert isinstance(res, (str, bytes, bytearray)) or _is_tainted_struct(res) or is_fully_tainted(res)
-
-        # # this must pass as expected type
-        # assert isinstance(res, res_type)
-        # # this must be tainted type
-        # assert isinstance(res, tainted_type)
-        # assert type(res) is tainted_type
-
-        # assert is_fully_tainted(res)
-
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
 def test_taint_json_no_taint(iast_span_defaults, input_jsonstr, res_type, tainted_type):
