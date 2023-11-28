@@ -59,7 +59,10 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
         return res
     if wanted_type == ("werkzeug.datastructures.structures", "ImmutableMultiDict"):
         return initial_object.__class__(wanted_object)
-    return wanted_object
+    # if the class is unknown, return the initial object
+    # this may prevent interned string to be tainted but ensure
+    # that normal behavior of the code is not changed.
+    return initial_object
 
 
 def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
@@ -104,12 +107,12 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                         key_store = []
                         todo.append(_DeepTaintCommand(True, k, k, key_store, is_key=True))
                         todo.append(_DeepTaintCommand(True, k, v, res, key_store))
-                    stack.extend(todo[::-1])
+                    stack.extend(reversed(todo))
                 elif isinstance(command.obj, abc.Sequence):
                     res = []
                     stack.append(command.post(res))
                     todo = [_DeepTaintCommand(True, command.source_key, v, res) for v in command.obj]
-                    stack.extend(todo[::-1])
+                    stack.extend(reversed(todo))
                 else:
                     command.store(command.obj)
             else:
