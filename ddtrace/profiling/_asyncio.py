@@ -4,7 +4,6 @@ import sys
 from types import ModuleType
 import typing
 
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import find_loader
 from ddtrace.internal.utils import get_argument_value
@@ -65,7 +64,3 @@ def get_event_loop_for_thread(thread_id):
     global THREAD_LINK
 
     return THREAD_LINK.get_object(thread_id) if THREAD_LINK is not None else None
-
-
-def is_asyncio_available():
-    return PY3 and find_loader("asyncio") is not None

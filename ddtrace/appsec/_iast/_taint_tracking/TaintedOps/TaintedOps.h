@@ -2,15 +2,13 @@
 #include "Initializer/Initializer.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
+#include "Utils/StringUtils.h"
 #include <Python.h>
 #include <pybind11/pybind11.h>
 
 using namespace std;
 using namespace pybind11::literals;
 namespace py = pybind11;
-
-PyObject*
-new_pyobject_id(PyObject* tainted_object);
 
 PyObject*
 api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);

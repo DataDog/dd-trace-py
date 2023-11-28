@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    dynamic instrumentation: Add support for more built-in container types,
+    such as ``defaultdict``, ``frozenset``, ``OrderedDict`` and ``Counter``.
