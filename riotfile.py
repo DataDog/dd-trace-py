@@ -1399,7 +1399,7 @@ venv = Venv(
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
             pkgs={"msgpack": latest},
             env={
-                "DD_PATCH_MODULES": "unittest:true;sqlite3:false",
+                "DD_PATCH_MODULES": "unittest:true;sqlite3=false",
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(),
