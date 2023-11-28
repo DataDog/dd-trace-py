@@ -19,7 +19,6 @@ from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.compat import PY2
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
@@ -60,7 +59,6 @@ class PytestTestCase(TracerTestCase):
 
         emit_integration_and_version_to_test_agent("pytest", version)
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):
         """Test with --ddtrace-patch-all."""
         py_file = self.testdir.makepyfile(
@@ -78,7 +76,6 @@ class PytestTestCase(TracerTestCase):
 
         assert len(spans) == 0
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all_init(self):
         """Test with ddtrace-patch-all via ini."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")
@@ -145,10 +142,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
-        if PY2:
-            assert test_span.get_tag("test.command") == "pytest"
-        else:
-            assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
 
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
@@ -677,12 +671,9 @@ class PytestTestCase(TracerTestCase):
             if span.get_tag("type") == "test_suite_end":
                 assert span.get_tag(test.SUITE) == file_name
         test_session_span = spans[5]
-        if PY2:
-            assert test_session_span.get_tag("test.command") == "pytest"
-        else:
-            assert test_session_span.get_tag("test.command") == (
-                "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
-            )
+        assert test_session_span.get_tag("test.command") == (
+            "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+        )
 
     def test_pytest_sets_sample_priority(self):
         """Test sample priority tags."""
@@ -853,10 +844,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
         assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
-        if PY2:
-            assert spans[0].get_tag("test.command") == "pytest"
-        else:
-            assert spans[0].get_tag("test.command") == "pytest --ddtrace"
+        assert spans[0].get_tag("test.command") == "pytest --ddtrace"
 
     def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
         """Test that given a test class, the test span will include the hierarchy of test class(es) as a tag."""
@@ -900,10 +888,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("test.module") == ""
         assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
-        if PY2:
-            assert test_suite_span.get_tag("test.command") == "pytest"
-        else:
-            assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
         assert test_suite_span.get_tag("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
@@ -1272,10 +1257,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        if PY2:
-            assert test_module_span.get_tag("test.command") == "pytest"
-        else:
-            assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
+        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
         assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
         assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
 
@@ -1452,7 +1434,6 @@ class PytestTestCase(TracerTestCase):
         assert len(test_suite_spans) == 1
         assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -1518,7 +1499,6 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1584,7 +1564,6 @@ class PytestTestCase(TracerTestCase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1677,7 +1656,6 @@ class PytestTestCase(TracerTestCase):
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""

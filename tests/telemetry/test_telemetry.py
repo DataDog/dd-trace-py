@@ -2,7 +2,6 @@ import os
 import re
 
 import pytest
-import six
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
@@ -334,10 +333,7 @@ f.wsgi_app()
 
     assert status == 1, stderr
 
-    if six.PY2:
-        assert b"ValueError: need more than 0 values to unpack" in stderr, stderr
-    else:
-        assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
+    assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
     events = test_agent_session.get_events()
 
@@ -355,10 +351,7 @@ f.wsgi_app()
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["error"]["code"] == 1
     assert "ddtrace/contrib/flask/patch.py" in app_started_event[0]["payload"]["error"]["message"]
-    if six.PY2:
-        assert b"need more than 0 values to unpack" in app_started_event[0]["payload"]["error"]["message"]
-    else:
-        assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
+    assert "not enough values to unpack (expected 2, got 0)" in app_started_event[0]["payload"]["error"]["message"]
 
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
@@ -367,10 +360,7 @@ f.wsgi_app()
     assert integrations[0]["enabled"] is True
     assert integrations[0]["compatible"] is False
     assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
-    if six.PY2:
-        assert b"need more than 0 values to unpack" in integrations[0]["error"]
-    else:
-        assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
+    assert "not enough values to unpack (expected 2, got 0)" in integrations[0]["error"]
 
     metric_events = [event for event in events if event["request_type"] == "generate-metrics"]
 

@@ -68,6 +68,17 @@ minor version branches according to the :ref:`version support policy<versioning_
 If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
 versions that need the change.
 
+Commit Hooks
+------------
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are automated to run
+when you call `git commit` as pre-commit hooks to catch any formatting errors before
+you commit.
+
+To initialize the pre-commit hook script to run in your development
+branch, run ``$ hooks/autohook.sh install``.
+
 Implementation Guidelines
 =========================
 
