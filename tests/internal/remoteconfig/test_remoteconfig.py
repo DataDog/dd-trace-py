@@ -10,7 +10,6 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -36,17 +35,11 @@ class RCMockPubSub(PubSub):
 
 
 def to_bytes(string):
-    if PY2:
-        return bytes(string)
-    else:
-        return bytes(string, encoding="utf-8")
+    return bytes(string, encoding="utf-8")
 
 
 def to_str(bytes_string):
-    if PY2:
-        return str(bytes_string)
-    else:
-        return str(bytes_string, encoding="utf-8")
+    return str(bytes_string, encoding="utf-8")
 
 
 def get_mock_encoded_msg(msg):
