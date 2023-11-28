@@ -14,7 +14,6 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.settings.asm import config as asm_config  # noqa
 from ddtrace import tracer
 
 
