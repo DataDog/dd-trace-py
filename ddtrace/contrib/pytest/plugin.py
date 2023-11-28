@@ -13,7 +13,6 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
-import os
 import re
 from typing import Dict
 
