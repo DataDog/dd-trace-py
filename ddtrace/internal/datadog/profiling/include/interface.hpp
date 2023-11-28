@@ -52,6 +52,8 @@ void ddup_push_gputime(int64_t gputime, int64_t count);
 void ddup_push_gpu_mem(int64_t gpu_mem, int64_t count);
 void ddup_push_gpu_flops(int64_t gpu_flops, int64_t count);
 void ddup_push_gpu_device_name(const char *device_name);
+void ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns);
+
 
 
 #ifdef __cplusplus

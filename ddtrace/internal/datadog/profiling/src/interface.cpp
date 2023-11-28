@@ -331,3 +331,9 @@ ddup_push_gpu_device_name(const char *device_name)
         return;
     g_profile->push_gpu_device_name(device_name);
 }
+
+void
+ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    g_profile->push_end_timestamp_ns(end_timestamp_ns);
+}

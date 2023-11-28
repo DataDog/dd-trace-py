@@ -64,6 +64,7 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_set_runtime_id(const char *_id, size_t sz)
         void ddup_upload()
         void ddup_push_gpu_device_name(const char *device_name)
+        void ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns)
 
     def init(
             service: Optional[str],
@@ -182,4 +183,7 @@ IF UNAME_SYSNAME == "Linux":
 
     def push_gpu_device_name(device_name: str) -> None:
         if device_name:
-            ddup_push_gpu_device_name(ensure_binary(device_name))   
+            ddup_push_gpu_device_name(ensure_binary(device_name))
+
+    def push_end_timestamp_ns(end_timestamp_ns: int) -> None:
+        ddup_push_end_timestamp_ns(end_timestamp_ns)   

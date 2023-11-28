@@ -723,3 +723,13 @@ Profile::push_gpu_device_name(std::string_view device_name)
     }
     return true;
 }
+
+bool
+Profile::push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    if (!push_label(ExportLabelKey::end_timestamp_ns, end_timestamp_ns)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}

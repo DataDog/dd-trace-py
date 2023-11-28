@@ -54,7 +54,8 @@ class Uploader;
   X(trace_endpoint, "trace endpoint")                                          \
   X(class_name, "class name")                                                  \
   X(lock_name, "lock name")                                                    \
-  X(gpu_device_name, "gpu device name")                                        
+  X(gpu_device_name, "gpu device name")                                        \
+  X(end_timestamp_ns, "end timestamp ns")
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
@@ -218,6 +219,7 @@ public:
 
   // Pytorch GPU metadata
   bool push_gpu_device_name(std::string_view device_name);
+  bool push_end_timestamp_ns(uint64_t end_timestamp_ns);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(std::string_view name,     // for ddog_prof_Function

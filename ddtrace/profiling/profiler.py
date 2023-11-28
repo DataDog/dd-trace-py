@@ -28,6 +28,8 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
+from pprint import pprint
+
 
 from . import _asyncio
 
@@ -170,7 +172,6 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
@@ -226,7 +227,7 @@ class _ProfilerInstance(service.Service):
                 memalloc.MemoryHeapSampleEvent: None,
             },
             default_max_events=config.max_events,
-        )        
+        )
         # self._recorder.add_pytorch_profiler(self.torch_events)
 
         self._collectors = []
@@ -301,38 +302,46 @@ class _ProfilerInstance(service.Service):
         )
 
     def handle_torch_trace(self, prof):
+        NANOS_PER_MICROSECOND = 1e3
         print("handle torch trace was called")
         if self._export_libdd_enabled is False:
             print("libdd needs to be enabled with DD_PROFILING_EXPORT_LIBDD_ENABLED=true")
             return
+        print("[handle_torch_trace] first event content")
+        print(prof.events()[0])
+        print("[handle torch trace] pytorch trace start time: ")
+        print(prof.profiler.kineto_results.trace_start_us())
+        trace_start_ns = prof.profiler.kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
         for i, e in enumerate(prof.events()):
             device_name = "cuda " + str(e.device_index)
+            # start_time_ns = e.time_range.start * NANOS_PER_MICROSECOND
+            end_time_ns = trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND
             if str(e.device_type).startswith("DeviceType.CUDA") and i % 10 == 0:
-                gpu_time = e.time_range.elapsed_us() * 1000 # convert us -> ns
+                gpu_time = e.time_range.elapsed_us() * 1000  # convert us -> ns
                 # gpu time sample
                 ddup.start_sample(1)
                 ddup.push_gputime(gpu_time, 1)
                 ddup.push_gpu_device_name(device_name)
-                # ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
+                ddup.push_end_timestamp_ns(end_time_ns)
+                ddup.push_threadinfo(e.thread, "", e.thread)
                 ddup.push_frame(e.name, "", 0, -1)
                 ddup.flush_sample()
-               
-            if e.flops > 0:
+
+            if e.flops is not None and e.flops > 0:
                 # gpu flops sample
                 ddup.start_sample(1)
                 ddup.push_gpu_flops(e.flops, 1)
                 ddup.push_gpu_device_name(device_name)
                 ddup.push_frame(e.name, "", 0, -1)
                 ddup.flush_sample()
-            
-            if e.cuda_memory_usage > 0:
+
+            if e.flops is not None and e.cuda_memory_usage > 0:
                 # gpu mem sample
                 ddup.start_sample(1)
                 ddup.push_gpu_mem(e.cuda_memory_usage, 1)
                 ddup.push_gpu_device_name(device_name)
                 ddup.push_frame(e.name, "", 0, -1)
                 ddup.flush_sample()
-            
 
     def add_pytorch_profiler(self, torch_prof):
         torch_prof.on_trace_ready = self.handle_torch_trace
