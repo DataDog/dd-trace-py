@@ -6,7 +6,6 @@ from typing import Dict
 import httpretty
 import mock
 import pytest
-from six import PY2
 
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
@@ -181,10 +180,6 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
-
-    if PY2:
-        # Prevents gevent importerror when profiling is enabled
-        env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')

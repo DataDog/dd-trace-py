@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-import six
 
 from tests.utils import call_program
 
@@ -58,7 +57,6 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     return filename, pid
 
 
-@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
@@ -82,12 +80,7 @@ def test_fork_gevent(monkeypatch):
     assert exitcode == 0
 
 
-atleast_py37 = sys.version_info[:2] >= (3, 7)
-
-if atleast_py37:
-    methods = multiprocessing.get_all_start_methods()
-else:
-    methods = []
+methods = multiprocessing.get_all_start_methods()
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,5 @@
 import abc
+import contextvars
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -8,7 +9,6 @@ import six
 
 from . import _hooks
 from .context import Context
-from .internal.compat import contextvars
 from .internal.logger import get_logger
 from .span import Span
 

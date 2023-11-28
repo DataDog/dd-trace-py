@@ -1,8 +1,11 @@
 #pragma once
 
+#include <Python.h>
 #include <pybind11/pybind11.h>
 
 using namespace std;
+using namespace pybind11::literals;
+
 namespace py = pybind11;
 
 inline string
@@ -41,8 +44,8 @@ copy_string_new_id(const py::bytearray& source);
 py::object
 copy_string_new_id(const py::object& source);
 
-PyObject*
-copy_string_new_str_id(PyObject* source);
+string
+PyObjectToString(PyObject* obj);
 
-void
-pyexport_string_utils(py::module& m);
+PyObject*
+new_pyobject_id(PyObject* tainted_object);
