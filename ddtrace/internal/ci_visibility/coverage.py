@@ -59,18 +59,17 @@ def _stop_coverage(module):
         del module._coverage
 
 
-def _coverage_has_valid_data(coverage_data: Coverage, silent=False) -> bool:
+def _coverage_has_valid_data(coverage_data: Coverage) -> bool:
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
-        if not silent:
-            log.warning("No coverage collector or data found for item")
-            return False
+        log.warning("No coverage collector or data found for item")
+        return False
     return True
 
 
 def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
-    if not _coverage_has_valid_data(coverage_data, silent=True):
-        return
     coverage_data.switch_context(unique_test_name)
+    if not _coverage_has_valid_data(coverage_data):
+        return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
