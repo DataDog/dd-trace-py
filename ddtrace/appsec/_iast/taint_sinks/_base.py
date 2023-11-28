@@ -258,6 +258,15 @@ class VulnerabilityBase(Operation):
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
             cls._custom_edit_valueparts(vuln)
+
+            # Check if some valueParts match a scrubbed source
+            for part in vuln.evidence.valueParts:
+                value = part.get("value")
+                if value and part["value"] in already_scrubbed_set:
+                    part["pattern"] = already_scrubbed[part["value"]]
+                    part["redacted"] = True
+                    del part["value"]
+
         #     for part in vuln.evidence.valueParts:
         #         if part["value"] in already_scrubbed_set:
         #             part["pattern"] = already_scrubbed[part["value"]]

@@ -5,7 +5,7 @@ import six
 
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
-from .._utils import _scrub_get_tokens_positions
+from .._utils import _scrub_get_tokens_positions, _has_to_scrub
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ._base import VulnerabilityBase
@@ -72,6 +72,19 @@ class SqlInjection(VulnerabilityBase):
                 new_valueparts.append(_maybe_with_source(source, value[token.start(2):token.end(2)]))
                 prev = token.end(2)
             new_valueparts.append(_maybe_with_source(source, value[prev:]))
+
+        # Scrub as needed
+        idx = 0
+        len_parts = len(new_valueparts)
+        while idx < len_parts:
+            value = new_valueparts[idx].get("value")
+            if value and _has_to_scrub(value) and idx < (len_parts - 1):
+                # Scrub the value, which is the next one
+                # JJJ check source and ranges?
+                new_valueparts[idx+1] = {"redacted": True}
+                idx += 2
+                continue
+            idx += 1
 
         vuln.evidence.valueParts = new_valueparts
         print("JJJ new valueParts:\n%s" % new_valueparts)

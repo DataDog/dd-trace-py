@@ -70,7 +70,7 @@ def test_sqli_redaction_suite_JJJ(iast_span_defaults):
     # evidence_input = {'value': 'select * from users', 'ranges': [{'start': 14, 'end': 19, 'iinfo': {'type': 'http.request.parameter', 'parameterName': 'secret', 'parameterValue': 'users'}}]}
     # sources_expected = {'origin': 'http.request.parameter', 'name': 'secret', 'redacted': True, 'pattern': 'abcde'}
     # vulnerabilities_expected = {'type': 'SQL_INJECTION', 'evidence': {'valueParts': [{'value': 'select * from '}, {'source': 0, 'redacted': True, 'pattern': 'abcde'}]}}
-    evidence_input = {'value': "select * from users where username = 'john' and last_name = 'another surrogate 😃'", 
+    evidence_input = {'value': "select * from users where username = 'john' and last_name = 'another surrogate 😃'",
                       'ranges': [
                           {'start': 14, 'end': 19, 'iinfo':
                               {'type': 'http.request.parameter',
