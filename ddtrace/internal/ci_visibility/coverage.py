@@ -52,7 +52,14 @@ def _start_coverage(root_dir: str):
     return coverage
 
 
-def _coverage_has_valid_data(coverage_data: Coverage):
+def _stop_coverage(module):
+    if hasattr(module, "_coverage"):
+        module._coverage.stop()
+        module._coverage.erase()
+        del module._coverage
+
+
+def _coverage_has_valid_data(coverage_data: Coverage) -> bool:
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
         log.warning("No coverage collector or data found for item")
         return False
