@@ -756,6 +756,12 @@ def get_aws_trace_headers(headers_string):
 
 def extract_trace_context_json(message):
     context_json = None
+
+    if "Body" in message:
+        try:
+            message = json.loads(message["Body"])
+        except ValueError:
+            log.debug("Unable to parse message body, treat as non-json")
     if message and message.get("Type") == "Notification":
         # This is potentially a DSM SNS notification
         if (

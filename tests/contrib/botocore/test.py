@@ -617,14 +617,14 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    def _test_distributed_tracing_sns_to_sqs(self, use_raw_delivery):
+    def test_distributed_tracing_sns_to_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testDistributedTracingTopic")
+            topic = sns.create_topic(Name="testTopic")
 
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
@@ -632,32 +632,10 @@ class BotocoreTest(TracerTestCase):
             sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
             subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-            if use_raw_delivery:
-                sns.set_subscription_attributes(
-                    SubscriptionArn=subscription["SubscriptionArn"],
-                    AttributeName="RawMessageDelivery",
-                    AttributeValue="true",
-                )
-
             Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
             Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
 
             sns.publish(TopicArn=topic_arn, Message="test")
-
-            spans = self.get_spans()
-            assert spans
-            publish_span = spans[0]
-            assert len(spans) == 1
-            assert publish_span.get_tag("aws.region") == "us-east-1"
-            assert publish_span.get_tag("region") == "us-east-1"
-            assert publish_span.get_tag("aws.operation") == "SendMessage"
-            assert publish_span.get_tag("params.MessageBody") is None
-            assert publish_span.get_tag("component") == "botocore"
-            assert publish_span.get_tag("span.kind"), "client"
-            assert_is_measured(publish_span)
-            assert_span_http_status_code(publish_span, 200)
-            assert publish_span.service == "test-botocore-tracing.sns"
-            assert publish_span.resource == "sqs.sendmessage"
 
             # get SNS messages via SQS
             response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
@@ -665,14 +643,26 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-            assert len(response["Messages"]) == 1
-            trace_in_message = "MessageAttributes" in response["Messages"][0]
-            assert trace_in_message is True
-
             spans = self.get_spans()
             assert spans
+            publish_span = spans[0]
+            assert len(spans) == 3
+            assert publish_span.get_tag("aws.region") == "us-east-1"
+            assert publish_span.get_tag("region") == "us-east-1"
+            assert publish_span.get_tag("aws.operation") == "Publish"
+            assert publish_span.get_tag("params.MessageBody") is None
+            assert publish_span.get_tag("component") == "botocore"
+            assert publish_span.get_tag("span.kind"), "client"
+            assert_is_measured(publish_span)
+            assert_span_http_status_code(publish_span, 200)
+            assert publish_span.service == "aws.sns"
+            assert publish_span.resource == "sns.publish"
+
+            assert len(response["Messages"]) == 1
+            trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
+            assert trace_in_message is True
+
             consume_span = spans[1]
-            assert len(spans) == 2
 
             assert consume_span.parent_id == publish_span.span_id
             assert consume_span.trace_id == publish_span.trace_id
@@ -2281,6 +2271,7 @@ class BotocoreTest(TracerTestCase):
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
         entries = [
             {
                 "Id": "1",
@@ -2293,17 +2284,16 @@ class BotocoreTest(TracerTestCase):
         ]
 
         sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-        spans = self.get_spans()
 
         # get SNS messages via SQS
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
             MessageAttributeNames=["_datadog"],
             WaitTimeSeconds=2,
+            MaxNumberOfMessages=2,
         )
 
-        # clean up resources
-        sns.delete_topic(TopicArn=topic_arn)
+        spans = self.get_spans()
 
         # check if the appropriate span was generated
         assert spans
@@ -2318,11 +2308,12 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.sns"
         assert span.resource == "sns.publishbatch"
 
-        # receive message using SQS and ensure headers are present
-        assert len(response["Messages"]) == 1
-        msg = response["Messages"][0]
-        assert msg is not None
-        msg_body = json.loads(msg["Body"])
+        # receive messages using SQS and ensure headers are present
+        assert len(response["Messages"]) == 2
+        msg_1 = response["Messages"][0]
+        assert msg_1 is not None
+
+        msg_body = json.loads(msg_1["Body"])
         msg_str = msg_body["Message"]
         assert msg_str == "ironmaiden"
         msg_attr = msg_body["MessageAttributes"]
@@ -2331,6 +2322,29 @@ class BotocoreTest(TracerTestCase):
         assert headers is not None
         assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        msg_2 = response["Messages"][1]
+        assert msg_2 is not None
+
+        msg_body = json.loads(msg_2["Body"])
+        msg_str = msg_body["Message"]
+        assert msg_str == "megadeth"
+        msg_attr = msg_body["MessageAttributes"]
+        assert msg_attr.get("_datadog") is not None
+        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+        assert headers is not None
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        consume_span = spans[1]
+
+        assert span.get_tag("aws.operation") == "ReceiveMessage"
+
+        assert consume_span.parent_id == span.span_id
+        assert consume_span.trace_id == span.trace_id
+
+        # clean up resources
+        sns.delete_topic(TopicArn=topic_arn)
 
     @pytest.mark.skipif(
         PYTHON_VERSION_INFO < (3, 6),
