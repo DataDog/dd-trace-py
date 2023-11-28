@@ -615,6 +615,68 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.parent_id == produce_span.span_id
             assert consume_span.trace_id == produce_span.trace_id
 
+    @mock_sns
+    @mock_sqs
+    def _test_distributed_tracing_sns_to_sqs(self, use_raw_delivery):
+        # DEV: We want to mock time to ensure we only create a single bucket
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
+
+            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+
+            topic = sns.create_topic(Name="testDistributedTracingTopic")
+
+            topic_arn = topic["TopicArn"]
+            sqs_url = self.sqs_test_queue["QueueUrl"]
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+            subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+            if use_raw_delivery:
+                sns.set_subscription_attributes(
+                    SubscriptionArn=subscription["SubscriptionArn"],
+                    AttributeName="RawMessageDelivery",
+                    AttributeValue="true",
+                )
+
+            Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
+            Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
+            sns.publish(TopicArn=topic_arn, Message="test")
+
+            spans = self.get_spans()
+            assert spans
+            publish_span = spans[0]
+            assert len(spans) == 1
+            assert publish_span.get_tag("aws.region") == "us-east-1"
+            assert publish_span.get_tag("region") == "us-east-1"
+            assert publish_span.get_tag("aws.operation") == "SendMessage"
+            assert publish_span.get_tag("params.MessageBody") is None
+            assert publish_span.get_tag("component") == "botocore"
+            assert publish_span.get_tag("span.kind"), "client"
+            assert_is_measured(publish_span)
+            assert_span_http_status_code(publish_span, 200)
+            assert publish_span.service == "test-botocore-tracing.sns"
+            assert publish_span.resource == "sqs.sendmessage"
+
+            # get SNS messages via SQS
+            response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+
+            # clean up resources
+            sns.delete_topic(TopicArn=topic_arn)
+
+            assert len(response["Messages"]) == 1
+            trace_in_message = "MessageAttributes" in response["Messages"][0]
+            assert trace_in_message is True
+
+            spans = self.get_spans()
+            assert spans
+            consume_span = spans[1]
+            assert len(spans) == 2
+
+            assert consume_span.parent_id == publish_span.span_id
+            assert consume_span.trace_id == publish_span.trace_id
+
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
