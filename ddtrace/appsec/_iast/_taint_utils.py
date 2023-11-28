@@ -58,7 +58,7 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
         for k, v in wanted_object.items():
             dict.__setitem__(res, k, v)
         return res
-    # Flask @+
+    # Flask 2+
     if wanted_type == ("werkzeug.datastructures.structures", "ImmutableMultiDict"):
         return initial_object.__class__(wanted_object)
     # Flask 1
