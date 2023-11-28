@@ -110,7 +110,7 @@ def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             if key[: len(HTTP_BAGGAGE_PREFIX)] == HTTP_BAGGAGE_PREFIX:
-                context.set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
+                context._set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -899,9 +899,9 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        if config.propagation_http_baggage_enabled is True and span_context.baggage is not None:
-            for key in span_context.baggage:
-                headers[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
+        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+            for key in span_context._baggage:
+                headers[HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)

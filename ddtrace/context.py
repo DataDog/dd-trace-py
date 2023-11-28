@@ -220,19 +220,14 @@ class Context(object):
                 value = str(base64.b64encode(bytes(value)))
             self._meta[USER_ID_KEY] = value
 
-    @property
-    def baggage(self):
-        # type: () -> dict[str, Any]
-        return self._baggage
-
-    def set_baggage_item(self, key, value):
+    def _set_baggage_item(self, key, value):
         # type: (str, Any) -> None
         """Sets a baggage item in this span context.
         Note that this operation mutates the baggage of this span context
         """
         self._baggage[key] = value
 
-    def with_baggage_item(self, key, value):
+    def _with_baggage_item(self, key, value):
         # type: (str, Any) -> Context
         """Returns a copy of this span with a new baggage item.
         Useful for instantiating new child span contexts.
@@ -246,7 +241,7 @@ class Context(object):
         ctx._baggage = new_baggage
         return ctx
 
-    def get_baggage_item(self, key):
+    def _get_baggage_item(self, key):
         # type: (str) -> Optional[Any]
         """Gets a baggage item in this span context."""
         return self._baggage.get(key, None)

@@ -62,7 +62,7 @@ def test_inject(tracer):
 def test_inject_with_baggage_http_propagation(tracer):
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
-        ctx.set_baggage_item("key1", "val1")
+        ctx._set_baggage_item("key1", "val1")
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
