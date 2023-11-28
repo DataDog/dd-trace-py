@@ -11,7 +11,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
-from ddtrace.internal.compat import PY3
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 
@@ -396,9 +395,8 @@ class TestGeventTracer(TracerTestCase):
         """
 
         # Ensure modules are installed
-        if PY3:
-            import aiohttp  # noqa
-            import aiobotocore  # noqa
+        import aiohttp  # noqa
+        import aiobotocore  # noqa
         import botocore  # noqa
         import elasticsearch  # noqa
         import opensearchpy  # noqa

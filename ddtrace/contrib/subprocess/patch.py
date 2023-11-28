@@ -21,7 +21,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import shjoin
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -56,13 +55,6 @@ def patch():
         # all os.spawn* variants eventually use this one:
         trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
 
-        if PY2:
-            # note: popen* uses subprocess in Python3, which we already wrap below, but not in
-            # Python2
-            trace_utils.wrap(os, "popen", _traced_py2popen(os))
-            trace_utils.wrap(os, "popen2", _traced_py2popen(os))
-            trace_utils.wrap(os, "popen3", _traced_py2popen(os))
-            trace_utils.wrap(os, "popen4", _traced_py2popen(os))
         patched.append("os")
 
     if not getattr(subprocess, "_datadog_patch", False):
@@ -306,12 +298,6 @@ def unpatch():
     trace_utils.unwrap(subprocess.Popen, "__init__")
     trace_utils.unwrap(subprocess.Popen, "wait")
 
-    if PY2:
-        trace_utils.unwrap(os, "popen")
-        trace_utils.unwrap(os, "popen2")
-        trace_utils.unwrap(os, "popen3")
-        trace_utils.unwrap(os, "popen4")
-
     SubprocessCmdLine._clear_cache()
 
     os._datadog_patch = False
@@ -372,25 +358,6 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     except:  # noqa
         log.debug(
             "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
-        )
-
-    return wrapped(*args, **kwargs)
-
-
-@trace_utils.with_traced_module
-def _traced_py2popen(module, pin, wrapped, instance, args, kwargs):
-    try:
-        command = args[0]
-        subcmd = SubprocessCmdLine(command, shell=False)
-
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=subcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag(COMMANDS.EXEC, subcmd.as_list())
-            if subcmd.truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "true")
-            span.set_tag_str(COMMANDS.COMPONENT, "os")
-    except:  # noqa
-        log.debug(
-            "Could not trace subprocess execution for os.popen*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
         )
 
     return wrapped(*args, **kwargs)

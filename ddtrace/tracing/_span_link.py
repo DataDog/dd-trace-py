@@ -29,6 +29,11 @@ from typing import Optional
 import attr
 
 
+def _id_not_zero(self, attribute, value):
+    if not value > 0:
+        raise ValueError(f"{attribute.name} must be > 0. Value is {value}")
+
+
 @attr.s
 class SpanLink:
     """
@@ -44,8 +49,8 @@ class SpanLink:
     value is either a string, bool, number or an array of primitive type values.
     """
 
-    trace_id = attr.ib(type=int)
-    span_id = attr.ib(type=int)
+    trace_id = attr.ib(type=int, validator=_id_not_zero)
+    span_id = attr.ib(type=int, validator=_id_not_zero)
     tracestate = attr.ib(type=Optional[str], default=None)
     flags = attr.ib(type=Optional[int], default=None)
     attributes = attr.ib(type=dict, default=dict())

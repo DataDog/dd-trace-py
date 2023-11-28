@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-import sys
-
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -28,7 +26,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
         (("a", "b"), ("c", "d")),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_successful(obj1, obj2):
     assert ddtrace_aspects.add_aspect(obj1, obj2) == obj1 + obj2
 
@@ -37,7 +34,6 @@ def test_add_aspect_successful(obj1, obj2):
     "obj1, obj2",
     [(b"Hi", ""), ("Hi", b""), ({"a", "b"}, {"c", "d"}), (dict(), dict())],
 )
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_type_error(obj1, obj2):
     with pytest.raises(TypeError) as e_info1:
         obj1 + obj2
@@ -65,7 +61,6 @@ def test_add_aspect_type_error(obj1, obj2):
         (("a", "b"), ("c", "d"), False),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
     if should_be_tainted:
         obj1 = taint_pyobject(
@@ -101,7 +96,6 @@ def test_add_aspect_tainting_left_hand(obj1, obj2, should_be_tainted):
         (("a", "b"), ("c", "d"), False),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_add_aspect_tainting_right_hand(obj1, obj2, should_be_tainted):
     if should_be_tainted:
         obj2 = taint_pyobject(
