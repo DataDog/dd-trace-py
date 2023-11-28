@@ -1072,6 +1072,7 @@ class Tracer(object):
 
     @staticmethod
     def _is_span_internal(span):
+        # comment to run tests
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
 
