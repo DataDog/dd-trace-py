@@ -696,7 +696,7 @@ def pytest_runtest_protocol(item, nextitem):
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ):
-                _report_coverage_to_span(pytest._coverage, span, root_directory)
+                _report_coverage_to_span(pytest._coverage, test_suite_span, root_directory)
             test_suite_span.finish()
 
             if not module_is_package:
