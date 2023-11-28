@@ -79,7 +79,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - ``parentID``
       -
     * - ``name``
-      - ``name``
+      - ``resource``
       -
     * - ``kind``
       - ``meta["span.kind"]``
