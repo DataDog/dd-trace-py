@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -28,11 +27,6 @@ from . import app
 def tracer():
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
 
     ddtrace.tracer = tracer
     fastapi_patch()

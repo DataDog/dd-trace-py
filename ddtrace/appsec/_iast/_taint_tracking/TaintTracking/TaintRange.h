@@ -104,6 +104,9 @@ api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
     set_ranges(str.ptr(), ranges);
 }
 
+PyObject*
+api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
+
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs>
 are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list);

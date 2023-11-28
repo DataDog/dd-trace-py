@@ -14,8 +14,6 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace.internal import debug
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
@@ -215,23 +213,8 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer.configure()
-        # Python 2 logs will go to stderr directly since there's no log handler
-        if PY3:
-            assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
-            assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-        )
-    )
-    def test_tracer_loglevel_info_no_connection_py2_handler(self):
-        tracer = ddtrace.Tracer()
-        logging.basicConfig()
-        with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
-            if PY2:
-                assert mock_logger.mock_calls == []
+        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+        assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(

@@ -1,37 +1,4 @@
-#include "TaintedOps.h"
-
-PyObject*
-new_pyobject_id(PyObject* tainted_object)
-{
-    if (PyUnicode_Check(tainted_object)) {
-        PyObject* empty_unicode = PyUnicode_New(0, 127);
-        PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
-        PyObject* result = PyUnicode_Join(empty_unicode, val);
-        Py_DecRef(empty_unicode);
-        Py_DecRef(val);
-        return result;
-    }
-    if (PyBytes_Check(tainted_object)) {
-        PyObject* empty_bytes = PyBytes_FromString("");
-        auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
-        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
-        auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
-        Py_DecRef(val);
-        Py_DecRef(empty_bytes);
-        return res;
-    } else if (PyByteArray_Check(tainted_object)) {
-        PyObject* empty_bytes = PyBytes_FromString("");
-        PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
-        auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
-        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
-        auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
-        Py_DecRef(val);
-        Py_DecRef(empty_bytes);
-        Py_DecRef(empty_bytearray);
-        return res;
-    }
-    return tainted_object;
-}
+#include "TaintedOps/TaintedOps.h"
 
 PyObject*
 api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args)
