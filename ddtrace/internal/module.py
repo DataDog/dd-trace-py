@@ -1,5 +1,8 @@
 import abc
 from collections import defaultdict
+from importlib.abc import Loader
+from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
 from pathlib import Path
 import sys
 from types import ModuleType
@@ -7,6 +10,7 @@ from typing import Any
 from typing import Callable
 from typing import DefaultDict
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
@@ -16,7 +20,6 @@ from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -122,25 +125,10 @@ def _resolve(path):
 # Borrowed from the wrapt module
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
-if PY2:
-    import pkgutil
 
-    find_spec = ModuleSpec = None
-    Loader = object
-
-    find_loader = pkgutil.find_loader
-
-else:
-    from importlib.abc import Loader
-    from importlib.machinery import ModuleSpec
-    from importlib.util import find_spec
-
-    def find_loader(fullname):
-        # type: (str) -> Optional[Loader]
-        return getattr(find_spec(fullname), "loader", None)
-
-
-LEGACY_DICT_COPY = sys.version_info < (3, 6)
+def find_loader(fullname):
+    # type: (str) -> Optional[Loader]
+    return getattr(find_spec(fullname), "loader", None)
 
 
 class _ImportHookChainedLoader(Loader):
@@ -264,15 +252,7 @@ class BaseModuleWatchdog(abc.ABC):
                 if not isinstance(loader, _ImportHookChainedLoader):
                     loader = _ImportHookChainedLoader(loader)
 
-                if PY2:
-                    # With Python 2 we don't get all the finders invoked, so we
-                    # make sure we register all the callbacks at the earliest
-                    # opportunity.
-                    for finder in sys.meta_path:
-                        if isinstance(finder, ModuleWatchdog):
-                            loader.add_callback(type(finder), finder.after_import)
-                else:
-                    loader.add_callback(type(self), self.after_import)
+                loader.add_callback(type(self), self.after_import)
 
                 return loader
 
@@ -363,20 +343,31 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def __init__(self):
         # type: () -> None
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
+        self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
     @property
-    def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
-        def modules_with_origin(modules):
-            result = wvdict({str(origin(m)): m for m in modules})
-            try:
-                del result[None]
-            except KeyError:
-                pass
-            return result
+    def _origin_map(self) -> Dict[str, ModuleType]:
+        def modules_with_origin(modules: Iterable[ModuleType]) -> Dict[str, Any]:
+            result: wvdict = wvdict()
+
+            for m in modules:
+                module_origin = origin(m)
+                if module_origin is None:
+                    continue
+
+                try:
+                    result[str(module_origin)] = m
+                except TypeError:
+                    # This can happen if the module is a special object that
+                    # does not allow for weak references. Quite likely this is
+                    # an object created by a native extension. We make the
+                    # assumption that this module does not contain valuable
+                    # information that can be used at the Python runtime level.
+                    pass
+
+            return cast(Dict[str, Any], result)
 
         if self._om is None:
             try:

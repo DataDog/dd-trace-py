@@ -206,10 +206,7 @@ async def test(redis_client):
     await client.set("cheese", "my-cheese")
 
 if __name__ == "__main__":
-    if sys.version_info < (3, 7):
-        sys.exit(pytest.main(["-x", __file__]))
-    else:
-        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
+    sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
     """
     env = os.environ.copy()
     if service:

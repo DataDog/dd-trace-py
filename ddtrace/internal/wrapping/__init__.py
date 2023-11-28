@@ -6,8 +6,6 @@ from typing import Optional
 from typing import Tuple
 from typing import cast
 
-from six import PY3
-
 
 try:
     from typing import Protocol
@@ -203,7 +201,7 @@ def wrap_bytecode(wrapper, wrapped):
     # or coroutine, inject unraveling code before the return opcode.
     if bc.CompilerFlags.GENERATOR & code.co_flags and not (bc.CompilerFlags.COROUTINE & code.co_flags):
         wrap_generator(instrs, code, lineno)
-    elif PY3:
+    else:
         wrap_async(instrs, code, lineno)
 
     return bc.Bytecode(instrs)
@@ -232,8 +230,7 @@ def wrap(f, wrapper):
     except AttributeError:
         pass
 
-    if PY3:
-        wrapped.__kwdefaults__ = f.__kwdefaults__
+    wrapped.__kwdefaults__ = f.__kwdefaults__
 
     code = wrap_bytecode(wrapper, wrapped)
     code.freevars = f.__code__.co_freevars
