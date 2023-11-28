@@ -12,7 +12,6 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
 from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
@@ -25,7 +24,7 @@ from .. import trace_utils
 from ..trace_utils import unwrap as _u
 
 
-span_name = "httplib.request" if PY2 else "http.client.request"
+span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
