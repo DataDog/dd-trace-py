@@ -466,8 +466,6 @@ class _ThreadSpanLinks(_thread_span_links_base):
 
 
 def _default_min_interval_time():
-    if six.PY2:
-        return 0.01
     return sys.getswitchinterval() * 2
 
 

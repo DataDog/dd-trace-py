@@ -48,49 +48,47 @@ copy_string_new_id(const py::object& source)
     return source;
 }
 
-PyObject*
-copy_string_new_str_id(PyObject* source)
+string
+PyObjectToString(PyObject* obj)
 {
-    if (PyUnicode_CHECK_INTERNED(source) == SSTATE_NOT_INTERNED) {
-        return source;
-    }
+    const char* str = PyUnicode_AsUTF8(obj);
 
-    const Py_ssize_t length = PyUnicode_GET_LENGTH(source);
-    if (length >= 4097) {
-        return source;
+    if (str == nullptr) {
+        PyErr_Print();
+        throw runtime_error("PyObjectToString error");
     }
-    const Py_ssize_t byte_length = length * PyUnicode_KIND(source);
-
-    // Despite its name, this macro computes the a reference maxchar based on
-    // is_ascii and kind. It does not iterate contents at all. Which other
-    // variants like ucs1lib_find_max_char do.
-    const Py_UCS4 maxchar = PyUnicode_MAX_CHAR_VALUE(source);
-    // Using this PyUnicode_New constructor, and the manual copy, we avoid any
-    // iteration of contents too. And we also avoid any decoding process like
-    // unicode_decode_utf8.
-    PyObject* newobj = PyUnicode_New(length, maxchar);
-    memcpy(PyUnicode_DATA(newobj), PyUnicode_DATA(source), byte_length);
-    Py_DECREF(source);
-    return newobj;
+    return str;
 }
 
-void
-pyexport_string_utils(py::module& m)
+PyObject*
+new_pyobject_id(PyObject* tainted_object)
 {
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::bytes&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::str&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::bytearray&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::object&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
+    if (PyUnicode_Check(tainted_object)) {
+        PyObject* empty_unicode = PyUnicode_New(0, 127);
+        PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
+        PyObject* result = PyUnicode_Join(empty_unicode, val);
+        Py_DecRef(empty_unicode);
+        Py_DecRef(val);
+        return result;
+    }
+    if (PyBytes_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
+        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
+        auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
+        Py_DecRef(val);
+        Py_DecRef(empty_bytes);
+        return res;
+    } else if (PyByteArray_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
+        auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
+        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
+        auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
+        Py_DecRef(val);
+        Py_DecRef(empty_bytes);
+        Py_DecRef(empty_bytearray);
+        return res;
+    }
+    return tainted_object;
 }

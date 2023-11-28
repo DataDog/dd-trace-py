@@ -191,18 +191,16 @@ async def test_opentracing(tracer, snapshot_context, traced_yaaredis):
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
     service, schema = service_schema
     code = """
-import pytest
 import sys
+
+import pytest
 
 from tests.contrib.yaaredis.test_yaaredis import traced_yaaredis
 
 @pytest.mark.asyncio
 async def test_basics(traced_yaaredis):
-    if sys.version_info < (3, 7):
-        await traced_yaaredis.get("cheese")
-    else:
-        async for client in traced_yaaredis:
-            await client.get("cheese")
+    async for client in traced_yaaredis:
+        await client.get("cheese")
 
 
 if __name__ == "__main__":

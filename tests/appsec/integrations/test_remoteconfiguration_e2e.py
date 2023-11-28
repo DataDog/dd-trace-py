@@ -25,10 +25,7 @@ def _get_agent_client():
 
 
 def parse_payload(data):
-    decoded = data
-    if sys.version_info[1] == 5:
-        decoded = data.decode("utf-8")
-    return json.loads(decoded)
+    return json.loads(data)
 
 
 def _1_click_activation(token):
@@ -227,9 +224,7 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
 
 
 @flaky(until=1704067200)
-@pytest.mark.skipif(
-    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
-)
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
     with gunicorn_server(remote_configuration_enabled="false", token=token) as context:
@@ -245,9 +240,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
 
 
 @flaky(until=1704067200)
-@pytest.mark.skipif(
-    sys.version_info < (3, 7, 0) or sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10"
-)
+@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
     with gunicorn_server(token=token) as context:
@@ -329,7 +322,6 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         "module_unloading_unset",
     ],
 )
-@pytest.mark.skipif(sys.version_info[0] < 3, reason="Python2.7 is not supported")
 def test_compatiblity_with_multiprocessing(module_unloading_env, ddtrace_run_python_code_in_subprocess):
     """This test validates that module unloading resolves multiprocessing context errors"""
     code = """

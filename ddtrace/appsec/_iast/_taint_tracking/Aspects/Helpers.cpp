@@ -190,11 +190,11 @@ getNum(std::string s)
     try {
         n = std::stoul(s, nullptr, 10);
         if (errno != 0) {
-            std::cout << "ERROR" << '\n';
+            PyErr_Print();
         }
     } catch (std::exception& e) {
         // throw std::invalid_argument("Value is too big");
-        std::cout << "Invalid value: " << s << '\n';
+        PyErr_Print();
     }
     return n;
 }
