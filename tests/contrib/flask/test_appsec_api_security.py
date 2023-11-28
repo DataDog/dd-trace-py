@@ -37,7 +37,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
@@ -83,7 +82,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert equal_with_meta(api, expected_value), name
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security_srb(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
@@ -129,7 +127,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert equal_with_meta(api, expected_value), name
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security_disabled(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):

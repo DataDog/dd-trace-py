@@ -1,5 +1,4 @@
 import os
-import sys
 from time import sleep
 
 import mock
@@ -139,7 +138,6 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update(telemetry_writer):
     with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
@@ -152,7 +150,6 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
@@ -164,7 +161,6 @@ def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
         assert len(list_metrics_logs) == 0
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 @mock.patch.object(deduplication, "get_last_time_reported")
 def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_last_time_reported, telemetry_writer):
     old_value = deduplication._time_lapse
