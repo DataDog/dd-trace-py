@@ -341,13 +341,22 @@ def patch():
 
     if config.openai.logs_enabled:
         if not ddapikey:
-            raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
+            raise ValueError(
+                "DD_API_KEY is required for sending logs from the OpenAI integration."
+                "To use the OpenAI integration without logs, set `DD_OPENAI_LOGS_ENABLED=false`."
+            )
         integration.start_log_writer()
     if config.openai.llmobs_enabled:
         if not ddapikey:
-            raise ValueError("DD_API_KEY is required for sending LLMObs payloads from the OpenAI integration")
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data from the OpenAI integration."
+                "To use the OpenAI integration without LLMObs, set `DD_OPENAI_LLMOBS_ENABLED=false`."
+            )
         if not ddappkey:
-            raise ValueError("DD_APP_KEY is required for sending LLMObs payloads from the OpenAI integration")
+            raise ValueError(
+                "DD_APP_KEY is required for sending LLMObs payloads from the OpenAI integration."
+                "To use the OpenAI integration without LLMObs, set `DD_OPENAI_LLMOBS_ENABLED=false`."
+            )
         integration.start_llm_writer()
 
     if OPENAI_VERSION >= (1, 0, 0):

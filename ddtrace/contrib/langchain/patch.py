@@ -52,6 +52,8 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_LANGCHAIN_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_LANGCHAIN_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
+        #  send LLMObs payloads. This is a placeholder for when we do.
         "llmobs_prompt_completion_sample_rate": float(
             os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
         ),
