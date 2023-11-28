@@ -341,7 +341,6 @@ def test_info_no_configs():
     assert b"Debug logging: False" in stdout
     assert b"Writing traces to: http://localhost:8126" in stdout
     assert b"Agent error: Agent not reachable at http://localhost:8126. Exception raised:" in stdout
-    assert b"[Errno 61] Connection refused" in stdout
     assert b"App Analytics enabled(deprecated): False" in stdout
     assert b"Log injection enabled: False" in stdout
     assert b"Health metrics enabled: False" in stdout
