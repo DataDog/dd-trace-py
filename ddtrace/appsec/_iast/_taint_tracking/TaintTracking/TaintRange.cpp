@@ -116,6 +116,57 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
     return new_ranges;
 }
 
+/**
+ * set_ranges_from_values.
+ *
+ * The equivalent Python script of this function is:
+ *  ```
+ *  api_set_ranges_from_values
+ *  pyobject_newid = new_pyobject_id(pyobject)
+ *  source = Source(source_name, source_value, source_origin)
+ *  pyobject_range = TaintRange(0, len(pyobject), source)
+ *  set_ranges(pyobject_newid, [pyobject_range])
+ *  ```
+ *
+ * @param self The Python extension module.
+ * @param args An array of Python objects containing the candidate text and text aspect.
+ *   @param args[0] PyObject, string to set the ranges
+ *   @param args[1] long. Lenght of the string
+ *   @param args[2] string. source name
+ *   @param args[3] string. source value
+ *   @param args[4] int. origin type
+ * @param nargs The number of arguments in the 'args' array.
+ */
+PyObject*
+api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+{
+
+    if (nargs != 5) {
+        PyErr_SetString(
+          PyExc_TypeError,
+          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin");
+        throw std::runtime_error(
+          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin");
+    }
+    PyObject* tainted_object = args[0];
+    if (!PyUnicode_Check(tainted_object) and !PyByteArray_Check(tainted_object) and !PyBytes_Check(tainted_object)) {
+        return tainted_object;
+    }
+    auto ctx_map = initializer->get_tainting_map();
+    PyObject* pyobject_n = new_pyobject_id(tainted_object);
+    PyObject* len_pyobject_py = args[1];
+
+    long len_pyobject = PyLong_AsLong(len_pyobject_py);
+    string source_name = PyObjectToString(args[2]);
+    string source_value = PyObjectToString(args[3]);
+    auto source_origin = OriginType(PyLong_AsLong(args[4]));
+    auto source = Source(source_name, source_value, source_origin);
+    auto range = initializer->allocate_taint_range(0, len_pyobject, source);
+    TaintRangeRefs ranges = vector{ range };
+    set_ranges(pyobject_n, ranges, ctx_map);
+    return pyobject_n;
+}
+
 TaintRangeRefs
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 {

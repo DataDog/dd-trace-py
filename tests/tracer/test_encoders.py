@@ -761,7 +761,6 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
-    from ddtrace.internal.compat import PY3
     import ddtrace.internal.encoding as encoding
     from ddtrace.span import Span
 
@@ -784,11 +783,6 @@ def test_json_encoder_traces_bytes():
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
 
-    if PY3:
-        assert "\\x80span.a" == span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\x80span.b" == span_c["name"]
-    else:
-        assert "\ufffdspan.a" == span_a["name"], span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\ufffdspan.b" == span_c["name"]
+    assert "\\x80span.a" == span_a["name"]
+    assert "\x80span.b" == span_b["name"]
+    assert "\x80span.b" == span_c["name"]

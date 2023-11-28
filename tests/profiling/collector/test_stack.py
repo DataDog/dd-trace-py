@@ -345,10 +345,7 @@ FN_TEMPLATE = """def _f{num}():
   return _f{nump1}()"""
 
 for num in range(MAX_FN_NUM):
-    if six.PY3:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
-    else:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
+    exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
     """def _f{MAX_FN_NUM}():

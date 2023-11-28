@@ -7,7 +7,6 @@ import pytest
 import six
 
 import ddtrace
-from ddtrace.internal.compat import PY3
 
 from ..utils import BaseTestCase
 from ..utils import override_env
@@ -273,12 +272,7 @@ def test_version():
     p.wait()
     assert p.returncode == 0
 
-    # For some reason argparse prints the version to stderr
-    # in Python 2 and stdout in Python 3
-    if PY3:
-        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
-    else:
-        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
 
     p = subprocess.Popen(
         ["ddtrace-run", "--version"],
@@ -287,10 +281,7 @@ def test_version():
     )
     p.wait()
     assert p.returncode == 0
-    if PY3:
-        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
-    else:
-        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
 
 
 def test_bad_executable():
@@ -318,10 +309,7 @@ def test_executable_no_perms():
     assert p.returncode == 1
 
     out = p.stdout.read()
-    if PY3:
-        assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
-    else:
-        assert out.startswith(six.b("ddtrace-run: error launching '%s'" % path))
+    assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
 
 
 def test_command_flags():
