@@ -73,7 +73,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - ``spanID``
       -
     * - ``trace_state``
-      - ``meta["tracestate"]`` 
+      - ``meta["tracestate"]``
       - Datadog vendor-specific data is set in trace state using the ``dd=`` prefix
     * - ``parent_span_id``
       - ``parentID``
