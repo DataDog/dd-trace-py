@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    django: Fixes ``AttributeError`` when using ``StreamingHttpResponse``.
+    django: Resolves ``AttributeError`` raised by traced ``StreamingHttpResponse``.
