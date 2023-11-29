@@ -100,9 +100,9 @@ get_class_name(PyFrameObject* frame)
 {
     const char* result = "";
 #ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(pyframe);
+    PyCodeObject* code = PyFrame_GetCode(frame);
 #else
-    PyCodeObject* code = pyframe->f_code;
+    PyCodeObject* code = frame->f_code;
 #endif
     if (!code)
         goto final;
@@ -122,7 +122,7 @@ get_class_name(PyFrameObject* frame)
 #ifdef _PY39_AND_LATER
     PyObject* locals = PyFrame_GetLocals(frame);
 #else
-    PyObject* locals = pyframe->f_locals;
+    PyObject* locals = frame->f_locals;
 #endif
     if (!locals)
         goto final;
