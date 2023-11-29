@@ -35,14 +35,14 @@ interactions:
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    content: "{\n  \"id\": \"chatcmpl-76n5iUWrirIDc8ldhMryJtvsL5wef\",\n  \"object\":
-      \"chat.completion\",\n  \"created\": 1681853030,\n  \"model\": \"gpt-3.5-turbo-0301\",\n
+    content: "{\n  \"id\": \"chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1681853029,\n  \"model\": \"gpt-3.5-turbo-0301\",\n
       \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-      \"assistant\",\n        \"content\": \"The 2020 World Series was played at Globe
-       Life Field in Arlington, Texas.\"\n      },\n
+      \"assistant\",\n        \"content\": \"The 2020 World Series was played in Arlington,
+      Texas at Globe Life Field.\"\n      },\n
       \     \"finish_reason\": \"stop\"\n    },\n    {\n      \"index\": 1,\n      \"message\":
-      {\n        \"role\": \"assistant\",\n        \"content\": \"The 2020 World Series
-       was played in Globe Life Field in Arlington, Texas.\"\n      },\n
+      {\n        \"role\": \"assistant\",\n        \"content\": \"The 2020 World Series was
+       played at Globe Life Field in Arlington, Texas.\"\n      },\n
       \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
       57,\n    \"completion_tokens\": 34,\n    \"total_tokens\": 91\n  }\n}\n"
     headers:

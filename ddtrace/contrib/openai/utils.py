@@ -30,7 +30,6 @@ def _compute_prompt_token_count(prompt, model):
     """
     num_prompt_tokens = 0
     estimated = False
-
     if model is not None and tiktoken_available is True:
         try:
             enc = encoding_for_model(model)
@@ -104,3 +103,20 @@ def _is_async_generator(resp):
     if hasattr(openai, "AsyncStream") and isinstance(resp, openai.AsyncStream):
         return True
     return False
+
+
+def _tag_tool_calls(integration, span, tool_calls, choice_idx):
+    # type: (...) -> None
+    """
+    Tagging logic if function_call or tool_calls are provided in the chat response.
+    Note: since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
+    """
+    for idy, tool_call in enumerate(tool_calls):
+        if hasattr(tool_call, "function"):
+            # tool_call is further nested in a "function" object
+            tool_call = tool_call.function
+        span.set_tag(
+            "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
+            integration.trunc(str(tool_call.arguments)),
+        )
+        span.set_tag("openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(tool_call.name))
