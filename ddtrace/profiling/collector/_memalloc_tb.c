@@ -168,9 +168,9 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         frame->name = unknown_name;
 
     // Get the class name and prepend to the function name.
-    char *class_name = get_class_name(pyframe);
+    char* class_name = get_class_name(pyframe);
     if (!class_name || !*class_name) {
-        PyObject *new_name = PyUnicode_FromFormat("%s.%U", class_name, frame->name);
+        PyObject* new_name = PyUnicode_FromFormat("%s.%U", class_name, frame->name);
         if (new_name) {
             Py_DECREF(frame->name);
             frame->name = new_name;
@@ -191,7 +191,6 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
 #ifdef _PY39_AND_LATER
     Py_XDECREF(code);
 #endif
-
 }
 
 static traceback_t*
