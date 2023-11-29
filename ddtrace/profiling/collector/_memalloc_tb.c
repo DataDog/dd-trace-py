@@ -99,35 +99,47 @@ static const char*
 get_class_name(PyFrameObject* frame)
 {
     const char* result = "";
-#ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(frame);
+    PyCodeObject* code;
+    PyObject* varnames;
+    PyObject* name;
+    PyObject* locals;
+    PyObject* value;
+    PyObject* clsname;
+
+#if PY_VERSION_HEX >= 0x03090000
+    code = PyFrame_GetCode(frame);
 #else
-    PyCodeObject* code = frame->f_code;
+    code = frame->f_code;
+    Py_INCREF(code);
 #endif
+
     if (!code)
         goto final;
 
-#ifdef _PY39_AND_LATER
-    PyObject* varnames = PyCode_GetVarnames(code);
+#if PY_VERSION_HEX >= 0x030B0000
+    varnames = PyCode_GetVarnames(code);
 #else
-    PyObject* varnames = code->co_varnames;
+    varnames = code->co_varnames;
 #endif
+
     if (!varnames || !PyTuple_Check(varnames) || PyTuple_Size(varnames) <= 0)
         goto final;
 
-    PyObject* name = PyTuple_GetItem(varnames, 0); // Borrowed reference, no need to DECREF.
+    name = PyTuple_GetItem(varnames, 0); // Borrowed reference, no need to DECREF.
     if (!name)
         goto final;
 
-#ifdef _PY39_AND_LATER
-    PyObject* locals = PyFrame_GetLocals(frame);
+#if PY_VERSION_HEX >= 0x03090000
+    locals = PyFrame_GetLocals(frame);
 #else
-    PyObject* locals = frame->f_locals;
+    locals = frame->f_locals;
+    Py_XINCREF(locals); // Increment reference count if locals is not NULL
 #endif
+
     if (!locals)
         goto final;
 
-    PyObject* value = PyDict_GetItem(locals, name); // Borrowed reference. No need to DECREF.
+    value = PyDict_GetItem(locals, name); // Borrowed reference. No need to DECREF.
     if (!value)
         goto final;
 
@@ -139,7 +151,7 @@ get_class_name(PyFrameObject* frame)
         goto final;
     }
 
-    PyObject* clsname = PyObject_GetAttrString(value, "__name__");
+    clsname = PyObject_GetAttrString(value, "__name__");
     if (!clsname)
         goto final;
 
@@ -147,6 +159,12 @@ get_class_name(PyFrameObject* frame)
     Py_DECREF(clsname);
 
 final:
+#if PY_VERSION_HEX >= 0x03090000
+    Py_XDECREF(locals);
+    Py_DECREF(code);
+#else
+    Py_XDECREF(locals);
+#endif
     return result ? result : "";
 }
 
