@@ -23,6 +23,7 @@ from .._taint_tracking import is_pyobject_tainted
 from .._taint_tracking import parse_params
 from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
+from .._taint_tracking import _format_aspect
 from .._taint_tracking._native import aspects  # noqa: F401
 
 
@@ -343,26 +344,7 @@ def format_aspect(
 
     try:
         params = tuple(args) + tuple(kwargs.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
-        if not ranges_orig:
-            return result
-
-        new_template = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-        )
-        fun = (  # noqa: E731
-            lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
-            if isinstance(arg, TEXT_TYPES)
-            else arg
-        )
-
-        new_args = list(map(fun, args))
-
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-        new_result = _convert_escaped_text_to_tainted_text(
-            new_template.format(*new_args, **new_kwargs),
-            ranges_orig=ranges_orig,
-        )
+        new_result = _format_aspect(candidate_text, params, *args, **kwargs)
         if new_result != result:
             raise Exception(
                 "format_aspect result %s is different to candidate_text.format %s"
