@@ -363,6 +363,15 @@ class SpanTestCase(TracerTestCase):
             )
         ]
 
+    # span links cannot have a span_id or trace_id value of 0 or less
+    def test_span_links_error_with_id_0(self):
+        with pytest.raises(ValueError) as exc_trace:
+            SpanLink(span_id=1, trace_id=0)
+        with pytest.raises(ValueError) as exc_span:
+            SpanLink(span_id=0, trace_id=1)
+        assert str(exc_span.value) == "span_id must be > 0. Value is 0"
+        assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
+
 
 @pytest.mark.parametrize(
     "value,assertion",
