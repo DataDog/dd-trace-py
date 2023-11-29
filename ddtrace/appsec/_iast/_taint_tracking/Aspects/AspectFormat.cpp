@@ -36,7 +36,7 @@ api_format_aspect(StrType& candidate_text,
         set_ranges(result_new_id.ptr(), result_ranges);
         return result_new_id;
     }
-    return candidate_text;
+    return py::getattr(candidate_text, "format")(*args, **kwargs);
 }
 
 void
