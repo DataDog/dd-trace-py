@@ -53,11 +53,17 @@ def _start_coverage(root_dir: str):
 
 
 def _stop_coverage(module):
-    if hasattr(module, "_dd_coverage"):
+    if _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
         module._dd_coverage.erase()
         del module._dd_coverage
 
+
+def _module_has_dd_coverage_enabled(module) -> bool:
+    if not hasattr(module, "_dd_coverage"):
+        log.warning("Datadog Coverage has not been initiated")
+        return False
+    return True
 
 def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False) -> bool:
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:

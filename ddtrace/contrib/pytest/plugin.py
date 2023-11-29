@@ -42,7 +42,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled, _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
@@ -320,10 +320,7 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     test_suite_span.set_tag_str(test.SUITE, test_suite_name)
     _store_span(pytest_module_item, test_suite_span)
 
-    if should_enable_coverage:
-        if not hasattr(pytest, "_dd_coverage"):
-            root_directory = str(item.config.rootdir)
-            pytest._dd_coverage = _start_coverage(root_directory)
+    if should_enable_coverage and _module_has_dd_coverage_enabled(pytest):
         fqn_module = _generate_fully_qualified_module_name(test_module_path, test_suite_name)
         _switch_coverage_context(pytest._dd_coverage, fqn_module)
     return test_suite_span
@@ -410,7 +407,7 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
-        if _CIVisibility._instance._collect_coverage_enabled and not hasattr(pytest, "_dd_coverage"):
+        if _CIVisibility._instance._collect_coverage_enabled and not _module_has_dd_coverage_enabled(pytest):
             pytest._dd_coverage = _start_coverage(session.config.rootdir)
 
         _store_span(session, test_session_span)
@@ -425,7 +422,7 @@ def pytest_sessionfinish(session, exitstatus):
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
-        if hasattr(pytest, "_dd_coverage"):
+        if _module_has_dd_coverage_enabled(pytest):
             _stop_coverage(pytest)
         _CIVisibility.disable()
 
@@ -675,14 +672,14 @@ def pytest_runtest_protocol(item, nextitem):
             and not is_skipped
         )
         root_directory = str(item.config.rootdir)
-        if coverage_per_test:
+        if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
             _switch_coverage_context(pytest._dd_coverage, fqn_test)
         # Run the actual test
         yield
 
         # Finish coverage for the test suite if coverage is enabled
-        if coverage_per_test:
+        if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
             _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
@@ -695,6 +692,7 @@ def pytest_runtest_protocol(item, nextitem):
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
+                and _module_has_dd_coverage_enabled(pytest)
             ):
                 _report_coverage_to_span(pytest._dd_coverage, test_suite_span, root_directory)
             test_suite_span.finish()

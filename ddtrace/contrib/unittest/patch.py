@@ -27,7 +27,7 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled, _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
@@ -573,7 +573,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result.stopTest(test=instance)
             else:
                 if _is_test_coverage_enabled(instance):
-                    if not hasattr(unittest, "_dd_coverage"):
+                    if not _module_has_dd_coverage_enabled(unittest):
                         unittest._dd_coverage = _start_coverage(root_directory)
                     _switch_coverage_context(unittest._dd_coverage, fqn_test)
                 result = func(*args, **kwargs)
@@ -806,7 +806,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
             )
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(test_session_span)
-            if hasattr(unittest, "_dd_coverage"):
+            if _module_has_dd_coverage_enabled(unittest):
                 _stop_coverage(unittest)
 
         raise e
@@ -837,7 +837,7 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(_CIVisibility._datadog_session_span)
             del _CIVisibility._datadog_session_span
-            if hasattr(unittest, "_dd_coverage"):
+            if _module_has_dd_coverage_enabled(unittest):
                 _stop_coverage(unittest)
         raise e
 
@@ -849,6 +849,6 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
         _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
         _finish_span(_CIVisibility._datadog_session_span)
         del _CIVisibility._datadog_session_span
-        if hasattr(unittest, "_dd_coverage"):
+        if _module_has_dd_coverage_enabled(unittest):
             _stop_coverage(unittest)
     return result
