@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import sys
 
 import mock
 from mock.mock import ANY
-import pytest
 
 from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
@@ -80,7 +78,6 @@ def _assert_response(mock_send_request, expected_response):
     assert response == expected_response
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):

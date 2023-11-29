@@ -4,7 +4,6 @@ import logging
 import os
 from os import environ
 from os import getpid
-import sys
 from threading import RLock
 from typing import Any
 from typing import Callable
@@ -42,7 +41,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor

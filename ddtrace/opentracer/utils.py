@@ -1,6 +1,6 @@
-from opentracing import ScopeManager
+from opentracing import ScopeManager  # noqa:F401
 
-from ddtrace.provider import BaseContextProvider
+from ddtrace.provider import BaseContextProvider  # noqa:F401
 
 
 # DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,

@@ -126,7 +126,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
     assert name not in sys.modules
 
     # Check that we are not triggering hooks on the wrong module
-    import tests.internal  # noqa
+    import tests.internal  # noqa:F401
 
     hook.assert_not_called()
 
@@ -158,7 +158,7 @@ def test_import_module_hook_for_module_not_yet_imported():
     assert name not in sys.modules
 
     # Check that we are not triggering hooks on the wrong module
-    import tests.internal  # noqa
+    import tests.internal  # noqa:F401
 
     hook.assert_not_called()
 
@@ -305,7 +305,7 @@ def test_module_import_hierarchy():
 
     # Import a nested module to check that we are catching the import of the
     # parents as well
-    import tests.internal.test_module  # noqa
+    import tests.internal.test_module  # noqa:F401
 
     assert {"tests", "tests.internal", "tests.internal.test_module"} <= ImportCatcher.imports, ImportCatcher.imports
 
@@ -323,7 +323,7 @@ def test_post_run_module_hook():
     # hook that gets triggered on module load. Proof of work is given by the
     # generated output. Here we just define a module global variable to ensure
     # that the module is loaded correctly.
-    post_run_module = True  # noqa
+    post_run_module = True  # noqa:F841
 
 
 def test_get_by_origin(module_watchdog):
@@ -359,7 +359,7 @@ def test_module_watchdog_propagation():
     a = Alice._instance
     b = Bob._instance
 
-    import tests.submod.stuff  # noqa
+    import tests.submod.stuff  # noqa:F401
 
     assert a.__modules__ >= {"tests.submod.stuff"}, a.__modules__
     assert b.__modules__ >= {"tests.submod.stuff"}, b.__modules__
@@ -368,7 +368,6 @@ def test_module_watchdog_propagation():
     Alice.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="LazyLoader was introduced in Python 3.5")
 @pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
 def test_module_watchdog_no_lazy_force_load():
     """Test that the module watchdog does not force-load lazy modules.
@@ -392,7 +391,7 @@ def test_module_watchdog_no_lazy_force_load():
 
     lazy = lazy_import("tests.internal.lazy")
 
-    import ddtrace  # noqa
+    import ddtrace  # noqa:F401
 
     print("ddtrace imported")
 
