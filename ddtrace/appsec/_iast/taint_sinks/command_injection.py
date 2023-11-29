@@ -1,6 +1,5 @@
 import os
 import re
-import shlex
 import subprocess  # nosec
 from typing import TYPE_CHECKING
 from typing import List
@@ -84,8 +83,7 @@ def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):
 
 def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
     cmd_args = args[0] if len(args) else kwargs["args"]
-    cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-    _iast_report_cmdi(cmd_args_list)
+    _iast_report_cmdi(cmd_args)
 
     return wrapped(*args, **kwargs)
 
