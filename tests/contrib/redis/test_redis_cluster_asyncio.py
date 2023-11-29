@@ -190,10 +190,7 @@ def test_default_service_name_v1():
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -240,10 +237,7 @@ def test_user_specified_service_v0():
         span = spans[0]
         assert span.service != "mysvc"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -290,10 +284,7 @@ def test_user_specified_service_v1():
         span = spans[0]
         assert span.service == "mysvc"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -332,10 +323,7 @@ def test_env_user_specified_rediscluster_service_v0():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -374,10 +362,7 @@ def test_env_user_specified_rediscluster_service_v1():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -422,10 +407,7 @@ def test_service_precedence_v0():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
@@ -470,7 +452,4 @@ def test_service_precedence_v1():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())

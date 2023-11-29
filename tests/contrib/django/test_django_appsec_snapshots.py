@@ -5,7 +5,6 @@ import subprocess
 import django
 import pytest
 
-from ddtrace.internal.compat import PY3
 import ddtrace.internal.constants as constants
 from tests.appsec.appsec.test_processor import _IP
 from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
@@ -82,6 +81,7 @@ def test_appsec_enabled():
     ignores=[
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
+        "meta.http.response.headers.content-type",  # depends of the Django version
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
@@ -147,7 +147,7 @@ def test_request_ipblock_match_403():
             },
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_HTML
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_HTML, "utf-8")
         assert result.content == as_bytes
 
 
@@ -179,5 +179,5 @@ def test_request_ipblock_match_403_json():
             },
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSONP
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
         assert result.content == as_bytes

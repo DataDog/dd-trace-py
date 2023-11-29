@@ -16,7 +16,6 @@ from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
-from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -172,9 +171,6 @@ class CIVisibility(Service):
         if not coverage_enabled_by_api and not asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
-            return False
-        if compat.PY2:
-            log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
             return False
         if not is_coverage_available():
             log.warning(
