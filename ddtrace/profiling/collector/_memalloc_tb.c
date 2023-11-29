@@ -168,7 +168,7 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         frame->name = unknown_name;
 
     // Get the class name and prepend to the function name.
-    char* class_name = get_class_name(pyframe);
+    const char* class_name = get_class_name(pyframe);
     if (!class_name || !*class_name) {
         PyObject* new_name = PyUnicode_FromFormat("%s.%U", class_name, frame->name);
         if (new_name) {
