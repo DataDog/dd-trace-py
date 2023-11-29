@@ -99,20 +99,20 @@ static const char*
 get_class_name(PyFrameObject* frame)
 {
     const char* result = "";
-    PyCodeObject* code;
-    PyObject* varnames;
-    PyObject* name;
-    PyObject* locals;
-    PyObject* value;
-    PyObject* clsname;
+    PyCodeObject* code = NULL;
+    PyObject* varnames = NULL;
+    PyObject* name = NULL;
+    PyObject* locals = NULL;
+    PyObject* value = NULL;
+    PyObject* clsname = NULL;
 
+    // Get code object
 #if PY_VERSION_HEX >= 0x03090000
     code = PyFrame_GetCode(frame);
 #else
     code = frame->f_code;
     Py_INCREF(code);
 #endif
-
     if (!code)
         goto final;
 
@@ -120,6 +120,7 @@ get_class_name(PyFrameObject* frame)
     varnames = PyCode_GetVarnames(code);
 #else
     varnames = code->co_varnames;
+    Py_INCREF(varnames);
 #endif
 
     if (!varnames || !PyTuple_Check(varnames) || PyTuple_Size(varnames) <= 0)
@@ -139,31 +140,38 @@ get_class_name(PyFrameObject* frame)
     if (!locals)
         goto final;
 
-    value = PyDict_GetItem(locals, name); // Borrowed reference. No need to DECREF.
+    value = PyDict_GetItem(locals, name); // Borrowed reference, no need to DECREF.
     if (!value)
         goto final;
 
+    // Check if 'self' or 'cls' and get type
     if (PyUnicode_CompareWithASCIIString(name, "self") == 0) {
-        value = PyObject_Type(value);
+        value = PyObject_Type(value); // New reference
         if (!value)
             goto final;
     } else if (PyUnicode_CompareWithASCIIString(name, "cls") != 0) {
         goto final;
     }
 
-    clsname = PyObject_GetAttrString(value, "__name__");
+    clsname = PyObject_GetAttrString(value, "__name__"); // New reference
     if (!clsname)
         goto final;
 
     result = PyUnicode_AsUTF8(clsname);
-    Py_DECREF(clsname);
 
 final:
+    // Clean-up
+    Py_XDECREF(clsname);
+    Py_XDECREF(value);
+#if PY_VERSION_HEX >= 0x030B0000
+    Py_XDECREF(varnames);
+#endif
 #if PY_VERSION_HEX >= 0x03090000
     Py_XDECREF(locals);
     Py_DECREF(code);
 #else
     Py_XDECREF(locals);
+    Py_DECREF(code);
 #endif
     return result ? result : "";
 }
