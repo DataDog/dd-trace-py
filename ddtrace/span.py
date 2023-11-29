@@ -2,13 +2,13 @@ import math
 import pprint
 import sys
 import traceback
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
 
@@ -388,10 +388,6 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key: _TagNameType) -> None:
-        if key in self._meta:
-            del self._meta[key]
-
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
@@ -479,7 +475,7 @@ class Span(object):
         if issubclass(exc_type, SystemExit) and exc_val.code == 0:
             return
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa:F401
             return
 
         self.error = 1

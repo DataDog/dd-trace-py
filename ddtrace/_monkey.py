@@ -1,12 +1,11 @@
 import importlib
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal import telemetry
-from .internal.compat import PY2
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
@@ -14,10 +13,10 @@ from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import List
-    from typing import Union
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Union  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -136,7 +135,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
-    "httplib": ("httplib" if PY2 else "http.client",),
+    "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
 }
 

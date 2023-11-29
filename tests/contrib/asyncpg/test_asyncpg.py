@@ -1,5 +1,5 @@
 import os
-from typing import Generator
+from typing import Generator  # noqa:F401
 
 import asyncpg
 import pytest
@@ -187,10 +187,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
@@ -219,10 +216,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
@@ -251,10 +245,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
@@ -282,10 +273,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
@@ -314,10 +302,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version

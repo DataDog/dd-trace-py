@@ -1,11 +1,11 @@
 import re
-from typing import Dict
-from typing import FrozenSet
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import cast
+from typing import Dict  # noqa:F401
+from typing import FrozenSet  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import config
 from ddtrace.tracing._span_link import SpanLink
@@ -839,7 +839,8 @@ class HTTPPropagator(object):
         links = []
         for context in contexts[1:]:
             style_w_ctx = styles_w_ctx[contexts.index(context)]
-            if context.trace_id != primary_context.trace_id:
+            # encoding expects at least trace_id and span_id
+            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
                 links.append(
                     SpanLink(
                         context.trace_id,

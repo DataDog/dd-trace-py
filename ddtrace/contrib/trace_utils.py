@@ -4,18 +4,18 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import Iterator
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
-from typing import cast
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
@@ -39,9 +39,9 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace import Span  # noqa:F401
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -498,10 +498,13 @@ def set_http_meta(
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
-                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+                request_ip = (
+                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+                )
 
-            span.set_tag_str(http.CLIENT_IP, request_ip)
-            span.set_tag_str("network.client.ip", request_ip)
+            if request_ip:
+                span.set_tag_str(http.CLIENT_IP, request_ip)
+                span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -688,3 +691,7 @@ def extract_netloc_and_query_info_from_url(url):
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information
     return netloc, query
+
+
+class InterruptException(Exception):
+    pass

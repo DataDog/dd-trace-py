@@ -4,7 +4,6 @@ import logging
 import os
 from os import environ
 from os import getpid
-import sys
 from threading import RLock
 from typing import Any
 from typing import Callable
@@ -42,7 +41,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor
@@ -752,8 +750,6 @@ class Tracer(object):
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
 
-        Python 2 will not submit logs to stderr if no handler is configured.
-
         Instead, something like this will be printed to stderr:
             No handlers could be found for logger "ddtrace.tracer"
 
@@ -761,10 +757,7 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not hasHandlers(log):
-            sys.stderr.write("%s\n" % msg)
-        else:
-            log.log(level, msg)
+        log.log(level, msg)
 
     def trace(
         self,

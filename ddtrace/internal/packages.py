@@ -1,15 +1,14 @@
 import logging
 import os
-import sys
 import typing as t
 
 from ddtrace.internal.utils.cache import callonce
 
 
 try:
-    import pathlib
+    import pathlib  # noqa: F401
 except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]
+    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
 
 
 LOG = logging.getLogger(__name__)
@@ -31,10 +30,6 @@ except AttributeError:
         """
         if isinstance(path, (str, bytes)):
             return path
-
-        # Hack for Python 3.5: there's no __fspath__ :(
-        if sys.version_info[:2] == (3, 5) and isinstance(path, pathlib.Path):
-            return str(path)
 
         # Work from the object's type to match method resolution of other magic
         # methods.
@@ -131,8 +126,3 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
-
-
-def is_third_party(filename):
-    # type: (str) -> bool
-    return filename_to_package(filename) is not None

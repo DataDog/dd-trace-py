@@ -1,6 +1,6 @@
 import os
 import sys
-import typing
+import typing  # noqa:F401
 
 
 def get_application_name():

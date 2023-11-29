@@ -12,7 +12,6 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -467,8 +466,6 @@ class _ThreadSpanLinks(_thread_span_links_base):
 
 
 def _default_min_interval_time():
-    if six.PY2:
-        return 0.01
     return sys.getswitchinterval() * 2
 
 
