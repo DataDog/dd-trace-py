@@ -1,8 +1,10 @@
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
+from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import agent
 from .. import service
@@ -23,13 +25,10 @@ from .encoder import CIVisibilityEncoderV01
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict
-    from typing import List
-    from typing import Optional
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
 
-    from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from ...sampler import BaseSampler
+    from ...sampler import BaseSampler  # noqa:F401
 
 
 class CIVisibilityEventClient(WriterClientBase):
