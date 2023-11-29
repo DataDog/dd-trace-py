@@ -94,6 +94,48 @@ traceback_free(traceback_t* tb)
     PyMem_RawFree(tb);
 }
 
+/* Helper function for extracting the classname from a PyFrameObject */
+static const char *get_class_name(PyFrameObject *frame) {
+    const char *result = "";
+    PyCodeObject *code = PyFrame_GetCode(frame);
+    if (!code)
+        goto final;
+
+    PyObject *varnames = PyCode_GetVarnames(code);
+    if (!varnames || !PyTuple_Check(varnames) || PyTuple_Size(varnames) <= 0)
+        goto final;
+
+    PyObject *name = PyTuple_GetItem(varnames, 0);  // Borrowed reference, no need to DECREF.
+    if (!name)
+        goto final;
+
+    PyObject *locals = PyFrame_GetLocals(frame);
+    if (!locals)
+        goto final;
+
+    PyObject *value = PyDict_GetItem(locals, name);  // Borrowed reference. No need to DECREF.
+    if (!value)
+        goto final;
+
+    if (PyUnicode_CompareWithASCIIString(name, "self") == 0) {
+        value = PyObject_Type(value);  // Gets the type of 'self'
+        if (!value)
+            goto final;
+    } else if (PyUnicode_CompareWithASCIIString(name, "cls") != 0) {
+        goto final;
+    }
+
+    PyObject *clsname = PyObject_GetAttrString(value, "__name__");
+    if (!clsname)
+        goto final;
+
+    result = PyUnicode_AsUTF8(clsname);
+    Py_DECREF(clsname);  // DECREF after using.
+
+final:
+    return result ? result : "";
+}
+
 /* Convert PyFrameObject to a frame_t that we can store in memory */
 static void
 memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
@@ -125,7 +167,19 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
     else
         frame->name = unknown_name;
 
-    Py_INCREF(frame->name);
+    // Get the class name and prepend to the function name.
+    char *class_name = get_class_name(pyframe);
+    if (!class_name || !*class_name) {
+        PyObject *new_name = PyUnicode_FromFormat("%s.%U", class_name, frame->name);
+        if (new_name) {
+            Py_DECREF(frame->name);
+            frame->name = new_name;
+        } else {
+            // If we couldn't get the class name, just use the function name,
+            // but increment the reference count.
+            Py_INCREF(frame->name);
+        }
+    }
 
     if (filename)
         frame->filename = filename;
@@ -137,6 +191,7 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
 #ifdef _PY39_AND_LATER
     Py_XDECREF(code);
 #endif
+
 }
 
 static traceback_t*
