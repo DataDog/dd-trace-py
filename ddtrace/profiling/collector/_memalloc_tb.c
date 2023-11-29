@@ -99,11 +99,19 @@ static const char*
 get_class_name(PyFrameObject* frame)
 {
     const char* result = "";
-    PyCodeObject* code = PyFrame_GetCode(frame);
+#ifdef _PY39_AND_LATER
+    PyCodeObject* code = PyFrame_GetCode(pyframe);
+#else
+    PyCodeObject* code = pyframe->f_code;
+#endif
     if (!code)
         goto final;
 
+#ifdef _PY39_AND_LATER
     PyObject* varnames = PyCode_GetVarnames(code);
+#else
+    PyObject* varnames = code->co_varnames;
+#endif
     if (!varnames || !PyTuple_Check(varnames) || PyTuple_Size(varnames) <= 0)
         goto final;
 
@@ -111,7 +119,11 @@ get_class_name(PyFrameObject* frame)
     if (!name)
         goto final;
 
+#ifdef _PY39_AND_LATER
     PyObject* locals = PyFrame_GetLocals(frame);
+#else
+    PyObject* locals = pyframe->f_locals;
+#endif
     if (!locals)
         goto final;
 
