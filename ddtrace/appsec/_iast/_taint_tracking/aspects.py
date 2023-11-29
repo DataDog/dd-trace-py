@@ -346,8 +346,8 @@ def format_aspect(
         new_result = _format_aspect(candidate_text, params, *args, **kwargs)
         if new_result != result:
             raise Exception(
-                "format_aspect result %s is different to candidate_text.format %s"
-                % (result, candidate_text.format(*args))
+                "Propagation result %s is different to candidate_text.format %s"
+                % (new_result, result)
             )
         return new_result
     except Exception as e:
