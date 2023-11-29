@@ -65,6 +65,7 @@ def _module_has_dd_coverage_enabled(module) -> bool:
         return False
     return True
 
+
 def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False) -> bool:
     if not coverage_data._collector or len(coverage_data._collector.data) == 0:
         if not silent_mode:
