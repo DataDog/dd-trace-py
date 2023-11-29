@@ -28,13 +28,8 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
-if sys.version_info >= (3, 0):
-    from urllib.error import HTTPError
-    from urllib.request import urlretrieve
-else:
-    from urllib import urlretrieve
-
-    from urllib2 import HTTPError
+from urllib.error import HTTPError
+from urllib.request import urlretrieve
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -95,21 +90,12 @@ def load_module_from_project_file(mod_name, fname):
     """
     fpath = os.path.join(HERE, fname)
 
-    if sys.version_info >= (3, 5):
-        import importlib.util
+    import importlib.util
 
-        spec = importlib.util.spec_from_file_location(mod_name, fpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    elif sys.version_info >= (3, 3):
-        from importlib.machinery import SourceFileLoader
-
-        return SourceFileLoader(mod_name, fpath).load_module()
-    else:
-        import imp
-
-        return imp.load_source(mod_name, fpath)
+    spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def is_64_bit_python():
@@ -323,8 +309,7 @@ class CMakeBuild(build_ext):
 
         if not DEBUG_COMPILE:
             try:
-                if not DEBUG_COMPILE:
-                    self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
                 raise
@@ -480,7 +465,7 @@ else:
     else:
         debug_compile_args = []
 
-if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
+if not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
