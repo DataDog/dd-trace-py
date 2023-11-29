@@ -750,8 +750,6 @@ class Tracer(object):
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
 
-        Python 2 will not submit logs to stderr if no handler is configured.
-
         Instead, something like this will be printed to stderr:
             No handlers could be found for logger "ddtrace.tracer"
 
@@ -759,10 +757,7 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not hasHandlers(log):
-            sys.stderr.write("%s\n" % msg)
-        else:
-            log.log(level, msg)
+        log.log(level, msg)
 
     def trace(
         self,

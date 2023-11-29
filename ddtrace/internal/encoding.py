@@ -8,8 +8,6 @@ from typing import Optional
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
-from .compat import PY3
-from .compat import binary_type
 from .compat import ensure_text
 from .logger import get_logger
 
@@ -112,11 +110,7 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
         if obj is None:
             return obj
 
-        if PY3:
-            return ensure_text(obj, errors="backslashreplace")
-        elif isinstance(obj, binary_type):
-            return obj.decode("utf-8", errors="replace")
-        return obj
+        return ensure_text(obj, errors="backslashreplace")
 
 
 class JSONEncoderV2(JSONEncoder):
@@ -147,13 +141,6 @@ class JSONEncoderV2(JSONEncoder):
         if not dd_id:
             return "0000000000000000"
         return "%0.16X" % int(dd_id)
-
-    @staticmethod
-    def _decode_id_to_hex(hex_id):
-        # type: (Optional[str]) -> int
-        if not hex_id:
-            return 0
-        return int(hex_id, 16)
 
 
 MSGPACK_ENCODERS = {

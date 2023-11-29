@@ -8,7 +8,6 @@ import operator
 import os
 import random
 import re
-import sys
 import threading
 from typing import TYPE_CHECKING
 from typing import Any
@@ -176,27 +175,19 @@ def do_encode_from_dict(s, encoding="utf-8", errors="strict"):
 
 
 def do_str_to_bytes(s):  # type: (str) -> bytes
-    if sys.version_info[0] >= 3:
-        return bytes(s, encoding="utf-8")
-    return bytes(s)
+    return bytes(s, encoding="utf-8")
 
 
 def do_str_to_bytearray(s):  # type: (str) -> bytearray
-    if sys.version_info[0] >= 3:
-        return bytearray(s, encoding="utf-8")
-    return bytearray(s)
+    return bytearray(s, encoding="utf-8")
 
 
 def do_str_to_bytes_to_bytearray(s):  # type: (str) -> bytearray
-    if sys.version_info[0] >= 3:
-        return bytearray(bytes(s, encoding="utf-8"))
-    return bytearray(bytes(s))
+    return bytearray(bytes(s, encoding="utf-8"))
 
 
 def do_str_to_bytes_to_bytearray_to_str(s):  # type: (str) -> str
-    if sys.version_info[0] >= 3:
-        return str(bytearray(bytes(s, encoding="utf-8")), encoding="utf-8")
-    return str(bytearray(bytes(s)))
+    return str(bytearray(bytes(s, encoding="utf-8")), encoding="utf-8")
 
 
 def do_bytearray_to_bytes(s):  # type: (bytearray) -> bytes
@@ -214,15 +205,11 @@ def do_bytearray_extend(ba, b):  # type: (bytearray, bytearray) -> None
 
 
 def do_bytes_to_str(b):  # type: (bytes) -> str
-    if sys.version_info[0] >= 3:
-        return str(b, encoding="utf-8")
-    return str(b)
+    return str(b, encoding="utf-8")
 
 
 def do_bytearray_to_str(b):  # type: (bytearray) -> str
-    if sys.version_info[0] >= 3:
-        return str(b, encoding="utf-8")
-    return str(b)
+    return str(b, encoding="utf-8")
 
 
 def do_bytes_to_bytearray(s):  # type: (bytes) -> bytearray

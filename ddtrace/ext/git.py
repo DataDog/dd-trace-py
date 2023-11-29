@@ -21,10 +21,7 @@ from ddtrace.internal.compat import TemporaryDirectory
 from ddtrace.internal.logger import get_logger
 
 
-if six.PY2:
-    GitNotFoundError = OSError
-else:
-    GitNotFoundError = FileNotFoundError
+GitNotFoundError = FileNotFoundError
 
 # Git Branch
 BRANCH = "git.branch"

@@ -16,7 +16,6 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
-from ...internal.compat import PY2
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
@@ -71,11 +70,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def __next__(self):
         return self.__wrapped__.__next__()
-
-    if PY2:
-        # Python 2 iterators use `next`
-        def next(self):  # noqa: A001
-            return self.__wrapped__.next()
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
