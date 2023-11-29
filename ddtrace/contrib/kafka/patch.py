@@ -244,5 +244,5 @@ def serialize_key(instance, topic, key, headers):
                 log.warning("Failed to set Consumer key tag: ", key, exc_info=True)
                 return None
         else:
-            log.warning("Failed to set Consumer key tag, no method available to serialize key: ", key, exc_info=True)
+            log.warning("Failed to set Consumer key tag, no method available to serialize key: %s", str(key))
             return None
