@@ -677,7 +677,6 @@ def pytest_runtest_protocol(item, nextitem):
             if not hasattr(pytest, "_dd_coverage"):
                 pytest._dd_coverage = _start_coverage(root_directory)
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
-            pytest._dd_coverage._collector.resume()
             _switch_coverage_context(pytest._dd_coverage, fqn_test)
         # Run the actual test
         yield
@@ -685,7 +684,6 @@ def pytest_runtest_protocol(item, nextitem):
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
             _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
-            pytest._dd_coverage._collector.pause()
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
