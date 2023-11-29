@@ -71,7 +71,6 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
-    coverage_data._collector.resume()  # type: ignore[union-attr]
     coverage_data.switch_context(unique_test_name)
 
 
@@ -83,7 +82,6 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )
-    coverage_data._collector.pause()  # type: ignore[union-attr]
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
