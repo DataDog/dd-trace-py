@@ -1,5 +1,4 @@
 import sqlite3
-import sys
 import time
 from typing import TYPE_CHECKING  # noqa:F401
 
