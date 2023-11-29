@@ -410,6 +410,8 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
+        if _CIVisibility._instance._collect_coverage_enabled and not hasattr(pytest, "_dd_coverage"):
+            pytest._dd_coverage = _start_coverage(session.config.rootdir)
 
         _store_span(session, test_session_span)
 
@@ -674,8 +676,6 @@ def pytest_runtest_protocol(item, nextitem):
         )
         root_directory = str(item.config.rootdir)
         if coverage_per_test:
-            if not hasattr(pytest, "_dd_coverage"):
-                pytest._dd_coverage = _start_coverage(root_directory)
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
             _switch_coverage_context(pytest._dd_coverage, fqn_test)
         # Run the actual test
