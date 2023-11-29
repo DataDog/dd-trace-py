@@ -1,0 +1,100 @@
+interactions:
+- request:
+    body: '{"data": {"type": "records", "attributes": {"tags": ["src:integration"],
+      "model": "ada", "model_provider": "openai", "records": [{"type":
+      "completion", "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6", "timestamp": 1681852797000,
+      "input": {"prompts": ["who broke enigma?"], "temperature": 0, "max_tokens":
+      256}, "output": {"completions": [{"content": "\n\nThe Enigma code was broken
+      by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]}},
+      {"type": "completion", "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6", "timestamp":
+      1681852797000, "input": {"prompts": ["who broke enigma?"], "temperature": 0,
+      "max_tokens": 256}, "output": {"completions": [{"content": "\n\nThe Enigma code
+      was broken by a team of codebreakers at Bletchley Park, led by mathematician
+      Alan Turing."}]}}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+      DD-APPLICATION-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+  response:
+    body:
+      string: '{"data":{"id":"f4f3df38-be21-42e6-8f32-2b591adda846","type":"records","attributes":{"model":"ada","model_provider":"openai","records":[{"id":"cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6","type":"completion","timestamp":1681852797000,"input":{"prompts":["who
+        broke enigma?"],"embeddings":null,"max_tokens":256},"output":{"completions":[{"id":"2b549262-6b23-4053-808c-9b2061a3b45f","content":"\n\nThe
+        Enigma code was broken by a team of codebreakers at Bletchley Park, led by
+        mathematician Alan Turing."}],"durations":null,"errors":null,"completion_tokens":null,"total_tokens":null,"rate_limit_requests":null,"rate_limit_tokens":null}},{"id":"cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6","type":"completion","timestamp":1681852797000,"input":{"prompts":["who
+        broke enigma?"],"embeddings":null,"max_tokens":256},"output":{"completions":[{"id":"fbe57142-5fa3-47c7-9295-b0950547d6d1","content":"\n\nThe
+        Enigma code was broken by a team of codebreakers at Bletchley Park, led by
+        mathematician Alan Turing."}],"durations":null,"errors":null,"completion_tokens":null,"total_tokens":null,"rate_limit_requests":null,"rate_limit_tokens":null}}],"tags":["src:integration","openai.model:yun_test_demo_model","model_provider:openai","datashield_policy:default"]}}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1248'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Wed, 15 Nov 2023 20:14:56 GMT
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "records", "attributes": {"tags": ["src:integration"],
+      "model": "gpt-3.5-turbo", "model_provider": "openai", "records": [{"type":
+      "chat", "id": "chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu", "timestamp": 1681853029000,
+      "input": {"messages": [{"role": "system", "content": "You are an evil dark lord
+      looking for his one ring to rule them all"}, {"role": "user", "content": "I
+      am a hobbit looking to go to Mordor"}], "temperature": 0.9, "max_tokens": 256},
+      "output": {"completions": [{"content": "Ah, a bold and foolish hobbit seeking
+      to challenge my dominion in Mordor. Very well, little creature, I shall play
+      along. But know that I am always watching, and your quest will not go unnoticed",
+      "role": "assistant"}]}}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+      DD-APPLICATION-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+  response:
+    body:
+      string: '{"data":{"id":"eeee4cb1-a8ff-4227-b130-731b294f45ce","type":"records","attributes":{"model":"gpt-3.5-turbo","model_provider":"openai","records":[{"id":"chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu","type":"chat","timestamp":1681853029000,"input":{"messages":[{"content":"You
+        are an evil dark lord looking for his one ring to rule them all","role":"system"},{"content":"I
+        am a hobbit looking to go to Mordor","role":"user"}],"embeddings":null,"max_tokens":256,"temperature":0.9},"output":{"completions":[{"id":"840ca54e-2e2c-4ebf-8cee-15e87043c534","content":"Ah,
+        a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very
+        well, little creature, I shall play along. But know that I am always watching,
+        and your quest will not go unnoticed","role":"assistant"}],"durations":null,"errors":null,"completion_tokens":null,"total_tokens":null,"rate_limit_requests":null,"rate_limit_tokens":null}}],"tags":["src:integration","openai.model:yun_test_demo_model","model_provider:openai","datashield_policy:default"]}}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1023'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Wed, 15 Nov 2023 20:14:58 GMT
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

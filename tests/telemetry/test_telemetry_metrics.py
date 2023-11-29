@@ -1,4 +1,3 @@
-import sys
 from time import sleep
 
 from mock.mock import ANY
@@ -368,7 +367,6 @@ def test_send_log_metric_simple(telemetry_writer, test_agent_session, mock_time)
     _assert_logs(test_agent_session, expected_payload)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only, tags order fails on 2.7 and 3.5")
 def test_send_log_metric_simple_tags(telemetry_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     telemetry_writer.add_log("WARNING", "test error 1", tags={"a": "b", "c": "d"})
