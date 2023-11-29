@@ -1,10 +1,10 @@
 import re
-from typing import AsyncGenerator
-from typing import Generator
-from typing import List
-from typing import Optional
-from typing import Tuple
-from typing import Union
+from typing import AsyncGenerator  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 

@@ -1,11 +1,10 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType
-import typing
+from types import ModuleType  # noqa:F401
+import typing  # noqa:F401
 
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.module import find_loader
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 

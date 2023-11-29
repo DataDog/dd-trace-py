@@ -10,6 +10,6 @@ import pytest
 def test_auto():
     import sys
 
-    import ddtrace.auto  # noqa
+    import ddtrace.auto  # noqa:F401
 
     assert "threading" not in sys.modules
