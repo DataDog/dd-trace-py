@@ -756,12 +756,6 @@ def get_aws_trace_headers(headers_string):
 
 def extract_trace_context_json(message):
     context_json = None
-
-    if "Body" in message:
-        try:
-            message = json.loads(message["Body"])
-        except ValueError:
-            log.debug("Unable to parse message body, treat as non-json")
     if message and message.get("Type") == "Notification":
         # This is potentially a DSM SNS notification
         if (
@@ -787,4 +781,13 @@ def extract_trace_context_json(message):
     elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
         # this message contains AWS tracing propagation
         context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+
+    if context_json is None:
+        # AWS SNS holds attributes within message body
+        if "Body" in message:
+            try:
+                body = json.loads(message["Body"])
+                return extract_trace_context_json(body)
+            except ValueError:
+                log.debug("Unable to parse AWS message body.")
     return context_json

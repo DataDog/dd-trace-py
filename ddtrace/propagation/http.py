@@ -831,8 +831,8 @@ class AWSXRayPropagator:
                         continue
                     # this is the encoded trace id with a prefix of 0's
                     elif i == 2 and len(aws_trace_id_segments) == 3:
-                        # remove additional padding and convert from hex
-                        dd_trace_id = aws_trace_id_segments[i].replace("00000000", "")
+                        # remove additional front padding and convert from hex
+                        dd_trace_id = aws_trace_id_segments[i][8:]
                         trace_id = int(dd_trace_id, 16)
 
             elif key == "parent":

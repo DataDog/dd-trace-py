@@ -615,6 +615,57 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.parent_id == produce_span.span_id
             assert consume_span.trace_id == produce_span.trace_id
 
+    @mock_sqs
+    def test_sqs_send_message_distributed_tracing_using_xray_headers(self):
+        # this test is to ensure compatability with AWS Xray header trace injection done by Java tracer
+        with self.override_config("botocore", dict(distributed_tracing=False)):
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            pin = Pin.get_from(self.sqs_client)
+
+            with pin.tracer.trace(
+                "distributed_tracing_span",
+                service=self.TEST_SERVICE,
+                span_type="Custom",
+            ) as span:
+                trace_id = span.trace_id
+                span_id = span.span_id
+                sampled = "1" if span.sampled is True else "0"
+                aws_trace_header = f"Root=1-00000000-00000000{hex(trace_id)};Parent={hex(span_id)};Sampled={sampled}"
+
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"],
+                    MessageBody="world",
+                    MessageSystemAttributes={
+                        "AWSTraceHeader": {
+                            "DataType": "String",
+                            # add manual AWSTraceHeader to replicate Java context injection
+                            "StringValue": aws_trace_header,
+                        }
+                    },
+                )
+        # Turn distributed tracing on after message is sent so automatic context injection isn't added
+        with self.override_config("botocore", dict(distributed_tracing=True)):
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["All"],
+                WaitTimeSeconds=5,
+            )
+
+            assert len(response["Messages"]) == 1
+            trace_in_message = "Attributes" in response["Messages"][0]
+            assert trace_in_message is True
+
+            spans = self.get_spans()
+            assert len(spans) == 3
+            consume_span = spans[2]
+
+            assert consume_span.get_tag("aws.operation") == "ReceiveMessage"
+            assert consume_span.parent_id == span_id
+            assert consume_span.trace_id == trace_id
+
     @mock_sns
     @mock_sqs
     def test_distributed_tracing_sns_to_sqs(self):
