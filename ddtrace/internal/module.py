@@ -22,6 +22,8 @@ from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.packages import filename_to_package
 
 
 ModuleHookType = Callable[[ModuleType], None]
@@ -384,6 +386,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def after_import(self, module):
         # type: (ModuleType) -> None
         module_path = origin(module)
+        with telemetry_writer._lock:
+            telemetry_writer._new_dependencies.add(module)
         path = str(module_path) if module_path is not None else None
         if path is not None:
             self._origin_map[path] = module

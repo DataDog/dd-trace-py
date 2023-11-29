@@ -7,13 +7,13 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.packages import get_distributions, Distribution
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
 from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_dependencies
+from ddtrace.internal.telemetry.data import update_imported_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.settings.asm import config as asm_config
@@ -177,11 +177,38 @@ def test_get_container_id_when_container_does_not_exists():
         assert _get_container_id() == ""
 
 
-def test_get_dependencies():
-    """asserts that get_dependencies and get_distributions return the same packages"""
-    pkgs_as_dicts = {(dep["name"], dep["version"]) for dep in get_dependencies()}
-    pkgs_as_distributions = {(dist.name, dist.version) for dist in get_distributions()}
-    assert pkgs_as_dicts == pkgs_as_distributions
+def test_update_imported_dependencies_both_empty():
+    already_imported = {}
+    new_modules = []
+    res = update_imported_dependencies(already_imported, new_modules)
+    assert res == []
+    assert already_imported == {}
+    assert new_modules == []
+
+
+def test_update_imported_dependencies():
+    import numpy
+    already_imported = {}
+    res = update_imported_dependencies(already_imported, [numpy])
+    assert len(res) == 1
+    assert res[0]["name"] == "numpy"
+    assert res[0]["version"]
+    assert "numpy" in already_imported
+    assert isinstance(already_imported["numpy"], Distribution)
+    assert already_imported["numpy"].name == "numpy"
+    assert already_imported["numpy"].version == res[0]["version"]
+
+    import typing
+    import pytest
+    res = update_imported_dependencies(already_imported, [numpy, typing, pytest])
+    assert len(res) == 1  # typing is stdlib so should not be in the result
+    assert res[0]["name"] == "pytest"
+    assert res[0]["version"]
+    assert len(already_imported) == 2
+    assert "pytest" in already_imported
+    assert isinstance(already_imported["pytest"], Distribution)
+    assert already_imported["pytest"].name == "pytest"
+    assert already_imported["pytest"].version == res[0]["version"]
 
 
 def test_enable_products(run_python_code_in_subprocess):

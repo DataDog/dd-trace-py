@@ -1,18 +1,22 @@
 import platform
 import sys
+import typing
 from typing import Dict
 from typing import List
 from typing import Tuple
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
-from ...settings import _config as config
 from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
+
+if typing.TYPE_CHECKING:
+    from ddtrace.internal.packages import Distribution
+    from types import ModuleType
 
 
 def _format_version_info(vi):
@@ -70,11 +74,25 @@ def _get_application(key):
     }
 
 
-def get_dependencies():
-    # type: () -> List[Dict[str, str]]
-    """Returns a unique list of the names and versions of all installed packages"""
-    dependencies = {(dist.name, dist.version) for dist in get_distributions()}
-    return [{"name": name, "version": version} for name, version in dependencies]
+def update_imported_dependencies(already_imported, new_modules):
+    # type: (Dict[str, Distribution], List[ModuleType]) -> List[Dict[str, str]]
+    deps = []
+    from ddtrace.internal.module import origin
+
+    for module in new_modules:
+        module_path = origin(module)
+        if not module_path:
+            continue
+        try:
+            package = filename_to_package(str(module_path.resolve()))
+            if not package or (package.name in already_imported):
+                continue  # not third party or already imported
+        except AttributeError:
+            continue
+        already_imported[package.name] = package
+        deps.append({"name": package.name, "version": package.version})
+
+    return deps
 
 
 def get_application(service, version, env):

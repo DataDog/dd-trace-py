@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from typing import Any
 from typing import Dict
@@ -7,8 +8,8 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_dependencies
+from ddtrace.internal.module import origin
+from ddtrace.internal.telemetry.data import get_application, update_imported_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
@@ -260,8 +261,55 @@ def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, moc
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
-    payload = {"dependencies": get_dependencies()}
+    already_imported = {}
+    payload = {"dependencies": update_imported_dependencies(already_imported, list(sys.modules.values()))}
     assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
+
+
+def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
+    import numpy
+    new_deps = [numpy]
+    telemetry_writer._update_dependencies_event(new_deps)
+    # force a flush
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    assert "payload" in events[0]
+    assert "dependencies" in events[0]["payload"]
+    assert len(events[0]["payload"]["dependencies"]) == 1
+    assert events[0]["payload"]["dependencies"][0]["name"] == "numpy"
+    assert "numpy" in telemetry_writer._imported_dependencies
+    assert telemetry_writer._imported_dependencies["numpy"].name == "numpy"
+    assert telemetry_writer._imported_dependencies["numpy"].version
+
+
+def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
+    import string
+    new_deps = [string]
+    telemetry_writer._update_dependencies_event(new_deps)
+    # force a flush
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+    assert not events[0]["payload"]
+
+
+def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
+    import numpy
+    new_deps = [numpy]
+    telemetry_writer._update_dependencies_event(new_deps)
+    # force a flush
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert events[0]["payload"]["dependencies"][0]["name"] == "numpy"
+
+    telemetry_writer._update_dependencies_event(new_deps)
+    # force a flush
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 2
+    assert events[0]["seq_id"] == 2
+    assert not events[0]["payload"]
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
