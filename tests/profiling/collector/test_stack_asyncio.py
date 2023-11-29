@@ -81,7 +81,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     for event in stack_sample_events:
         wall_time_ns[event.task_name] += event.wall_time_ns
         first_line_this_test_class = test_asyncio.__code__.co_firstlineno
-        co_filename, lineno, co_name, class_name = event.frames[0]
+        co_filename, lineno, co_name = event.frames[0]
         if event.task_name == "main":
             assert event.thread_name == "MainThread"
             assert len(event.frames) == 1
