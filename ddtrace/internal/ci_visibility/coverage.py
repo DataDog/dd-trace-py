@@ -43,7 +43,9 @@ def _initialize_coverage(root_dir):
             "*/site-packages/*",
         ],
     }
-    return Coverage(**coverage_kwargs)
+    cov_object = Coverage(**coverage_kwargs)
+    cov_object.set_option("run:parallel", True)
+    return cov_object
 
 
 def _start_coverage(root_dir: str):
