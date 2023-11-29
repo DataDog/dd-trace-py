@@ -130,7 +130,7 @@ get_class_name(PyFrameObject* frame)
     if (!name)
         goto final;
 
-#if PY_VERSION_HEX >= 0x03090000
+#if PY_VERSION_HEX >= 0x030B0000
     locals = PyFrame_GetLocals(frame);
 #else
     locals = frame->f_locals;
