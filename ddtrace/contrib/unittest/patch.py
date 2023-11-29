@@ -27,7 +27,8 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled, _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
