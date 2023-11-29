@@ -3,9 +3,9 @@ import json
 import multiprocessing
 import os
 import sys
-from typing import Any
-from typing import Dict
-from typing import Mapping
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Mapping  # noqa:F401
 from uuid import UUID
 
 from ddtrace.internal.compat import to_unicode

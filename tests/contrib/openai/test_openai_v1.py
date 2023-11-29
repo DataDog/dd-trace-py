@@ -1,5 +1,4 @@
 import os
-import sys
 from typing import AsyncGenerator
 from typing import Generator
 
