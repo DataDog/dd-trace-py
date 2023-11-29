@@ -666,10 +666,28 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.parent_id == span_id
             assert consume_span.trace_id == trace_id
 
+    def test_distributed_tracing_sns_to_sqs_works(self):
+        # DEV: We want to mock time to ensure we only create a single bucket
+        self._test_distributed_tracing_sns_to_sqs(False)
+
+    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.patch"], "_encode_data")
+    def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
+        """
+        Moto doesn't currently handle raw delivery message handling quite correctly.
+        In the real world, AWS will encode data for us. Moto does not.
+
+        So, we patch our code here to encode the data
+        """
+
+        def _moto_compatible_encode(trace_data):
+            return base64.b64encode(json.dumps(trace_data).encode("utf-8"))
+
+        mock_encode.side_effect = _moto_compatible_encode
+        self._test_distributed_tracing_sns_to_sqs(True)
+
     @mock_sns
     @mock_sqs
-    def test_distributed_tracing_sns_to_sqs(self):
-        # DEV: We want to mock time to ensure we only create a single bucket
+    def _test_distributed_tracing_sns_to_sqs(self, raw_message_delivery):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
@@ -682,6 +700,13 @@ class BotocoreTest(TracerTestCase):
             url_parts = sqs_url.split("/")
             sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
             subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+            if raw_message_delivery:
+                sns.set_subscription_attributes(
+                    SubscriptionArn=subscription["SubscriptionArn"],
+                    AttributeName="RawMessageDelivery",
+                    AttributeValue="true",
+                )
 
             Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
             Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
@@ -710,7 +735,10 @@ class BotocoreTest(TracerTestCase):
             assert publish_span.resource == "sns.publish"
 
             assert len(response["Messages"]) == 1
-            trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
+            if raw_message_delivery:
+                trace_in_message = "MessageAttributes" in response["Messages"][0]
+            else:
+                trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
             assert trace_in_message is True
 
             consume_span = spans[1]
