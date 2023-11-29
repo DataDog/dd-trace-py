@@ -2350,7 +2350,7 @@ class BotocoreTest(TracerTestCase):
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
-        Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+        Pin.get_from(sns).clone(tracer=self.tracer).onto(self.sqs_client)
         entries = [
             {
                 "Id": "1",
@@ -2417,7 +2417,7 @@ class BotocoreTest(TracerTestCase):
 
         consume_span = spans[1]
 
-        assert span.get_tag("aws.operation") == "ReceiveMessage"
+        assert consume_span.get_tag("aws.operation") == "ReceiveMessage"
 
         assert consume_span.parent_id == span.span_id
         assert consume_span.trace_id == span.trace_id
