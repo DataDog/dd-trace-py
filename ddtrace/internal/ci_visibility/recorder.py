@@ -38,7 +38,7 @@ from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
-from .git_client import CIVisibilityGitClient
+from .git_client import CIVisibilityGitClient, METADATA_UPLOAD_STATUS
 from .telemetry.constants import ERROR_TYPES
 from .telemetry.git import record_settings
 from .writer import CIVisibilityWriter
@@ -119,6 +119,10 @@ class CIVisibility(Service):
             else:
                 self.tracer = Tracer()
 
+        self._configurations = ci._get_runtime_and_os_metadata()
+        if custom_configurations := _get_custom_configurations():
+            self._configurations["custom"] = custom_configurations
+
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
@@ -128,6 +132,7 @@ class CIVisibility(Service):
         self._service = service
         self._codeowners = None
         self._root_dir = None
+        self._should_upload_git_metadata = False
 
         int_service = None
         if self.config is not None:
@@ -154,15 +159,15 @@ class CIVisibility(Service):
         self._collect_coverage_enabled = self._should_collect_coverage(self._code_coverage_enabled_by_api)
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
-        self._git_client = None
 
-        if ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            if self._requests_mode == REQUESTS_MODE.TRACES:
-                log.warning("Cannot start git client if mode is not agentless or evp proxy")
-            else:
-                if not self._test_skipping_enabled_by_api:
-                    log.warning("Intelligent Test Runner test skipping disabled by API")
-                self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
+        self._git_client = None
+        if self._requests_mode == REQUESTS_MODE.TRACES:
+            log.warning("Cannot start git client if mode is not agentless or evp proxy")
+        else:
+            if not self._test_skipping_enabled_by_api:
+                log.warning("Intelligent Test Runner test skipping disabled by API")
+            self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
+
         try:
             from ddtrace.internal.codeowners import Codeowners
 
@@ -190,6 +195,16 @@ class CIVisibility(Service):
         # type: () -> Tuple[bool, bool]
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            return False, False
+
+        log.warning("ROMAIN waiting for metadata upload")
+        try:
+            self._git_client.wait_for_metadata_upload()
+            log.warning("ROMAIN metadata upload after waiting: %s" % self._git_client._metadata_upload_status.value)
+            if self._git_client._metadata_upload_status.value == METADATA_UPLOAD_STATUS.FAILED:
+                log.warning("Metadata upload failed, test skipping will be best effort")
+        except TimeoutError:
+            log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
             return False, False
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
@@ -307,14 +322,12 @@ class CIVisibility(Service):
     def _fetch_tests_to_skip(self, skipping_mode):
         # Make sure git uploading has finished
         # this will block the thread until that happens
-        if self._git_client is not None:
-            self._git_client.shutdown()
-            self._git_client = None
-
-        configurations = ci._get_runtime_and_os_metadata()
-        custom_configurations = _get_custom_configurations()
-        if custom_configurations:
-            configurations["custom"] = custom_configurations
+        try:
+            self._git_client.wait_for_metadata_upload()
+            if self._git_client._metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
+                log.warning("git metadata upload was not successful, some tets may not be skipped")
+        except TimeoutError:
+            log.debug("Timed out waiting for git metadata upload, some tests may not be skipped")
 
         payload = {
             "data": {
@@ -324,7 +337,7 @@ class CIVisibility(Service):
                     "env": ddconfig.env,
                     "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
                     "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "configurations": configurations,
+                    "configurations": self._configurations,
                     "test_level": skipping_mode,
                 },
             }
@@ -449,6 +462,8 @@ class CIVisibility(Service):
             self.tracer.configure(settings={"FILTERS": tracer_filters})
         if self._git_client is not None:
             self._git_client.start(cwd=_get_git_repo())
+
+
         if self.test_skipping_enabled() and (not self._tests_to_skip and self._test_suites_to_skip is None):
             self._fetch_tests_to_skip(SUITE if self._suite_skipping_mode else TEST)
 
