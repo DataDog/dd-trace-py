@@ -1,7 +1,7 @@
 import abc
 import copy
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 import six
 
@@ -9,14 +9,14 @@ from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
     PreprocessFunc = Callable[[Dict[str, Any], Optional[PubSub]], Any]

@@ -11,9 +11,9 @@ import attr
 
 
 if TYPE_CHECKING:
-    import Any
-    import Dict
-    import Optional
+    import Any  # noqa:F401
+    import Dict  # noqa:F401
+    import Optional  # noqa:F401
 
 
 def _only_if_true(value):

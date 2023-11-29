@@ -10,13 +10,11 @@ from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
-from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
