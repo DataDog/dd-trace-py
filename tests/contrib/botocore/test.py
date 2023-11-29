@@ -617,7 +617,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_using_xray_headers(self):
-        # this test is to ensure compatability with AWS Xray header trace injection done by Java tracer
+        # this test is to ensure compatibility with AWS Xray header trace injection done by Java tracer
         with self.override_config("botocore", dict(distributed_tracing=False)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
