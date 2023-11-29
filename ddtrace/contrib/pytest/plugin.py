@@ -321,11 +321,11 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     _store_span(pytest_module_item, test_suite_span)
 
     if should_enable_coverage:
-        if not hasattr(pytest, "_coverage"):
+        if not hasattr(pytest, "_dd_coverage"):
             root_directory = str(item.config.rootdir)
-            pytest._coverage = _start_coverage(root_directory)
+            pytest._dd_coverage = _start_coverage(root_directory)
         fqn_module = _generate_fully_qualified_module_name(test_module_path, test_suite_name)
-        _switch_coverage_context(pytest._coverage, fqn_module)
+        _switch_coverage_context(pytest._dd_coverage, fqn_module)
     return test_suite_span
 
 
@@ -423,7 +423,7 @@ def pytest_sessionfinish(session, exitstatus):
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
-        if hasattr(pytest, "_coverage"):
+        if hasattr(pytest, "_dd_coverage"):
             _stop_coverage(pytest)
         _CIVisibility.disable()
 
@@ -674,16 +674,16 @@ def pytest_runtest_protocol(item, nextitem):
         )
         root_directory = str(item.config.rootdir)
         if coverage_per_test:
-            if not hasattr(pytest, "_coverage"):
-                pytest._coverage = _start_coverage(root_directory)
+            if not hasattr(pytest, "_dd_coverage"):
+                pytest._dd_coverage = _start_coverage(root_directory)
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
-            _switch_coverage_context(pytest._coverage, fqn_test)
+            _switch_coverage_context(pytest._dd_coverage, fqn_test)
         # Run the actual test
         yield
 
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test:
-            _report_coverage_to_span(pytest._coverage, span, root_directory)
+            _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
@@ -696,7 +696,7 @@ def pytest_runtest_protocol(item, nextitem):
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
             ):
-                _report_coverage_to_span(pytest._coverage, test_suite_span, root_directory)
+                _report_coverage_to_span(pytest._dd_coverage, test_suite_span, root_directory)
             test_suite_span.finish()
 
             if not module_is_package:

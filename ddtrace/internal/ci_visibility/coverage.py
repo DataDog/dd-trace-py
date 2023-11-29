@@ -53,10 +53,10 @@ def _start_coverage(root_dir: str):
 
 
 def _stop_coverage(module):
-    if hasattr(module, "_coverage"):
-        module._coverage.stop()
-        module._coverage.erase()
-        del module._coverage
+    if hasattr(module, "_dd_coverage"):
+        module._dd_coverage.stop()
+        module._dd_coverage.erase()
+        del module._dd_coverage
 
 
 def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False) -> bool:
