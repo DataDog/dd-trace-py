@@ -5,7 +5,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def disable_telemetry_agentless(func):
+def skip_if_agentless(func):
     """Deocrator to skip sending telemetry if we are in agentless mode as it is not currently supported."""
 
     def wrapper(*args, **kwargs):
