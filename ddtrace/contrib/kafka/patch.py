@@ -241,8 +241,8 @@ def serialize_key(instance, topic, key, headers):
                 key = instance._key_serializer(key, ctx)
                 return key
             except Exception:
-                log.warning("Failed to set Consumer key tag: ", key, exc_info=True)
+                log.debug("Failed to set Kafka Consumer key tag: %s", str(key))
                 return None
         else:
-            log.warning("Failed to set Consumer key tag, no method available to serialize key: %s", str(key))
+            log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))
             return None
