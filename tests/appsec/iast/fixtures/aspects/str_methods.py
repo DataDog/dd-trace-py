@@ -9,22 +9,22 @@ import os
 import random
 import re
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Optional
-from typing import Text
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
 
 from six import StringIO
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import Generator
-    from typing import Iterable
-    from typing import List
-    from typing import Sequence
-    from typing import Tuple
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Generator  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Sequence  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 
 def methodcaller(*args, **kwargs):
@@ -832,7 +832,7 @@ def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
 
 
 def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
-    return "Test {param1}, {param2}".format(param1=param1)
+    return "Test {param1}, {param2}".format(param1=param1)  # noqa:F524
 
 
 def do_join(s, iterable):
@@ -1055,7 +1055,7 @@ def do_add_re_compile():
         "\U0009FFFE\U0009FFFF\U000AFFFE\U000AFFFF\U000BFFFE\U000BFFFF"
         "\U000CFFFE\U000CFFFF\U000DFFFE\U000DFFFF\U000EFFFE\U000EFFFF"
         "\U000FFFFE\U000FFFFF\U0010FFFE\U0010FFFF]"
-    )  # noqa
+    )  # noqa:F401
     _ = re.compile(invalid_unicode_no_surrogate[:-1] + eval('"\\uD800-\\uDFFF"') + "]")  # pylint:disable=eval-used
 
 

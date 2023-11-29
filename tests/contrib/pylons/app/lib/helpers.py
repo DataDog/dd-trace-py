@@ -1,4 +1,4 @@
-from webhelpers import *  # noqa
+from webhelpers import *  # noqa:F403,F401
 
 
 class ExceptionWithCodeMethod(Exception):

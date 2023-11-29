@@ -17,13 +17,13 @@ from types import BuiltinMethodType
 from types import FunctionType
 from types import MethodType
 from types import TracebackType
-from typing import Any
-from typing import AnyStr
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import Type
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import AnyStr  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
+from typing import Union  # noqa:F401
 import warnings
 
 import six
@@ -84,7 +84,7 @@ NumericType = Union[int, float]
 pattern_type = re.Pattern
 
 try:
-    from inspect import getfullargspec  # noqa
+    from inspect import getfullargspec  # noqa:F401
 
     def is_not_void_function(f, argspec):
         return (
@@ -217,9 +217,9 @@ CONTEXTVARS_IS_AVAILABLE = True
 
 
 try:
-    from collections.abc import Iterable  # noqa
+    from collections.abc import Iterable  # noqa:F401
 except ImportError:
-    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa
+    from collections import Iterable  # type: ignore[no-redef, attr-defined]  # noqa:F401
 
 
 def maybe_stringify(obj):
@@ -260,11 +260,11 @@ BUILTIN = "builtins"
 
 
 try:
-    from typing import Collection
+    from typing import Collection  # noqa:F401
 except ImportError:
-    from typing import List
-    from typing import Set
-    from typing import Union
+    from typing import List  # noqa:F401
+    from typing import Set  # noqa:F401
+    from typing import Union  # noqa:F401
 
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 
