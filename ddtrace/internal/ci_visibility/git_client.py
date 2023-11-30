@@ -68,10 +68,10 @@ class METADATA_UPLOAD_STATUS(IntEnum):
 
 class CIVisibilityGitClient(object):
     def __init__(
-        self,
-        api_key,
-        requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
-        base_url="",
+            self,
+            api_key,
+            requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
+            base_url="",
     ):
         # type: (str, int, str) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key)
@@ -84,7 +84,7 @@ class CIVisibilityGitClient(object):
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
 
-    def start(self, cwd=None):
+    def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
         self._tags = ci.tags(cwd=cwd)
         with self._metadata_upload_status.get_lock():
@@ -95,80 +95,90 @@ class CIVisibilityGitClient(object):
                     kwargs={"_tags": self._tags, "_response": self._response, "cwd": cwd, "log_level": log.level},
                 )
                 self._worker.start()
+        log.debug("Upload git metadata to URL %s started with PID %s", self._base_url, self._worker.pid)
 
-    def wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
+    def wait_for_metadata_upload(self, timeout=10):
+        log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         with StopWatch() as stopwatch:
             while self._metadata_upload_status.value not in [METADATA_UPLOAD_STATUS.FAILED, METADATA_UPLOAD_STATUS.SUCCESS]:
+                log.debug("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)
                 if stopwatch.elapsed() >= timeout:
                     raise TimeoutError("Timed out waiting for git metadata upload to complete after %s seconds" % timeout )
+
+                if self._worker.exitcode is not None:
+                    log.debug("git metadata process exited with exitcode %s but upload status is %s", self._worker.exitcode,self._metadata_upload_status.value )
+                    raise ValueError("git metadata process exited with exitcode %s", self._worker.exitcode)
+
+                self._worker.join(timeout=1)
                 time.sleep(1)
 
+    def shutdown(self):
+        self._worker.join(timeout=5)
 
     @classmethod
     def _run_protocol(
-        cls,
-        serializer,  # CIVisibilityGitClientSerializerV1
-        requests_mode,  # int
-        base_url,  # str
-        _metadata_upload_status, # METADATA_UPLOAD_STATUS
-        _tags=None,  # Optional[Dict[str, str]]
-        _response=None,  # Optional[Response]
-        cwd=None,  # Optional[str]
-        log_level=0,  # int
+            cls,
+            serializer,  # CIVisibilityGitClientSerializerV1
+            requests_mode,  # int
+            base_url,  # str
+            _metadata_upload_status, # METADATA_UPLOAD_STATUS
+            _tags=None,  # Optional[Dict[str, str]]
+            _response=None,  # Optional[Response]
+            cwd=None,  # Optional[str]
+            log_level=0,  # int
     ):
         # type: (...) -> None
         log.setLevel(log_level)
         telemetry.telemetry_writer.enable()
-        with _metadata_upload_status.get_lock():
-            _metadata_upload_status = METADATA_UPLOAD_STATUS.IN_PROCESS
-            try:
-                if _tags is None:
-                    _tags = {}
-                repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
+        _metadata_upload_status = METADATA_UPLOAD_STATUS.IN_PROCESS
+        try:
+            if _tags is None:
+                _tags = {}
+            repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
-                if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
-                    log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-                    try:
-                        cls._unshallow_repository(cwd=cwd)
-                    except ValueError:
-                        log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
+            if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
+                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                try:
+                    cls._unshallow_repository(cwd=cwd)
+                except ValueError:
+                    log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
 
-                latest_commits = cls._get_latest_commits(cwd=cwd)
-                backend_commits = cls._search_commits(
-                    requests_mode, base_url, repo_url, latest_commits, serializer, _response
-                )
-                if backend_commits is None:
-                    log.debug("No backend commits found, returning early.")
-                    _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
-                    return
+            latest_commits = cls._get_latest_commits(cwd=cwd)
+            backend_commits = cls._search_commits(
+                requests_mode, base_url, repo_url, latest_commits, serializer, _response
+            )
+            if backend_commits is None:
+                log.debug("No backend commits found, returning early.")
+                _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
+                return
 
-                commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+            commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-                rev_list = cls._get_filtered_revisions(
-                    excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
-                )
-                if rev_list:
-                    log.debug("Building and uploading packfiles for revision list: %s", rev_list)
-                    with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
-                        record_git_command(
-                            GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
-                        )
-                        if packfiles_details.returncode == 0:
-                            if cls._upload_packfiles(
+            rev_list = cls._get_filtered_revisions(
+                excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
+            )
+            if rev_list:
+                log.debug("Building and uploading packfiles for revision list: %s", rev_list)
+                with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
+                    record_git_command(
+                        GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
+                    )
+                    if packfiles_details.returncode == 0:
+                        if cls._upload_packfiles(
                                 requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
-                            ):
-                                _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
-                                return
-                        _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
-                        raise ValueError(packfiles_details.stderr)
-                else:
-                    log.debug("Revision list empty, no packfiles to build and upload")
-                    _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
-                    record_objects_pack_data(0, 0)
-            finally:
-                import time
-                time.sleep(5)
-                telemetry.telemetry_writer.periodic(force_flush=True)
+                        ):
+                            _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
+                            return
+                    _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
+                    raise ValueError(packfiles_details.stderr)
+            else:
+                log.debug("Revision list empty, no packfiles to build and upload")
+                _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
+                record_objects_pack_data(0, 0)
+        finally:
+            import time
+            time.sleep(15)
+            telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod
     def _get_repository_url(cls, tags=None, cwd=None):

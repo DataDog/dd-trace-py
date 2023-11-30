@@ -132,7 +132,7 @@ class CIVisibility(Service):
         self._service = service
         self._codeowners = None
         self._root_dir = None
-        self._should_upload_git_metadata = False
+        self._should_upload_git_metadata = True
 
         int_service = None
         if self.config is not None:
@@ -143,16 +143,25 @@ class CIVisibility(Service):
         elif self._service is None and int_service is not None:
             self._service = int_service
 
-        self._requests_mode = REQUESTS_MODE.TRACES
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
                 raise EnvironmentError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )
+            log.info("Datadog CI Visibility using agentless mode")
             self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
         elif self._agent_evp_proxy_is_available():
+            log.info("Datadog CI Visibility using EVP proxy mode")
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+        else:
+            log.info("Datadog CI Visibilty using APM mode, some features will be disabled")
+            self._requests_mode = REQUESTS_MODE.TRACES
+            self._should_upload_git_metadata = False
+
+        if self._should_upload_git_metadata:
+            self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
+            self._git_client.upload_git_metadata(cwd=_get_git_repo())
 
         self._code_coverage_enabled_by_api, self._test_skipping_enabled_by_api = self._check_enabled_features()
 
@@ -160,17 +169,11 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
 
-        self._git_client = None
-        if self._requests_mode == REQUESTS_MODE.TRACES:
-            log.warning("Cannot start git client if mode is not agentless or evp proxy")
-        else:
-            if not self._test_skipping_enabled_by_api:
-                log.warning("Intelligent Test Runner test skipping disabled by API")
-            self._git_client = CIVisibilityGitClient(api_key=self._api_key or "", requests_mode=self._requests_mode)
+        if not self._test_skipping_enabled_by_api:
+            log.warning("Intelligent Test Runner test skipping disabled by API")
 
         try:
             from ddtrace.internal.codeowners import Codeowners
-
             self._codeowners = Codeowners()
         except ValueError:
             log.warning("CODEOWNERS file is not available")
@@ -197,10 +200,8 @@ class CIVisibility(Service):
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
             return False, False
 
-        log.warning("ROMAIN waiting for metadata upload")
         try:
             self._git_client.wait_for_metadata_upload()
-            log.warning("ROMAIN metadata upload after waiting: %s" % self._git_client._metadata_upload_status.value)
             if self._git_client._metadata_upload_status.value == METADATA_UPLOAD_STATUS.FAILED:
                 log.warning("Metadata upload failed, test skipping will be best effort")
         except TimeoutError:
@@ -460,9 +461,6 @@ class CIVisibility(Service):
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(settings={"FILTERS": tracer_filters})
-        if self._git_client is not None:
-            self._git_client.start(cwd=_get_git_repo())
-
 
         if self.test_skipping_enabled() and (not self._tests_to_skip and self._test_suites_to_skip is None):
             self._fetch_tests_to_skip(SUITE if self._suite_skipping_mode else TEST)
