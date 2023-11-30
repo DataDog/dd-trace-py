@@ -7,15 +7,13 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions, Distribution
+from ddtrace.internal.packages import Distribution
 from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.internal.telemetry.data import _format_version_info
-from ddtrace.internal.telemetry.data import _get_container_id
-from ddtrace.internal.telemetry.data import _get_os_version
-from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import update_imported_dependencies
-from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.data import get_hostname
+from ddtrace.internal.telemetry.data import (_format_version_info,
+                                             _get_container_id,
+                                             _get_os_version, get_application,
+                                             get_host_info, get_hostname,
+                                             update_imported_dependencies)
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -200,6 +198,7 @@ def test_update_imported_dependencies():
     assert already_imported["numpy"].version == res[0]["version"]
 
     import typing
+
     import pytest
 
     res = update_imported_dependencies(already_imported, [numpy, typing, pytest])

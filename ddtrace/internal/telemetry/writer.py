@@ -3,6 +3,8 @@ import itertools
 import os
 import sys
 import time
+from types import ModuleType
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -10,94 +12,62 @@ from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
-from typing import TYPE_CHECKING  # noqa:F401
 
-from ...internal import atexit
-from ...internal import forksafe
+from ...internal import atexit, forksafe
 from ...internal.compat import parse
-from ...internal.schema import SCHEMA_VERSION
-from ...internal.schema import _remove_client_service_names
+from ...internal.schema import SCHEMA_VERSION, _remove_client_service_names
 from ...settings import _config as config
 from ...settings.asm import config as asm_config
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
 from ...settings.profiling import config as profiling_config
-from ..agent import get_connection
-from ..agent import get_trace_url
-from ..compat import get_connection_response
-from ..compat import httplib
+from ..agent import get_connection, get_trace_url
+from ..compat import get_connection_response, httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
+from ..packages import Distribution, filename_to_package
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
-from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
-from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
-from .constants import TELEMETRY_AGENT_HOST
-from .constants import TELEMETRY_AGENT_PORT
-from .constants import TELEMETRY_AGENT_URL
-from .constants import TELEMETRY_ANALYTICS_ENABLED
-from .constants import TELEMETRY_ASM_ENABLED
-from .constants import TELEMETRY_CLIENT_IP_ENABLED
-from .constants import TELEMETRY_DOGSTATSD_PORT
-from .constants import TELEMETRY_DOGSTATSD_URL
-from .constants import TELEMETRY_DSM_ENABLED
-from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
-from .constants import TELEMETRY_ENABLED
-from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
-from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
-from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
-from .constants import TELEMETRY_OTEL_ENABLED
-from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
-from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
-from .constants import TELEMETRY_PRIORITY_SAMPLING
-from .constants import TELEMETRY_PROFILING_ENABLED
-from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
-from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
-from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
-from .constants import TELEMETRY_REMOTE_CONFIGURATION_INTERVAL
-from .constants import TELEMETRY_RUNTIMEMETRICS_ENABLED
-from .constants import TELEMETRY_SERVICE_MAPPING
-from .constants import TELEMETRY_SPAN_SAMPLING_RULES
-from .constants import TELEMETRY_SPAN_SAMPLING_RULES_FILE
-from .constants import TELEMETRY_STARTUP_LOGS_ENABLED
-from .constants import TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS
-from .constants import TELEMETRY_TRACE_API_VERSION
-from .constants import TELEMETRY_TRACE_COMPUTE_STATS
-from .constants import TELEMETRY_TRACE_DEBUG
-from .constants import TELEMETRY_TRACE_HEALTH_METRICS_ENABLED
-from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
-from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
-from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
-from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SAMPLING_RATE
-from .constants import TELEMETRY_TRACE_SAMPLING_RULES
-from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
-from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
-from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
-from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
-from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
-from .constants import TELEMETRY_TRACING_ENABLED
-from .constants import TELEMETRY_TYPE_DISTRIBUTION
-from .constants import TELEMETRY_TYPE_GENERATE_METRICS
-from .constants import TELEMETRY_TYPE_LOGS
-from .data import get_application, update_imported_dependencies
-from .data import get_host_info
-from .metrics import CountMetric
-from .metrics import DistributionMetric
-from .metrics import GaugeMetric
+from .constants import (
+    TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED,
+    TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, TELEMETRY_AGENT_HOST,
+    TELEMETRY_AGENT_PORT, TELEMETRY_AGENT_URL, TELEMETRY_ANALYTICS_ENABLED,
+    TELEMETRY_ASM_ENABLED, TELEMETRY_CLIENT_IP_ENABLED,
+    TELEMETRY_DOGSTATSD_PORT, TELEMETRY_DOGSTATSD_URL, TELEMETRY_DSM_ENABLED,
+    TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, TELEMETRY_ENABLED,
+    TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, TELEMETRY_LOGS_INJECTION_ENABLED,
+    TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN, TELEMETRY_OTEL_ENABLED,
+    TELEMETRY_PARTIAL_FLUSH_ENABLED, TELEMETRY_PARTIAL_FLUSH_MIN_SPANS,
+    TELEMETRY_PRIORITY_SAMPLING, TELEMETRY_PROFILING_ENABLED,
+    TELEMETRY_PROPAGATION_STYLE_EXTRACT, TELEMETRY_PROPAGATION_STYLE_INJECT,
+    TELEMETRY_REMOTE_CONFIGURATION_ENABLED,
+    TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, TELEMETRY_RUNTIMEMETRICS_ENABLED,
+    TELEMETRY_SERVICE_MAPPING, TELEMETRY_SPAN_SAMPLING_RULES,
+    TELEMETRY_SPAN_SAMPLING_RULES_FILE, TELEMETRY_STARTUP_LOGS_ENABLED,
+    TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, TELEMETRY_TRACE_API_VERSION,
+    TELEMETRY_TRACE_COMPUTE_STATS, TELEMETRY_TRACE_DEBUG,
+    TELEMETRY_TRACE_HEALTH_METRICS_ENABLED,
+    TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED,
+    TELEMETRY_TRACE_PEER_SERVICE_MAPPING,
+    TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED,
+    TELEMETRY_TRACE_SAMPLING_LIMIT, TELEMETRY_TRACE_SAMPLING_RATE,
+    TELEMETRY_TRACE_SAMPLING_RULES, TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA,
+    TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES,
+    TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS,
+    TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES,
+    TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS, TELEMETRY_TRACING_ENABLED,
+    TELEMETRY_TYPE_DISTRIBUTION, TELEMETRY_TYPE_GENERATE_METRICS,
+    TELEMETRY_TYPE_LOGS)
+from .data import get_application, get_host_info, update_imported_dependencies
 from .metrics import MetricTagType  # noqa:F401
-from .metrics import RateMetric
-from .metrics_namespaces import MetricNamespace
+from .metrics import CountMetric, DistributionMetric, GaugeMetric, RateMetric
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
-
-from types import ModuleType
-from ..packages import filename_to_package, Distribution
-
+from .metrics_namespaces import MetricNamespace
 
 log = get_logger(__name__)
 

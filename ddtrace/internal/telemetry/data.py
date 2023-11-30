@@ -1,14 +1,13 @@
 import platform
 import sys
 from types import ModuleType
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
-from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import Distribution
-from ddtrace.internal.packages import filename_to_package
+from ddtrace.internal.packages import Distribution, filename_to_package
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version

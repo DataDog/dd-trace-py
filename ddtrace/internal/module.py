@@ -1,30 +1,22 @@
 import abc
+import sys
 from collections import defaultdict
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
-import sys
 from types import ModuleType
-from typing import Any
-from typing import Callable
 from typing import DefaultDict  # noqa:F401
-from typing import Dict
-from typing import Iterable
 from typing import List  # noqa:F401
-from typing import Optional
 from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Type  # noqa:F401
-from typing import Union
-from typing import cast
+from typing import Any, Callable, Dict, Iterable, Optional, Union, cast
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.packages import filename_to_package
-
+from ddtrace.internal.utils import get_argument_value
 
 ModuleHookType = Callable[[ModuleType], None]
 PreExecHookType = Callable[[Any, ModuleType], None]

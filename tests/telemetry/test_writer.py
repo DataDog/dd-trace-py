@@ -8,14 +8,13 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.module import origin
-from ddtrace.internal.telemetry.data import get_application, update_imported_dependencies
-from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter
-from ddtrace.internal.telemetry.writer import get_runtime_id
+from ddtrace.internal.telemetry.data import (get_application, get_host_info,
+                                             update_imported_dependencies)
+from ddtrace.internal.telemetry.writer import TelemetryWriter, get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
-from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from ddtrace.settings.config import \
+    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.utils import flaky
 
 
