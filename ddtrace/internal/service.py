@@ -1,6 +1,6 @@
 import abc
 import enum
-import typing
+import typing  # noqa:F401
 
 import attr
 import six

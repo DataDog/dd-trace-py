@@ -1,6 +1,6 @@
 import os
-from typing import Optional
-from typing import Tuple
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict

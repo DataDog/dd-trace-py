@@ -27,10 +27,9 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Union
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
 
