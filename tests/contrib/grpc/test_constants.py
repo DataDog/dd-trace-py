@@ -15,4 +15,4 @@ def test_not_deprecated():
 
 def test_invalid():
     with pytest.raises(ImportError):
-        from ddtrace.contrib.grpc.constants import INVALID_CONSTANT  # noqa
+        from ddtrace.contrib.grpc.constants import INVALID_CONSTANT  # noqa:F401

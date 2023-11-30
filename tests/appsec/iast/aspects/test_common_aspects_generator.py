@@ -28,7 +28,7 @@ def generate_callers_from_callees(functions_module, callees_module, callers_file
     with open(callers_file, "w", encoding="utf-8") as callers:
         callers.write(f"from {callees_module_str} import *\n")
         callers.write(f"from {callees_module_str} import _number_generator\n")
-        callers.write(f"_ng = _number_generator()\n")
+        callers.write("_ng = _number_generator()\n")
 
         for function in module_functions:
             callers.write(

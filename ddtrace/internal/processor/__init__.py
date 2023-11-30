@@ -1,11 +1,11 @@
 import abc
-from typing import List
-from typing import Optional
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import attr
 import six
 
-from ddtrace import Span
+from ddtrace import Span  # noqa:F401
 from ddtrace.internal.logger import get_logger
 
 
