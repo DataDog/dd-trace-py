@@ -1396,7 +1396,7 @@ venv = Venv(
         ),
         Venv(
             name="unittest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest_plugin/",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
             pkgs={"msgpack": latest},
             env={
                 "DD_PATCH_MODULES": "unittest:true",
