@@ -4,8 +4,6 @@ import subprocess
 
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported
-
 
 def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)

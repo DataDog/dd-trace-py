@@ -1,7 +1,7 @@
 from importlib import import_module
 import inspect
 import os
-from typing import List
+from typing import List  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config

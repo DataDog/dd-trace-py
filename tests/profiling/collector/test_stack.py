@@ -6,14 +6,13 @@ import threading
 import time
 import timeit
 from types import FrameType
-import typing  # noqa
+import typing  # noqa:F401
 import uuid
 
 import pytest
-import six
 from six.moves import _thread
 
-import ddtrace  # noqa
+import ddtrace  # noqa:F401
 from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
@@ -173,7 +172,7 @@ def _fib(n):
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
-    from gevent import monkey  # noqa
+    from gevent import monkey  # noqa:F401
 
     monkey.patch_all()
 
@@ -265,8 +264,8 @@ def test_ignore_profiler_gevent_task():
     import os
     import time
 
-    from ddtrace.profiling import collector  # noqa
-    from ddtrace.profiling import event as event_mod  # noqa
+    from ddtrace.profiling import collector  # noqa:F401
+    from ddtrace.profiling import event as event_mod  # noqa:F401
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
 

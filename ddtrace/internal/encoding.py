@@ -1,9 +1,9 @@
 import json
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
@@ -16,7 +16,7 @@ __all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..span import Span
+    from ..span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
