@@ -12,6 +12,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
+    from ._native.aspect_format import _format_aspect
     from ._native.aspect_helpers import parse_params
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
@@ -74,6 +75,7 @@ __all__ = [
     "str_to_origin",
     "origin_to_str",
     "common_replace",
+    "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
     "num_objects_tainted",
