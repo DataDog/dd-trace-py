@@ -331,13 +331,6 @@ pylibmc
 .. automodule:: ddtrace.contrib.pylibmc
 
 
-.. _pylons:
-
-Pylons
-^^^^^^
-.. automodule:: ddtrace.contrib.pylons
-
-
 .. _pynamodb:
 
 PynamoDB
