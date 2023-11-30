@@ -49,6 +49,7 @@ static PyMethodDef OpsMethods[] = {
     // python 3.5, 3.6. but METH_FASTCALL could be used instead for python
     // >= 3.7
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_VARARGS, "new pyobject id" },
+    { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
     { nullptr, nullptr, 0, nullptr }
 };
 

@@ -1,12 +1,12 @@
 import json
 import re
-from typing import TYPE_CHECKING
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Optional  # noqa:F401
 
 
 # TypedDict was added to typing in python 3.8
 try:
-    from typing import TypedDict
+    from typing import TypedDict  # noqa:F401
 except ImportError:
     from typing_extensions import TypedDict
 
@@ -24,7 +24,7 @@ from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
-from ddtrace.sampling_rule import SamplingRule
+from ddtrace.sampling_rule import SamplingRule  # noqa:F401
 from ddtrace.settings import _config as config
 
 from .rate_limiter import RateLimiter
@@ -39,13 +39,13 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Text
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Text  # noqa:F401
 
-    from ddtrace.context import Context
-    from ddtrace.span import Span
+    from ddtrace.context import Context  # noqa:F401
+    from ddtrace.span import Span  # noqa:F401
 
 # Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111

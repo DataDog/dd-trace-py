@@ -37,7 +37,9 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-    ddtrace_logger.addHandler(logging.StreamHandler())
+    if asbool(os.environ.get("DD_TRACE_LOG_STREAM_HANDLER", "true")):
+        ddtrace_logger.addHandler(logging.StreamHandler())
+
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
 

@@ -24,8 +24,11 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
+black_check = [
+    "black --check {args:.}",
+]
 style = [
-    "black --check -q {args:.}",
+    "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
 ]
@@ -81,6 +84,8 @@ extra-dependencies = [
 pre-install-commands = [
     "scripts/docs/install.sh",
 ]
+[envs.docs.env-vars]
+DD_TRACE_ENABLED = "false"
 
 [envs.docs.scripts]
 build = [

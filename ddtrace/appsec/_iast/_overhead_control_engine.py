@@ -5,18 +5,18 @@ limit. It will measure operations being executed in a request and it will deacti
 """
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Set
-    from typing import Tuple
-    from typing import Type
+    from typing import Set  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Type  # noqa:F401
 
-    from ddtrace.span import Span
+    from ddtrace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -56,6 +56,17 @@ class Operation(object):
         return result
 
     @classmethod
+    def increment_quota(cls):
+        # type: () -> bool
+        cls._lock.acquire()
+        result = False
+        if cls._vulnerability_quota < MAX_VULNERABILITIES_PER_REQUEST:
+            cls._vulnerability_quota += 1
+            result = True
+        cls._lock.release()
+        return result
+
+    @classmethod
     def has_quota(cls):
         # type: () -> bool
         cls._lock.acquire()
@@ -87,7 +98,8 @@ class OverheadControl(object):
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span):  # type: (Span) -> None
+    def acquire_request(self, span):
+        # type: (Span) -> None
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).

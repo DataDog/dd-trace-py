@@ -1,21 +1,25 @@
+import abc
 from collections import defaultdict
+from importlib.abc import Loader
+from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
 from pathlib import Path
 import sys
 from types import ModuleType
 from typing import Any
 from typing import Callable
-from typing import DefaultDict
+from typing import DefaultDict  # noqa:F401
 from typing import Dict
-from typing import List
+from typing import Iterable
+from typing import List  # noqa:F401
 from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
 from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -121,25 +125,10 @@ def _resolve(path):
 # Borrowed from the wrapt module
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
-if PY2:
-    import pkgutil
 
-    find_spec = ModuleSpec = None
-    Loader = object
-
-    find_loader = pkgutil.find_loader
-
-else:
-    from importlib.abc import Loader
-    from importlib.machinery import ModuleSpec
-    from importlib.util import find_spec
-
-    def find_loader(fullname):
-        # type: (str) -> Optional[Loader]
-        return getattr(find_spec(fullname), "loader", None)
-
-
-LEGACY_DICT_COPY = sys.version_info < (3, 6)
+def find_loader(fullname):
+    # type: (str) -> Optional[Loader]
+    return getattr(find_spec(fullname), "loader", None)
 
 
 class _ImportHookChainedLoader(Loader):
@@ -213,48 +202,17 @@ class _ImportHookChainedLoader(Loader):
             callback(module)
 
 
-class ModuleWatchdog(object):
-    """Module watchdog.
+class BaseModuleWatchdog(abc.ABC):
+    """Base module watchdog.
 
-    Hooks into the import machinery to detect when modules are loaded/unloaded.
-    This is also responsible for triggering any registered import hooks.
-
-    Subclasses might customize the default behavior by overriding the
-    ``after_import`` method, which is triggered on every module import, once
-    the subclass is installed.
+    Invokes ``after_import`` every time a new module is imported.
     """
 
-    _instance = None  # type: Optional[ModuleWatchdog]
+    _instance = None  # type: Optional[BaseModuleWatchdog]
 
     def __init__(self):
         # type: () -> None
-        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._om = None  # type: Optional[wvdict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
-        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
-
-    @property
-    def _origin_map(self):
-        # type: () -> wvdict[str, ModuleType]
-        def modules_with_origin(modules):
-            result = wvdict({str(origin(m)): m for m in modules})
-            try:
-                del result[None]
-            except KeyError:
-                pass
-            return result
-
-        if self._om is None:
-            try:
-                self._om = modules_with_origin(sys.modules.values())
-            except RuntimeError:
-                # The state of sys.modules might have been mutated by another
-                # thread. We try to build the full mapping at the next occasion.
-                # For now we take the more expensive route of building a list of
-                # the current values, which might be incomplete.
-                return modules_with_origin(list(sys.modules.values()))
-
-        return self._om
 
     def _add_to_meta_path(self):
         # type: () -> None
@@ -277,6 +235,152 @@ class ModuleWatchdog(object):
             raise RuntimeError("%s is not installed" % cls.__name__)
 
         sys.meta_path.pop(i)
+
+    def after_import(self, module: ModuleType) -> None:
+        raise NotImplementedError()
+
+    def find_module(self, fullname, path=None):
+        # type: (str, Optional[str]) -> Union[Loader, None]
+        if fullname in self._finding:
+            return None
+
+        self._finding.add(fullname)
+
+        try:
+            loader = find_loader(fullname)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    loader = _ImportHookChainedLoader(loader)
+
+                loader.add_callback(type(self), self.after_import)
+
+                return loader
+
+        finally:
+            self._finding.remove(fullname)
+
+        return None
+
+    def find_spec(
+        self, fullname: str, path: Optional[str] = None, target: Optional[ModuleType] = None
+    ) -> Optional[ModuleSpec]:
+        if fullname in self._finding:
+            return None
+
+        self._finding.add(fullname)
+
+        try:
+            try:
+                # Best effort
+                spec = find_spec(fullname)
+            except Exception:
+                return None
+
+            if spec is None:
+                return None
+
+            loader = getattr(spec, "loader", None)
+
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    spec.loader = _ImportHookChainedLoader(loader)
+
+                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
+
+            return spec
+
+        finally:
+            self._finding.remove(fullname)
+
+    @classmethod
+    def _check_installed(cls):
+        # type: () -> None
+        if not cls.is_installed():
+            raise RuntimeError("%s is not installed" % cls.__name__)
+
+    @classmethod
+    def install(cls):
+        # type: () -> None
+        """Install the module watchdog."""
+        if cls.is_installed():
+            raise RuntimeError("%s is already installed" % cls.__name__)
+
+        cls._instance = cls()
+        cls._instance._add_to_meta_path()
+        log.debug("%s installed", cls)
+
+    @classmethod
+    def is_installed(cls):
+        """Check whether this module watchdog class is installed."""
+        return cls._instance is not None and type(cls._instance) is cls
+
+    @classmethod
+    def uninstall(cls):
+        # type: () -> None
+        """Uninstall the module watchdog.
+
+        This will uninstall only the most recently installed instance of this
+        class.
+        """
+        cls._check_installed()
+        cls._remove_from_meta_path()
+
+        cls._instance = None
+
+        log.debug("%s uninstalled", cls)
+
+
+class ModuleWatchdog(BaseModuleWatchdog):
+    """Module watchdog.
+
+    Hooks into the import machinery to detect when modules are loaded/unloaded.
+    This is also responsible for triggering any registered import hooks.
+
+    Subclasses might customize the default behavior by overriding the
+    ``after_import`` method, which is triggered on every module import, once
+    the subclass is installed.
+    """
+
+    def __init__(self):
+        # type: () -> None
+        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
+        self._om = None  # type: Optional[Dict[str, ModuleType]]
+        self._finding = set()  # type: Set[str]
+        self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
+
+    @property
+    def _origin_map(self) -> Dict[str, ModuleType]:
+        def modules_with_origin(modules: Iterable[ModuleType]) -> Dict[str, Any]:
+            result: wvdict = wvdict()
+
+            for m in modules:
+                module_origin = origin(m)
+                if module_origin is None:
+                    continue
+
+                try:
+                    result[str(module_origin)] = m
+                except TypeError:
+                    # This can happen if the module is a special object that
+                    # does not allow for weak references. Quite likely this is
+                    # an object created by a native extension. We make the
+                    # assumption that this module does not contain valuable
+                    # information that can be used at the Python runtime level.
+                    pass
+
+            return cast(Dict[str, Any], result)
+
+        if self._om is None:
+            try:
+                self._om = modules_with_origin(sys.modules.values())
+            except RuntimeError:
+                # The state of sys.modules might have been mutated by another
+                # thread. We try to build the full mapping at the next occasion.
+                # For now we take the more expensive route of building a list of
+                # the current values, which might be incomplete.
+                return modules_with_origin(list(sys.modules.values()))
+
+        return self._om
 
     def after_import(self, module):
         # type: (ModuleType) -> None
@@ -321,66 +425,6 @@ class ModuleWatchdog(object):
                 return main_module
 
         return None
-
-    def find_module(self, fullname, path=None):
-        # type: (str, Optional[str]) -> Union[Loader, None]
-        if fullname in self._finding:
-            return None
-
-        self._finding.add(fullname)
-
-        try:
-            loader = find_loader(fullname)
-            if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    loader = _ImportHookChainedLoader(loader)
-
-                if PY2:
-                    # With Python 2 we don't get all the finders invoked, so we
-                    # make sure we register all the callbacks at the earliest
-                    # opportunity.
-                    for finder in sys.meta_path:
-                        if isinstance(finder, ModuleWatchdog):
-                            loader.add_callback(type(finder), finder.after_import)
-                else:
-                    loader.add_callback(type(self), self.after_import)
-
-                return loader
-
-        finally:
-            self._finding.remove(fullname)
-
-        return None
-
-    def find_spec(self, fullname, path=None, target=None):
-        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
-        if fullname in self._finding:
-            return None
-
-        self._finding.add(fullname)
-
-        try:
-            try:
-                # Best effort
-                spec = find_spec(fullname)
-            except Exception:
-                return None
-
-            if spec is None:
-                return None
-
-            loader = getattr(spec, "loader", None)
-
-            if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    spec.loader = _ImportHookChainedLoader(loader)
-
-                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
-
-            return spec
-
-        finally:
-            self._finding.remove(fullname)
 
     @classmethod
     def register_origin_hook(cls, origin, hook):
@@ -516,40 +560,3 @@ class ModuleWatchdog(object):
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = cast(ModuleWatchdog, cls._instance)
         instance._pre_exec_module_hooks.append((cond, hook))
-
-    @classmethod
-    def _check_installed(cls):
-        # type: () -> None
-        if not cls.is_installed():
-            raise RuntimeError("%s is not installed" % cls.__name__)
-
-    @classmethod
-    def install(cls):
-        # type: () -> None
-        """Install the module watchdog."""
-        if cls.is_installed():
-            raise RuntimeError("%s is already installed" % cls.__name__)
-
-        cls._instance = cls()
-        cls._instance._add_to_meta_path()
-        log.debug("%s installed", cls)
-
-    @classmethod
-    def is_installed(cls):
-        """Check whether this module watchdog class is installed."""
-        return cls._instance is not None and type(cls._instance) is cls
-
-    @classmethod
-    def uninstall(cls):
-        # type: () -> None
-        """Uninstall the module watchdog.
-
-        This will uninstall only the most recently installed instance of this
-        class.
-        """
-        cls._check_installed()
-        cls._remove_from_meta_path()
-
-        cls._instance = None
-
-        log.debug("%s uninstalled", cls)

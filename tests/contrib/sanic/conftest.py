@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 import ddtrace
@@ -12,11 +10,6 @@ from tests.utils import DummyTracer
 def tracer():
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
     ddtrace.tracer = tracer
     patch()
     yield tracer

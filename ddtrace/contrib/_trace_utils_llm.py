@@ -1,23 +1,19 @@
 import abc
 import os
 import time
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
+from ddtrace import Pin
+from ddtrace import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
-
-
-if TYPE_CHECKING:
-    from ddtrace import Pin
-    from ddtrace import Span
 
 
 class BaseLLMIntegration:
@@ -39,20 +35,17 @@ class BaseLLMIntegration:
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
 
-    def is_pc_sampled_span(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
             return False
         return self._span_pc_sampler.sample(span)
 
-    def is_pc_sampled_log(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_log(self, span: Span) -> bool:
         if not self._config.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
-    def start_log_writer(self):
-        # type: (...) -> None
+    def start_log_writer(self) -> None:
         self._log_writer.start()
 
     @abc.abstractmethod
@@ -61,8 +54,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id, **kwargs):
-        # type: (Pin, str, Dict[str, Any]) -> Span
+    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.

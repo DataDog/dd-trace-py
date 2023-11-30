@@ -5,17 +5,18 @@ import json
 import os
 import re
 import sys
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Set
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 import uuid
 
 import attr
 import cattr
+from envier import En
 import six
 
 import ddtrace
@@ -27,22 +28,32 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
-from ._pubsub import PubSub
+from ._pubsub import PubSub  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import MutableMapping
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import MutableMapping  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+
+class RemoteConfigClientConfig(En):
+    __prefix__ = "_dd.remote_configuration"
+
+    log_payloads = En.v(bool, "log_payloads", default=False)
+
+
+config = RemoteConfigClientConfig()
 
 
 class RemoteConfigError(Exception):
@@ -243,6 +254,13 @@ class RemoteConfigClient(object):
             return True
         return False
 
+    def start_products(self, products_list):
+        # type: (list) -> None
+        for product_name in products_list:
+            pubsub_instance = self._products.get(product_name)
+            if pubsub_instance:
+                pubsub_instance.restart_subscriber()
+
     def unregister_product(self, product_name):
         # type: (str) -> None
         self._products.pop(product_name, None)
@@ -254,7 +272,7 @@ class RemoteConfigClient(object):
     def is_subscriber_running(self, pubsub_to_check):
         # type: (PubSub) -> bool
         for pubsub in self.get_pubsubs():
-            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
+            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.status == ServiceStatus.RUNNING:
                 return True
         return False
 
@@ -267,10 +285,19 @@ class RemoteConfigClient(object):
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
             )  # noqa: G200
+
+            if config.log_payloads:
+                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
+
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data = resp.read()
+
+            if config.log_payloads:
+                log.debug(
+                    "[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8")
+                )  # noqa: G200
         except OSError as e:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
