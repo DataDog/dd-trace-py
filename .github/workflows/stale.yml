@@ -21,6 +21,7 @@ jobs:
           days-before-close: 180
           exempt-issue-labels: 'proposal'
           exempt-pr-labels: 'proposal'
+          remove-stale-when-updated: true
           close-issue-message: |
             This issue has been automatically closed after six months of inactivity. If it's a
             feature request, it has been added to the maintainers' internal backlog and will be
