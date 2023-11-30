@@ -92,7 +92,7 @@ async def test_model_alist(api_key_in_env, request_api_key, openai, openai_vcr, 
         token="tests.contrib.openai.test_openai.test_model_list",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("model_list_async.yaml"):
+        with openai_vcr.use_cassette("model_alist.yaml"):
             await openai.Model.alist(api_key=request_api_key, user="ddtrace-test")
 
 
@@ -113,7 +113,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
         token="tests.contrib.openai.test_openai.test_model_retrieve",
         ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.created"],
     ):
-        with openai_vcr.use_cassette("model_retrieve_async.yaml"):
+        with openai_vcr.use_cassette("model_aretrieve.yaml"):
             await openai.Model.aretrieve("curie", api_key=request_api_key, user="ddtrace-test")
 
 
@@ -475,8 +475,8 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_chat_completion",
-        ignores=["meta.http.useragent", "meta.openai.base_url", "meta._dd.p.tid"],
+        token="tests.contrib.openai.test_openai.test_achat_completion",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             await openai.ChatCompletion.acreate(
@@ -519,16 +519,16 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
     if not hasattr(openai, "Edit"):
         pytest.skip("edit not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit", ignores=["meta.http.useragent", "meta.openai.base_url"]
+        token="tests.contrib.openai.test_openai.test_aedit", ignores=["meta.http.useragent", "meta.openai.base_url"]
     ):
-        with openai_vcr.use_cassette("edit_async.yaml"):
+        with openai_vcr.use_cassette("aedit.yaml"):
             await openai.Edit.acreate(
                 api_key=request_api_key,
                 model="text-davinci-edit-001",
                 input="thsi si a spelilgn imstkae.",
                 instruction="fix spelling mistakes",
                 n=3,
-                temperature=0.2,
+                top_p=0.3,
                 user="ddtrace-test",
             )
 
@@ -612,10 +612,10 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create",
+        token="tests.contrib.openai.test_openai.test_image_acreate",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("image_create_async.yaml"):
+        with openai_vcr.use_cassette("image_acreate.yaml"):
             await openai.Image.acreate(
                 api_key=request_api_key,
                 prompt="sleepy capybara with monkey on top",
@@ -705,10 +705,10 @@ async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, 
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_edit",
+        token="tests.contrib.openai.test_openai.test_image_aedit",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("image_edit_async.yaml"):
+        with openai_vcr.use_cassette("image_aedit.yaml"):
             await openai.Image.acreate_edit(
                 image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
                 mask=open(os.path.join(os.path.dirname(__file__), "test_data/mask.png"), "rb"),
@@ -802,10 +802,10 @@ async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_
     if not hasattr(openai, "Image"):
         pytest.skip("image not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_variation",
+        token="tests.contrib.openai.test_openai.test_image_avariation",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("image_variation_async.yaml"):
+        with openai_vcr.use_cassette("image_avariation.yaml"):
             await openai.Image.acreate_variation(
                 image=open(os.path.join(os.path.dirname(__file__), "test_data/image.png"), "rb"),
                 api_key=request_api_key,
@@ -965,7 +965,7 @@ async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, s
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_embedding",
+        token="tests.contrib.openai.test_openai.test_aembedding",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("embedding_async.yaml"):
@@ -1008,7 +1008,7 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
         token="tests.contrib.openai.test_openai.test_atranscribe",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("transcribe_async.yaml"):
+        with openai_vcr.use_cassette("atranscribe.yaml"):
             await openai.Audio.atranscribe(
                 api_key=request_api_key,
                 file=open(os.path.join(os.path.dirname(__file__), "test_data/english_audio.mp3"), "rb"),
@@ -1110,7 +1110,7 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
         token="tests.contrib.openai.test_openai.test_atranslate",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("translate_async.yaml"):
+        with openai_vcr.use_cassette("atranslate.yaml"):
             await openai.Audio.atranslate(
                 api_key=request_api_key,
                 file=open(os.path.join(os.path.dirname(__file__), "test_data/french_audio.mp3"), "rb"),
@@ -1195,7 +1195,7 @@ async def test_file_alist(api_key_in_env, request_api_key, openai, openai_vcr, s
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_file_list", ignores=["meta.http.useragent", "meta.openai.base_url"]
     ):
-        with openai_vcr.use_cassette("file_list_async.yaml"):
+        with openai_vcr.use_cassette("file_alist.yaml"):
             await openai.File.alist(api_key=request_api_key, user="ddtrace-test")
 
 
@@ -1222,10 +1222,10 @@ async def test_file_acreate(api_key_in_env, request_api_key, openai, openai_vcr,
     if not hasattr(openai, "File"):
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_file_create",
+        token="tests.contrib.openai.test_openai.test_file_acreate",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("file_create_async.yaml"):
+        with openai_vcr.use_cassette("file_acreate.yaml"):
             await openai.File.acreate(
                 api_key=request_api_key,
                 file=open(os.path.join(os.path.dirname(__file__), "test_data/training_data.jsonl"), "rb"),
@@ -1256,12 +1256,12 @@ async def test_file_adelete(api_key_in_env, request_api_key, openai, openai_vcr,
     if not hasattr(openai, "File"):
         pytest.skip("file not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_file_delete",
+        token="tests.contrib.openai.test_openai.test_file_adelete",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("file_delete_async.yaml"):
+        with openai_vcr.use_cassette("file_adelete.yaml"):
             await openai.File.adelete(
-                sid="file-l48KgWVF75Tz2HLqLrcUdBPi",
+                sid="file-EArCuhXNtaTrFoPEKAmrVbnQ",
                 api_key=request_api_key,
                 user="ddtrace-test",
             )
@@ -1292,7 +1292,7 @@ async def test_file_aretrieve(api_key_in_env, request_api_key, openai, openai_vc
         token="tests.contrib.openai.test_openai.test_file_retrieve",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("file_retrieve_async.yaml"):
+        with openai_vcr.use_cassette("file_aretrieve.yaml"):
             await openai.File.aretrieve(
                 id="file-Aeh42OWPtbWgt7gfUjXBVFAF",
                 api_key=request_api_key,
@@ -1330,7 +1330,7 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
         ],
     ):
         # mock vcrpy stream response does not have `total_bytes` attribute
-        with openai_vcr.use_cassette("file_download_async.yaml"):
+        with openai_vcr.use_cassette("file_adownload.yaml"):
             await openai.File.adownload(
                 "file-xC22NUuYBkXvzRt2fLREcGde",
                 api_key=request_api_key,
@@ -1361,7 +1361,7 @@ async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_v
         token="tests.contrib.openai.test_openai.test_fine_tune_list",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("fine_tune_list_async.yaml"):
+        with openai_vcr.use_cassette("fine_tune_alist.yaml"):
             await openai.FineTune.alist(
                 api_key=request_api_key,
                 user="ddtrace-test",
@@ -1403,17 +1403,17 @@ async def test_fine_tune_acreate(api_key_in_env, request_api_key, openai, openai
     if not hasattr(openai, "FineTune"):
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_create",
+        token="tests.contrib.openai.test_openai.test_fine_tune_acreate",
         ignores=[
             "meta.http.useragent",
             "meta.openai.base_url",
-            "meta.openai.request.classification_n_classes",
-            "meta.openai.request.classification_positive_class",
-            "meta.openai.request.validation_file",
-            "metrics.openai.request.classification_betas_count",
+            "meta.openai.response.hyperparams.batch_size",
+            "meta.openai.response.hyperparams.n_epochs",
+            "meta.openai.response.hyperparams.learning_rate_multiplier",
+            "meta.openai.response.hyperparams.prompt_loss_weight",
         ],
     ):
-        with openai_vcr.use_cassette("fine_tune_create_async.yaml"):
+        with openai_vcr.use_cassette("fine_tune_acreate.yaml"):
             await openai.FineTune.acreate(
                 training_file="file-llDq0Q9la7EBTScAowIotxxc",
                 n_epochs=4,
@@ -1452,7 +1452,7 @@ async def test_fine_tune_aretrieve(api_key_in_env, request_api_key, openai, open
         token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("fine_tune_retrieve_async.yaml"):
+        with openai_vcr.use_cassette("fine_tune_aretrieve.yaml"):
             await openai.FineTune.aretrieve(
                 id="ft-sADEaavxRFrjOQ65XkQKm0zM",
                 api_key=request_api_key,
@@ -1466,7 +1466,10 @@ def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, s
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=["meta.http.useragent", "meta.openai.base_url"],
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+        ],
     ):
         with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
             openai.FineTune.cancel(
@@ -1482,12 +1485,15 @@ async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai
     if not hasattr(openai, "FineTune"):
         pytest.skip("fine tunes not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=["meta.http.useragent", "meta.openai.base_url"],
+        token="tests.contrib.openai.test_openai.test_fine_tune_acancel",
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.base_url",
+        ],
     ):
-        with openai_vcr.use_cassette("fine_tune_cancel_async.yaml"):
+        with openai_vcr.use_cassette("fine_tune_acancel.yaml"):
             await openai.FineTune.acancel(
-                id="ft-N6ggcFNqJNuREixR9ShDWzST",
+                id="ft-bN1JASRDOPzKeN7zQ8aJ7hVF",
                 api_key=request_api_key,
                 user="ddtrace-test",
             )
@@ -1518,7 +1524,7 @@ async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr
         token="tests.contrib.openai.test_openai.test_model_delete",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("model_delete_async.yaml"):
+        with openai_vcr.use_cassette("model_adelete.yaml"):
             await openai.Model.adelete(
                 sid="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
                 api_key=request_api_key,
@@ -1545,8 +1551,8 @@ def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, 
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_create_moderation",
-        ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.id"],
+        token="tests.contrib.openai.test_openai_v0.test_create_moderation",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
             openai.Moderation.create(
@@ -1562,13 +1568,13 @@ async def test_acreate_moderation(api_key_in_env, request_api_key, openai, opena
     if not hasattr(openai, "Moderation"):
         pytest.skip("moderation not supported for this version of openai")
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_create_moderation",
-        ignores=["meta.http.useragent", "meta.openai.base_url", "meta.openai.response.id"],
+        token="tests.contrib.openai.test_openai_v0.test_acreate_moderation",
+        ignores=["meta.http.useragent", "meta.openai.base_url"],
     ):
-        with openai_vcr.use_cassette("moderation_async.yaml"):
+        with openai_vcr.use_cassette("amoderation.yaml"):
             await openai.Moderation.acreate(
                 api_key=request_api_key,
-                input="i want to kill them.",
+                input="that group of loud children annoy me.",
                 model="text-moderation-latest",
             )
 
@@ -1809,8 +1815,8 @@ from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
-    resp = openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_2.yaml"):
+    resp = openai.Completion.create(model="ada", prompt="hello world")
 """,
         env=env,
     )
@@ -1820,15 +1826,7 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_acompletion",
-    ignores=[
-        "meta.http.useragent",
-        "meta.openai.base_url",
-        "metrics.openai.response.usage.total_tokens",
-        "metrics.openai.response.usage.prompt_tokens",
-        "metrics.openai.response.usage.completion_tokens",
-    ],
-    async_mode=False,
+    token="tests.contrib.openai.test_openai.test_integration_async", ignores=["meta.http.useragent"], async_mode=False
 )
 def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
     """OpenAI uses requests for its synchronous requests.
@@ -1861,15 +1859,8 @@ from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 async def task():
-    with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_async.yaml"):
-        resp = await openai.Completion.acreate(
-            model="curie",
-            prompt="As Descartes said, I think, therefore",
-            temperature=0.8,
-            n=1,
-            max_tokens=150,
-            user="ddtrace-test"
-        )
+    with get_openai_vcr(subdirectory_name="v0").use_cassette("acompletion_2.yaml"):
+        resp = await openai.Completion.acreate(model="ada", prompt="hello world")
 
 asyncio.run(task())
 """,
@@ -1933,7 +1924,7 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
     assert len(traces) == num_completions
     for trace in traces:
         for span in trace:
-            if span.get_tag("openai.response.choices.0.message.content"):
+            if span.get_tag("openai.response.choices.0.message.role"):
                 sampled += 1
     if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
         assert sampled == 0
@@ -1999,7 +1990,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
                 if "..." in completion:
                     assert len(completion.replace("...", "")) == limit
             else:
-                prompt = span.get_tag("openai.request.prompt.0")
+                prompt = span.get_tag("openai.request.prompt")
                 completion = span.get_tag("openai.response.choices.0.text")
                 # +3 for the ellipsis
                 assert len(prompt) <= limit + 3
@@ -2129,11 +2120,11 @@ def test_azure_openai_completion(openai_api_key, azure_openai, openai_vcr, snaps
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_completion",
+    token="tests.contrib.openai.test_openai.test_azure_openai_acompletion",
     ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
-    with openai_vcr.use_cassette("azure_completion_async.yaml"):
+    with openai_vcr.use_cassette("azure_acompletion.yaml"):
         await azure_openai.Completion.acreate(
             api_key=openai_api_key,
             engine="gpt-35-turbo",
@@ -2166,13 +2157,13 @@ def test_azure_openai_chat_completion(openai_api_key, azure_openai, openai_vcr, 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
+    token="tests.contrib.openai.test_openai.test_azure_openai_chat_acompletion",
     ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_chat_acompletion(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
     if not hasattr(azure_openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
-    with openai_vcr.use_cassette("azure_chat_completion_async.yaml"):
+    with openai_vcr.use_cassette("azure_chat_acompletion.yaml"):
         await azure_openai.ChatCompletion.acreate(
             api_key=openai_api_key,
             engine="gpt-35-turbo",
@@ -2201,11 +2192,11 @@ def test_azure_openai_embedding(openai_api_key, azure_openai, openai_vcr, snapsh
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
+    token="tests.contrib.openai.test_openai.test_azure_openai_aembedding",
     ignores=["meta.http.useragent", "meta.openai.base_url"],
 )
 async def test_azure_openai_aembedding(openai_api_key, azure_openai, openai_vcr, snapshot_tracer):
-    with openai_vcr.use_cassette("azure_embedding_async.yaml"):
+    with openai_vcr.use_cassette("azure_aembedding.yaml"):
         await azure_openai.Embedding.acreate(
             api_key=openai_api_key,
             engine="text-embedding-ada-002",
@@ -2248,8 +2239,8 @@ from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v0 import get_openai_vcr
 pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
-with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
-    resp = openai.Completion.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
+with get_openai_vcr(subdirectory_name="v0").use_cassette("completion_2.yaml"):
+    resp = openai.Completion.create(model="ada", prompt="hello world")
     """,
             env=env,
         )

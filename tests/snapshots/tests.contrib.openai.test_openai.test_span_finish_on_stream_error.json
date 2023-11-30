@@ -23,7 +23,7 @@
       "openai.request.method": "POST",
       "openai.request.model": "text-curie-001",
       "openai.request.n": "1",
-      "openai.request.prompt.0": "how does openai tokenize prompts?",
+      "openai.request.prompt": "how does openai tokenize prompts?",
       "openai.request.stream": "True",
       "openai.request.temperature": "0.8",
       "openai.user.api_key": "sk-...-key",

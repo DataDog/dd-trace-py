@@ -5181,8 +5181,8 @@ interactions:
     uri: https://api.openai.com/v1/images/variations
   response:
     body:
-      string: "{\n  \"created\": 1685642045,\n  \"data\": [\n    {\n      \"url\":
-        \"https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-qlcbcQQ9FxrplYn9Ri2DfC1X.png?st=2023-06-01T16%3A55%3A48Z&se=2023-06-01T18%3A55%3A48Z&sp=r&sv=2021-08-06&sr=b&rscd=inline&rsct=image/png&skoid=6aaadede-4fb3-4698-a8f6-684d7786b067&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2023-05-31T20%3A31%3A43Z&ske=2023-06-01T20%3A31%3A43Z&sks=b&skv=2021-08-06&sig=66LvIgR3xqe9pjYChG6%2BZLUabtNW03%2B%2BpRV28dQnjP8%3D\"\n
+      string: "{\n  \"created\": 1685642148,\n  \"data\": [\n    {\n      \"url\":
+        \"https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-kU6j7Q79FxrplYn9Ri2DfC1X.png?st=2023-06-01T16%3A55%3A48Z&se=2023-06-01T18%3A55%3A48Z&sp=r&sv=2021-08-06&sr=b&rscd=inline&rsct=image/png&skoid=6aaadede-4fb3-4698-a8f6-684d7786b067&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2023-05-31T20%3A31%3A43Z&ske=2023-06-01T20%3A31%3A43Z&sks=b&skv=2021-08-06&sig=66LvIgR3xqe9pjYChG6%2BZLUabtNW03%2B%2BpRV28dQnjP8%3D\"\n
         \   }\n  ]\n}\n"
     headers:
       Access-Control-Allow-Origin:

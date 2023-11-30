@@ -509,8 +509,8 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_chat_completion",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta._dd.p.tid"],
+        token="tests.contrib.openai.test_openai.test_achat_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("chat_completion_async.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -549,7 +549,7 @@ def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_trac
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit",
+        token="tests.contrib.openai.test_openai.test_aedit",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
     ):
         with openai_vcr.use_cassette("edit_async.yaml"):
@@ -559,7 +559,7 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
                 input="thsi si a spelilgn imstkae.",
                 instruction="fix spelling mistakes",
                 n=3,
-                temperature=0.2,
+                top_p=0.3,
             )
 
 
@@ -636,10 +636,10 @@ def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snaps
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_image_create",
+        token="tests.contrib.openai.test_openai.test_image_acreate",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
-        with openai_vcr.use_cassette("image_create.yaml"):
+        with openai_vcr.use_cassette("image_create_async.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
             await client.images.generate(
                 prompt="sleepy capybara with monkey on top",
@@ -770,10 +770,10 @@ def test_embedding_array_of_token_arrays(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_aembedding(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_embedding",
+        token="tests.contrib.openai.test_openai.test_aembedding",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
-        with openai_vcr.use_cassette("embedding.yaml"):
+        with openai_vcr.use_cassette("embedding_async.yaml"):
             client = openai.AsyncOpenAI(api_key=request_api_key)
             await client.embeddings.create(input="hello world", model="text-embedding-ada-002", user="ddtrace-test")
 
@@ -1100,8 +1100,12 @@ async def test_fine_tune_alist_events(api_key_in_env, request_api_key, openai, o
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_create_moderation",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+        token="tests.contrib.openai.test_openai_v1.test_create_moderation",
+        ignores=[
+            "meta.http.useragent",
+            "meta.openai.api_type",
+            "meta.openai.api_base",
+        ],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
             client = openai.OpenAI(api_key=request_api_key)
@@ -1115,7 +1119,7 @@ def test_create_moderation(api_key_in_env, request_api_key, openai, openai_vcr, 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_acreate_moderation(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_create_moderation",
+        token="tests.contrib.openai.test_openai_v1.test_create_moderation",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
     ):
         with openai_vcr.use_cassette("moderation.yaml"):
@@ -1383,9 +1387,7 @@ pin = ddtrace.Pin.get_from(openai)
 pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
-    resp = client.completions.create(
-        model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
-    )
+    resp = client.completions.create(model="ada", prompt="hello world")
 """,
         env=env,
     )
@@ -1432,9 +1434,7 @@ pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
-        resp = await client.completions.create(
-            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
-        )
+        resp = await client.completions.create(model="ada", prompt="hello world")
 
 asyncio.run(task())
 """,
@@ -1504,7 +1504,7 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
     assert len(traces) == num_completions
     for trace in traces:
         for span in trace:
-            if span.get_tag("openai.response.choices.0.message.content"):
+            if span.get_tag("openai.response.choices.0.message.role"):
                 sampled += 1
     if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
         assert sampled == 0
@@ -1568,7 +1568,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
                 if "..." in completion:
                     assert len(completion.replace("...", "")) == limit
             else:
-                prompt = span.get_tag("openai.request.prompt.0")
+                prompt = span.get_tag("openai.request.prompt")
                 completion = span.get_tag("openai.response.choices.0.text")
                 # +3 for the ellipsis
                 assert len(prompt) <= limit + 3
@@ -1703,7 +1703,7 @@ def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapsh
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_completion",
+    token="tests.contrib.openai.test_openai.test_azure_openai_acompletion",
     ignores=[
         "meta.http.useragent",
         "meta.openai.api_base",
@@ -1797,7 +1797,7 @@ def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapsho
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
+    token="tests.contrib.openai.test_openai.test_azure_openai_aembedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
 )
 async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, snapshot_tracer):

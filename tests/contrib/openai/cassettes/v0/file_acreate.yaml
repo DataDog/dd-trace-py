@@ -35,9 +35,9 @@ interactions:
     uri: https://api.openai.com/v1/files
   response:
     body:
-      string: "{\n  \"object\": \"file\",\n  \"id\": \"file-l48KgWVF75Tz2HLqLrcUdBPi\",\n
+      string: "{\n  \"object\": \"file\",\n  \"id\": \"file-YxyNpYhPFgbx7yJj0sh8CE5S\",\n
         \ \"purpose\": \"fine-tune\",\n  \"filename\": \"dummy_training_file.jsonl\",\n
-        \ \"bytes\": 1431,\n  \"created_at\": 1685649224,\n  \"status\": \"uploaded\",\n
+        \ \"bytes\": 1431,\n  \"created_at\": 1685649695,\n  \"status\": \"uploaded\",\n
         \ \"status_details\": null\n}\n"
     headers:
       Access-Control-Allow-Origin:
