@@ -681,7 +681,6 @@ def pytest_runtest_protocol(item, nextitem):
         if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
             _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
 
-
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
             _mark_test_status(pytest_module_item, test_suite_span)
@@ -710,7 +709,11 @@ def pytest_runtest_protocol(item, nextitem):
                     _mark_test_status(pytest_package_item, test_module_span)
                     test_module_span.finish()
 
-        if nextitem is None and _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(pytest):
+        if (
+            nextitem is None
+            and _CIVisibility._instance._collect_coverage_enabled
+            and _module_has_dd_coverage_enabled(pytest)
+        ):
             _stop_coverage(pytest)
 
 
