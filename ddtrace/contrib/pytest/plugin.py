@@ -423,8 +423,6 @@ def pytest_sessionfinish(session, exitstatus):
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             test_session_span.finish()
-        if _module_has_dd_coverage_enabled(pytest):
-            _stop_coverage(pytest)
         _CIVisibility.disable()
 
 
@@ -682,6 +680,8 @@ def pytest_runtest_protocol(item, nextitem):
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
             _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
+            if nextitem is None:
+                _stop_coverage(pytest)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
