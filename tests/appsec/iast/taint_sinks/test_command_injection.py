@@ -317,6 +317,25 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
         assert len(list(span_report.vulnerabilities)) == 2
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
+def test_string_cmdi(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        patch()
+        cmd = taint_pyobject(
+            pyobject="dir -l .",
+            source_name="test_run",
+            source_value="dir -l .",
+            source_origin=OriginType.PARAMETER,
+        )
+        with tracer.trace("test_string_cmdi"):
+            subprocess.run(cmd, shell=True, check=True)
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+
+        assert len(list(span_report.vulnerabilities)) == 1
+
+
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_cmdi_deduplication(num_vuln_expected, tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)), override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
