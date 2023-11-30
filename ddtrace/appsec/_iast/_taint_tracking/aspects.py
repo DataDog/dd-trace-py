@@ -164,7 +164,7 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
     try:
         new_result = _slice_aspect(candidate_text, start, stop, step)
         if new_result != result:
-            raise Exception("Propagation result %s is different to candidate_text[slice] %s" % (new_result, result))
+            raise Exception("Propagation result %r is different to candidate_text[slice] %r" % (new_result, result))
         return new_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e))
@@ -345,7 +345,7 @@ def format_aspect(
         params = tuple(args) + tuple(kwargs.values())
         new_result = _format_aspect(candidate_text, params, *args, **kwargs)
         if new_result != result:
-            raise Exception("Propagation result %s is different to candidate_text.format %s" % (new_result, result))
+            raise Exception("Propagation result %r is different to candidate_text.format %r" % (new_result, result))
         return new_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e))
