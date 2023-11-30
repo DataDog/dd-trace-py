@@ -386,8 +386,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def after_import(self, module):
         # type: (ModuleType) -> None
         module_path = origin(module)
-        with telemetry_writer._lock:
-            telemetry_writer._new_dependencies.add(module)
+        telemetry_writer._new_dependencies.add(module)
         path = str(module_path) if module_path is not None else None
         if path is not None:
             self._origin_map[path] = module
