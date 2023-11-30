@@ -1,7 +1,6 @@
 import base64
 import gzip
 import json
-import sys
 
 from flask import request
 import pytest

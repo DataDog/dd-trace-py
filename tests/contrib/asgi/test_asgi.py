@@ -2,7 +2,6 @@ import asyncio
 from functools import partial
 import os
 import random
-import sys
 
 from asgiref.testing import ApplicationCommunicator
 import httpx

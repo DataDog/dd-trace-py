@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import textwrap
 
 import mock
@@ -15,7 +14,6 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01

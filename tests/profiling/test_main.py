@@ -131,6 +131,6 @@ def test_memalloc_no_init_error_on_fork():
 def test_profiler_start_up_with_module_clean_up_in_protobuf_app():
     # This can cause segfaults if we do module clean up with later versions of
     # protobuf. This is a regression test.
-    from google.protobuf import empty_pb2  # noqa
+    from google.protobuf import empty_pb2  # noqa:F401
 
     print("OK")
