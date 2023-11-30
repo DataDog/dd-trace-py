@@ -1,8 +1,6 @@
 from itertools import groupby
 import json
-
 from typing import TYPE_CHECKING
-from typing import Dict
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
