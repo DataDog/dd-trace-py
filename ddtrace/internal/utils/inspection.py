@@ -6,8 +6,7 @@ from bytecode import Bytecode
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
-def linenos(f):
-    # type: (FunctionType) -> Set[int]
+def linenos(f: FunctionType) -> Set[int]:
     """Get the line numbers of a function."""
     ls = {
         _

@@ -397,7 +397,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled when configured
         with self.override_config("httplib", {}):
-            from ddtrace.settings import IntegrationConfig
+            from ddtrace.settings import IntegrationConfig  # noqa:F401
 
             integration_config = config.httplib  # type: IntegrationConfig
             integration_config.http.trace_headers(["my-header", "access-control-allow-origin"])

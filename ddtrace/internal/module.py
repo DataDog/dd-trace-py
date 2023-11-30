@@ -8,14 +8,14 @@ import sys
 from types import ModuleType
 from typing import Any
 from typing import Callable
-from typing import DefaultDict
+from typing import DefaultDict  # noqa:F401
 from typing import Dict
 from typing import Iterable
-from typing import List
+from typing import List  # noqa:F401
 from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
 from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict
@@ -263,8 +263,9 @@ class BaseModuleWatchdog(abc.ABC):
 
         return None
 
-    def find_spec(self, fullname, path=None, target=None):
-        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
+    def find_spec(
+        self, fullname: str, path: Optional[str] = None, target: Optional[ModuleType] = None
+    ) -> Optional[ModuleSpec]:
         if fullname in self._finding:
             return None
 

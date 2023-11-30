@@ -4,7 +4,6 @@ import pytest
 
 import ddtrace
 import ddtrace.debugging._exception.auto_instrument as auto_instrument
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase

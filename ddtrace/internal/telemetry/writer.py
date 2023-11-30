@@ -3,14 +3,14 @@ import itertools
 import os
 import sys
 import time
-import typing
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ..packages import filename_to_package
 from ...internal import atexit
@@ -91,12 +91,12 @@ from .data import get_host_info
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
-from .metrics import MetricTagType
+from .metrics import MetricTagType  # noqa:F401
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType
+from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from types import ModuleType
 
 
@@ -132,8 +132,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._agent_url, self._endpoint)
 
-    def send_event(self, request):
-        # type: (Dict) -> Optional[httplib.HTTPResponse]
+    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -483,7 +482,7 @@ class TelemetryWriter(PeriodicService):
                 }
 
     def _app_dependencies_loaded_event(self, payload_type="app-dependencies-loaded"):
-        # type: () -> None
+        # type: (Optional[str]) -> None
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         payload = {"dependencies": update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))}
         self.add_event(payload, payload_type)

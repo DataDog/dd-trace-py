@@ -1,15 +1,14 @@
 import logging
 import os
-import sys
 import typing as t
 
 from ddtrace.internal.utils.cache import callonce
 
 
 try:
-    import pathlib
+    import pathlib  # noqa: F401
 except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]
+    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
 
 
 LOG = logging.getLogger(__name__)

@@ -3,12 +3,12 @@ import multiprocessing
 import os
 import re
 import sys
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
@@ -37,7 +37,7 @@ from .integration import IntegrationConfig
 
 
 if sys.version_info >= (3, 8):
-    from typing import Literal
+    from typing import Literal  # noqa:F401
 else:
     from typing_extensions import Literal
 
