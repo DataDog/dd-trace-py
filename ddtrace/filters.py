@@ -5,9 +5,11 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace import Span  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace import Span  # noqa:F401
 
 
 class TraceFilter(TraceProcessor):
