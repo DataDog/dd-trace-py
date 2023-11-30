@@ -282,7 +282,7 @@ inline void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_2.ptr(), tx_map);
+    auto ranges = get_ranges(str_1.ptr(), tx_map);
     set_ranges(str_2.ptr(), ranges, tx_map);
 }
 
@@ -290,7 +290,7 @@ inline void
 api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset)
 {
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_2.ptr(), tx_map);
+    auto ranges = get_ranges(str_1.ptr(), tx_map);
     set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset), tx_map);
 }
 
