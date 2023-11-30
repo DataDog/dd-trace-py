@@ -1,10 +1,13 @@
 import platform
 import sys
+from types import ModuleType
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
@@ -13,10 +16,6 @@ from ddtrace.version import get_version
 from ...settings import _config as config  # noqa:F401
 from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
-
-if typing.TYPE_CHECKING:
-    from ddtrace.internal.packages import Distribution
-    from types import ModuleType
 
 
 def _format_version_info(vi):
@@ -74,8 +73,7 @@ def _get_application(key):
     }
 
 
-def update_imported_dependencies(already_imported, new_modules):
-    # type: (Dict[str, Distribution], List[ModuleType]) -> List[Dict[str, str]]
+def update_imported_dependencies(already_imported: Dict[str, Distribution], new_modules: List[ModuleType]) -> List[Dict[str, str]]:
     deps = []
     from ddtrace.internal.module import origin
 

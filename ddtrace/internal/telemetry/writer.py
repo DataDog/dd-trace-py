@@ -12,7 +12,6 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ..packages import filename_to_package
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
@@ -96,8 +95,8 @@ from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
-if TYPE_CHECKING:
-    from types import ModuleType
+from types import ModuleType
+from ..packages import filename_to_package, Distribution
 
 
 log = get_logger(__name__)
@@ -199,7 +198,7 @@ class TelemetryWriter(PeriodicService):
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._new_dependencies = set()
-        self._imported_dependencies = dict()  # type: Dict[str, Dict]
+        self._imported_dependencies = dict()  # type: Dict[str, Distribution]
 
         self.started = False
         forksafe.register(self._fork_writer)
@@ -418,7 +417,7 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self):
+    def _flush_new_imported_dependencies(self) -> List[ModuleType]:
         with self._lock:
             new_deps = list(self._new_dependencies)
             self._new_dependencies.clear()
@@ -440,8 +439,7 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _update_dependencies_event(self, newly_imported_deps):
-        # type: (List[ModuleType]) -> None
+    def _update_dependencies_event(self, newly_imported_deps: List[ModuleType]):
         """Adds events to report imports done since the last periodic run"""
 
         from pprint import pformat
@@ -481,8 +479,7 @@ class TelemetryWriter(PeriodicService):
                     "value": value,
                 }
 
-    def _app_dependencies_loaded_event(self, payload_type="app-dependencies-loaded"):
-        # type: (Optional[str]) -> None
+    def _app_dependencies_loaded_event(self, payload_type: Optional[str]="app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         payload = {"dependencies": update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))}
         self.add_event(payload, payload_type)
