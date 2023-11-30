@@ -251,7 +251,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
         super()._record_request(pin, integration, span, args, kwargs)
         for idx, m in enumerate(kwargs.get("messages", [])):
             if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", ""))))
+                span.set_tag_str(
+                    "openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", "")))
+                )
             span.set_tag_str("openai.request.messages.%d.role" % idx, m.get("role", ""))
             span.set_tag_str("openai.request.messages.%d.name" % idx, m.get("name", ""))
 
