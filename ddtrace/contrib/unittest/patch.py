@@ -807,7 +807,7 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
             )
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(test_session_span)
-            if _module_has_dd_coverage_enabled(unittest):
+            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
                 _stop_coverage(unittest)
 
         raise e
@@ -838,7 +838,7 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(_CIVisibility._datadog_session_span)
             del _CIVisibility._datadog_session_span
-            if _module_has_dd_coverage_enabled(unittest):
+            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
                 _stop_coverage(unittest)
         raise e
 
@@ -850,6 +850,6 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
         _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
         _finish_span(_CIVisibility._datadog_session_span)
         del _CIVisibility._datadog_session_span
-        if _module_has_dd_coverage_enabled(unittest):
+        if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
             _stop_coverage(unittest)
     return result
