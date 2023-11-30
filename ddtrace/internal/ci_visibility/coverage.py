@@ -1,20 +1,17 @@
 from itertools import groupby
 import json
-from typing import TYPE_CHECKING
-from typing import Dict
+
+from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.logger import get_logger
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa:F401
-    from typing import Iterable  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Tuple  # noqa:F401
 
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
@@ -94,8 +91,7 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
-def segments(lines):
-    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
+def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
     """Extract the relevant report data for a single file."""
     _segments = []
     for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
@@ -107,8 +103,7 @@ def segments(lines):
     return _segments
 
 
-def _lines(coverage, context):
-    # type: (Coverage, Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]
+def _lines(coverage: Coverage, context: Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]:
     if not coverage._collector or not coverage._collector.data:
         return {}
 
@@ -118,8 +113,7 @@ def _lines(coverage, context):
     }
 
 
-def build_payload(coverage, root_dir, test_id=None):
-    # type: (Coverage, str, Optional[str]) -> str
+def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = None) -> str:
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
