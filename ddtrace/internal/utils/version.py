@@ -1,5 +1,5 @@
-import typing
-from typing import Optional
+import typing  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import ddtrace.vendor.packaging.version as packaging_version
 from ddtrace.version import get_version

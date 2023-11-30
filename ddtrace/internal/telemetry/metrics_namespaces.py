@@ -1,15 +1,15 @@
 from collections import defaultdict
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Type
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Type  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from ddtrace.internal.telemetry.metrics import DistributionMetric
 from ddtrace.internal.telemetry.metrics import Metric
-from ddtrace.internal.telemetry.metrics import MetricTagType
+from ddtrace.internal.telemetry.metrics import MetricTagType  # noqa:F401
 
 
 NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]

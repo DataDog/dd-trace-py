@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import pickle
-from typing import Optional
+from typing import Optional  # noqa:F401
 
 import pytest
 

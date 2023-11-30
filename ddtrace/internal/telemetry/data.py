@@ -1,8 +1,8 @@
 import platform
 import sys
-from typing import Dict
-from typing import List
-from typing import Tuple
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
@@ -10,7 +10,7 @@ from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
-from ...settings import _config as config
+from ...settings import _config as config  # noqa:F401
 from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 

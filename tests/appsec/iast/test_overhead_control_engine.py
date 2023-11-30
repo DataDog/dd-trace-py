@@ -1,7 +1,4 @@
-import sys
 from time import sleep
-
-import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce

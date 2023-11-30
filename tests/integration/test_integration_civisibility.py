@@ -5,7 +5,6 @@ import pytest
 
 import ddtrace
 from ddtrace.internal import agent
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
