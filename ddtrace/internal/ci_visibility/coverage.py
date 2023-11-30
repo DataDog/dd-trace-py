@@ -1,5 +1,6 @@
 from itertools import groupby
 import json
+
 from typing import TYPE_CHECKING
 from typing import Dict
 
@@ -10,11 +11,11 @@ from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
@@ -127,7 +128,7 @@ def build_payload(coverage, root_dir, test_id=None):
         {
             "filename": <String>,
             "segments": [
-                [Int, Int, Int, Int, Int],  # noqa
+                [Int, Int, Int, Int, Int],  # noqa:F401
             ]
         },
         ...

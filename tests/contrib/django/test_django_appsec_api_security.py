@@ -2,9 +2,6 @@
 import base64
 import gzip
 import json
-import sys
-
-import pytest
 
 from ddtrace.appsec import _constants
 from ddtrace.settings.asm import config as asm_config

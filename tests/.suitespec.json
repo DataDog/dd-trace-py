@@ -470,6 +470,7 @@
             "@tracing",
             "@contrib",
             "@openai",
+            "@requests",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -1167,6 +1168,7 @@
             "@tracing",
             "@contrib",
             "@langchain",
+            "@requests",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]

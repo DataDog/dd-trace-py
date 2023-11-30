@@ -1,7 +1,7 @@
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import starlette
 from starlette.middleware import Middleware
@@ -14,7 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 

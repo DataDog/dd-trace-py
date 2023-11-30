@@ -103,20 +103,20 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 from collections import defaultdict
 from contextlib import contextmanager
 import logging
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Tuple
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.span import Span  # noqa
+    from ddtrace.span import Span  # noqa:F401
 
 
 try:

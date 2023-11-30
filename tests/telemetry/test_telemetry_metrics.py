@@ -1,7 +1,6 @@
 from time import sleep
 
 from mock.mock import ANY
-import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER

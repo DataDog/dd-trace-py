@@ -1,11 +1,11 @@
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from opentracing import SpanContext as OpenTracingSpanContext
 
 from ddtrace.context import Context as DatadogContext
-from ddtrace.internal.compat import NumericType
+from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
 class SpanContext(OpenTracingSpanContext):
