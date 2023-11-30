@@ -43,6 +43,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -890,7 +891,9 @@ class BotocoreTest(TracerTestCase):
     def test_stepfunctions_client(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(stateMachineArn="foo", name="bar", input='{"baz":1}')
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo", name="bar", input='{"baz":1}'
+        )
         spans = self.get_spans()
         assert spans
         span = spans[0]
@@ -909,7 +912,9 @@ class BotocoreTest(TracerTestCase):
     def test_stepfunctions_send_start_execution_trace_injection(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(stateMachineArn="foo", name="bar", input='{"baz":1}')
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo", name="bar", input='{"baz":1}'
+        )
         spans = self.get_spans()
         assert spans
         span = spans[0]
