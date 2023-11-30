@@ -1,0 +1,69 @@
+interactions:
+- request:
+    body: '{"model": "text-davinci-edit-001", "input": "thsi si a spelilgn imstkae.",
+      "instruction": "fix spelling mistakes", "n": 3, "top_p": 0.3}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.3.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.4.0 Darwin Kernel Version 22.4.0: Mon Mar  6 20:59:28
+        PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://api.openai.com/v1/edits
+  response:
+    body:
+      string: '{"object":"edit","created":1684789788,"choices":[{"text":"this is a
+        spelling mistake.\n","index":0},{"text":"this is a spelling mistake.\n","index":1},{"text":"this
+        is a spelling mistake.\n","index":2}],"usage":{"prompt_tokens":28,"completion_tokens":90,"total_tokens":118}}
+
+        '
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7cb80ad40a128c7e-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 May 2023 21:09:49 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400, h3-29=":443"; ma=86400
+      openai-model:
+      - text-davinci-edit:001
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '880'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '20'
+      x-ratelimit-remaining-requests:
+      - '19'
+      x-ratelimit-reset-requests:
+      - 3s
+      x-request-id:
+      - d5773e88c39ac2850c70162cfa98e013
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/edits
+version: 1

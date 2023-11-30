@@ -1,0 +1,872 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.7
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.7", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
+        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+    method: get
+    uri: https://api.openai.com/v1/fine-tunes
+  response:
+    body:
+      string: "{\n  \"object\": \"list\",\n  \"data\": [\n    {\n      \"object\":
+        \"fine-tune\",\n      \"id\": \"ft-ew476W4Nq7rCoOKnUGxNq6GW\",\n      \"hyperparams\":
+        {\n        \"n_epochs\": 4,\n        \"batch_size\": 64,\n        \"prompt_loss_weight\":
+        0.01,\n        \"learning_rate_multiplier\": 0.2\n      },\n      \"organization_id\":
+        \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n      \"model\": \"ada\",\n      \"training_files\":
+        [\n        {\n          \"object\": \"file\",\n          \"id\": \"file-doH3yD4tG1rkqC1Qc4booSvP\",\n
+        \         \"purpose\": \"fine-tune\",\n          \"filename\": \"kvs_for_openai_prepared.jsonl\",\n
+        \         \"bytes\": 5597725,\n          \"created_at\": 1679450294,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-3xkmTptENqM4RLEB8O29W4mm\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 188921,\n          \"created_at\": 1679460340,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1679450294,\n      \"updated_at\": 1679460341,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog:kvs-20230314-2023-03-22-04-45-39\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-X1wmsJ96pPlRLSIb1hRm6QS0\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-acfqy1ZHBCkKVt6QGm47J1xm\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data.jsonl\",\n          \"bytes\":
+        1269,\n          \"created_at\": 1681159225,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-6Rt6KLzuIPgU0Ea9JFaZMG8w\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 2632,\n          \"created_at\": 1681159926,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1681159225,\n      \"updated_at\": 1681159926,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog:datadog-vscode-2023-04-10-20-52-05\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-WSTburmCqhA4VNBeewuHbuXz\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-FAs4QLr9mBp0tcn54rlXSVOq\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data.jsonl\",\n          \"bytes\":
+        1645,\n          \"created_at\": 1681160076,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-ttjCc0R1r7mbPTYb3QHPtYE6\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 2731,\n          \"created_at\": 1681160993,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1681160076,\n      \"updated_at\": 1681160994,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog:datadog-vscode-2023-04-10-21-09-52\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-LgAsy5CQUEb4IzfTYq41623j\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-KZhpUKDqkuMT3a3Kf7VLyFkH\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"metrics_data_prepared.jsonl\",\n
+        \         \"bytes\": 585,\n          \"created_at\": 1683148121,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-vtQwa0RSStoqN2Ul190UFkOT\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 854,\n          \"created_at\": 1683148243,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683148121,\n      \"updated_at\": 1683148244,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-03-21-10-42\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-XSpr8gRZgJY7gHBAcBryqFtH\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-ApPhFIRCYQE3Wp8Lq7xeBJ99\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"metrics_data_prepared.jsonl\",\n
+        \         \"bytes\": 585,\n          \"created_at\": 1683148239,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-RZDdmRElF7SCqHmABdC8kJEH\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 858,\n          \"created_at\": 1683149180,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683148239,\n      \"updated_at\": 1683149181,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog-2023-05-03-21-26-19\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-sguIMD1J6Wqohq8rjEL5PMLz\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.2\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-EOGj5PzR8so6PrzVWTsxIo1J\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 93047,\n
+        \         \"created_at\": 1683312507,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-veyadp2XWuw9ecbBvOiLaXbD\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 5995,\n          \"created_at\": 1683312714,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683312546,\n      \"updated_at\": 1683312714,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-05-18-51-53\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-7Q9XLRQ9HdVH6JhdvQHHPSlp\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        2,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-YjlXm6e4tZIil2pblYIfOAs4\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"tmdb_1000_movies_prepared.jsonl\",\n
+        \         \"bytes\": 367679,\n          \"created_at\": 1683526040,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-Z8WhLG0b6KQKsZLKdjaFAXBr\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 113426,\n          \"created_at\": 1683527055,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683526040,\n      \"updated_at\": 1683527055,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-08-06-24-14\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-jnehkTwfbn5MDgmvcr2rw6oY\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        2,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-PDUZRTcpRB2ooI4fkKSZuV2o\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"tmdb_1500_movies_reverse_prepared.jsonl\",\n
+        \         \"bytes\": 539441,\n          \"created_at\": 1683581296,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-N2YmodLX2yTAquvccIVohk1B\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 148396,\n          \"created_at\": 1683583447,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683581328,\n      \"updated_at\": 1683583447,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:reverse-movie-search-2023-05-08-22-04-06\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-aWmpi9pIcB3KDWYirBvaX188\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-TZKghfKuCBHQR09JIzFVCjyy\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"output_prepared.jsonl\",\n          \"bytes\":
+        25389,\n          \"created_at\": 1683753834,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-Po4FpPAgVCwyxwvrLnmYa6WB\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 4597,\n          \"created_at\": 1683754543,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683753835,\n      \"updated_at\": 1683754544,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog-2023-05-10-21-35-42\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-ZOkNlHSil6yv7ADXLvubwvJJ\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie:ft-datadog:reverse-movie-search-2023-05-08-22-04-06\",\n
+        \     \"training_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-PnJdAPMFhj9h4NavxdBe35sv\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"tmdb_1500_to_2000_movies_reverse_prepared.jsonl\",\n
+        \         \"bytes\": 176718,\n          \"created_at\": 1683905057,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-Aeh42OWPtbWgt7gfUjXBVFAF\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 91400,\n          \"created_at\": 1683906271,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1683905057,\n      \"updated_at\": 1683906272,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:reverse-movie-search-v2-2023-05-12-15-44-30\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-lLW3G3hcmHZYxesDDkXwxLI9\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.2\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-JVB6DvcQbV1F3EFPgL9ZXDzq\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"hackadog_2023_05_15/monitor_types/diffs_prepared.jsonl\",\n
+        \         \"bytes\": 64082,\n          \"created_at\": 1684127801,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-jCaQfiyC4IYco2NbvxK6zubA\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 3402,\n          \"created_at\": 1684128532,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684127801,\n      \"updated_at\": 1684128533,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-05-28-52\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Ss9OyL1JQyYcBFxF6YTAREqQ\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.2\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-cLQTrRoqi3ukD7CjP3gq0opQ\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"hackadog_2023_05_15/monitor_types/diffs_prepared.jsonl\",\n
+        \         \"bytes\": 64082,\n          \"created_at\": 1684133994,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-BedfiwO5QEuczJKcl7jPFqhn\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 3460,\n          \"created_at\": 1684134162,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684133994,\n      \"updated_at\": 1684134162,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-02-41\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-qrfXyUUDPsbHEAqPkVvcPxpq\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-k3SktX2wisx1NEJDl7AYSec9\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"hackadog_2023_05_15/monitor_types/diffs_prepared.jsonl\",\n
+        \         \"bytes\": 43869,\n          \"created_at\": 1684135206,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-4nASatDKfNXPcAIJhu6DQk0q\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 13595,\n          \"created_at\": 1684135508,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684135206,\n      \"updated_at\": 1684135509,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-25-07\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-TEI2lnPfmAZDXq0hXSd1dqKN\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-urNQLYhvv32Bd1rpC6SlaIUP\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"hackadog_2023_05_15/monitor_types/diffs_prepared.jsonl\",\n
+        \         \"bytes\": 56897,\n          \"created_at\": 1684136755,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-fC7XELyRUmTkxXbOKEyoa6PR\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 13544,\n          \"created_at\": 1684137098,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684136755,\n      \"updated_at\": 1684137099,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-51-38\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Mg4tlMRNH9Rfxb15VcsTbboL\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 2,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-neSwyhymYHinwrhCFdn817wb\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"https://cdn.openai.com/API/train-demo.jsonl\",\n
+        \         \"bytes\": 60491,\n          \"created_at\": 1684140199,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-ZLSTpMaTRD79Hln13zaOtwmH\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 25759,\n          \"created_at\": 1684142982,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684140199,\n      \"updated_at\": 1684142983,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-15-09-29-42\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-i3D5osNeqkQTY4uqpMx5hbjW\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 2,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-j5W4aPaQU8XDWhvw2oGC7i1l\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"https://cdn.openai.com/API/train-demo.jsonl\",\n
+        \         \"bytes\": 60491,\n          \"created_at\": 1684141044,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [],\n      \"created_at\":
+        1684141044,\n      \"updated_at\": 1684144698,\n      \"status\": \"cancelled\",\n
+        \     \"fine_tuned_model\": null\n    },\n    {\n      \"object\": \"fine-tune\",\n
+        \     \"id\": \"ft-ImqbZs167tpPaMyFSTXI1PKK\",\n      \"hyperparams\": {\n
+        \       \"n_epochs\": 2,\n        \"batch_size\": 1,\n        \"prompt_loss_weight\":
+        0.01,\n        \"learning_rate_multiplier\": 0.1\n      },\n      \"organization_id\":
+        \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n      \"model\": \"curie\",\n      \"training_files\":
+        [\n        {\n          \"object\": \"file\",\n          \"id\": \"file-3EQsx9gbFjGZBM6YVoc0oJxD\",\n
+        \         \"purpose\": \"fine-tune\",\n          \"filename\": \"https://cdn.openai.com/API/train-demo.jsonl\",\n
+        \         \"bytes\": 60491,\n          \"created_at\": 1684141939,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-hHCqyYR8sEzL5D3S1VocFheR\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 25599,\n          \"created_at\": 1684142240,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684141939,\n      \"updated_at\": 1684142240,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-15-09-17-19\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-ANHXGDjHV3tHauwdMG1SgqaF\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 2,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie:ft-datadog-2023-05-15-09-17-19\",\n      \"training_files\":
+        [\n        {\n          \"object\": \"file\",\n          \"id\": \"file-j5W4aPaQU8XDWhvw2oGC7i1l\",\n
+        \         \"purpose\": \"fine-tune\",\n          \"filename\": \"https://cdn.openai.com/API/train-demo.jsonl\",\n
+        \         \"bytes\": 60491,\n          \"created_at\": 1684141044,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-PnbH9j5N7lNDf2X8YhoqlhMV\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 24620,\n          \"created_at\": 1684142793,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684142579,\n      \"updated_at\": 1684142793,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-15-09-26-32\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Ja89GTQC5MW4oj3866Skxjqv\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 2,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-cyVDAIlU2hzpMOf7LvMxTKiH\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"linting_prepared_valid.jsonl\",\n
+        \         \"bytes\": 400,\n          \"created_at\": 1684144740,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-RLgIiMVu65jHkFJrdvvCGEWN\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 251,\n          \"created_at\": 1684145877,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684144740,\n      \"updated_at\": 1684145877,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-15-10-17-56\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-mGCMgYIjScrd3xSUiPnNMzbg\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 2,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-F6UiULU9OIyDEntZNjAdGeHt\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"linting.jsonl\",\n          \"bytes\":
+        1592,\n          \"created_at\": 1684147923,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-YkKccqyov4CXWv867x57XxX6\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 586,\n          \"created_at\": 1684148921,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684147923,\n      \"updated_at\": 1684148922,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-15-11-08-40\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-aHh6Ih0vMpvLQNUlSWH3Ukuu\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-bGtz4ZC0WDBF7g78mJgGvu1T\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"my_data_prepared.jsonl\",\n          \"bytes\":
+        3084,\n          \"created_at\": 1684155377,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-sVGuZtkEfZf6DEImRgpY9fiw\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 2384,\n          \"created_at\": 1684155657,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684155377,\n      \"updated_at\": 1684155658,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog-2023-05-15-13-00-56\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Mzoqb4rTcPceTllq4qjIZuIN\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-KopsI0lv1S9jZ3T8o6NKHVSt\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared_train.jsonl\",\n          \"bytes\":
+        66391,\n          \"created_at\": 1684160464,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-tpcyKBtqWDE0c2oY2hViFztT\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 99810,\n          \"created_at\": 1684161359,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684160464,\n      \"updated_at\": 1684161360,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog-2023-05-15-14-35-58\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-2n3NrernAh7Ph1nQUnxmeOcr\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-Z6PCF1JU9hSazbtV2rJ6pon2\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        19500,\n          \"created_at\": 1684164083,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-lndqRPW7ECu8l8AlzKFywuEX\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 24226,\n          \"created_at\": 1684164274,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684164083,\n      \"updated_at\": 1684164274,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-15-15-24-33\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Df8vy7LW3wYCpsoqXZZdQueM\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-9yVHft364SlsmdSbm34ihtmI\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        18240,\n          \"created_at\": 1684164424,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-HkDaoGHV5GLrNOp2eTofvuaT\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 24237,\n          \"created_at\": 1684164612,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684164424,\n      \"updated_at\": 1684164612,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-15-15-30-11\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-2WeoESjKDzPQaxueDKYe2vQh\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-gLtI9MieDJLAkvs4JeXE7YjK\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"/Users/anna.pauxberger/Desktop/openai_training_datav0_prepared.jsonl\",\n
+        \         \"bytes\": 770,\n          \"created_at\": 1684167081,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-AP2oVdna7PVuCsQoQjJiOPSJ\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 547,\n          \"created_at\": 1684167655,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684167081,\n      \"updated_at\": 1684167656,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-15-16-20-54\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-sEhL5uHgKgjOY4CHhPU730Eq\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-DX2IaCNp1lFtolZnnTdwgLk2\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        89100,\n          \"created_at\": 1684168561,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-R0AobPvwrkHAhG8NEhyGIKB8\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 125751,\n          \"created_at\": 1684170700,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684168562,\n      \"updated_at\": 1684170701,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-15-17-11-39\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Z4CWHaFKHRzRzFOrJ5YxjLKt\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"davinci\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-0cBAMbhVDtxHWZ7alTplIJsS\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"bleh.jsonl\",\n          \"bytes\":
+        41,\n          \"created_at\": 1684178627,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-oVPgfn80efEzWDvHAWEy0dWi\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 271,\n          \"created_at\": 1684178911,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684178627,\n      \"updated_at\": 1684178912,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"davinci:ft-datadog-2023-05-15-19-28-30\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-ql3xXD0pgmKVul1cxwsuEleZ\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-GRyGBacpscSHrrU1NK2dTFKx\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"hackadog_2023_05_15/monitor_types/diffs_prepared.jsonl\",\n
+        \         \"bytes\": 66257,\n          \"created_at\": 1684196349,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-9kgi9twwuubMp9mIyeNmhIfB\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 13606,\n          \"created_at\": 1684196562,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684196350,\n      \"updated_at\": 1684196563,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:mobile-monitor-type-2023-05-16-00-22-41\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-4jxdoADiSOBQxnJnzreyL2bO\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1,\n        \"classification_positive_class\": \" 1\",\n        \"compute_classification_metrics\":
+        true\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-onrz06LQNU0oonJAH1jAJHdn\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_train.jsonl\",\n
+        \         \"bytes\": 13635,\n          \"created_at\": 1684221692,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-6s71uPPo6xYtLyxvC2nTdx8Z\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_valid.jsonl\",\n
+        \         \"bytes\": 3638,\n          \"created_at\": 1684221695,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"result_files\": [\n        {\n          \"object\": \"file\",\n          \"id\":
+        \"file-tXQ9oVloAUxylptLvtoI9TLZ\",\n          \"purpose\": \"fine-tune-results\",\n
+        \         \"filename\": \"compiled_results.csv\",\n          \"bytes\": 34759,\n
+        \         \"created_at\": 1684223819,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"created_at\":
+        1684221695,\n      \"updated_at\": 1684223819,\n      \"status\": \"succeeded\",\n
+        \     \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-07-56-58\"\n    },\n
+        \   {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Rqv0cWGcCv55GDd8Qcvbt8ol\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-UynjNiMGzVCXU9dWmns0STS3\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        19240,\n          \"created_at\": 1684224417,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [],\n      \"created_at\": 1684224417,\n      \"updated_at\":
+        1684224595,\n      \"status\": \"cancelled\",\n      \"fine_tuned_model\":
+        null\n    },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-pZsStzZYmQFRBGsEt0pmCoZw\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-l94OdT0jQtCQiMcClKeZUlGS\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        19310,\n          \"created_at\": 1684224740,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-dt8O7hr5qybjiNoYVgGXz2dq\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 24807,\n          \"created_at\": 1684226682,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684224740,\n      \"updated_at\": 1684226682,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-08-44-41\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-VkfNRptUY5od8ouyVBFCS5CW\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-EDL79B0GN6G6dvuMpxrDiEIS\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared_comb.jsonl\",\n          \"bytes\":
+        38950,\n          \"created_at\": 1684225491,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-oH06n9Vcnu3wZJNTeeWa0lYP\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 37488,\n          \"created_at\": 1684231309,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684225491,\n      \"updated_at\": 1684231310,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-10-01-48\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-NILZKSGmKcvMAiAg1N1AWEnb\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-yDL0SqS8LMWVkJ9vOE4tmhda\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared_comb.jsonl\",\n          \"bytes\":
+        156640,\n          \"created_at\": 1684226497,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-d9AjUOxfponMoemKpwf2RLZF\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 154934,\n          \"created_at\": 1684235653,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684226497,\n      \"updated_at\": 1684235653,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-11-14-12\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-slWVn5p50nIbXz9dU3ntc5rw\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1,\n        \"classification_positive_class\": \"1\",\n        \"compute_classification_metrics\":
+        true\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-ZA8VAjTn1eJdQd36CZNMDopX\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_train_2.jsonl\",\n
+        \         \"bytes\": 91449,\n          \"created_at\": 1684229197,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-TojnLRgrLQB1oEd25Rwd5iXk\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_valid_2.jsonl\",\n
+        \         \"bytes\": 22164,\n          \"created_at\": 1684229199,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"result_files\": [\n        {\n          \"object\": \"file\",\n          \"id\":
+        \"file-eCN5aUvSCi2c84znY4YhOM8y\",\n          \"purpose\": \"fine-tune-results\",\n
+        \         \"filename\": \"compiled_results.csv\",\n          \"bytes\": 197009,\n
+        \         \"created_at\": 1684236147,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"created_at\":
+        1684229199,\n      \"updated_at\": 1684236148,\n      \"status\": \"succeeded\",\n
+        \     \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-11-22-26\"\n    },\n
+        \   {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-No7BIzIZe43KvmH6Vtl1G5Xs\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-erAWhcbGW4T9RUGjrd1yA74s\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        265320,\n          \"created_at\": 1684232842,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-C7BHnrA5AtAD0fjBmmzcSJ7I\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 181582,\n          \"created_at\": 1684239223,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684232842,\n      \"updated_at\": 1684239223,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-12-13-42\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-ggYF19fR0PF1OTnUZPXHEb5W\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        2,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-cxGN0bdxQgOnWWMcP5XiJGbQ\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        513270,\n          \"created_at\": 1684240072,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-bzqhZlAd6DfD9dhG3XDJX9bG\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 155083,\n          \"created_at\": 1684243394,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684240073,\n      \"updated_at\": 1684243395,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-13-23-13\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-ZA0LtY2OfTSlsP5sRLrHgvO2\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        2,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-b6NRmgCoBjIRLwfFJXRNjK0E\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"data_prepared.jsonl\",\n          \"bytes\":
+        735334,\n          \"created_at\": 1684240901,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-mTQFJJ4soT3mSasMHfibbtjk\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 190364,\n          \"created_at\": 1684247560,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684240901,\n      \"updated_at\": 1684247561,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"ada:ft-datadog-2023-05-16-14-32-39\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-EQ8ytwumIrgT0Us6k8VQvv8e\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1,\n        \"classification_positive_class\": \" 1\",\n        \"compute_classification_metrics\":
+        true\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-c6fHTOi6VZT89Egl7NllKBhn\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_train_3.jsonl\",\n
+        \         \"bytes\": 94953,\n          \"created_at\": 1684242636,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-R8v9JH72cR3QUZz53BXNi7Yh\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_valid_3.jsonl\",\n
+        \         \"bytes\": 23040,\n          \"created_at\": 1684242638,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"result_files\": [\n        {\n          \"object\": \"file\",\n          \"id\":
+        \"file-yIU3Ospni9s3cF76cUT0Fu6L\",\n          \"purpose\": \"fine-tune-results\",\n
+        \         \"filename\": \"compiled_results.csv\",\n          \"bytes\": 197700,\n
+        \         \"created_at\": 1684247618,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"created_at\":
+        1684242638,\n      \"updated_at\": 1684247618,\n      \"status\": \"succeeded\",\n
+        \     \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-14-33-37\"\n    },\n
+        \   {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-olWHH230BIs5yFz8RTmu3loi\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1,\n        \"classification_positive_class\": \" 0\",\n        \"compute_classification_metrics\":
+        true\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-LeGeDVEgVCwXx0S1W7NaqG2x\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_train_4.jsonl\",\n
+        \         \"bytes\": 104915,\n          \"created_at\": 1684250866,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-eHo6DYQsoTtuRT1x7m9UIdX6\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"sqli-sample/sqli_sample_prepared_valid_4.jsonl\",\n
+        \         \"bytes\": 25134,\n          \"created_at\": 1684250869,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"result_files\": [\n        {\n          \"object\": \"file\",\n          \"id\":
+        \"file-ADhhXk4VxbM8DQ5Z2VhGM5eI\",\n          \"purpose\": \"fine-tune-results\",\n
+        \         \"filename\": \"compiled_results.csv\",\n          \"bytes\": 215866,\n
+        \         \"created_at\": 1684254357,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"created_at\":
+        1684250869,\n      \"updated_at\": 1684254358,\n      \"status\": \"succeeded\",\n
+        \     \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-16-25-56\"\n    },\n
+        \   {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-6ZIfqHLOkv4evlFYTpc1ISry\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-cBvVu5bekOrx0NIrNBmW7gIc\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 602,\n
+        \         \"created_at\": 1684251156,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-vCHipSgdL3IIdH5Y0mk4Iwso\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 753,\n          \"created_at\": 1684258665,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684251156,\n      \"updated_at\": 1684258666,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-17-37-44\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-eXaHaNRl4E4EmXgS4GCIan1f\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-mKA7CfQJTkfWQLQ022mxQQmh\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 602,\n
+        \         \"created_at\": 1684252252,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-4p4ADCbFs5u3Ab0jakZFtXp5\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 758,\n          \"created_at\": 1684260495,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684252252,\n      \"updated_at\": 1684260495,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-18-08-14\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Gsl0Kdpx5PrkdtUTb9qJmb4A\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        2,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.2\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-1ybAxD6DjBTRg1ljpFk1glus\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"/Users/mac.mccarthy/Desktop/prompts_jsonl_for_documentation_tuning_prepared.jsonl\",\n
+        \         \"bytes\": 10204795,\n          \"created_at\": 1684256310,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-jJzVhzb0omnycOMayDzboMlL\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 131719,\n          \"created_at\": 1684262191,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684256310,\n      \"updated_at\": 1684262192,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-18-36-30\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-Zjix9fd4XfhFNx5FhH72D89e\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-zacazVNNLWU7dRBeC1dymHWR\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"da_prepared (1).jsonl\",\n          \"bytes\":
+        4770,\n          \"created_at\": 1684264681,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-RnPEQRhqru539eMxbkifDeIP\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 2634,\n          \"created_at\": 1684266455,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684264681,\n      \"updated_at\": 1684266456,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-19-47-34\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-KEq2ECgvFvjKxkVYehWet1mR\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"ada\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-fIkEUgQPWnVXNKPJsr4pEWiz\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"training_data_prepared_train.jsonl\",\n
+        \         \"bytes\": 197504,\n          \"created_at\": 1684266989,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [],\n      \"created_at\":
+        1684266989,\n      \"updated_at\": 1684267793,\n      \"status\": \"cancelled\",\n
+        \     \"fine_tuned_model\": null\n    },\n    {\n      \"object\": \"fine-tune\",\n
+        \     \"id\": \"ft-ox7eftHC7yFccgfWlsm7EQd1\",\n      \"hyperparams\": {\n
+        \       \"n_epochs\": 4,\n        \"batch_size\": 1,\n        \"prompt_loss_weight\":
+        0.01,\n        \"learning_rate_multiplier\": 0.1\n      },\n      \"organization_id\":
+        \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n      \"model\": \"curie\",\n      \"training_files\":
+        [\n        {\n          \"object\": \"file\",\n          \"id\": \"file-xC22NUuYBkXvzRt2fLREcGde\",\n
+        \         \"purpose\": \"fine-tune\",\n          \"filename\": \"file\",\n
+        \         \"bytes\": 147697,\n          \"created_at\": 1684277658,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"validation_files\": [],\n      \"result_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-kXHUNqbfOZJhdgz7vFF0xoHc\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 169003,\n          \"created_at\": 1684280547,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684277751,\n      \"updated_at\": 1684280548,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-16-23-42-26\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-mmj9smspyQETzn6Fwij6Ye0K\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        null,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        null\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-xC22NUuYBkXvzRt2fLREcGde\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 147697,\n
+        \         \"created_at\": 1684277658,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [],\n      \"created_at\": 1684277798,\n      \"updated_at\":
+        1684277868,\n      \"status\": \"cancelled\",\n      \"fine_tuned_model\":
+        null\n    },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-6MJYZPQ1P2VoX6Irqwjf7MVz\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        null,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        null\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-xC22NUuYBkXvzRt2fLREcGde\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 147697,\n
+        \         \"created_at\": 1684277658,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [],\n      \"created_at\": 1684278059,\n      \"updated_at\":
+        1684278096,\n      \"status\": \"cancelled\",\n      \"fine_tuned_model\":
+        null\n    },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-doj9zLo3hxxviakrrdx9BO42\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        null,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        null\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-xC22NUuYBkXvzRt2fLREcGde\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"file\",\n          \"bytes\": 147697,\n
+        \         \"created_at\": 1684277658,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [],\n      \"created_at\": 1684440495,\n      \"updated_at\":
+        1684440598,\n      \"status\": \"cancelled\",\n      \"fine_tuned_model\":
+        null\n    },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-10RCfqSvgyEcauomw7VpiYco\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        3,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-t3k1gVSQDHrfZnPckzftlZ4A\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"dave-hal.jsonl\",\n          \"bytes\":
+        356,\n          \"created_at\": 1684365950,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-bJyf8TM0jeSZueBo4jpodZVQ\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 410,\n          \"created_at\": 1684442697,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684442489,\n      \"updated_at\": 1684442697,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:deleteme-2023-05-18-20-44-56\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-2jU5ALzNgX2ELktqfARJubYy\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        3,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-t3k1gVSQDHrfZnPckzftlZ4A\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"dave-hal.jsonl\",\n          \"bytes\":
+        356,\n          \"created_at\": 1684365950,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-81juw46uj7dR03Na4UwmpMg8\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 393,\n          \"created_at\": 1684452342,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684452081,\n      \"updated_at\": 1684452342,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog:deleteme-2023-05-18-23-25-41\"\n
+        \   },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-TVpNqwlvermMegfRVqSOyPyS\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        3,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-t3k1gVSQDHrfZnPckzftlZ4A\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"dave-hal.jsonl\",\n          \"bytes\":
+        356,\n          \"created_at\": 1684365950,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [],\n      \"created_at\": 1684452102,\n      \"updated_at\":
+        1684452103,\n      \"status\": \"cancelled\",\n      \"fine_tuned_model\":
+        null\n    },\n    {\n      \"object\": \"fine-tune\",\n      \"id\": \"ft-n8jruCQHgfff5dnhDC1kmEAw\",\n
+        \     \"hyperparams\": {\n        \"n_epochs\": 4,\n        \"batch_size\":
+        1,\n        \"prompt_loss_weight\": 0.01,\n        \"learning_rate_multiplier\":
+        0.1\n      },\n      \"organization_id\": \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n
+        \     \"model\": \"curie\",\n      \"training_files\": [\n        {\n          \"object\":
+        \"file\",\n          \"id\": \"file-llDq0Q9la7EBTScAowIotxxc\",\n          \"purpose\":
+        \"fine-tune\",\n          \"filename\": \"yun_file.jsonl\",\n          \"bytes\":
+        147697,\n          \"created_at\": 1684447571,\n          \"status\": \"processed\",\n
+        \         \"status_details\": null\n        }\n      ],\n      \"validation_files\":
+        [],\n      \"result_files\": [\n        {\n          \"object\": \"file\",\n
+        \         \"id\": \"file-6QnU9h34M6aeQGxeeLwT4RGg\",\n          \"purpose\":
+        \"fine-tune-results\",\n          \"filename\": \"compiled_results.csv\",\n
+        \         \"bytes\": 168937,\n          \"created_at\": 1684508093,\n          \"status\":
+        \"processed\",\n          \"status_details\": null\n        }\n      ],\n
+        \     \"created_at\": 1684507190,\n      \"updated_at\": 1684508093,\n      \"status\":
+        \"succeeded\",\n      \"fine_tuned_model\": \"curie:ft-datadog-2023-05-19-14-54-52\"\n
+        \   }\n  ]\n}\n"
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7d0b02be5df443d9-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 01 Jun 2023 22:49:36 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-processing-ms:
+      - '437'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 5269b3bb48cc35866011bec3c0c73503
+    status:
+      code: 200
+      message: OK
+    url: https://api.openai.com/v1/fine-tunes
+version: 1
