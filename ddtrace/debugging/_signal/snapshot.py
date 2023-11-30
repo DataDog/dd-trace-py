@@ -182,6 +182,8 @@ class Snapshot(LogSignal):
         _locals = []
         if exc_info[1] is None:
             _locals.append(("@return", retval))
+        else:
+            _locals.append(("@exception", exc_info[1]))
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
