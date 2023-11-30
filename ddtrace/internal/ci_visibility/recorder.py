@@ -238,7 +238,7 @@ class CIVisibility(Service):
                 "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
             )
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.CODE_4XX)
+            record_settings(sw.elapsed() * 1000, False, False, error_code)
             return False, False
         try:
             if isinstance(response.body, bytes):
