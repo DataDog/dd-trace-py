@@ -5,8 +5,6 @@ import codecs
 from types import BuiltinFunctionType
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Callable
-from typing import Optional
 
 from ddtrace.internal.compat import iteritems
 
@@ -14,6 +12,7 @@ from .._metrics import _set_iast_error_metric
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
+from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
 from .._taint_tracking import as_formatted_evidence
 from .._taint_tracking import common_replace
@@ -27,10 +26,11 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
 
@@ -343,31 +343,9 @@ def format_aspect(
 
     try:
         params = tuple(args) + tuple(kwargs.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
-        if not ranges_orig:
-            return result
-
-        new_template = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-        )
-        fun = (  # noqa: E731
-            lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
-            if isinstance(arg, TEXT_TYPES)
-            else arg
-        )
-
-        new_args = list(map(fun, args))
-
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-        new_result = _convert_escaped_text_to_tainted_text(
-            new_template.format(*new_args, **new_kwargs),
-            ranges_orig=ranges_orig,
-        )
+        new_result = _format_aspect(candidate_text, params, *args, **kwargs)
         if new_result != result:
-            raise Exception(
-                "format_aspect result %s is different to candidate_text.format %s"
-                % (result, candidate_text.format(*args))
-            )
+            raise Exception("Propagation result %s is different to candidate_text.format %s" % (new_result, result))
         return new_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e))

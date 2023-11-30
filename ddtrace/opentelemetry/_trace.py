@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from opentelemetry.context import Context as OtelContext
+from opentelemetry.context import Context as OtelContext  # noqa:F401
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -19,17 +19,17 @@ from ddtrace.opentelemetry._span import Span
 
 
 if TYPE_CHECKING:
-    from typing import Iterator
-    from typing import Mapping
-    from typing import Optional
-    from typing import Sequence
-    from typing import Union
+    from typing import Iterator  # noqa:F401
+    from typing import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Sequence  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from opentelemetry.trace import Link as OtelLink
-    from opentelemetry.util.types import AttributeValue as OtelAttributeValue
+    from opentelemetry.trace import Link as OtelLink  # noqa:F401
+    from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
 
-    from ddtrace import Tracer as DDTracer
-    from ddtrace.span import _MetaDictType
+    from ddtrace import Tracer as DDTracer  # noqa:F401
+    from ddtrace.span import _MetaDictType  # noqa:F401
 
 
 log = get_logger(__name__)

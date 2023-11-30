@@ -755,7 +755,7 @@ def test_ip_subnet_regression():
         (b"", ["runtime-id"], None),
     ],
 )
-def test_set_http_meta_headers_useragent(
+def test_set_http_meta_headers_useragent(  # noqa:F811
     mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
 ):
     assert int_config.myint.is_header_tracing_configured is False
