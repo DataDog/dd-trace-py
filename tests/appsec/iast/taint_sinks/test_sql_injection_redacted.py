@@ -2,7 +2,6 @@ import copy
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
