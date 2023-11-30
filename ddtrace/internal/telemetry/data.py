@@ -73,7 +73,9 @@ def _get_application(key):
     }
 
 
-def update_imported_dependencies(already_imported: Dict[str, Distribution], new_modules: List[ModuleType]) -> List[Dict[str, str]]:
+def update_imported_dependencies(
+    already_imported: Dict[str, Distribution], new_modules: List[ModuleType]
+) -> List[Dict[str, str]]:
     deps = []
     from ddtrace.internal.module import origin
 

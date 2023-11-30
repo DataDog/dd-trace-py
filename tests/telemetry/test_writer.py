@@ -268,6 +268,7 @@ def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, moc
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import numpy
+
     new_deps = [numpy]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
@@ -285,6 +286,7 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
 
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
     import string
+
     new_deps = [string]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
@@ -296,6 +298,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     import numpy
+
     new_deps = [numpy]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush

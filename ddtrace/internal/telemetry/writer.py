@@ -443,20 +443,23 @@ class TelemetryWriter(PeriodicService):
         """Adds events to report imports done since the last periodic run"""
 
         from pprint import pformat
+
         for d in newly_imported_deps:
             from ddtrace.internal.module import origin
+
             module_path = origin(d)
             if not module_path:
                 continue
             package = filename_to_package(str(module_path.resolve()))
             if not package:
                 continue
-        packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+
+        with self._lock:
+            packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
-
-
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
@@ -479,9 +482,12 @@ class TelemetryWriter(PeriodicService):
                     "value": value,
                 }
 
-    def _app_dependencies_loaded_event(self, payload_type: Optional[str]="app-dependencies-loaded"):
+    def _app_dependencies_loaded_event(self, payload_type: Optional[str] = "app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
-        payload = {"dependencies": update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))}
+        with self._lock:
+            payload = {
+                "dependencies": update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))
+            }
         self.add_event(payload, payload_type)
 
     def add_log(self, level, message, stack_trace="", tags=None):

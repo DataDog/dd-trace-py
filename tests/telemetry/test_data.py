@@ -188,6 +188,7 @@ def test_update_imported_dependencies_both_empty():
 
 def test_update_imported_dependencies():
     import numpy
+
     already_imported = {}
     res = update_imported_dependencies(already_imported, [numpy])
     assert len(res) == 1
@@ -200,6 +201,7 @@ def test_update_imported_dependencies():
 
     import typing
     import pytest
+
     res = update_imported_dependencies(already_imported, [numpy, typing, pytest])
     assert len(res) == 1  # typing is stdlib so should not be in the result
     assert res[0]["name"] == "pytest"
