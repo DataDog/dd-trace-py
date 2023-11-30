@@ -2,7 +2,7 @@ import json
 import sys
 from typing import Any
 from typing import Dict
-from typing import Tuple
+from typing import Tuple  # noqa:F401
 
 from pylons import config
 import webob
@@ -66,7 +66,7 @@ class PylonsTraceMiddleware(object):
     def _distributed_tracing(self, distributed_tracing):
         ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
-    def _unlist_multidict_params(self, multidict):  # type: (webob.multidict.MultiDict) -> Dict[str, Any]
+    def _unlist_multidict_params(self, multidict: webob.multidict.MultiDict) -> Dict[str, Any]:
         # Pylons multidict always return values in a list. This will convert lists with a
         # single value
         # into the un-listed value

@@ -157,7 +157,6 @@ async def test_patch_unpatch(redis_cluster):
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
 def test_default_service_name_v1():
     import asyncio
-    import sys
 
     import redis
 
@@ -201,7 +200,6 @@ def test_user_specified_service_v0():
         The rediscluster integration should not use it.
     """
     import asyncio
-    import sys
 
     import redis
 
@@ -248,7 +246,6 @@ def test_user_specified_service_v1():
         The rediscluster integration should use it.
     """
     import asyncio
-    import sys
 
     import redis
 
@@ -291,7 +288,6 @@ def test_user_specified_service_v1():
 @pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_env_user_specified_rediscluster_service_v0():
     import asyncio
-    import sys
 
     import redis
 
@@ -330,7 +326,6 @@ def test_env_user_specified_rediscluster_service_v0():
 @pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
 def test_env_user_specified_rediscluster_service_v1():
     import asyncio
-    import sys
 
     import redis
 
@@ -371,7 +366,6 @@ def test_env_user_specified_rediscluster_service_v1():
 )
 def test_service_precedence_v0():
     import asyncio
-    import sys
 
     import redis
 
@@ -416,7 +410,6 @@ def test_service_precedence_v0():
 )
 def test_service_precedence_v1():
     import asyncio
-    import sys
 
     import redis
 

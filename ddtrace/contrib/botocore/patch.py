@@ -6,19 +6,19 @@ import collections
 from datetime import datetime
 import json
 import os
-import typing
 from typing import Any
 from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Union
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
@@ -48,9 +48,6 @@ from ..trace_utils import unwrap
 
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]
-
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -688,8 +685,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             raise
 
 
-def _set_response_metadata_tags(span, result):
-    # type: (Span, Dict[str, Any]) -> None
+def _set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
     if not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]

@@ -4,7 +4,6 @@ from mock import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.taint_sinks._base import taint_sink_deduplication
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
