@@ -11,9 +11,9 @@ import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 import time
-from typing import Any
-from typing import Generator
-from typing import Tuple
+from typing import Any  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Tuple  # noqa:F401
 from unittest import mock
 
 from _pytest.runner import call_and_report
@@ -28,7 +28,7 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
-from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer

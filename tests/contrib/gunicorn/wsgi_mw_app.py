@@ -13,7 +13,7 @@ import json
 from ddtrace import tracer
 from ddtrace.contrib.wsgi import DDWSGIMiddleware
 from ddtrace.profiling import bootstrap
-import ddtrace.profiling.auto  # noqa
+import ddtrace.profiling.auto  # noqa:F401
 from tests.webclient import PingFilter
 
 

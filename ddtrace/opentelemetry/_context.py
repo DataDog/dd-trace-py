@@ -13,7 +13,7 @@ from ddtrace import tracer as ddtracer
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.opentelemetry._span import Span
-from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
+from ddtrace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
 from ddtrace.span import Span as DDSpan
 
 

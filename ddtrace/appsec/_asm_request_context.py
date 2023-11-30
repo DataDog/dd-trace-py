@@ -10,7 +10,6 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
