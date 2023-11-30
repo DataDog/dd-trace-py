@@ -8,6 +8,7 @@ from typing import Union  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
 
+
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span  # noqa:F401
 
