@@ -5,7 +5,6 @@ import codecs
 from types import BuiltinFunctionType
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Callable
 
 from ddtrace.internal.compat import iteritems
 
@@ -27,8 +26,10 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
+    from typing import Callable  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
@@ -344,10 +345,7 @@ def format_aspect(
         params = tuple(args) + tuple(kwargs.values())
         new_result = _format_aspect(candidate_text, params, *args, **kwargs)
         if new_result != result:
-            raise Exception(
-                "Propagation result %s is different to candidate_text.format %s"
-                % (new_result, result)
-            )
+            raise Exception("Propagation result %s is different to candidate_text.format %s" % (new_result, result))
         return new_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e))
