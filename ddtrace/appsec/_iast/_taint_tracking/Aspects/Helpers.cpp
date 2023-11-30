@@ -34,7 +34,7 @@ common_replace(const py::str& string_method,
         return res;
     }
 
-    set_ranges(res.ptr(), api_shift_taint_ranges(candidate_text_ranges, 0));
+    set_ranges(res.ptr(), shift_taint_ranges(candidate_text_ranges, 0));
     return res;
 }
 

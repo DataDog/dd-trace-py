@@ -105,7 +105,7 @@ api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offse
 }
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
 {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
@@ -114,6 +114,12 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
         new_ranges.emplace_back(api_shift_taint_range(trange, offset));
     }
     return new_ranges;
+}
+
+TaintRangeRefs
+api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+{
+    return shift_taint_ranges(source_taint_ranges, offset);
 }
 
 /**
@@ -272,6 +278,22 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     return null_range;
 }
 
+inline void
+api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
+{
+    auto tx_map = initializer->get_tainting_map();
+    auto ranges = get_ranges(str_2.ptr(), tx_map);
+    set_ranges(str_2.ptr(), ranges, tx_map);
+}
+
+inline void
+api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset)
+{
+    auto tx_map = initializer->get_tainting_map();
+    auto ranges = get_ranges(str_2.ptr(), tx_map);
+    set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset), tx_map);
+}
+
 TaintedObjectPtr
 get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
 {
@@ -391,6 +413,10 @@ pyexport_taintrange(py::module& m)
 
     m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
+
+    m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
+    m.def(
+      "copy_and_shift_ranges_from_strings", &api_copy_and_shift_ranges_from_strings, "str_1"_a, "str_2"_a, "offset"_a);
 
     m.def("get_ranges",
           py::overload_cast<PyObject*>(&get_ranges),

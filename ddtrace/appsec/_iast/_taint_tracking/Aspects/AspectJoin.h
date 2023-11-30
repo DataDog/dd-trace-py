@@ -4,8 +4,6 @@
 #include "TaintTracking//TaintedObject.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintedOps/TaintedOps.h"
-#include <Python.h>
-#include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 

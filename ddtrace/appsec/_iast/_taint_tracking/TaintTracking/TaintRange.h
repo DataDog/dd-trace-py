@@ -75,6 +75,9 @@ TaintRangePtr
 api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset);
 
 TaintRangeRefs
+shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset);
+
+TaintRangeRefs
 api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset);
 
 TaintRangeRefs
@@ -103,6 +106,12 @@ api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
 {
     set_ranges(str.ptr(), ranges);
 }
+
+inline void
+api_copy_ranges_from_strings(py::object& str_1, py::object& str_2);
+
+inline void
+api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset);
 
 PyObject*
 api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
