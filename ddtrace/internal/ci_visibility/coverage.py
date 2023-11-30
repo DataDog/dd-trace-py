@@ -1,6 +1,5 @@
 from itertools import groupby
 import json
-
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
