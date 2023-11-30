@@ -3,8 +3,6 @@ import collections
 import sys
 import time
 
-import pytest
-
 from ddtrace.profiling import _asyncio
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack_event

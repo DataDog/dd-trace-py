@@ -6,7 +6,7 @@ import ddtrace
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.opentracer import Tracer
+    from ddtrace.opentracer import Tracer  # noqa:F401
 
 
 """
