@@ -431,7 +431,7 @@ def test_module_watchdog_namespace_import():
     try:
         sys.path.insert(0, str(Path(__file__).parent))
 
-        import namespace_test.ns_module  # noqa
+        import namespace_test.ns_module  # noqa:F401
 
         assert ns_imported
     finally:
