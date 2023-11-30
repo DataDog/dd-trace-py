@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import os
 import textwrap
 import time
 

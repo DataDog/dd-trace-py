@@ -7,13 +7,14 @@ import os
 import random
 import re
 import subprocess
-import typing
-from typing import Dict
-from typing import Generator
-from typing import MutableMapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import MutableMapping  # noqa:F401
+from typing import NamedTuple  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
 
@@ -63,7 +64,7 @@ _RE_TAGS = re.compile(r"^tags/")
 
 log = get_logger(__name__)
 
-_GitSubprocessDetails = typing.NamedTuple(
+_GitSubprocessDetails = NamedTuple(
     "_GitSubprocessDetails", [("stdout", str), ("stderr", str), ("duration", float), ("returncode", int)]
 )
 
@@ -216,7 +217,7 @@ def _extract_latest_commits_with_details(cwd=None):
 
 
 def extract_latest_commits(cwd=None):
-    # type: (Optional[str]) -> typing.List[str]
+    # type: (Optional[str]) -> List[str]
     latest_commits, error, _, returncode = _extract_latest_commits_with_details(cwd=cwd)
     if returncode == 0:
         return latest_commits.split("\n") if latest_commits else []

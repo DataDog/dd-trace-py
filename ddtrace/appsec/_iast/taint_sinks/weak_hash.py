@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 
@@ -22,9 +22,9 @@ from ._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Set
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Set  # noqa:F401
 
 log = get_logger(__name__)
 

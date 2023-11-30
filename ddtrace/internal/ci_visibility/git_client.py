@@ -1,14 +1,14 @@
-import json
-from enum import IntEnum
 from ctypes import c_int
+from enum import IntEnum
+import json
 from multiprocessing import Process
 from multiprocessing import Value
 import os
 import time
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Tuple  # noqa
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
@@ -60,18 +60,20 @@ DEFAULT_TIMEOUT = 20
 #
 DEFAULT_METADATA_UPLOAD_TIMEOUT = 60
 
+
 class METADATA_UPLOAD_STATUS(IntEnum):
     PENDING = 0
     IN_PROCESS = 1
     SUCCESS = 2
     FAILED = 3
 
+
 class CIVisibilityGitClient(object):
     def __init__(
-            self,
-            api_key,
-            requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
-            base_url="",
+        self,
+        api_key,
+        requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
+        base_url="",
     ):
         # type: (str, int, str) -> None
         self._serializer = CIVisibilityGitClientSerializerV1(api_key)
@@ -100,13 +102,22 @@ class CIVisibilityGitClient(object):
     def wait_for_metadata_upload(self, timeout=10):
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         with StopWatch() as stopwatch:
-            while self._metadata_upload_status.value not in [METADATA_UPLOAD_STATUS.FAILED, METADATA_UPLOAD_STATUS.SUCCESS]:
+            while self._metadata_upload_status.value not in [
+                METADATA_UPLOAD_STATUS.FAILED,
+                METADATA_UPLOAD_STATUS.SUCCESS,
+            ]:
                 log.debug("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)
                 if stopwatch.elapsed() >= timeout:
-                    raise TimeoutError("Timed out waiting for git metadata upload to complete after %s seconds" % timeout )
+                    raise TimeoutError(
+                        "Timed out waiting for git metadata upload to complete after %s seconds" % timeout
+                    )
 
                 if self._worker.exitcode is not None:
-                    log.debug("git metadata process exited with exitcode %s but upload status is %s", self._worker.exitcode,self._metadata_upload_status.value )
+                    log.debug(
+                        "git metadata process exited with exitcode %s but upload status is %s",
+                        self._worker.exitcode,
+                        self._metadata_upload_status.value,
+                    )
                     raise ValueError("git metadata process exited with exitcode %s", self._worker.exitcode)
 
                 self._worker.join(timeout=1)
@@ -117,15 +128,15 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _run_protocol(
-            cls,
-            serializer,  # CIVisibilityGitClientSerializerV1
-            requests_mode,  # int
-            base_url,  # str
-            _metadata_upload_status, # METADATA_UPLOAD_STATUS
-            _tags=None,  # Optional[Dict[str, str]]
-            _response=None,  # Optional[Response]
-            cwd=None,  # Optional[str]
-            log_level=0,  # int
+        cls,
+        serializer,  # CIVisibilityGitClientSerializerV1
+        requests_mode,  # int
+        base_url,  # str
+        _metadata_upload_status,  # METADATA_UPLOAD_STATUS
+        _tags=None,  # Optional[Dict[str, str]]
+        _response=None,  # Optional[Response]
+        cwd=None,  # Optional[str]
+        log_level=0,  # int
     ):
         # type: (...) -> None
         log.setLevel(log_level)
@@ -165,7 +176,7 @@ class CIVisibilityGitClient(object):
                     )
                     if packfiles_details.returncode == 0:
                         if cls._upload_packfiles(
-                                requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                            requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
                         ):
                             _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
                             return
@@ -177,6 +188,7 @@ class CIVisibilityGitClient(object):
                 record_objects_pack_data(0, 0)
         finally:
             import time
+
             time.sleep(15)
             telemetry.telemetry_writer.periodic(force_flush=True)
 

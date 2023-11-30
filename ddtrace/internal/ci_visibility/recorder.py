@@ -1,7 +1,7 @@
 from collections import defaultdict
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -38,21 +38,22 @@ from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
-from .git_client import CIVisibilityGitClient, METADATA_UPLOAD_STATUS
+from .git_client import METADATA_UPLOAD_STATUS
+from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES
 from .telemetry.git import record_settings
 from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import DefaultDict  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -155,7 +156,7 @@ class CIVisibility(Service):
             log.info("Datadog CI Visibility using EVP proxy mode")
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
         else:
-            log.info("Datadog CI Visibilty using APM mode, some features will be disabled")
+            log.info("Datadog CI Visibility using APM mode, some features will be disabled")
             self._requests_mode = REQUESTS_MODE.TRACES
             self._should_upload_git_metadata = False
 
@@ -174,6 +175,7 @@ class CIVisibility(Service):
 
         try:
             from ddtrace.internal.codeowners import Codeowners
+
             self._codeowners = Codeowners()
         except ValueError:
             log.warning("CODEOWNERS file is not available")
@@ -202,7 +204,7 @@ class CIVisibility(Service):
 
         try:
             self._git_client.wait_for_metadata_upload()
-            if self._git_client._metadata_upload_status.value == METADATA_UPLOAD_STATUS.FAILED:
+            if self._git_client._metadata_upload_status == METADATA_UPLOAD_STATUS.FAILED:
                 log.warning("Metadata upload failed, test skipping will be best effort")
         except TimeoutError:
             log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
@@ -254,7 +256,7 @@ class CIVisibility(Service):
                 "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
             )
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.CODE_4XX)
+            record_settings(sw.elapsed() * 1000, False, False, error_code)
             return False, False
         try:
             if isinstance(response.body, bytes):
@@ -468,7 +470,7 @@ class CIVisibility(Service):
     def _stop_service(self):
         # type: () -> None
         if self._git_client is not None:
-            self._git_client.shutdown(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+            self._git_client.wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
         try:
             self.tracer.shutdown()
         except Exception:

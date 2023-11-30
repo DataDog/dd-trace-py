@@ -15,8 +15,8 @@ from output import log
 sys.path.append(str(Path(__file__).parents[2].resolve()))
 
 
-import _coverage  # noqa
-import _profiler  # noqa
+import _coverage  # noqa:E402,F401
+import _profiler  # noqa:E402,F401
 
 
 log("Enabling debugging exploration testing")
