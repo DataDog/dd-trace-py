@@ -1884,20 +1884,6 @@ venv = Venv(
             command="reno {cmdargs}",
         ),
         Venv(
-            name="aioredis",
-            # aioredis was merged into redis as of v2.0.1, no longer maintained and does not support Python 3.11 onward
-            pys=select_pys(min_version="3.7", max_version="3.10"),
-            command="pytest {cmdargs} tests/contrib/aioredis",
-            pkgs={
-                "pytest-asyncio": latest,
-                "aioredis": [
-                    "~=1.3.0",
-                    latest,
-                ],
-                "typing-extensions": latest,
-            },
-        ),
-        Venv(
             name="asyncpg",
             command="pytest {cmdargs} tests/contrib/asyncpg",
             pkgs={
