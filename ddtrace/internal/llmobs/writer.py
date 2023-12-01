@@ -50,7 +50,7 @@ class LLMObsWriter(PeriodicService):
         self._timeout = timeout  # type: float
         self._api_key = api_key or ""  # type: str
         self._app_key = app_key or ""  # type: str
-        self._endpoint = "/api/unstable/llm-obs/records"  # type: str
+        self._endpoint = "/api/unstable/llm-obs/v1/records"  # type: str
         self._site = site  # type: str
         self._intake = "api.%s" % self._site  # type: str
         self._headers = {
