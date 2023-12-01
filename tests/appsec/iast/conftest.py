@@ -17,8 +17,8 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-def iast_span(tracer, env, request_sampling="100"):
-    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
+def iast_span(tracer, env, request_sampling="100", deduplication="false"):
+    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": deduplication})
     VulnerabilityBase._reset_cache()
     with override_global_config(dict(_iast_enabled=True)), override_env(env):
         oce.reconfigure()
@@ -40,6 +40,12 @@ def iast_span(tracer, env, request_sampling="100"):
 @pytest.fixture
 def iast_span_defaults(tracer):
     for t in iast_span(tracer, dict(DD_IAST_ENABLED="true")):
+        yield t
+
+
+@pytest.fixture
+def iast_span_deduplication_enabled(tracer):
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true"), deduplication="true"):
         yield t
 
 
