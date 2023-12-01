@@ -355,11 +355,14 @@ class ModuleWatchdog(BaseModuleWatchdog):
             result: wvdict = wvdict()
 
             for m in modules:
+                # print("JJJ iterating over module: %s" % m)
                 module_origin = origin(m)
+                # print("JJJ module_origin: %s" % str(module_origin))
                 if module_origin is None:
                     continue
 
                 try:
+                    # if "json" in str(module_origin): print("JJJ module_origin: %s" % str(module_origin))
                     result[str(module_origin)] = m
                 except TypeError:
                     # This can happen if the module is a special object that
@@ -373,6 +376,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         if self._om is None:
             try:
+                # print("JJJ sys.modules in module.py:")
+                # for k, v in sys.modules.items():
+                #     print("%s -> %s" % (str(k), str(v)))
+                assert "json" not in sys.modules
                 self._om = modules_with_origin(sys.modules.values())
             except RuntimeError:
                 # The state of sys.modules might have been mutated by another
@@ -422,6 +429,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
             main_module = sys.modules.get("__main__")
             if main_module is not None and origin(main_module) == path:
                 # Register for future lookups
+                # print("JJJ adding in get_by_origin, path: %s" % str(path))
                 instance._origin_map[path] = main_module
 
                 return main_module
@@ -452,12 +460,18 @@ class ModuleWatchdog(BaseModuleWatchdog):
         instance._hook_map[path].append(hook)
         try:
             module = instance._origin_map[path]
+            # print("JJJ module: %s" % module)
             # Sanity check: the module might have been removed from sys.modules
             # but not yet garbage collected.
             try:
+                # print("JJJ trying if module in sys.modules")
                 sys.modules[module.__name__]
             except KeyError:
+                # print("JJJ module not in sys.modules, deleting with path: %s" % path)
                 del instance._origin_map[path]
+                # print("JJJ origin_map: ")
+                # for k, v in instance._origin_map.items():
+                #     print("%s -> %s" % (k, v))
                 raise
         except KeyError:
             # The module is not loaded yet. Nothing more we can do.

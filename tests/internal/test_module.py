@@ -208,7 +208,12 @@ def test_module_deleted():
 
     del sys.modules[name]
     gc.collect()
+    assert name not in sys.modules
 
+    # JJJstr = ''
+    # for k, v in ModuleWatchdog._instance._origin_map.items():
+    #     JJJstr += "%s: %s\n" % (str(k), str(v))
+    # raise Exception(JJJstr)
     assert str(path) not in ModuleWatchdog._instance._origin_map
 
     # We are not deleting the registered hooks, so if we re-import the module
