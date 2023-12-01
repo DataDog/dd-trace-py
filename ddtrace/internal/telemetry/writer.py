@@ -635,7 +635,7 @@ class TelemetryWriter(PeriodicService):
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
-            print("JJJ sending event: %s" % str(telemetry_event))
+            # print("Debug: sending event: %s" % str(telemetry_event))
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
