@@ -3,7 +3,6 @@ import itertools
 import os
 import sys
 import time
-from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -198,7 +197,7 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._new_dependencies = set()  # type: set[ModuleType]
+        self._new_dependencies = set()  # type: set[str]
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
         self.started = False
@@ -418,7 +417,7 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self) -> List[ModuleType]:
+    def _flush_new_imported_dependencies(self) -> List[str]:
         with self._lock:
             new_deps = list(self._new_dependencies)
             self._new_dependencies.clear()
@@ -440,16 +439,14 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _update_dependencies_event(self, newly_imported_deps: List[ModuleType]):
+    def _update_dependencies_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
-        for d in newly_imported_deps:
-            from ddtrace.internal.module import origin
-
-            module_path = origin(d)
+        for module_path in newly_imported_deps:
             if not module_path:
                 continue
-            package = filename_to_package(str(module_path.resolve()))
+
+            package = filename_to_package(module_path)
             if not package:
                 continue
 
@@ -483,8 +480,11 @@ class TelemetryWriter(PeriodicService):
 
     def _app_dependencies_loaded_event(self, payload_type: str = "app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
+        from ddtrace.internal.module import origin
+
         with self._lock:
-            updated_deps = update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))
+            sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
+            updated_deps = update_imported_dependencies(self._imported_dependencies, sys_modules_paths)
 
         if updated_deps:
             payload = {"dependencies": updated_deps}

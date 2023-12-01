@@ -103,8 +103,8 @@ def _package_file_mapping():
                 for f in ilmd_d.files:
                     if _is_python_source_file(f):
                         _path = fspath(f.locate())
-                        _realp = os.path.realpath(_path)
                         mapping[_path] = d
+                        _realp = os.path.realpath(_path)
                         if _realp != _path:
                             mapping[_realp] = d
 

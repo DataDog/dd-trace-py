@@ -1,6 +1,5 @@
 import platform
 import sys
-from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -74,17 +73,15 @@ def _get_application(key):
 
 
 def update_imported_dependencies(
-    already_imported: Dict[str, Distribution], new_modules: List[ModuleType]
+    already_imported: Dict[str, Distribution], new_modules: List[str]
 ) -> List[Dict[str, str]]:
     deps = []
-    from ddtrace.internal.module import origin
 
-    for module in new_modules:
-        module_path = origin(module)
+    for module_path in new_modules:
         if not module_path:
             continue
         try:
-            package = filename_to_package(str(module_path.resolve()))
+            package = filename_to_package(module_path)
             if not package or (package.name in already_imported) or package.name == "ddtrace":
                 continue  # not third party or already imported
         except AttributeError:

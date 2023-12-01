@@ -8,6 +8,7 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import update_imported_dependencies
@@ -263,14 +264,15 @@ def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, moc
     events = test_agent_session.get_events()
     assert len(events) == 1
     already_imported = {}
-    payload = {"dependencies": update_imported_dependencies(already_imported, list(sys.modules.values()))}
+    sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
+    payload = {"dependencies": update_imported_dependencies(already_imported, sys_modules_paths)}
     assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
-    new_deps = [xmltodict]
+    new_deps = [str(origin(xmltodict))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
@@ -288,7 +290,7 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
     import string
 
-    new_deps = [string]
+    new_deps = [str(origin(string))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
@@ -300,7 +302,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
-    new_deps = [xmltodict]
+    new_deps = [str(origin(xmltodict))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()

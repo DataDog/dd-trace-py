@@ -7,6 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.module import origin
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -190,7 +191,7 @@ def test_update_imported_dependencies():
     import xmltodict
 
     already_imported = {}
-    res = update_imported_dependencies(already_imported, [xmltodict])
+    res = update_imported_dependencies(already_imported, [str(origin(xmltodict))])
     assert len(res) == 1
     assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
@@ -203,7 +204,9 @@ def test_update_imported_dependencies():
 
     import pytest
 
-    res = update_imported_dependencies(already_imported, [xmltodict, typing, pytest])
+    res = update_imported_dependencies(
+        already_imported, [str(origin(xmltodict)), str(origin(typing)), str(origin(pytest))]
+    )
     assert len(res) == 1  # typing is stdlib so should not be in the result
     assert res[0]["name"] == "pytest"
     assert res[0]["version"]
