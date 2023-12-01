@@ -890,6 +890,12 @@ class BotocoreTest(TracerTestCase):
     @mock_stepfunctions
     def test_stepfunctions_client(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2")
+        sf.create_state_machine(
+            name="foo",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
         sf.start_execution(
             stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo", name="bar", input='{"baz":1}'
@@ -908,9 +914,15 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.stepfunctions"
         assert span.resource == "stepfunctions.startexecution"
         assert span.get_tag("params.input") == '{"baz":1}'
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo")
 
     def test_stepfunctions_send_start_execution_trace_injection(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2")
+        sf.create_state_machine(
+            name="foo",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
         sf.start_execution(
             stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo", name="bar", input='{"baz":1}'
@@ -920,6 +932,7 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         input_obj = json.loads(span.get_tag("params.input"))
         assert input_obj["_datadog"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:425362996713:stateMachine:foo")
 
     def _test_kinesis_client(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
