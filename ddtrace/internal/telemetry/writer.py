@@ -484,10 +484,13 @@ class TelemetryWriter(PeriodicService):
     def _app_dependencies_loaded_event(self, payload_type: str = "app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         with self._lock:
+            updated_deps = update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))
+
+        if updated_deps:
             payload = {
-                "dependencies": update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))
+                "dependencies": updated_deps
             }
-        self.add_event(payload, payload_type)
+            self.add_event(payload, payload_type)
 
     def add_log(self, level, message, stack_trace="", tags=None):
         # type: (str, str, str, Optional[Dict]) -> None
@@ -634,6 +637,7 @@ class TelemetryWriter(PeriodicService):
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
+            print("JJJ sending event: %s" % str(telemetry_event))
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
