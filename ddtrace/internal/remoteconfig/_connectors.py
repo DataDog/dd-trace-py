@@ -3,12 +3,11 @@ import json
 import multiprocessing
 import os
 import sys
-from typing import Any
-from typing import Dict
-from typing import Mapping
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Mapping  # noqa:F401
 from uuid import UUID
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 
@@ -82,19 +81,10 @@ class PublisherSubscriberConnector(object):
     @staticmethod
     def serialize(metadata, config_raw, shared_data_counter):
         # type: (Any, Dict[str, Any], int) -> bytes
-        if PY2:
-            data = bytes(
-                json.dumps(
-                    {"metadata": metadata, "config": config_raw, "shared_data_counter": shared_data_counter},
-                    cls=UUIDEncoder,
-                )
-            )
-        else:
-            data = bytes(
-                json.dumps(
-                    {"metadata": metadata, "config": config_raw, "shared_data_counter": shared_data_counter},
-                    cls=UUIDEncoder,
-                ),
-                encoding="utf-8",
-            )
-        return data
+        return bytes(
+            json.dumps(
+                {"metadata": metadata, "config": config_raw, "shared_data_counter": shared_data_counter},
+                cls=UUIDEncoder,
+            ),
+            encoding="utf-8",
+        )

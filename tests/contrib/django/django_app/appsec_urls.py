@@ -1,5 +1,5 @@
 import hashlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 import django
 from django.db import connection
@@ -32,7 +32,7 @@ else:
 
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any  # noqa:F401
 
 
 def include_view(request):
@@ -196,7 +196,7 @@ def sqli_http_request_body(request):
     if key in request.POST:
         value = request.POST[key]
     else:
-        value = decode_aspect(None, request.body)
+        value = decode_aspect(bytes.decode, 1, request.body)
     with connection.cursor() as cursor:
         # label iast_enabled_sqli_http_body
         cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))

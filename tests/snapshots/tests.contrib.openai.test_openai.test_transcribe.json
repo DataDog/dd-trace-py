@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "openai",
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
@@ -22,6 +23,7 @@
       "openai.request.response_format": "verbose_json",
       "openai.request.temperature": "0.3",
       "openai.request.user": "ddtrace-test",
+      "openai.response.duration": "2.78",
       "openai.response.language": "english",
       "openai.response.text": "Look at all those chickens!",
       "openai.user.api_key": "sk-...key>",
@@ -34,7 +36,6 @@
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
-      "openai.response.duration": 2.78,
       "openai.response.segments_count": 1,
       "process_id": 7755
     },

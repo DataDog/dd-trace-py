@@ -5,7 +5,6 @@ import pytest
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import Queue
 
 
@@ -48,7 +47,6 @@ def test_uploader_batching():
             assert uploader.queue.get(timeout=1) == "[hello,world]", "iteration %d" % _
 
 
-@pytest.mark.xfail(condition=PY2, reason="This test is flaky on Python 2")
 def test_uploader_full_buffer():
     size = 1 << 8
     with ActiveBatchJsonEncoder(size=size, interval=LONG_INTERVAL) as uploader:

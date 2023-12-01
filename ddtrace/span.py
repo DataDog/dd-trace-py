@@ -2,15 +2,17 @@ import math
 import pprint
 import sys
 import traceback
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
+
+from ddtrace.tracing._span_link import SpanLink
 
 from . import config
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -46,7 +48,6 @@ from .internal.constants import SPAN_API_DATADOG
 from .internal.logger import get_logger
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import set_sampling_decision_maker
-from .tracing import _span_link
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -111,7 +112,7 @@ class Span(object):
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         span_api=SPAN_API_DATADOG,  # type: str
-        links=None,  # type: Optional[List[_span_link.SpanLink]]
+        links=None,  # type: Optional[List[SpanLink]]
     ):
         # type: (...) -> None
         """
@@ -387,10 +388,6 @@ class Span(object):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def _remove_tag(self, key: _TagNameType) -> None:
-        if key in self._meta:
-            del self._meta[key]
-
     def get_tag(self, key: _TagNameType) -> Optional[Text]:
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
@@ -408,9 +405,8 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
-        # This method sets a numeric tag value for the given key.
-
-        # Enforce a specific connstant for `_dd.measured`
+        """This method sets a numeric tag value for the given key."""
+        # Enforce a specific constant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
@@ -439,6 +435,9 @@ class Span(object):
         self._metrics[key] = value
 
     def set_metrics(self, metrics: _MetricDictType) -> None:
+        """Set a dictionary of metrics on the given span. Keys must be
+        must be strings (or stringable). Values must be numeric.
+        """
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
@@ -451,11 +450,13 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit=30):
-        # type: (int) -> None
+    def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
-        relevant error info. If not, set the span to the current python stack.
+        relevant error info. If not, tag it with the current python stack.
         """
+        if limit is None:
+            limit = config._span_traceback_max_size
+
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
@@ -470,7 +471,11 @@ class Span(object):
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa
+        # SystemExit(0) is not an error
+        if issubclass(exc_type, SystemExit) and exc_val.code == 0:
+            return
+
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa:F401
             return
 
         self.error = 1
@@ -541,7 +546,7 @@ class Span(object):
             attributes = dict()
 
         self._links.append(
-            _span_link.SpanLink(
+            SpanLink(
                 trace_id=trace_id,
                 span_id=span_id,
                 tracestate=tracestate,

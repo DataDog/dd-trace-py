@@ -3,13 +3,6 @@
 Integrations
 ------------
 
-.. _aioredis:
-
-aioredis
-^^^^^^^^
-.. automodule:: ddtrace.contrib.aioredis
-
-
 .. _aiobotocore:
 
 aiobotocore
@@ -261,6 +254,12 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib.langchain
 
+.. _logbook:
+
+Logbook
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.logbook
+
 .. _loguru:
 
 Loguru
@@ -323,13 +322,6 @@ OpenAI
 pylibmc
 ^^^^^^^
 .. automodule:: ddtrace.contrib.pylibmc
-
-
-.. _pylons:
-
-Pylons
-^^^^^^
-.. automodule:: ddtrace.contrib.pylons
 
 
 .. _pynamodb:

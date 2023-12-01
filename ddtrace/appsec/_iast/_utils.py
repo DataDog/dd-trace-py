@@ -2,7 +2,7 @@ import json
 import re
 import string
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 import attr
 
@@ -11,15 +11,15 @@ from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import List
-    from typing import Set
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Set  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 
 def _is_python_version_supported():  # type: () -> bool
-    # IAST supports Python versions 3.6 to 3.11
-    return (3, 6, 0) <= sys.version_info < (3, 12, 0)
+    # IAST supports Python versions 3.6 to 3.12
+    return (3, 6, 0) <= sys.version_info < (3, 13, 0)
 
 
 def _is_iast_enabled():

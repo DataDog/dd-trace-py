@@ -7,7 +7,6 @@ import pytest
 import six
 
 import ddtrace
-from ddtrace.internal.compat import PY3
 
 from ..utils import BaseTestCase
 from ..utils import override_env
@@ -273,12 +272,7 @@ def test_version():
     p.wait()
     assert p.returncode == 0
 
-    # For some reason argparse prints the version to stderr
-    # in Python 2 and stdout in Python 3
-    if PY3:
-        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
-    else:
-        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
 
     p = subprocess.Popen(
         ["ddtrace-run", "--version"],
@@ -287,10 +281,7 @@ def test_version():
     )
     p.wait()
     assert p.returncode == 0
-    if PY3:
-        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
-    else:
-        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+    assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
 
 
 def test_bad_executable():
@@ -318,10 +309,7 @@ def test_executable_no_perms():
     assert p.returncode == 1
 
     out = p.stdout.read()
-    if PY3:
-        assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
-    else:
-        assert out.startswith(six.b("ddtrace-run: error launching '%s'" % path))
+    assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
 
 
 def test_command_flags():
@@ -524,3 +512,51 @@ def test_ddtrace_re_module():
             (r"[\s,<>]", None),
         )
     )
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_sitecustomize():
+    """When using ddtrace-run we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=False, err=None)
+def test_ddtrace_auto_sitecustomize():
+    """When import ddtrace.auto we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
+    import sys
+
+    import ddtrace.auto  # noqa: F401
+
+    assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_ddtrace_run_and_auto_sitecustomize():
+    """When using ddtrace-run and import ddtrace.auto we don't double import sitecustomize"""
+    import sys
+
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+
+    # Capture the list of all loaded modules
+    starting_modules = set(sys.modules.keys())
+
+    assert "ddtrace.auto" not in starting_modules
+
+    # Setting this to false, and confirming that importing auto doesn't set it to True (sitecustomize code ran)
+    sys.modules["ddtrace.bootstrap.sitecustomize"].loaded = False
+
+    import ddtrace.auto  # noqa: F401
+
+    # Ensure we didn't re-load our sitecustomize module, which sets loaded = True
+    assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded is False
+
+    # Compare the list of imported modules before/after ddtrace.auto to show it is a no-op with
+    # no additional modules imported / side-effects
+    final_modules = set(sys.modules.keys())
+    assert final_modules - starting_modules == set(["ddtrace.auto"])

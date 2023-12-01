@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ASM: This introduces Threat Monitoring and Blocking on FastAPI.
+        - IP Blocking and all input addresses are supported on requests and responses
+        - Custom Blocking
+      This does not contain user blocking specific features yet.

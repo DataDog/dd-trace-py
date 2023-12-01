@@ -18,11 +18,12 @@
 #
 
 from datetime import datetime
+import os
 import os.path
 import re
 import sys
-from typing import Any
-from typing import Optional
+from typing import Any  # noqa
+from typing import Optional  # noqa
 
 from docutils import nodes
 from docutils import statemachine
@@ -53,9 +54,9 @@ class VersionTagFilter(Filter):
 
 # append the ddtrace path to syspath
 # this is required when building the docs manually
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath(".."))
+if not (os.getenv("CIRCLECI") == "true" or os.getenv("READTHEDOCS") == "True"):
+    sys.path.insert(0, os.path.abspath(".."))
+
 
 # -- General configuration ------------------------------------------------
 
@@ -731,7 +732,11 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
             if var_version_added:
                 for version, note in var_version_added.items():
                     if note:
-                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                        results.append(
+                            "    *Changed in version {}*: {}".format(version, note),
+                            "",
+                            0,
+                        )
                     else:
                         results.append("    *New in version {}.*".format(version), "", 0)
                     results.append("", "", 0)

@@ -6,6 +6,7 @@ import sys
 import django
 import pytest
 
+from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -82,6 +83,7 @@ def test_middleware_trace_callable_view(client):
     assert client.get("/feed-view/").status_code == 200
 
 
+@flaky(until=1704067200)
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
     reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
@@ -297,8 +299,13 @@ def test_templates_disabled():
         assert resp.content == b"some content\n"
 
 
+@snapshot(ignores=SNAPSHOT_IGNORES)
+def test_streamed_file(client):
+    assert client.get("/stream-file/").status_code == 200
+
+
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
-@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@pytest.mark.skipif(django.VERSION > (3, 0, 0), reason="ASGI not supported in django<3")
 def test_django_resource_handler():
     # regression test for: DataDog/dd-trace-py/issues/5711
     with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as client:

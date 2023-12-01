@@ -6,7 +6,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 
 
 EndpointCountsType = typing.Dict[str, int]

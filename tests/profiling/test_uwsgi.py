@@ -115,37 +115,6 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
-# For whatever reason this crashes easily on Python 2.7 with a segfault, and hangs on Python before 3.7.
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(uwsgi_backtrace+0x35) [0x561586ca5a85]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(uwsgi_segfault+0x23) [0x561586ca5e33]
-# /lib/x86_64-linux-gnu/libc.so.6(+0x33060) [0x7f8325888060]
-# /root/project/.tox/py27-profile-minreqs-gevent/lib/python2.7/site-packages/
-#         google/protobuf/pyext/_message.so(+0x8d450) [0x7f831ed20450]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(+0x14ddb7) [0x561586d36db7]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(PyDict_SetItem+0x67) [0x561586d38327]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(_PyModule_Clear+0x14e) [0x561586d3d21e]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(PyImport_Cleanup+0x380) [0x561586daf440]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(+0x1db008) [0x561586dc4008]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(uwsgi_plugins_atexit+0x81) [0x561586ca2b51]
-# /lib/x86_64-linux-gnu/libc.so.6(+0x35940) [0x7f832588a940]
-# /lib/x86_64-linux-gnu/libc.so.6(+0x3599a) [0x7f832588a99a]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(+0x7172f) [0x561586c5a72f]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(end_me+0x25) [0x561586ca2b95]
-# /lib/x86_64-linux-gnu/libpthread.so.0(+0x110e0) [0x7f83270a50e0]
-# /lib/x86_64-linux-gnu/libc.so.6(epoll_wait+0x33) [0x7f832593e303]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(event_queue_wait+0x25) [0x561586c98d55]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(wsgi_req_accept+0x13a) [0x561586c57eba]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(simple_loop_run+0xb6) [0x561586ca1916]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(simple_loop+0x10) [0x561586ca1740]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(uwsgi_ignition+0x1b3) [0x561586ca60a3]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(uwsgi_worker_run+0x28d) [0x561586caaa6d]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(+0xc206c) [0x561586cab06c]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(+0x6e24e) [0x561586c5724e]
-# /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xf1) [0x7f83258752e1]
-# /root/project/.tox/py27-profile-minreqs-gevent/bin/uwsgi(_start+0x2a) [0x561586c5727a]
-@pytest.mark.skipif(
-    not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7), reason="this test crashes on old Python versions"
-)
 # This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
 # interrupted randomly in the middle and has no time to flush out the profile.
 @pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")

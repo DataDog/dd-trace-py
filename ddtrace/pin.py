@@ -1,16 +1,12 @@
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import ddtrace
 
 from .internal.logger import get_logger
 from .vendor import wrapt
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from .tracer import Tracer
 
 
 log = get_logger(__name__)
@@ -40,7 +36,7 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
@@ -123,7 +119,7 @@ class Pin(object):
         obj,  # type: Any
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
     ):
         # type: (...) -> None
         """Override an object with the given attributes.
@@ -185,7 +181,7 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,
     ):
         # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""

@@ -20,6 +20,8 @@ from moto import mock_sns
 from moto import mock_sqs
 import pytest
 
+from tests.utils import get_128_bit_trace_id_from_headers
+
 
 # Older version of moto used kinesis to mock firehose
 try:
@@ -36,12 +38,10 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -652,7 +652,7 @@ class BotocoreTest(TracerTestCase):
         assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         trace_data_in_message = json.loads(trace_json_message)
-        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(trace_data_in_message) == span.trace_id
         assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
@@ -699,7 +699,7 @@ class BotocoreTest(TracerTestCase):
         assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         trace_data_in_message = json.loads(trace_json_message)
-        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(trace_data_in_message) == span.trace_id
         assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
@@ -1571,7 +1571,7 @@ class BotocoreTest(TracerTestCase):
         detail = body_obj.get("detail")
         headers = detail.get("_datadog")
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_events
@@ -1628,7 +1628,7 @@ class BotocoreTest(TracerTestCase):
         detail = body_obj.get("detail")
         headers = detail.get("_datadog")
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         # the following doesn't work due to an issue in moto/localstack where
@@ -1641,7 +1641,7 @@ class BotocoreTest(TracerTestCase):
         # detail = body_obj.get("detail")
         # headers = detail.get("_datadog")
         # assert headers is not None
-        # assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        # assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_kms
@@ -2020,7 +2020,7 @@ class BotocoreTest(TracerTestCase):
         datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
         headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
@@ -2093,7 +2093,7 @@ class BotocoreTest(TracerTestCase):
         datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
         headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
@@ -2162,10 +2162,6 @@ class BotocoreTest(TracerTestCase):
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is None
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
@@ -2229,13 +2225,9 @@ class BotocoreTest(TracerTestCase):
         assert msg_attr.get("_datadog") is not None
         headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
@@ -2304,15 +2296,11 @@ class BotocoreTest(TracerTestCase):
         assert msg_attr.get("_datadog") is not None
         headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
         assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
         region = "us-east-1"
         sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
@@ -2434,7 +2422,7 @@ class BotocoreTest(TracerTestCase):
             decoded_record_data_json = json.loads(decoded_record_data)
             headers = decoded_record_data_json["_datadog"]
             assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
             assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         except Exception:
             # injection was not successful, so record should be exceeding 1MB in size
@@ -2888,7 +2876,6 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.kinesis.send"
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager(self):
         from moto import mock_secretsmanager
 
@@ -2914,7 +2901,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager_binary(self):
         from moto import mock_secretsmanager
 

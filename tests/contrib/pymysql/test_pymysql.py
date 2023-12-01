@@ -4,7 +4,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymysql.patch import patch
 from ddtrace.contrib.pymysql.patch import unpatch
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
@@ -24,15 +23,12 @@ class PyMySQLCore(object):
         "out.host": MYSQL_CONFIG.get("host"),
         "db.system": "mysql",
     }
-    if PY2:
-        DB_INFO.update({"db.user": MYSQL_CONFIG.get("user"), "db.name": MYSQL_CONFIG.get("database")})
-    else:
-        DB_INFO.update(
-            {
-                "db.user": stringify(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
-                "db.name": stringify(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8")),
-            }
-        )
+    DB_INFO.update(
+        {
+            "db.user": stringify(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
+            "db.name": stringify(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8")),
+        }
+    )
 
     def setUp(self):
         super(PyMySQLCore, self).setUp()

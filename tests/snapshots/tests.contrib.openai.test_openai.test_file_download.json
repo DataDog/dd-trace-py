@@ -8,10 +8,13 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "openai",
       "language": "python",
       "openai.api_base": "https://api.openai.com/v1",
       "openai.api_type": "open_ai",
+      "openai.base_url": "https://api.openai.com/v1/",
+      "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/files/*/content",
       "openai.request.file_id": "file-xC22NUuYBkXvzRt2fLREcGde",
       "openai.request.method": "GET",
@@ -23,7 +26,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.total_bytes": 147697,
+      "openai.response.total_bytes": 317,
       "process_id": 7557
     },
     "duration": 3998780,
