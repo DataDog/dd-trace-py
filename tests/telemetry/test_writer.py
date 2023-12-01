@@ -299,7 +299,7 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     assert telemetry_writer._imported_dependencies["xmltodict"].version
 
 
-def test_update_dependencies_event_disabled(telemetry_writer, test_agent_session, mock_time):
+def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         import xmltodict
 
