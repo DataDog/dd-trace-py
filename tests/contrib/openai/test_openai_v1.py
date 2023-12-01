@@ -413,6 +413,18 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         )
 
 
+def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+    ):
+        with openai_vcr.use_cassette("completion.yaml"):
+            client = openai.OpenAI()
+            client.completions.with_raw_response.create(
+                model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+            )
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
@@ -470,6 +482,27 @@ def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
             tool_choice="auto",
             user="ddtrace-test",
         )
+
+
+def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_chat_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+    ):
+        with openai_vcr.use_cassette("chat_completion.yaml"):
+            client = openai.OpenAI()
+            client.chat.completions.with_raw_response.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                    {"role": "user", "content": "Where was it played?"},
+                ],
+                top_p=0.9,
+                n=2,
+                user="ddtrace-test",
+            )
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
