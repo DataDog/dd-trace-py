@@ -1,7 +1,7 @@
 from collections import defaultdict
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -16,7 +16,6 @@ from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.compat import JSONDecodeError
-from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -42,14 +41,14 @@ from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import DefaultDict  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -169,10 +168,9 @@ class CIVisibility(Service):
 
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
-        if not coverage_enabled_by_api:
-            return False
-        if compat.PY2:
-            log.warning("CI Visibility code coverage tracking is enabled, but Python 2 is not supported.")
+        if not coverage_enabled_by_api and not asbool(
+            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
+        ):
             return False
         if not is_coverage_available():
             log.warning(

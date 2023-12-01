@@ -1,15 +1,16 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import Optional
-from typing import Text
+from typing import Text  # noqa:F401
+
+from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
-from .internal.compat import PY2
 from .internal.compat import NumericType
 from .internal.constants import W3C_TRACEPARENT_KEY
 from .internal.constants import W3C_TRACESTATE_KEY
@@ -18,9 +19,10 @@ from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_memb
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple
+    from typing import Tuple  # noqa:F401,I001
 
-    from .span import Span
+    from .span import Span  # noqa:F401
+
     from .span import _MetaDictType
     from .span import _MetricDictType
 
@@ -42,13 +44,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = [
-        "trace_id",
-        "span_id",
-        "_lock",
-        "_meta",
-        "_metrics",
-    ]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links"]
 
     def __init__(
         self,
@@ -59,6 +55,7 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
+        span_links=None,  # type: Optional[list[SpanLink]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -70,6 +67,10 @@ class Context(object):
             self._meta[ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
+        if span_links is not None:
+            self._span_links = span_links
+        else:
+            self._span_links = []
 
         if lock is not None:
             self._lock = lock
@@ -111,14 +112,12 @@ class Context(object):
                 span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
-    def sampling_priority(self):
-        # type: () -> Optional[NumericType]
+    def sampling_priority(self) -> Optional[NumericType]:
         """Return the context sampling priority for the trace."""
         return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
-    def sampling_priority(self, value):
-        # type: (Optional[NumericType]) -> None
+    def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:
             if value is None:
                 if SAMPLING_PRIORITY_KEY in self._metrics:
@@ -191,10 +190,7 @@ class Context(object):
         """Get the user ID of the trace."""
         user_id = self._meta.get(USER_ID_KEY)
         if user_id:
-            if not PY2:
-                return str(base64.b64decode(user_id), encoding="utf-8")
-            else:
-                return str(base64.b64decode(user_id))
+            return str(base64.b64decode(user_id), encoding="utf-8")
         return None
 
     @dd_user_id.setter
@@ -206,11 +202,7 @@ class Context(object):
                 if USER_ID_KEY in self._meta:
                     del self._meta[USER_ID_KEY]
                 return
-            if not PY2:
-                value = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
-            else:
-                value = str(base64.b64encode(bytes(value)))
-            self._meta[USER_ID_KEY] = value
+            self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
 
     def __eq__(self, other):
         # type: (Any) -> bool
@@ -226,11 +218,12 @@ class Context(object):
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
             self._metrics,
+            self._span_links,
         )
 
     __str__ = __repr__

@@ -37,6 +37,10 @@ def zfill(*args, **kwargs):
     return "--".join(("zfill", _builtins.str(args), _builtins.str(kwargs)))
 
 
+def format(*args, **kwargs):  # noqa: A001
+    return "--".join(("format", _builtins.str(args), _builtins.str(kwargs)))
+
+
 def format_map(*args, **kwargs):
     return "--".join(("format_map", _builtins.str(args), _builtins.str(kwargs)))
 

@@ -18,7 +18,7 @@ from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
@@ -371,7 +371,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
-            vulnerability = loaded["vulnerabilities"][0]
+            vulnerability = False
+            for vuln in loaded["vulnerabilities"]:
+                if vuln["type"] == VULN_SQL_INJECTION:
+                    vulnerability = vuln
+
+            assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
                 "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]

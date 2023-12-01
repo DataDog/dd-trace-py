@@ -4,7 +4,6 @@ import logging
 import os
 from os import environ
 from os import getpid
-import sys
 from threading import RLock
 from typing import Any
 from typing import Callable
@@ -42,7 +41,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor
@@ -263,11 +261,11 @@ class Tracer(object):
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        register_on_exit_signal(self._atexit)
 
         self._shutdown_lock = RLock()
 
@@ -648,6 +646,8 @@ class Tracer(object):
         # Update the service name based on any mapping
         service = config.service_mapping.get(service, service)
 
+        links = context._span_links if not parent else []
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -659,6 +659,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 span_api=span_api,
+                links=links,
                 on_finish=[self._on_span_finish],
             )
 
@@ -749,8 +750,6 @@ class Tracer(object):
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
 
-        Python 2 will not submit logs to stderr if no handler is configured.
-
         Instead, something like this will be printed to stderr:
             No handlers could be found for logger "ddtrace.tracer"
 
@@ -758,10 +757,7 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not hasHandlers(log):
-            sys.stderr.write("%s\n" % msg)
-        else:
-            log.log(level, msg)
+        log.log(level, msg)
 
     def trace(
         self,

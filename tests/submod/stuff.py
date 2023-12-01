@@ -125,7 +125,7 @@ class PropertyStuff(object):
     foo = property(operator.attrgetter("_foo"))
 
 
-from ddtrace.internal.compat import monotonic_ns  # noqa
+from ddtrace.internal.compat import monotonic_ns  # noqa:E402
 
 
 def durationstuff(ns):
@@ -159,6 +159,6 @@ def finallystuff():
 
 
 def sensitive_stuff(pwd):
-    token, answer = "deadbeef", 42  # noqa
-    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa
+    token, answer = "deadbeef", 42  # noqa:F841
+    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
     return pwd

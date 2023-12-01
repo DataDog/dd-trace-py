@@ -21,6 +21,7 @@
       "openai.request.prompt": "and when I've given up,",
       "openai.request.response_format": "verbose_json",
       "openai.request.user": "ddtrace-test",
+      "openai.response.duration": "3.62",
       "openai.response.language": "english",
       "openai.response.text": "when I've had enough of running after.",
       "openai.user.api_key": "sk-...key>",
@@ -33,7 +34,6 @@
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
-      "openai.response.duration": 3.62,
       "openai.response.segments_count": 1,
       "process_id": 7755
     },
