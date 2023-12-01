@@ -193,6 +193,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace = MetricNamespace()
         self._logs = set()  # type: Set[Dict[str, Any]]
         self._enabled = config._telemetry_enabled
+        self._deps_collection_enabled = config._telemetry_dependency_collection
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
@@ -442,6 +443,9 @@ class TelemetryWriter(PeriodicService):
     def _update_dependencies_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
+        if not self._deps_collection_enabled:
+            return
+
         for module_path in newly_imported_deps:
             if not module_path:
                 continue
@@ -481,6 +485,9 @@ class TelemetryWriter(PeriodicService):
     def _app_dependencies_loaded_event(self, payload_type: str = "app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         from ddtrace.internal.module import origin
+
+        if not self._deps_collection_enabled:
+            return
 
         with self._lock:
             sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
@@ -625,9 +632,10 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        newly_imported_deps = self._flush_new_imported_dependencies()
-        if newly_imported_deps:
-            self._update_dependencies_event(newly_imported_deps)
+        if not self._deps_collection_enabled:
+            newly_imported_deps = self._flush_new_imported_dependencies()
+            if newly_imported_deps:
+                self._update_dependencies_event(newly_imported_deps)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued

@@ -24,6 +24,7 @@ from weakref import WeakValueDictionary as wvdict
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.settings import _config as config
 
 
 ModuleHookType = Callable[[ModuleType], None]
@@ -426,7 +427,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
             for hook in hooks:
                 hook(module)
-        telemetry_writer._new_dependencies.add(str(module_path))
+        if config._telemetry_dependency_collection:
+            telemetry_writer._new_dependencies.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):

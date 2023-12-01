@@ -19,6 +19,7 @@ from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.telemetry.test_telemetry import _assert_dependencies_sort_and_remove
 from tests.utils import flaky
+from tests.utils import override_global_config
 
 
 def test_add_event(telemetry_writer, test_agent_session, mock_time):
@@ -269,6 +270,17 @@ def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, moc
     assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
 
 
+def test_app_dependencies_loaded_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
+    with override_global_config(dict(_telemetry_dependency_collection=False)):
+        telemetry_writer._app_dependencies_loaded_event()
+        # force a flush
+        telemetry_writer.periodic()
+        events = test_agent_session.get_events()
+        assert len(events) <= 1  # could have a heartbeat
+        if events:
+            assert events[0]["request_type"] != "app-dependencies-loaded"
+
+
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
@@ -285,6 +297,20 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     assert "xmltodict" in telemetry_writer._imported_dependencies
     assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
     assert telemetry_writer._imported_dependencies["xmltodict"].version
+
+
+def test_update_dependencies_event_disabled(telemetry_writer, test_agent_session, mock_time):
+    with override_global_config(dict(_telemetry_dependency_collection=False)):
+        import xmltodict
+
+        new_deps = [str(origin(xmltodict))]
+        telemetry_writer._update_dependencies_event(new_deps)
+        # force a flush
+        telemetry_writer.periodic()
+        events = test_agent_session.get_events()
+        assert len(events) <= 1  # could have a heartbeat
+        if events:
+            assert events[0]["request_type"] != "app-dependencies-loaded"
 
 
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
