@@ -1,66 +1,6 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
-
-#include <utility>
-
-using namespace pybind11::literals;
-
-using namespace std;
-
-#define _GET_HASH_KEY(hash) (hash & 0xFFFFFF)
-
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
-
-// Used to quickly exit on cases where the object is a non interned unicode
-// string and does not have the fast-taint mark on its internal data structure.
-// In any other case it will return false so the evaluation continue for (more
-// slowly) checking if bytes and bytearrays are tainted.
-__attribute__((flatten)) bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr)
-{
-    if (!objptr) {
-        return true; // cannot taint a nullptr
-    }
-
-    if (!PyUnicode_Check(objptr)) {
-        return false; // not a unicode, continue evaluation
-    }
-
-    if (PyUnicode_CHECK_INTERNED(objptr)) {
-        return true; // interned but it could still be tainted
-    }
-
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (!e) {
-        return true; // broken string object? better to skip it
-    }
-    // it cannot be fast tainted if hash is set to -1 (not computed)
-    Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
-    return hash == -1 || e->hidden != _GET_HASH_KEY(hash);
-}
-
-// For non interned unicode strings, set a hidden mark on it's internsal data
-// structure that will allow us to quickly check if the string is not tainted
-// and thus skip further processing without having to search on the tainting map
-__attribute__((flatten)) void
-set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
-{
-    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
-        return;
-    }
-    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (e) {
-        Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
-        if (hash == -1) {
-            hash = PyObject_Hash(objptr);
-        }
-        e->hidden = _GET_HASH_KEY(hash);
-    }
-}
+#include "Utils/StringUtils.h"
 
 void
 TaintRange::reset()
@@ -105,7 +45,7 @@ api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offse
 }
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
 {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
@@ -114,6 +54,12 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
         new_ranges.emplace_back(api_shift_taint_range(trange, offset));
     }
     return new_ranges;
+}
+
+TaintRangeRefs
+api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+{
+    return shift_taint_ranges(source_taint_ranges, offset);
 }
 
 /**
@@ -272,6 +218,22 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     return null_range;
 }
 
+inline void
+api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
+{
+    auto tx_map = initializer->get_tainting_map();
+    auto ranges = get_ranges(str_1.ptr(), tx_map);
+    set_ranges(str_2.ptr(), ranges, tx_map);
+}
+
+inline void
+api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset)
+{
+    auto tx_map = initializer->get_tainting_map();
+    auto ranges = get_ranges(str_1.ptr(), tx_map);
+    set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset), tx_map);
+}
+
 TaintedObjectPtr
 get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
 {
@@ -391,6 +353,10 @@ pyexport_taintrange(py::module& m)
 
     m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
+
+    m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
+    m.def(
+      "copy_and_shift_ranges_from_strings", &api_copy_and_shift_ranges_from_strings, "str_1"_a, "str_2"_a, "offset"_a);
 
     m.def("get_ranges",
           py::overload_cast<PyObject*>(&get_ranges),

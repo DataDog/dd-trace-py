@@ -32,6 +32,8 @@ if _is_python_version_supported():
     from ._native.taint_tracking import origin_to_str
     from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ._native.taint_tracking import set_ranges
+    from ._native.taint_tracking import copy_ranges_from_strings
+    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
     from ._native.taint_tracking import shift_taint_range
     from ._native.taint_tracking import shift_taint_ranges
     from ._native.taint_tracking import str_to_origin
@@ -45,7 +47,6 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
     from typing import List
-    from typing import Optional
     from typing import Tuple
     from typing import Union
 
@@ -60,6 +61,8 @@ __all__ = [
     "TaintRange",
     "get_ranges",
     "set_ranges",
+    "copy_ranges_from_strings",
+    "copy_and_shift_ranges_from_strings",
     "are_all_text_all_ranges",
     "shift_taint_range",
     "shift_taint_ranges",
