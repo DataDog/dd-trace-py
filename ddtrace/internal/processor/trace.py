@@ -2,11 +2,11 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
-from typing import Union
+from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 import attr
 import six
@@ -28,13 +28,13 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
 
 
 try:
-    from typing import DefaultDict
+    from typing import DefaultDict  # noqa:F401
 except ImportError:
     from collections import defaultdict as DefaultDict
 

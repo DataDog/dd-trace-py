@@ -1,5 +1,3 @@
-#include <pybind11/stl.h>
-
 #include "AspectIndex.h"
 
 PyObject*

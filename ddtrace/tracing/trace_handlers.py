@@ -1,9 +1,9 @@
 import functools
 import sys
-from typing import Callable
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY

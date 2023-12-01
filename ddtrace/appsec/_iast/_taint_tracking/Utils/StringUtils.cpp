@@ -6,91 +6,120 @@
 // if CLion tells it's not used!
 #include "StringUtils.h"
 
-// TODO: check if really needed
-// #define PY_SSIZE_T_CLEAN
-#include <Python.h>
-
-using namespace std;
 using namespace pybind11::literals;
 
-py::str
-copy_string_new_id(const py::str& source)
+using namespace std;
+
+#define _GET_HASH_KEY(hash) (hash & 0xFFFFFF)
+
+typedef struct _PyASCIIObject_State_Hidden
 {
-    if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
-        return source;
+    unsigned int : 8;
+    unsigned int hidden : 24;
+} PyASCIIObject_State_Hidden;
+
+// Used to quickly exit on cases where the object is a non interned unicode
+// string and does not have the fast-taint mark on its internal data structure.
+// In any other case it will return false so the evaluation continue for (more
+// slowly) checking if bytes and bytearrays are tainted.
+__attribute__((flatten)) bool
+is_notinterned_notfasttainted_unicode(const PyObject* objptr)
+{
+    if (!objptr) {
+        return true; // cannot taint a nullptr
     }
 
-    py::str newstr = string(source);
-    return newstr;
-}
-
-py::bytes
-copy_string_new_id(const py::bytes& source)
-{
-    if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
-        return source;
+    if (!PyUnicode_Check(objptr)) {
+        return false; // not a unicode, continue evaluation
     }
-    auto newstr = strdup(PYBIND11_BYTES_AS_STRING(source.ptr()));
-    py::bytes newbytes = newstr;
-    free(newstr);
-    return newbytes;
+
+    if (PyUnicode_CHECK_INTERNED(objptr)) {
+        return true; // interned but it could still be tainted
+    }
+
+    const _PyASCIIObject_State_Hidden* e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
+    if (!e) {
+        return true; // broken string object? better to skip it
+    }
+    // it cannot be fast tainted if hash is set to -1 (not computed)
+    Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
+    return hash == -1 || e->hidden != _GET_HASH_KEY(hash);
 }
 
-py::bytearray
-copy_string_new_id(const py::bytearray& source)
+// For non interned unicode strings, set a hidden mark on it's internsal data
+// structure that will allow us to quickly check if the string is not tainted
+// and thus skip further processing without having to search on the tainting map
+__attribute__((flatten)) void
+set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 {
-    return source;
+    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
+        return;
+    }
+    auto e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
+    if (e) {
+        Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
+        if (hash == -1) {
+            hash = PyObject_Hash(objptr);
+        }
+        e->hidden = _GET_HASH_KEY(hash);
+    }
 }
 
-py::object
-copy_string_new_id(const py::object& source)
+string
+PyObjectToString(PyObject* obj)
 {
-    return source;
+    const char* str = PyUnicode_AsUTF8(obj);
+
+    if (str == nullptr) {
+        PyErr_Print();
+        throw runtime_error("PyObjectToString error");
+    }
+    return str;
 }
 
 PyObject*
-copy_string_new_str_id(PyObject* source)
+new_pyobject_id(PyObject* tainted_object)
 {
-    if (PyUnicode_CHECK_INTERNED(source) == SSTATE_NOT_INTERNED) {
-        return source;
+    if (PyUnicode_Check(tainted_object)) {
+        PyObject* empty_unicode = PyUnicode_New(0, 127);
+        PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
+        PyObject* result = PyUnicode_Join(empty_unicode, val);
+        Py_DecRef(empty_unicode);
+        Py_DecRef(val);
+        return result;
     }
-
-    const Py_ssize_t length = PyUnicode_GET_LENGTH(source);
-    if (length >= 4097) {
-        return source;
+    if (PyBytes_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
+        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
+        auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
+        Py_DecRef(val);
+        Py_DecRef(empty_bytes);
+        return res;
+    } else if (PyByteArray_Check(tainted_object)) {
+        PyObject* empty_bytes = PyBytes_FromString("");
+        PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
+        auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
+        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
+        auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
+        Py_DecRef(val);
+        Py_DecRef(empty_bytes);
+        Py_DecRef(empty_bytearray);
+        return res;
     }
-    const Py_ssize_t byte_length = length * PyUnicode_KIND(source);
-
-    // Despite its name, this macro computes the a reference maxchar based on
-    // is_ascii and kind. It does not iterate contents at all. Which other
-    // variants like ucs1lib_find_max_char do.
-    const Py_UCS4 maxchar = PyUnicode_MAX_CHAR_VALUE(source);
-    // Using this PyUnicode_New constructor, and the manual copy, we avoid any
-    // iteration of contents too. And we also avoid any decoding process like
-    // unicode_decode_utf8.
-    PyObject* newobj = PyUnicode_New(length, maxchar);
-    memcpy(PyUnicode_DATA(newobj), PyUnicode_DATA(source), byte_length);
-    Py_DecRef(source);
-    return newobj;
+    return tainted_object;
 }
 
-void
-pyexport_string_utils(py::module& m)
+size_t
+get_pyobject_size(PyObject* obj)
 {
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::bytes&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::str&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::bytearray&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
-    m.def("copy_string_new_id",
-          py::overload_cast<const py::object&>(&copy_string_new_id),
-          "s"_a,
-          py::return_value_policy::move);
+    size_t len_candidate_text{ 0 };
+    if (PyUnicode_Check(obj)) {
+        len_candidate_text = PyUnicode_GET_LENGTH(obj);
+    } else if (PyBytes_Check(obj)) {
+        len_candidate_text = PyBytes_Size(obj);
+    } else if (PyByteArray_Check(obj)) {
+        len_candidate_text = PyByteArray_Size(obj);
+    }
+    return len_candidate_text;
 }
