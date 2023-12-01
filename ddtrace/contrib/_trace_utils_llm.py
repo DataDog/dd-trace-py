@@ -12,6 +12,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 
@@ -19,7 +20,7 @@ from ddtrace.sampler import RateSampler
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config, stats_url, site, api_key):
+    def __init__(self, config, stats_url, site, api_key, app_key=None):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
@@ -32,8 +33,16 @@ class BaseLLMIntegration:
             interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
             timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
         )
+        self._llmobs_writer = LLMObsWriter(
+            site=site,
+            api_key=api_key,
+            app_key=app_key,
+            interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+            timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+        )
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+        self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
 
     def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
@@ -45,8 +54,18 @@ class BaseLLMIntegration:
             return False
         return self._log_pc_sampler.sample(span)
 
+    def is_pc_sampled_llmobs(self, span: Span) -> bool:
+        # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
+        if not self._config.llmobs_enabled:
+            return False
+        return self._llmobs_pc_sampler.sample(span)
+
     def start_log_writer(self) -> None:
         self._log_writer.start()
+
+    def start_llm_writer(self):
+        # type: (...) -> None
+        self._llmobs_writer.start()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span, **kwargs):
@@ -131,3 +150,15 @@ class BaseLLMIntegration:
         if len(text) > self._config.span_char_limit:
             text = text[: self._config.span_char_limit] + "..."
         return text
+
+    def llm_record(self, span, attrs):
+        # type: (Span, Dict[str, Any]) -> None
+        """Create a LLM record to send to the LLM Obs intake."""
+        if not self._config.llmobs_enabled:
+            return
+        llm_record = {}
+        if span is not None:
+            llm_record["dd.trace_id"] = str(span.trace_id)
+            llm_record["dd.span_id"] = str(span.span_id)
+        llm_record.update(attrs)
+        self._llmobs_writer.enqueue(llm_record)

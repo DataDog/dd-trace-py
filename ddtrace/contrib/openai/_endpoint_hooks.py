@@ -224,6 +224,8 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -283,6 +285,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return resp
 
 
