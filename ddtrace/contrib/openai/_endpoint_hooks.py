@@ -71,6 +71,11 @@ class _EndpointHook:
     def handle_request(self, pin, integration, span, args, kwargs):
         self._record_request(pin, integration, span, args, kwargs)
         resp, error = yield
+        if hasattr(resp, "parse"):
+            # Users can request the raw response, in which case we need to process on the parsed response
+            # and return the original raw APIResponse.
+            self._record_response(pin, integration, span, args, kwargs, resp.parse(), error)
+            return resp
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -224,6 +229,8 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -283,6 +290,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return resp
 
 

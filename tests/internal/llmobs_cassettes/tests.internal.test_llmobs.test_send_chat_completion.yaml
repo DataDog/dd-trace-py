@@ -18,7 +18,7 @@ interactions:
       DD-APPLICATION-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
   response:
     body:
       string: '{"data":{"id":"fe644295-bade-4a4e-af1c-4a8c9d0da754","type":"records","attributes":{"model":"ada","model_provider":"openai","records":[{"id":"chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu","type":"chat","timestamp":1681853029000,"input":{"messages":[{"content":"You

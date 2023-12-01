@@ -46,7 +46,7 @@ class IASTFilter(LeaksFilterFunction):
 
 
 @flaky(1704067200)
-@pytest.mark.limit_leaks("19 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("8.2 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -64,6 +64,12 @@ class IASTFilter(LeaksFilterFunction):
     ],
 )
 def test_propagation_memory_check(origin1, origin2, iast_span_defaults):
+    """Biggest allocating functions:
+    - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
+    - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
+    - format_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:347 -> 3.0KiB
+    - modulo_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:214 -> 1.6KiB
+    """
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
     _initializer_size = 0
