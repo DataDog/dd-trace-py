@@ -249,8 +249,6 @@ Supported web frameworks:
 +-------------------+---------+
 | :ref:`flask`      | True    |
 +-------------------+---------+
-| :ref:`pylons`     | True    |
-+-------------------+---------+
 | :ref:`pyramid`    | True    |
 +-------------------+---------+
 | :ref:`requests`   | True    |
@@ -390,11 +388,11 @@ Examples::
 
 The sensitive query strings (e.g: token, password) are obfuscated by default.
 
-It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable.
+It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable.
 
-To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable to empty string ("")
+To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable to empty string ("")
 
-If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable is set to an invalid regexp, the query strings will not be traced.
+If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` environment variable is set to an invalid regexp, the query strings will not be traced.
 
 ..  _http-headers-tracing:
 
@@ -663,6 +661,7 @@ uWSGI
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
+- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>` option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
 Example with CLI arguments:
 

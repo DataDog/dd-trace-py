@@ -6,14 +6,13 @@ import threading
 import time
 import timeit
 from types import FrameType
-import typing  # noqa
+import typing  # noqa:F401
 import uuid
 
 import pytest
-import six
 from six.moves import _thread
 
-import ddtrace  # noqa
+import ddtrace  # noqa:F401
 from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
@@ -173,7 +172,7 @@ def _fib(n):
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
-    from gevent import monkey  # noqa
+    from gevent import monkey  # noqa:F401
 
     monkey.patch_all()
 
@@ -265,8 +264,8 @@ def test_ignore_profiler_gevent_task():
     import os
     import time
 
-    from ddtrace.profiling import collector  # noqa
-    from ddtrace.profiling import event as event_mod  # noqa
+    from ddtrace.profiling import collector  # noqa:F401
+    from ddtrace.profiling import event as event_mod  # noqa:F401
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
 
@@ -302,7 +301,7 @@ def test_ignore_profiler_gevent_task():
             # Give some time for gevent to switch greenlets
             time.sleep(0.1)
         else:
-            assert False, "ignore == " + ignore
+            raise AssertionError("ignore == " + ignore)
 
         c.stop()
         p.stop(flush=False)
@@ -345,10 +344,7 @@ FN_TEMPLATE = """def _f{num}():
   return _f{nump1}()"""
 
 for num in range(MAX_FN_NUM):
-    if six.PY3:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
-    else:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
+    exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
     """def _f{MAX_FN_NUM}():
@@ -365,7 +361,7 @@ def test_stress_threads():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -394,7 +390,7 @@ def test_stress_threads_run_as_thread():
     NB_THREADS = 40
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -414,7 +410,7 @@ def test_exception_collection_threads():
     NB_THREADS = 5
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_f0)  # noqa: E149,F821
         t.start()
         threads.append(t)
@@ -640,7 +636,7 @@ def test_stress_trace_collection(tracer_and_collector):
     NB_THREADS = 30
 
     threads = []
-    for i in range(NB_THREADS):
+    for _ in range(NB_THREADS):
         t = threading.Thread(target=_trace)
         threads.append(t)
 
@@ -745,7 +741,7 @@ def test_collect_gevent_threads():
         if event.task_name == "MainThread":
             main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
-            for filename, lineno, funcname, classname in event.frames:
+            for _filename, _lineno, funcname, _classname in event.frames:
                 if funcname in (
                     "_nothing",
                     "sleep",

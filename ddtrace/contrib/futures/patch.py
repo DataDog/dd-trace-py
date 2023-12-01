@@ -1,10 +1,14 @@
 import sys
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 
 from .threading import _wrap_submit
+
+
+def get_version():
+    # type: () -> str
+    return ""
 
 
 def patch():
@@ -18,12 +22,9 @@ def patch():
 
     if getattr(thread, "__datadog_patch", False):
         return
-    setattr(thread, "__datadog_patch", True)
+    thread.__datadog_patch = True
 
-    if PY2:
-        _w(thread.ThreadPoolExecutor.submit.__func__, _wrap_submit)
-    else:
-        _w(thread.ThreadPoolExecutor.submit, _wrap_submit)
+    _w(thread.ThreadPoolExecutor.submit, _wrap_submit)
 
 
 def unpatch():
@@ -37,9 +38,6 @@ def unpatch():
 
     if not getattr(thread, "__datadog_patch", False):
         return
-    setattr(thread, "__datadog_patch", False)
+    thread.__datadog_patch = False
 
-    if PY2:
-        _u(thread.ThreadPoolExecutor.submit.__func__, _wrap_submit)
-    else:
-        _u(thread.ThreadPoolExecutor.submit, _wrap_submit)
+    _u(thread.ThreadPoolExecutor.submit, _wrap_submit)

@@ -8,9 +8,9 @@ import pytest
     "env_var_name,env_var_value,expected_obfuscation_config,expected_global_query_string_obfuscation_disabled,"
     "expected_http_tag_query_string",
     [
-        ("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", "", None, True, True),
+        ("DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "", None, True, True),
         (
-            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN",
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
             "(?i)(?:p(?:ass)?w(?:or))",
             "re.compile('(?i)(?:p(?:ass)?w(?:or))'.encode('ascii'))",
             False,
@@ -19,12 +19,12 @@ import pytest
         (
             "DD_WRONG_ENV_NAME",
             "(?i)(?:p(?:ass)?w(?:or))",
-            "re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT.encode('ascii'))",
+            "re.compile(DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode('ascii'))",
             False,
             True,
         ),
         (
-            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN",
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
             "(",
             None,
             False,
@@ -50,7 +50,7 @@ def test_obfuscation_querystring_pattern_env_var(
             "-c",
             (
                 """import re;from ddtrace import config;
-from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT;
+from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT;
 assert config._obfuscation_query_string_pattern == %s;
 assert config.global_query_string_obfuscation_disabled == %s;
 assert config.http_tag_query_string == %s

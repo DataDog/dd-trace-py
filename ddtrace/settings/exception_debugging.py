@@ -11,3 +11,6 @@ class ExceptionDebuggingConfig(En):
         help_type="Boolean",
         help="Enable automatic capturing of exception debugging information",
     )
+
+
+config = ExceptionDebuggingConfig()

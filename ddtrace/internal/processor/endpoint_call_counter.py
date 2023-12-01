@@ -6,7 +6,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 
 
 EndpointCountsType = typing.Dict[str, int]
@@ -14,7 +14,6 @@ EndpointCountsType = typing.Dict[str, int]
 
 @attr.s(eq=False)
 class EndpointCallCounterProcessor(SpanProcessor):
-
     endpoint_counts = attr.ib(init=False, repr=False, type=EndpointCountsType, factory=lambda: {}, eq=False)
     _endpoint_counts_lock = attr.ib(init=False, repr=False, factory=forksafe.Lock, eq=False)
     _enabled = attr.ib(default=False, repr=False, eq=False)

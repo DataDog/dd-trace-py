@@ -5,16 +5,10 @@ import logging
 import os
 import shutil
 import sys
-import typing
+import typing  # noqa:F401
 
 import ddtrace
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.utils.formats import asbool
 
-
-if PY2:
-    # Python 2 does not have PermissionError but Python 3 does.
-    PermissionError = None  # noqa: A001
 
 if hasattr(shutil, "which"):
     _which = shutil.which
@@ -92,9 +86,7 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    debug_mode = args.debug or asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-
-    if debug_mode:
+    if args.debug or ddtrace.config._debug_mode:
         logging.basicConfig(level=logging.DEBUG)
         os.environ["DD_TRACE_DEBUG"] = "true"
 

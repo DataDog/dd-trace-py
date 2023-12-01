@@ -3,15 +3,12 @@ import collections
 import email.parser
 import json
 import platform
-import socket
 import sys
 import threading
 import time
 
 import pytest
-import six
 from six.moves import BaseHTTPServer
-from six.moves import http_client
 
 import ddtrace
 from ddtrace.internal import compat
@@ -85,10 +82,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         length = int(self.headers["Content-Length"])
         body = self.rfile.read(length)
         mmpart = b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n" + body
-        if six.PY2:
-            msg = email.parser.Parser().parsestr(mmpart)
-        else:
-            msg = email.parser.BytesParser().parsebytes(mmpart)
+        msg = email.parser.BytesParser().parsebytes(mmpart)
         if not msg.is_multipart():
             self.send_error(400, "No multipart")
             return
@@ -216,7 +210,7 @@ def test_export_server_down():
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(EnvironmentError):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
@@ -228,7 +222,7 @@ def test_export_timeout(endpoint_test_timeout_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises((TimeoutError, socket.timeout) if six.PY3 else socket.error):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
@@ -240,7 +234,7 @@ def test_export_reset(endpoint_test_reset_server):
         max_retry_delay=2,
         endpoint_call_counter_span_processor=_get_span_processor(),
     )
-    with pytest.raises(ConnectionResetError if six.PY3 else http_client.BadStatusLine):
+    with pytest.raises(exporter.ExportError):
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
@@ -446,8 +440,8 @@ def test_get_tags_override(monkeypatch):
 @pytest.mark.skip(reason="Needs investigation about the segfaulting")
 @pytest.mark.subprocess(env=dict(DD_PROFILING_TAGS="mytag:baz"))
 def test_get_tags_legacy():
-    from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-    from ddtrace.profiling.exporter import http  # noqa
+    from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+    from ddtrace.profiling.exporter import http  # noqa:F401
 
     # REVERTME: Investigating segfaults on CI
     # tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))

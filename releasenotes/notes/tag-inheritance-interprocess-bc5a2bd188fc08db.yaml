@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue causing span tags used by the Datadog backend not to be inherited by spans
+    that exist in a different process from their parents.

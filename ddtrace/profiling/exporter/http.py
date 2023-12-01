@@ -7,11 +7,12 @@ import json
 import os
 import platform
 import typing
-from typing import Any
-from typing import Dict
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 
 import attr
 import six
+from six.moves import http_client
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
@@ -24,7 +25,7 @@ from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
-from ddtrace.profiling import recorder
+from ddtrace.profiling import recorder  # noqa:F401
 from ddtrace.profiling.exporter import pprof
 from ddtrace.settings.profiling import config
 
@@ -233,6 +234,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
             client.request("POST", path, body=body, headers=headers)
             response = client.getresponse()
             response.read()  # reading is mandatory
+        except (http_client.HTTPException, EnvironmentError) as e:
+            raise exporter.ExportError("HTTP upload request failed: %s" % e)
         finally:
             client.close()
 

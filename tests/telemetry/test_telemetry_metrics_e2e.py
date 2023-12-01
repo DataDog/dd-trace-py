@@ -3,9 +3,6 @@ import json
 import os
 import subprocess
 import sys
-import time
-
-import pytest
 
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
@@ -28,8 +25,6 @@ def _build_env():
 def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
-    env["DD_TELEMETRY_METRICS_ENABLED"] = telemetry_metrics_enabled
-    env["DD_TELEMETRY_METRICS_INTERVAL_SECONDS"] = "1.0"
     env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
@@ -73,39 +68,31 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
 
 
 def parse_payload(data):
-    decoded = data
-    if sys.version_info[1] == 5:
-        decoded = data.decode("utf-8")
-    return json.loads(decoded)
+    return json.loads(data)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
     assert len(test_agent_session.get_events()) == 0
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
-        gunicorn_client.get("/metrics")
-        gunicorn_client.get("/metrics")
-        response = gunicorn_client.get("/metrics")
-        response_content = json.loads(response.content)
-        assert response_content["telemetry_metrics_writer_running"] is True
-        assert response_content["telemetry_metrics_writer_worker"] is True
-        assert response_content["telemetry_metrics_writer_queue"][0]["metric"] == "test_metric"
-        assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 3.0
-        time.sleep(1)
-        gunicorn_client.get("/metrics")
-        response = gunicorn_client.get("/metrics")
-        response_content = json.loads(response.content)
-        assert response_content["telemetry_metrics_writer_queue"][0]["points"][0][1] == 2.0
+        gunicorn_client.get("/count_metric")
+        gunicorn_client.get("/count_metric")
+        response = gunicorn_client.get("/count_metric")
+        assert response.status_code == 200
+        gunicorn_client.get("/count_metric")
+        response = gunicorn_client.get("/count_metric")
+        assert response.status_code == 200
+
     events = test_agent_session.get_events()
-    assert len(events) == 6
-    assert events[1]["payload"]["series"][0]["metric"] == "test_metric"
-    assert events[3]["payload"]["series"][0]["metric"] == "test_metric"
+    metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
+    assert len(metrics) == 1
+    assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
+    assert metrics[0]["payload"]["series"][0]["points"][0][1] == 5
 
 
-def test_span_creation_and_finished_metrics_datadog(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 from ddtrace import tracer
 for _ in range(10):
@@ -114,7 +101,7 @@ for _ in range(10):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -126,10 +113,9 @@ for _ in range(10):
     assert metrics[1]["points"][0][1] == 10
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_and_finished_metrics_otel(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
+def test_span_creation_and_finished_metrics_otel(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-import opentelemetry
+import opentelemetry.trace
 
 ot = opentelemetry.trace.get_tracer(__name__)
 for _ in range(9):
@@ -140,7 +126,7 @@ for _ in range(9):
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -152,9 +138,7 @@ for _ in range(9):
     assert metrics[1]["points"][0][1] == 9
 
 
-def test_span_creation_and_finished_metrics_opentracing(
-    test_agent_metrics_session, ddtrace_run_python_code_in_subprocess
-):
+def test_span_creation_and_finished_metrics_opentracing(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 from ddtrace.opentracer import Tracer
 
@@ -165,7 +149,7 @@ for _ in range(9):
 """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
 
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 2
@@ -177,12 +161,10 @@ for _ in range(9):
     assert metrics[1]["points"][0][1] == 9
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
-def test_span_creation_no_finish(test_agent_metrics_session, ddtrace_run_python_code_in_subprocess):
-
+def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 import ddtrace
-import opentelemetry
+import opentelemetry.trace
 from ddtrace import opentracer
 
 ddtracer = ddtrace.tracer
@@ -199,7 +181,7 @@ for _ in range(4):
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_metrics_session.get_events()
+    events = test_agent_session.get_events()
     metrics = get_metrics_from_events(events)
     assert len(metrics) == 3
 

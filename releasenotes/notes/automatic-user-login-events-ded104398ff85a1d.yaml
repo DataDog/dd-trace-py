@@ -1,0 +1,13 @@
+---
+prelude: >
+    Datadog has added support for automatically creating login success or failure events when a configured Django authentication backend is used. 
+    This will automatically fill the following tags in these cases:
+
+      - `appsec.events.users.login.success.track`
+      - `appsec.events.users.login.failure.track`
+      - `appsec.events.users.login.success.[email|login|username]`
+      - `appsec.events.users.login.failure.usr.exists`
+
+features:
+  - |
+    ASM: Add support for automatic user login events in Django.

@@ -1,3 +1,4 @@
+from ddtrace.contrib.fastapi import get_version
 from ddtrace.contrib.fastapi import patch
 from ddtrace.contrib.fastapi import unpatch
 from tests.contrib.patch import PatchTestCase
@@ -8,6 +9,7 @@ class TestFastapiPatch(PatchTestCase.Base):
     __module_name__ = "fastapi"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, fastapi):
         self.assert_wrapped(fastapi.applications.FastAPI.build_middleware_stack)

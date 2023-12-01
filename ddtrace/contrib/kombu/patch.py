@@ -10,8 +10,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.vendor import wrapt
 
-# project
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -22,12 +20,20 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
+
+# project
+from .. import trace_utils
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
 from .utils import extract_conn_tags
 from .utils import get_body_length_from_args
 from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
+
+
+def get_version():
+    # type: () -> str
+    return str(kombu.__version__)
 
 
 # kombu default settings
@@ -50,7 +56,7 @@ def patch():
     """
     if getattr(kombu, "_datadog_patch", False):
         return
-    setattr(kombu, "_datadog_patch", True)
+    kombu._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
     # We wrap the _publish method because the publish method:
@@ -78,7 +84,7 @@ def patch():
 
 def unpatch():
     if getattr(kombu, "_datadog_patch", False):
-        setattr(kombu, "_datadog_patch", False)
+        kombu._datadog_patch = False
         unwrap(kombu.Producer, "_publish")
         unwrap(kombu.Consumer, "receive")
 

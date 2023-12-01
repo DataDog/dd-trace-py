@@ -6,12 +6,13 @@
       {
         "Name": "child_stats",
         "Resource": "child_stats",
+        "Service": null,
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 10,
         "TopLevelHits": 0,
-        "Duration": 40000,
+        "Duration": 9999999990,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -19,12 +20,13 @@
       {
         "Name": "parent",
         "Resource": "parent",
+        "Service": null,
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 20,
         "TopLevelHits": 20,
-        "Duration": 340000,
+        "Duration": 19999999980,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15

@@ -6,8 +6,6 @@ from webtest import TestApp
 
 from ddtrace import config
 from ddtrace.contrib.wsgi import wsgi
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -81,7 +79,7 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 4
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
     spans = test_spans.pop()
@@ -260,15 +258,15 @@ def test_200():
     assert resp.status_int == 200
 
 
-@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
-def test_500():
+@snapshot(ignores=["meta.error.stack"])
+def test_500_py3():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
-@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
-def test_base_exception_in_wsgi_app():
+@snapshot(ignores=["meta.error.stack"])
+def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
     # a BaseException is raised.
     app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -292,7 +290,7 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     # Note - span modifiers are not called
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 
 
@@ -331,6 +329,32 @@ def test_wsgi_traced_iterable(tracer, test_spans):
     assert hasattr(resp, "close")
     assert hasattr(resp, "next") or hasattr(resp, "__next__")
     assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
+
+
+@pytest.mark.parametrize(
+    "extra,expected",
+    [
+        ({}, {}),
+        # This is a regression for #6284
+        # DEV: We were checking for `HTTP` prefix for headers instead of `HTTP_` which is required
+        ({"HTTPS": "on"}, {}),
+        # Normal header
+        ({"HTTP_HEADER": "value"}, {"Header": "value"}),
+    ],
+)
+def test_get_request_headers(extra, expected):
+    # Normal environ stuff
+    environ = {
+        "PATH_INFO": "/",
+        "wsgi.url_scheme": "http",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "REQUEST_METHOD": "GET",
+    }
+    environ.update(extra)
+
+    headers = wsgi.get_request_headers(environ)
+    assert headers == expected
 
 
 @pytest.mark.snapshot()

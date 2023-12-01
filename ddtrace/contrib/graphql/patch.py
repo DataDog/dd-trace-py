@@ -2,19 +2,19 @@ import os
 import re
 import sys
 from typing import TYPE_CHECKING
+from typing import List
 
+from ddtrace import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from ddtrace import Span
 
 import graphql
 from graphql import MiddlewareManager
@@ -40,16 +40,22 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.pin import Pin
 
-from .. import trace_utils
 from ...ext import SpanTypes
+from .. import trace_utils
 
 
-_graphql_version = parse_version(getattr(graphql, "__version__"))
+_graphql_version_str = graphql.__version__
+_graphql_version = parse_version(_graphql_version_str)
 
 if _graphql_version < (3, 0):
     from graphql.language.ast import Document
 else:
     from graphql.language.ast import DocumentNode as Document
+
+
+def get_version():
+    # type: () -> str
+    return _graphql_version_str
 
 
 config._add(
@@ -68,7 +74,7 @@ _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
 def patch():
     if getattr(graphql, "_datadog_patch", False):
         return
-    setattr(graphql, "_datadog_patch", True)
+    graphql._datadog_patch = True
     Pin().onto(graphql)
 
     for module_str, func_name, wrapper in _get_patching_candidates():
@@ -82,7 +88,7 @@ def unpatch():
     for module_str, func_name, wrapper in _get_patching_candidates():
         _update_patching(unwrap, module_str, func_name, wrapper)
 
-    setattr(graphql, "_datadog_patch", False)
+    graphql._datadog_patch = False
 
 
 def _get_patching_candidates():
@@ -277,7 +283,7 @@ def _get_source_str(obj):
         source_str = obj
     elif isinstance(obj, Source):
         source_str = obj.body
-    elif isinstance(obj, Document):
+    elif isinstance(obj, Document) and obj.loc is not None:
         source_str = obj.loc.source.body
     else:
         source_str = ""
@@ -285,8 +291,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _set_span_errors(errors, span):
-    # type: (List[GraphQLError], Span) -> None
+def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return

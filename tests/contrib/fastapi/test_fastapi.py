@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -8,7 +7,6 @@ import httpx
 import pytest
 
 import ddtrace
-from ddtrace import config
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
@@ -19,7 +17,6 @@ from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_config
-from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -31,16 +28,11 @@ from . import app
 def tracer():
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
 
-        tracer.configure(context_provider=AsyncioContextProvider())
-
-    setattr(ddtrace, "tracer", tracer)
+    ddtrace.tracer = tracer
     fastapi_patch()
     yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
+    ddtrace.tracer = original_tracer
     fastapi_unpatch()
 
 
@@ -577,14 +569,6 @@ def test_w_patch_starlette(client, tracer, test_spans):
 def test_subapp_snapshot(snapshot_client):
     response = snapshot_client.get("/sub-app/hello/name")
     assert response.status_code == 200
-
-
-@snapshot()
-def test_subapp_no_aggregate_snapshot(snapshot_client):
-    config.fastapi["aggregate_resources"] = False
-    response = snapshot_client.get("/sub-app/hello/name")
-    assert response.status_code == 200
-    config.fastapi["aggregate_resources"] = True
 
 
 @snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")

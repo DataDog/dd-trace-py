@@ -13,12 +13,6 @@ class OpenSearchPatchTest(ElasticsearchPatchTest):
     Will merge when patching will be the default/only way.
     """
 
-    ES_INDEX = "ddtrace_index"
-    ES_TYPE = "_doc"
-    ES_MAPPING = {
-        "mappings": {"properties": {"name": {"type": "keyword"}, "created": {"type": "date", "format": "yyyy-MM-dd"}}}
-    }
-
     def _get_es(self):
         return opensearchpy.OpenSearch(port=OPENSEARCH_CONFIG["port"])
 

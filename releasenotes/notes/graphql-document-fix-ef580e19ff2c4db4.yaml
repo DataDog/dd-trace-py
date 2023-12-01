@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    graphql: Resolves ``AttributeError`` raised while parsing graphql Documents where AST Location is None.

@@ -1,0 +1,9 @@
+---
+prelude: >
+  Data Streams Monitoring (DSM) has added support for AWS Kinesis
+
+features:
+  - |
+     DSM: Adds DSM support for AWS Kinesis.  For information about DSM, see the `official documentation <https://docs.datadoghq.com/data_streams/>`_.
+     This change requires users to use botocore version 1.26.30 or later and update calls to Kinesis' `PutRecord`, `PutRecords`, and `GetRecords`
+     calls with the StreamARN argument.

@@ -1,18 +1,18 @@
-import logging
 import os
+from typing import List  # noqa:F401
 
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.settings import _config as ddconfig
 
 
 log = get_logger(__name__)
@@ -49,14 +49,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             ):
                 self._state = self._online
                 return
-
-        if asbool(os.environ.get("DD_TRACE_DEBUG")) or "DD_REMOTE_CONFIGURATION_ENABLED" in os.environ:
-            LOG_LEVEL = logging.WARNING
-        else:
-            LOG_LEVEL = logging.DEBUG
-
-        log.log(
-            LOG_LEVEL,
+        log.debug(
             "Agent is down or Remote Config is not enabled in the Agent\n"
             "Check your Agent version, you need an Agent running on 7.39.1 version or above.\n"
             "Check Your Remote Config environment variables on your Agent:\n"
@@ -73,11 +66,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return
 
         elapsed = sw.elapsed()
-        if elapsed >= self.interval:
-            log_level = logging.WARNING
-        else:
-            log_level = logging.DEBUG
-        log.log(log_level, "request config in %.5fs to %s", elapsed, self._client.agent_url)
+        log.debug("request config in %.5fs to %s", elapsed, self._client.agent_url)
 
     def periodic(self):
         # type: () -> None
@@ -86,32 +75,35 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def enable(self):
         # type: () -> bool
         # TODO: this is only temporary. DD_REMOTE_CONFIGURATION_ENABLED variable will be deprecated
-        rc_env_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true"))
+        rc_env_enabled = ddconfig._remote_config_enabled
         if rc_env_enabled and self._enable:
             if self.status == ServiceStatus.RUNNING:
                 return True
 
             self.start()
-            forksafe.register(self.start_subscribers)
+            forksafe.register(self.reset_at_fork)
             atexit.register(self.disable)
             return True
         return False
 
-    def start_subscribers(self):
+    def reset_at_fork(self):
         # type: () -> None
-        """Subscribers need to be restarted when application forks"""
+        """Client Id needs to be refreshed when application forks"""
         self._enable = False
-        log.debug("[%s][P: %s] Remote Config Poller fork. Starting Pubsub services", os.getpid(), os.getppid())
-        for pubsub in self._client.get_pubsubs():
-            pubsub.restart_subscriber()
+        log.debug("[%s][P: %s] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
+        self._client.renew_id()
+
+    def start_subscribers_by_product(self, products_list):
+        # type: (List[str]) -> None
+        self._client.start_products(products_list)
 
     def _poll_data(self, test_tracer=None):
         """Force subscribers to poll new data. This function is only used in tests"""
         for pubsub in self._client.get_pubsubs():
             pubsub._poll_data(test_tracer=test_tracer)
 
-    def stop_subscribers(self):
-        # type: () -> None
+    def stop_subscribers(self, join=False):
+        # type: (bool) -> None
         """
         Disable the remote config service and drop, remote config can be re-enabled
         by calling ``enable`` again.
@@ -122,20 +114,20 @@ class RemoteConfigPoller(periodic.PeriodicService):
             self._parent_id,
         )
         for pubsub in self._client.get_pubsubs():
-            pubsub.stop()
+            pubsub.stop(join=join)
 
-    def disable(self):
-        # type: () -> None
-        self.stop_subscribers()
+    def disable(self, join=False):
+        # type: (bool) -> None
+        self.stop_subscribers(join=join)
         self._client.reset_products()
 
         if self.status == ServiceStatus.STOPPED:
             return
 
-        forksafe.unregister(self.start_subscribers)
+        forksafe.unregister(self.reset_at_fork)
         atexit.unregister(self.disable)
 
-        self.stop()
+        self.stop(join=join)
 
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
@@ -158,14 +150,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
-            enabled = True
             if not skip_enabled:
-                enabled = self.enable()
+                self.enable()
 
-            if enabled:
-                self._client.register_product(product, pubsub_instance)
-                if not self._client.is_subscriber_running(pubsub_instance):
-                    pubsub_instance.start_subscriber()
+            self._client.register_product(product, pubsub_instance)
+            if not self._client.is_subscriber_running(pubsub_instance):
+                pubsub_instance.start_subscriber()
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
@@ -175,6 +165,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
+    def get_registered(self, product):
+        return self._client._products.get(product)
+
     def __enter__(self):
         # type: () -> RemoteConfigPoller
         self.enable()
@@ -182,7 +175,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def __exit__(self, *args):
         # type: (...) -> None
-        self.disable()
+        self.disable(join=True)
 
 
 remoteconfig_poller = RemoteConfigPoller()

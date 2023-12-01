@@ -1,6 +1,6 @@
 """Instrument rediscluster to report Redis Cluster queries.
 
-``patch_all`` will automatically patch your Redis Cluster client to make it work.
+``import ddtrace.auto`` will automatically patch your Redis Cluster client to make it work.
 ::
 
     from ddtrace import Pin, patch
@@ -36,6 +36,16 @@ Global Configuration
    variable.
 
    Default: ``1000``
+
+.. py:data:: ddtrace.config.aredis["resource_only_command"]
+
+   The span resource will only include the command executed. To include all
+   arguments in the span resource, set this value to ``False``.
+
+   This option can also be set with the ``DD_REDIS_RESOURCE_ONLY_COMMAND`` environment
+   variable.
+
+   Default: ``True``
 """
 
 from ...internal.utils.importlib import require_modules
@@ -45,6 +55,7 @@ required_modules = ["rediscluster", "rediscluster.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
         from .patch import patch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "get_version"]

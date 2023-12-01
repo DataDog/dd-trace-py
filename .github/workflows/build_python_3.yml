@@ -1,0 +1,76 @@
+name: Build Python 3
+
+on:
+  workflow_call:
+    inputs:
+      cibw_build:
+        required: true
+        type: string
+      cibw_skip:
+        required: false
+        type: string
+      cibw_prerelease_pythons:
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+         - os: ubuntu-latest
+           archs: x86_64 i686
+         - os: ubuntu-latest
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-latest
+           archs: x86_64 universal2
+    steps:
+      - uses: actions/checkout@v3
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.14.0
+        env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_BUILD: ${{ inputs.cibw_build }}
+          CIBW_SKIP: ${{ inputs.cibw_skip }}
+          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+            mkdir ./tempwheelhouse &&
+            auditwheel repair -w ./tempwheelhouse {wheel} &&
+            (yum install -y zip || apk add zip) &&
+            for w in ./tempwheelhouse/*.whl; do
+              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              mv $w {dest_dir}
+            done &&
+            rm -rf ./tempwheelhouse
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
+            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
+            choco install -y 7zip &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            move "{wheel}" "{dest_dir}"
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl

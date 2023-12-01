@@ -1,0 +1,93 @@
+interactions:
+- request:
+    body: '{"prompt": ["Translate a math problem into a expression that can be executed
+      using Python''s numexpr library. Use the output of running this code to answer
+      the question.\n\nQuestion: ${Question with math problem.}\n```text\n${single
+      line mathematical expression that solves the problem}\n```\n...numexpr.evaluate(text)...\n```output\n${Output
+      of running the code}\n```\nAnswer: ${Answer}\n\nBegin.\n\nQuestion: What is
+      37593 * 67?\n```text\n37593 * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer:
+      2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer:
+      8.222831614237718\n\nQuestion: what is two raised to the fifty-fourth power?\n"],
+      "model": "text-davinci-003", "temperature": 0.0, "max_tokens": 256, "top_p":
+      1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias": {},
+      "stop": ["```output"]}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '934'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.13", "platform": "macOS-13.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Thu Jun  8 22:22:20
+        PDT 2023; root:xnu-8796.121.3~7/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0xQ3W6CMBS+5ymaXm1mNCgMlSfYFm4W44UbBmo507rS00BRFuO7LwXmvGlyvv/0
+        4hFCZUkTQkVllD/fpKtw9d6KHxuH6fFl/fpxLt/WoTjDJqVPTo27IwjrHBY6mwusjAIrUQ+0qIFb
+        cInTeLGIpstlPO+JCktQfza/5CephfSDIBx9B5QCGpqQT48QQi79Swa5s2W6KAp3ZHo2mTxH/Z1p
+        xphuK+hMzeDEVcstPGR0UNBHxlg2DOuzpC6howkJbojCvalx53p1q9QN/5JaNoe8Bt6gdvWNRUN7
+        9uoRsu03tw3fA03GrdTUWBmbW/wG7QJnYTzk0f9PumOjkbRoubrD48BzJVfvFwAA//8DAFfosjGd
+        AQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 7e123e39f9670f69-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 03 Jul 2023 21:32:51 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-davinci-003
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '4619'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249744'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 61ms
+      x-request-id:
+      - 01ed91b039a6125500da9c9dc3f35ad7
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,5 +1,4 @@
 import os
-import typing
 
 import httpx
 from six import ensure_binary
@@ -23,15 +22,17 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace.vendor.wrapt import BoundFunctionWrapper
-
-
 HTTPX_VERSION = parse_version(httpx.__version__)
+
+
+def get_version():
+    # type: () -> str
+    return getattr(httpx, "__version__", "")
+
 
 config._add(
     "httpx",
@@ -111,7 +112,7 @@ def _set_span_meta(span, request, response):
 
 
 async def _wrapped_async_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
@@ -140,7 +141,7 @@ async def _wrapped_async_send(
 
 
 def _wrapped_sync_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
@@ -173,7 +174,7 @@ def patch():
     if getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", True)
+    httpx._datadog_patch = True
 
     pin = Pin()
 
@@ -194,7 +195,7 @@ def unpatch():
     if not getattr(httpx, "_datadog_patch", False):
         return
 
-    setattr(httpx, "_datadog_patch", False)
+    httpx._datadog_patch = False
 
     if HTTPX_VERSION >= (0, 11):
         # See above patching code for when this patching occurred

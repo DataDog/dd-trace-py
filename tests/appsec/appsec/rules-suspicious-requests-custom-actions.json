@@ -1,0 +1,176 @@
+{
+    "version": "2.2",
+    "actions": [
+        {
+            "id": "block_306_auto",
+            "type": "block_request",
+            "parameters": {
+                "status_code": 306,
+                "type": "auto"
+            }
+        },
+        {
+            "id": "block_429_json",
+            "type": "block_request",
+            "parameters": {
+                "status_code": 429,
+                "type": "json"
+            }
+        },
+        {
+            "id": "block_503_html",
+            "type": "block_request",
+            "parameters": {
+                "status_code": 503,
+                "type": "html"
+            }
+        },
+        {
+            "id": "block_301",
+            "type": "redirect_request",
+            "parameters": {
+                "status_code": 301,
+                "location": "https://www.datadoghq.com"
+            }
+        },
+        {
+            "id": "block_303",
+            "type": "redirect_request",
+            "parameters": {
+                "location": "https://www.datadoghq.com"
+            }
+        }
+    ],
+    "rules": [
+        {
+            "id": "tst-040-001",
+            "name": "Test block on query parameter with custom code 306 and content auto",
+            "tags": {
+                "type": "lfi",
+                "crs_id": "040001",
+                "category": "attack_attempt"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.query"
+                            }
+                        ],
+                        "regex": "suspicious_306_auto"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": [],
+            "on_match": [
+                "block_306_auto"
+            ]
+        },
+        {
+            "id": "tst-040-002",
+            "name": "Test block on query parameter with custom code 429 and content json",
+            "tags": {
+                "type": "lfi",
+                "crs_id": "040002",
+                "category": "attack_attempt"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.query"
+                            }
+                        ],
+                        "regex": "suspicious_429_json"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": [],
+            "on_match": [
+                "block_429_json"
+            ]
+        },
+        {
+            "id": "tst-040-003",
+            "name": "Test block on query parameter with custom code 503 and content html",
+            "tags": {
+                "type": "lfi",
+                "crs_id": "040003",
+                "category": "attack_attempt"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.query"
+                            }
+                        ],
+                        "regex": "suspicious_503_html"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": [],
+            "on_match": [
+                "block_503_html"
+            ]
+        },
+        {
+            "id": "tst-040-004",
+            "name": "Test block on query parameter with custom code 301",
+            "tags": {
+                "type": "lfi",
+                "crs_id": "040003",
+                "category": "attack_attempt"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.query"
+                            }
+                        ],
+                        "regex": "suspicious_301"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": [],
+            "on_match": [
+                "block_301"
+            ]
+        },
+        {
+            "id": "tst-040-005",
+            "name": "Test block on query parameter with custom code 303",
+            "tags": {
+                "type": "lfi",
+                "crs_id": "040003",
+                "category": "attack_attempt"
+            },
+            "conditions": [
+                {
+                    "parameters": {
+                        "inputs": [
+                            {
+                                "address": "server.request.query"
+                            }
+                        ],
+                        "regex": "suspicious_303"
+                    },
+                    "operator": "match_regex"
+                }
+            ],
+            "transformers": [],
+            "on_match": [
+                "block_303"
+            ]
+        }
+    ]
+}

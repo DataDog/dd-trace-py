@@ -5,7 +5,6 @@ import aiobotocore.client
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -15,7 +14,6 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
-from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import ArgumentError
@@ -26,7 +24,7 @@ from ...pin import Pin
 from ..trace_utils import unwrap
 
 
-aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
 AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
 
 if AIOBOTOCORE_VERSION <= (0, 10, 0):
@@ -40,26 +38,23 @@ ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
 
 
-if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
-    debtcollector.deprecate(
-        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
-        message="The aiobotocore integration no longer includes all API parameters by default.",
-        removal_version="2.0.0",
-    )
-
 config._add(
     "aiobotocore",
     {
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
     },
 )
+
+
+def get_version():
+    # type: () -> str
+    return aiobotocore_version_str
 
 
 def patch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         return
-    setattr(aiobotocore.client, "_datadog_patch", True)
+    aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
     Pin(service=config.service or "aws").onto(aiobotocore.client.AioBaseClient)
@@ -67,7 +62,7 @@ def patch():
 
 def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
-        setattr(aiobotocore.client, "_datadog_patch", False)
+        aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
 
 
@@ -99,16 +94,14 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         return result
 
     # wrapt doesn't proxy `async with` context managers
-    if PYTHON_VERSION_INFO >= (3, 5, 0):
+    async def __aenter__(self):
+        # call the wrapped method but return the object proxy
+        await self.__wrapped__.__aenter__()
+        return self
 
-        async def __aenter__(self):
-            # call the wrapped method but return the object proxy
-            await self.__wrapped__.__aenter__()
-            return self
-
-        async def __aexit__(self, *args, **kwargs):
-            response = await self.__wrapped__.__aexit__(*args, **kwargs)
-            return response
+    async def __aexit__(self, *args, **kwargs):
+        response = await self.__wrapped__.__aexit__(*args, **kwargs)
+        return response
 
 
 async def _wrapped_api_call(original_func, instance, args, kwargs):
@@ -135,7 +128,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
-
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             params = get_argument_value(args, kwargs, 1, "params")
 
@@ -146,9 +138,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         except ArgumentError:
             operation = None
             span.resource = endpoint_name
-
-        if not config.aiobotocore["tag_no_params"] and config.aiobotocore["tag_all_params"]:
-            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

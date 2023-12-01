@@ -1,7 +1,8 @@
-import typing
+import typing  # noqa:F401
 
 from envier import Env
 
+from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal.logger import get_logger
@@ -46,8 +47,10 @@ def _get_tags_from_env(config):
         repository_url = tags.get(REPOSITORY_URL, "")
     if not commit_sha:
         commit_sha = tags.get(COMMIT_SHA, "")
-
-    return repository_url, commit_sha
+    filtered_git_url = _filter_sensitive_info(repository_url)
+    if type(filtered_git_url) != str:
+        return "", commit_sha
+    return filtered_git_url, commit_sha
 
 
 def _get_tags_from_package(config):
@@ -75,7 +78,10 @@ def _get_tags_from_package(config):
         if source_code_link and "#" in source_code_link:
             repository_url, commit_sha = source_code_link.split("#")
             commit_sha = commit_sha.split("&")[0]
-            return repository_url, commit_sha
+            filtered_git_url = _filter_sensitive_info(repository_url)
+            if type(filtered_git_url) != str:
+                return "", commit_sha
+            return filtered_git_url, commit_sha
         return "", ""
     except importlib_metadata.PackageNotFoundError:
         return "", ""
@@ -124,3 +130,15 @@ def clean_tags(tags):
     tags.pop(COMMIT_SHA, None)
 
     return tags
+
+
+def add_tags(tags):
+    clean_tags(tags)
+
+    repository_url, commit_sha = get_git_tags()
+
+    if repository_url:
+        tags[REPOSITORY_URL] = repository_url
+
+    if commit_sha:
+        tags[COMMIT_SHA] = commit_sha

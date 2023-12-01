@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    redis: Add support for Async RedisCluster.

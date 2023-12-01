@@ -1,23 +1,20 @@
-from typing import Any
-from typing import Iterator
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import BUILTIN
-from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
 from ddtrace.vendor import wrapt
 
 
 NoneType = type(None)
-
-if PY3:
-    long = int
 
 
 def _maybe_slots(obj):
@@ -50,6 +47,9 @@ def _isinstance(obj, types):
     return issubclass(type(obj), types)
 
 
+IS_312_OR_NEWER = PYTHON_VERSION_INFO >= (3, 12)
+
+
 class SafeObjectProxy(wrapt.ObjectProxy):
     """Object proxy to make sure we don't call unsafe code.
 
@@ -65,13 +65,15 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if name == "__wrapped__":
+        if name == "__wrapped__" and not IS_312_OR_NEWER:
             raise AttributeError("Access denied")
 
         return super(SafeObjectProxy, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # type: (str) -> Any
+        if name == "__wrapped__" and IS_312_OR_NEWER:
+            raise AttributeError("Access denied")
         return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
 
     def __getitem__(self, item):
@@ -109,7 +111,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
                 # No __module__ attribute. We'll use caution
                 pass
 
-        elif _type in {str, int, float, bool, NoneType, bytes, complex, long}:
+        elif _type in {str, int, float, bool, NoneType, bytes, complex}:
             # We are assuming that scalar builtin type instances are safe
             return obj
 

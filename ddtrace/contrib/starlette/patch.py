@@ -1,25 +1,25 @@
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import starlette
 from starlette.middleware import Middleware
-from starlette.routing import Match
 
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span
-from ddtrace.vendor.debtcollector import deprecate
-from ddtrace.vendor.debtcollector import removals
+from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
+from ...internal import core
+from .. import trace_utils
 
 
 log = get_logger(__name__)
@@ -30,30 +30,13 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        aggregate_resources=True,
     ),
 )
 
 
-@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
-def get_resource(scope):
-    path = None
-    routes = scope["app"].routes
-    for route in routes:
-        match, _ = route.matches(scope)
-        if match == Match.FULL:
-            path = route.path
-            break
-        elif match == Match.PARTIAL and path is None:
-            path = route.path
-    return path
-
-
-@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
-def span_modifier(span, scope):
-    resource = get_resource(scope)
-    if config.starlette["aggregate_resources"] and resource:
-        span.resource = "{} {}".format(scope["method"], resource)
+def get_version():
+    # type: () -> str
+    return getattr(starlette, "__version__", "")
 
 
 def traced_init(wrapped, instance, args, kwargs):
@@ -68,7 +51,7 @@ def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", True)
+    starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
@@ -83,7 +66,7 @@ def unpatch():
     if not getattr(starlette, "_datadog_patch", False):
         return
 
-    setattr(starlette, "_datadog_patch", False)
+    starlette._datadog_patch = False
 
     _u(starlette.applications.Starlette, "__init__")
 
@@ -96,15 +79,6 @@ def unpatch():
 
 
 def traced_handler(wrapped, instance, args, kwargs):
-    if config.starlette.get("aggregate_resources") is False or config.fastapi.get("aggregate_resources") is False:
-        deprecate(
-            "ddtrace.contrib.starlette.patch",
-            message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
-            category=DDTraceDeprecationWarning,
-        )
-
-        return wrapped(*args, **kwargs)
-
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
@@ -157,5 +131,10 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans,
             resource_paths,
         )
+    if request_spans:
+        trace_utils.set_http_meta(request_spans[0], "starlette", request_path_params=scope.get("path_params"))
+    core.dispatch("asgi.start_request", "starlette")
+    if core.get_item(HTTP_REQUEST_BLOCKED):
+        raise trace_utils.InterruptException("starlette")
 
     return wrapped(*args, **kwargs)

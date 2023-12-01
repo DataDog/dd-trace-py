@@ -1,0 +1,159 @@
+[envs.lint]
+detached = true
+python = "3.10"
+dependencies = [
+    "black==23.10.1",
+    "click==8.1.7",
+    "cython-lint==0.15.0",
+    "codespell==2.1.0",
+    "bandit==1.7.5",
+    "mypy==0.991",
+    "coverage==7.3.0",
+    "envier==0.4.0",
+    "types-attrs==19.1.0",
+    "types-docutils==0.19.1.1",
+    "types-protobuf==3.20.4.5",
+    "types-PyYAML==6.0.12.2",
+    "types-setuptools==65.6.0.0",
+    "types-six==1.16.21.4",
+    "ddapm-test-agent>=1.2.0",
+    "packaging==23.1",
+    "pygments==2.16.1",
+    "riot==0.19.0",
+    "ruff==0.1.3",
+]
+
+[envs.lint.scripts]
+black_check = [
+    "black --check {args:.}",
+]
+style = [
+    "black_check",
+    "ruff check {args:.}",
+    "cython-lint {args:.}",
+]
+fmt = [
+    "black {args:.}",
+    "ruff --fix {args:.}",
+    "style",
+]
+spelling = [
+    "codespell --skip='ddwaf.h' {args:ddtrace/ tests/}",
+]
+typing = [
+    "mypy {args}",
+]
+security = [
+    "bandit -c pyproject.toml {args:-r ddtrace/}",
+]
+fmt-snapshots = [
+    "ddapm-test-agent-fmt {args:tests/snapshots/}",
+]
+riot = [
+    "python -m doctest {args} riotfile.py"
+]
+
+[envs.docs]
+template = "docs"
+dev-mode = false
+python = "3.10"
+features = ["opentracing"]
+dependencies = [  # copied from library dependencies
+    "ddsketch>=2.0.1",
+    "protobuf>=3",
+    "attrs>=20",
+    "cattrs",
+    "six>=1.12.0",
+    "typing_extensions",
+    "xmltodict>=0.12",
+    "envier",
+    "opentelemetry-api>=1",
+    "opentracing>=2.0.0",
+    "bytecode",
+    "six>=1.12.0",
+]
+extra-dependencies = [
+    "reno[sphinx]~=3.5.0",
+    "sphinx~=4.0",
+    "sphinxcontrib-spelling==7.7.0",
+    "PyEnchant==3.2.2",
+    "sphinx-copybutton==0.5.1",
+    # Later release of furo breaks formatting for code blocks
+    "furo<=2023.05.20",
+]
+pre-install-commands = [
+    "scripts/docs/install.sh",
+]
+[envs.docs.env-vars]
+DD_TRACE_ENABLED = "false"
+
+[envs.docs.scripts]
+build = [
+    "scripts/docs/build.sh",
+]
+
+[envs.docs.overrides]
+# Local MacOS development requires Docker containers
+platform.macos.type = { value = "container" }
+
+[envs.slotscheck]
+template = "slotscheck"
+python = "3.10"
+features = ["opentracing"]
+extra-dependencies = [
+    "slotscheck==0.17.0",
+]
+
+[envs.slotscheck.scripts]
+_ = [
+    "python -m slotscheck -v ddtrace/",
+]
+
+
+[envs.scripts]
+detached = true
+python = "3.10"
+extra-dependencies = [
+    "packaging==23.1",
+]
+
+[envs.scripts.scripts]
+test = [
+    "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
+]
+
+[envs.meta-testing]
+extra-dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis<6.45.1"
+]
+[envs.meta-testing.scripts]
+meta-testing = [
+  "pytest {args} tests/meta"
+]
+
+[envs.integration_test]
+template = "integration_test"
+extra-dependencies = [
+    "mock==5.0.1",
+    "pytest==7.2.2",
+    "pytest-mock==3.10.0",
+    "coverage==7.2.2",
+    "pytest-cov==4.0.0",
+    "opentracing==2.4.0",
+    "hypothesis==6.45.0",
+]
+
+[[envs.integration_test.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.integration_test.env-vars]
+_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
+DD_TESTING_RAISE = "1"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
+DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
+DD_CIVISIBILITY_ITR_ENABLED = "1"
+DD_PATCH_MODULES = "unittest:false"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"

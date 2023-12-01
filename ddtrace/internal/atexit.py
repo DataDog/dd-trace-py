@@ -6,7 +6,11 @@ from __future__ import absolute_import
 
 import atexit
 import logging
-import typing
+import signal
+import threading
+import typing  # noqa:F401
+
+from ddtrace.internal.utils import signals
 
 
 log = logging.getLogger(__name__)
@@ -36,7 +40,7 @@ else:
     def register(
         func,  # type: typing.Callable[..., typing.Any]
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> typing.Callable[..., typing.Any]
         """Register a function to be executed upon normal program termination"""
@@ -56,3 +60,20 @@ else:
         _registry = [(f, args, kwargs) for f, args, kwargs in _registry if f != func]
 
     atexit.register(_ddtrace_atexit)
+
+
+# registers a function to be called when an exit signal (TERM or INT) or received.
+def register_on_exit_signal(f):
+    def handle_exit(sig, frame):
+        f()
+
+    if threading.current_thread() is threading.main_thread():
+        try:
+            signals.handle_signal(signal.SIGTERM, handle_exit)
+            signals.handle_signal(signal.SIGINT, handle_exit)
+        except Exception:
+            # We catch a general exception here because we don't know
+            # what might go wrong, but we don't want to stop
+            # normal program execution based upon failing to register
+            # a signal handler.
+            log.debug("Encountered an exception while registering a signal", exc_info=True)

@@ -8,7 +8,6 @@ from ddtrace import ext
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.exporter import _packages
 from ddtrace.profiling.exporter import pprof
 
 
@@ -689,7 +688,7 @@ def test_pprof_exporter(gan):
 
     assert len(exports.sample_type) == 11
     assert len(exports.string_table) == 58
-    assert len(exports.sample) == 22 if six.PY2 else 28
+    assert len(exports.sample) == 28
     assert len(exports.location) == 8
 
     assert exports.period == 1000000
@@ -701,7 +700,6 @@ def test_pprof_exporter(gan):
 
 @mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter_libs(gan):
-    _packages._FILE_PACKAGE_MAPPING = _packages._build_package_file_mapping()
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     TEST_EVENTS = {
@@ -773,10 +771,9 @@ def test_pprof_exporter_libs(gan):
         },
     ]
 
-    if six.PY3:
-        expected_libs.append(
-            {"kind": "standard library", "name": "platstdlib", "version": platform.python_version()},
-        )
+    expected_libs.append(
+        {"kind": "standard library", "name": "platstdlib", "version": platform.python_version()},
+    )
 
     # DEV: We cannot convert the lists to sets because the some of the values
     # in the dicts are list. We resort to matching the elements of one list to

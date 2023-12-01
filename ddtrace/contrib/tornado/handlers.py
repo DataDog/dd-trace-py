@@ -1,10 +1,11 @@
+from collections import deque
+
 from tornado.web import HTTPError
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -13,6 +14,7 @@ from ...ext import SpanTypes
 from ...internal.schema import schematize_url_operation
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from .. import trace_utils
 from ..trace_utils import set_http_meta
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
@@ -55,9 +57,31 @@ def execute(func, handler, args, kwargs):
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
+        http_route = _find_route(handler.application.default_router.rules, handler.request)
+        request_span.set_tag_str("http.route", http_route)
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
         return func(*args, **kwargs)
+
+
+def _find_route(initial_rule_set, request):
+    """
+    We have to walk through the same chain of rules that tornado does to find a matching rule.
+    """
+    rules = deque()
+
+    for rule in initial_rule_set:
+        rules.append(rule)
+
+    while len(rules) > 0:
+        rule = rules.popleft()
+        if rule.matcher.match(request) is not None:
+            if hasattr(rule.matcher, "_path"):
+                return rule.matcher._path
+            elif hasattr(rule.target, "rules"):
+                rules.extendleft(rule.target.rules)
+
+    return "^$"
 
 
 def on_finish(func, handler, args, kwargs):

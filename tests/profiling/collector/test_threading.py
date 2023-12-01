@@ -219,7 +219,7 @@ def test_lock_release_events():
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
 @pytest.mark.subprocess
 def test_lock_gevent_tasks():
-    from gevent import monkey  # noqa
+    from gevent import monkey  # noqa:F401
 
     monkey.patch_all()
 
@@ -347,6 +347,6 @@ def test_user_threads_have_native_id():
         else:
             break
     else:
-        assert False, "Thread.native_id not set"
+        raise AssertionError("Thread.native_id not set")
 
     t.join()

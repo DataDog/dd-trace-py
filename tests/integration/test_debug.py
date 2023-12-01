@@ -14,8 +14,7 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace.internal import debug
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
@@ -94,7 +93,7 @@ def test_standard_tags():
     assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
     assert f.get("sampler_type") == "DatadogSampler"
-    assert f.get("priority_sampler_type") == "RateByServiceSampler"
+    assert f.get("priority_sampler_type") == "N/A"
     assert f.get("service") == ""
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
@@ -197,6 +196,9 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
+            # shove an unserializable object into the config log output
+            # regression: this used to cause an exception to be raised
+            ddtrace.config.version = AgentWriter(agent_url="foobar")
             tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
@@ -211,23 +213,8 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer.configure()
-        # Python 2 logs will go to stderr directly since there's no log handler
-        if PY3:
-            assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
-            assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-        )
-    )
-    def test_tracer_loglevel_info_no_connection_py2_handler(self):
-        tracer = ddtrace.Tracer()
-        logging.basicConfig()
-        with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
-            if PY2:
-                assert mock_logger.mock_calls == []
+        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+        assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -316,20 +303,16 @@ def test_custom_writer():
     tracer = ddtrace.Tracer()
 
     class CustomWriter(TraceWriter):
-        def recreate(self):
-            # type: () -> TraceWriter
+        def recreate(self) -> TraceWriter:
             return self
 
-        def stop(self, timeout=None):
-            # type: (Optional[float]) -> None
+        def stop(self, timeout: Optional[float] = None) -> None:
             pass
 
-        def write(self, spans=None):
-            # type: (Optional[List[Span]]) -> None
+        def write(self, spans: Optional[List[Span]] = None) -> None:
             pass
 
-        def flush_queue(self):
-            # type: () -> None
+        def flush_queue(self) -> None:
             pass
 
     tracer._writer = CustomWriter()
@@ -352,7 +335,9 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
     sampler = ddtrace.sampler.DatadogSampler(
         rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
@@ -360,15 +345,15 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='xyz', name='abc')"]
+    assert f.get("sampler_rules") == [
+        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE', tags='NO_RULE')"
+    ]
 
 
 def test_error_output_ddtracerun_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -380,9 +365,7 @@ def test_error_output_ddtracerun_debug_mode():
     # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -424,9 +407,7 @@ def test_error_output_ddtracerun():
 def test_debug_span_log():
     p = subprocess.Popen(
         ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
-        env=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
-        ),
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

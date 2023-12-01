@@ -28,6 +28,17 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    try:
+        import snowflake.connector as c
+    except AttributeError:
+        import sys
+
+        c = sys.modules.get("snowflake.connector")
+    return str(c.__version__)
+
+
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
@@ -44,7 +55,7 @@ def patch():
 
     if getattr(c, "_datadog_patch", False):
         return
-    setattr(c, "_datadog_patch", True)
+    c._datadog_patch = True
 
     wrapt.wrap_function_wrapper(c, "Connect", patched_connect)
     wrapt.wrap_function_wrapper(c, "connect", patched_connect)
@@ -59,7 +70,7 @@ def unpatch():
         c = sys.modules.get("snowflake.connector")
 
     if getattr(c, "_datadog_patch", False):
-        setattr(c, "_datadog_patch", False)
+        c._datadog_patch = False
 
         unwrap(c, "Connect")
         unwrap(c, "connect")

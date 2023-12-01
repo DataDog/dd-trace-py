@@ -10,7 +10,12 @@ The best way to suggest a change to the library is to open a
 You may also consider opening an `issue <https://github.com/DataDog/dd-trace-py/issues>`_
 if you'd like to report a bug or request a new feature.
 
+Before working on the library, install `docker <https://www.docker.com/products/docker>`_
+and `docker-compose <https://www.docker.com/products/docker-compose>`_.
+
 Thanks for working with us!
+
+.. _change_process:
 
 Change Process
 ==============
@@ -30,6 +35,8 @@ Correctness and code style are automatically checked in continuous integration, 
 various tools including Flake8, Black, and MyPy. This means that code reviews don't need to worry about style
 and can focus on substance.
 
+If you get errors from ``git commit`` that mention "pre-commit", run ``$ rm .git/hooks/pre-commit`` and try again.
+
 Branches and Pull Requests
 --------------------------
 
@@ -42,16 +49,16 @@ You can find the list of past released versions `on this GitHub page <https://gi
 
 Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
 standard, which is enforced by a continuous integration job. The standardized "scopes" we use
-in pull request names are enumerated `in the release notes documentation <releasenotes.rst#Scope>`_.
+in pull request names are enumerated :ref:`in the release notes documentation<release_notes_scope>`.
 
-Pull requests that change the library's public API require a `release note <releasenotes.rst>`_.
+Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
 
 Backporting
 -----------
 
 Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the `version support policy <versioning.rst#release-versions>`_.
+minor version branches according to the :ref:`version support policy<versioning_release>`.
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.
@@ -60,6 +67,17 @@ minor version branches according to the `version support policy <versioning.rst#
 
 If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
 versions that need the change.
+
+Commit Hooks
+------------
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are automated to run
+when you call `git commit` as pre-commit hooks to catch any formatting errors before
+you commit.
+
+To initialize the pre-commit hook script to run in your development
+branch, run ``$ hooks/autohook.sh install``.
 
 Implementation Guidelines
 =========================
@@ -93,37 +111,8 @@ opening an issue describing the limitations of the current design.
 Tests
 -----
 
-If your change touches Python code, it should probably include at least one test. We use heuristics to
-decide when and what sort of tests to write. For example, a pull request implementing a new feature
-should include enough unit tests to cover the feature's "happy path" use cases in addition to any known
-likely edge cases. If the feature involves a new form of communication with another component (like the
-Datadog Agent or libddwaf), it should probably include at least one integration test exercising the end-to-end
-communication.
-
-If a pull request fixes a bug, it should include a test that, on the trunk branch, would replicate the bug.
-Seeing this test pass on the fix branch gives us confidence that the bug was actually fixed.
-
-Put your code's tests in the appropriate subdirectory of the ``tests`` directory based on what they are testing.
-If your feature is substantially new, you may decide to create a new ``tests`` subdirectory in the interest
-of code organization.
-
-``.riot/requirements`` contains requirements files generated with ``pip-compile`` for every environment specified
-by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
-when the riotfile changes. Thus, if you make changes to the riotfile, you need to run either
-``scripts/compile-and-prune-test-requirements`` or ``riot run -c <mytests>`` to regenerate the requirements
-files for the environments that changed. In order to run the script, you need to have all minor versions
-of Python that the tracer supports. The easiest way to accomplish this and generate the files is to simply
-spin up the testagent container, exec into it, and run the script from there.
-
-.. code-block:: bash
-
-  cd dd-trace-py && docker run --network host --userns=host --rm -w /root/project -v $PWD/:/root/project \
-    -it ghcr.io/datadog/dd-trace-py/testrunner \
-    bash -c "git config --global --add safe.directory /root/project && pip install riot && bash -i './scripts/compile-and-prune-test-requirements'"
-
-
-This can also be accomplished using pyenv and installing all of the Python versions before running the script.
-You can commit and pull request changes to files in ``.riot/requirements`` alongside the corresponding changes to ``riotfile.py``.
+If your change touches Python code, it should probably include at least one test. See the
+:ref:`testing guidelines<testing_guidelines>` for details.
 
 Documentation
 -------------
@@ -131,7 +120,7 @@ Documentation
 Pull requests implementing new features should include documentation for those features. The audience for this
 documentation is the public population of library users. The Products and Core logic are documented alongside
 this document, in the ``docs`` directory. The documentation for each Integration is contained in a docstring
-in that integration's ``__init__.py`` file. See `this page <contributing-integrations.rst>`_ for more information
+in that integration's ``__init__.py`` file. See :ref:`this page<integration_guidelines>` for more information
 on writing documentation for Integrations.
 
 Logging
@@ -153,4 +142,6 @@ Keep the following in mind when writing logging code:
     :hidden:
 
     contributing-integrations
+    contributing-testing
+    contributing-tracing
     releasenotes

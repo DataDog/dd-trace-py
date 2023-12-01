@@ -290,12 +290,12 @@ class TestVertica(TracerTestCase):
 
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             cur.fetchone()
-            cur.rowcount == 1
+            assert cur.rowcount == 1
             cur.fetchone()
-            cur.rowcount == 2
+            assert cur.rowcount == 2
             # fetchall just calls fetchone for each remaining row
             cur.fetchall()
-            cur.rowcount == 5
+            assert cur.rowcount == 5
 
         spans = self.test_tracer.pop()
         assert len(spans) == 9
@@ -573,12 +573,12 @@ class TestVertica(TracerTestCase):
 
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             cur.fetchone()
-            cur.rowcount == 1
+            assert cur.rowcount == 1
             cur.fetchone()
-            cur.rowcount == 2
+            assert cur.rowcount == 2
             # fetchall just calls fetchone for each remaining row
             cur.fetchall()
-            cur.rowcount == 5
+            assert cur.rowcount == 5
 
         spans = self.test_tracer.pop()
         assert len(spans) == 9
@@ -619,12 +619,12 @@ class TestVertica(TracerTestCase):
 
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             cur.fetchone()
-            cur.rowcount == 1
+            assert cur.rowcount == 1
             cur.fetchone()
-            cur.rowcount == 2
+            assert cur.rowcount == 2
             # fetchall just calls fetchone for each remaining row
             cur.fetchall()
-            cur.rowcount == 5
+            assert cur.rowcount == 5
 
         spans = self.test_tracer.pop()
         assert len(spans) == 9

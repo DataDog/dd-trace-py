@@ -61,7 +61,6 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
-
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
@@ -119,7 +118,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 self._self_recorder.push_event(event)
             except Exception:
-                pass
+                pass  # nosec
 
     def release(self, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
@@ -161,7 +160,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     finally:
                         del self._self_acquired_at
             except Exception:
-                pass
+                pass  # nosec
 
     acquire_lock = acquire
 

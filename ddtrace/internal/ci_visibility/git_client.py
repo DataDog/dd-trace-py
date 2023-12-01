@@ -1,17 +1,22 @@
 import json
 from multiprocessing import Process
 import os
-from typing import Dict  # noqa
-from typing import List  # noqa
-from typing import Optional  # noqa
-from typing import Tuple  # noqa
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.ext import ci
+from ddtrace.ext.git import _extract_clone_defaultremotename
+from ddtrace.ext.git import _extract_upstream_sha
+from ddtrace.ext.git import _get_rev_list
+from ddtrace.ext.git import _is_shallow_repository
+from ddtrace.ext.git import _unshallow_repository
 from ddtrace.ext.git import build_git_packfiles
 from ddtrace.ext.git import extract_commit_sha
+from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_latest_commits
 from ddtrace.ext.git import extract_remote_url
-from ddtrace.ext.git import get_rev_list_excluding_commits
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
@@ -20,6 +25,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from .. import compat
 from ..utils.http import Response
 from ..utils.http import get_connection
+from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
@@ -41,12 +47,11 @@ class CIVisibilityGitClient(object):
     def __init__(
         self,
         api_key,
-        app_key,
         requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
         base_url="",
     ):
-        # type: (str, str, int, str) -> None
-        self._serializer = CIVisibilityGitClientSerializerV1(api_key, app_key)
+        # type: (str, int, str) -> None
+        self._serializer = CIVisibilityGitClientSerializerV1(api_key)
         self._worker = None  # type: Optional[Process]
         self._response = RESPONSE
         self._requests_mode = requests_mode
@@ -62,7 +67,7 @@ class CIVisibilityGitClient(object):
             self._worker = Process(
                 target=CIVisibilityGitClient._run_protocol,
                 args=(self._serializer, self._requests_mode, self._base_url, self._tags, self._response),
-                kwargs={"cwd": cwd},
+                kwargs={"cwd": cwd, "log_level": log.level},
             )
             self._worker.start()
 
@@ -73,12 +78,39 @@ class CIVisibilityGitClient(object):
             self._worker = None
 
     @classmethod
-    def _run_protocol(cls, serializer, requests_mode, base_url, _tags={}, _response=None, cwd=None):
-        # type: (CIVisibilityGitClientSerializerV1, int, str, Dict[str, str], Optional[Response], Optional[str]) -> None
+    def _run_protocol(
+        cls,
+        serializer,  # CIVisibilityGitClientSerializerV1
+        requests_mode,  # int
+        base_url,  # str
+        _tags=None,  # Optional[Dict[str, str]]
+        _response=None,  # Optional[Response]
+        cwd=None,  # Optional[str]
+        log_level=0,  # int
+    ):
+        # type: (...) -> None
+        log.setLevel(log_level)
+        if _tags is None:
+            _tags = {}
         repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
+
+        if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
+            log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+            try:
+                cls._unshallow_repository(cwd=cwd)
+            except ValueError:
+                log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
+
         latest_commits = cls._get_latest_commits(cwd=cwd)
         backend_commits = cls._search_commits(requests_mode, base_url, repo_url, latest_commits, serializer, _response)
-        rev_list = cls._get_filtered_revisions(backend_commits, cwd=cwd)
+        if backend_commits is None:
+            return
+
+        commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+
+        rev_list = cls._get_filtered_revisions(
+            excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
+        )
         if rev_list:
             with cls._build_packfiles(rev_list, cwd=cwd) as packfiles_prefix:
                 cls._upload_packfiles(
@@ -86,8 +118,10 @@ class CIVisibilityGitClient(object):
                 )
 
     @classmethod
-    def _get_repository_url(cls, tags={}, cwd=None):
-        # type: (Dict[str, str], Optional[str]) -> str
+    def _get_repository_url(cls, tags=None, cwd=None):
+        # type: (Optional[Dict[str, str]], Optional[str]) -> str
+        if tags is None:
+            tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)
@@ -95,14 +129,18 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
-        # type: (Optional[str]) -> list[str]
+        # type: (Optional[str]) -> List[str]
         return extract_latest_commits(cwd=cwd)
 
     @classmethod
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> list[str]
+        # type: (int, str, str, List[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[List[str]]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         response = _response or cls._do_request(requests_mode, base_url, "/search_commits", payload, serializer)
+        if response.status >= 400:
+            log.warning("Response status: %s", response.status)
+            log.warning("Response body: %s", response.body)
+            return None
         result = serializer.search_commits_decode(response.body)
         return result
 
@@ -111,14 +149,18 @@ class CIVisibilityGitClient(object):
     def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict]) -> Response
         url = "{}/repository{}".format(base_url, endpoint)
-        _headers = {"dd-api-key": serializer.api_key, "dd-application-key": serializer.app_key}
+        _headers = {
+            AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
+        }
         if requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            _headers = {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
+            _headers = {
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE,
+            }
         if headers is not None:
             _headers.update(headers)
         try:
             conn = get_connection(url)
-            log.debug("Sending request: %s %s %s %s", ("POST", url, payload, _headers))
+            log.debug("Sending request: %s %s %s %s", "POST", url, payload, _headers)
             conn.request("POST", url, payload, _headers)
             resp = compat.get_connection_response(conn)
             log.debug("Response status: %s", resp.status)
@@ -128,9 +170,9 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_filtered_revisions(cls, excluded_commits, cwd=None):
-        # type: (list[str], Optional[str]) -> list[str]
-        return get_rev_list_excluding_commits(excluded_commits, cwd=cwd)
+    def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
+        # type: (List[str], Optional[List[str]], Optional[str]) -> str
+        return _get_rev_list(excluded_commits, included_commits, cwd=cwd)
 
     @classmethod
     def _build_packfiles(cls, revisions, cwd=None):
@@ -156,12 +198,61 @@ class CIVisibilityGitClient(object):
                 return False
         return True
 
+    @classmethod
+    def _is_shallow_repository(cls, cwd=None):
+        # type () -> bool
+        return _is_shallow_repository(cwd=cwd)
+
+    @classmethod
+    def _unshallow_repository(cls, cwd=None):
+        # type () -> None
+        try:
+            remote = _extract_clone_defaultremotename()
+        except ValueError as e:
+            log.debug("Failed to get default remote: %s", e)
+            return
+
+        try:
+            CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
+            return
+        except ValueError as e:
+            log.debug("Could not unshallow repository to local head: %s", e)
+
+        try:
+            CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
+            return
+        except ValueError as e:
+            log.debug("Could not unshallow to upstream: %s", e)
+
+        log.debug("Unshallowing to default")
+        try:
+            _unshallow_repository(cwd=cwd, repo=remote)
+            log.debug("Unshallowing to default successful")
+            return
+        except ValueError as e:
+            log.debug("Unshallowing failed: %s", e)
+
+    @classmethod
+    def _unshallow_repository_to_local_head(cls, remote, cwd=None):
+        # type (str, Optional[str) -> None
+        head = extract_commit_sha(cwd=cwd)
+        log.debug("Unshallowing to local head %s", head)
+        _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
+        log.debug("Unshallowing to local head successful")
+
+    @classmethod
+    def _unshallow_repository_to_upstream(cls, remote, cwd=None):
+        # type (str, Optional[str) -> None
+        upstream = _extract_upstream_sha(cwd=cwd)
+        log.debug("Unshallowing to upstream %s", upstream)
+        _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
+        log.debug("Unshallowing to upstream")
+
 
 class CIVisibilityGitClientSerializerV1(object):
-    def __init__(self, api_key, app_key):
-        # type: (str, str) -> None
+    def __init__(self, api_key):
+        # type: (str) -> None
         self.api_key = api_key
-        self.app_key = app_key
 
     def search_commits_encode(self, repo_url, latest_commits):
         # type: (str, list[str]) -> str
@@ -173,7 +264,10 @@ class CIVisibilityGitClientSerializerV1(object):
         # type: (str) -> List[str]
         res = []  # type: List[str]
         try:
-            parsed = json.loads(payload)
+            if isinstance(payload, bytes):
+                parsed = json.loads(payload.decode())
+            else:
+                parsed = json.loads(payload)
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)

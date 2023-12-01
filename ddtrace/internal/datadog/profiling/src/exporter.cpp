@@ -2,13 +2,6 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
-
-// High-level skip for invalid architectures
-#ifndef __linux__
-#elif __aarch64__
-#elif __i386__
-#else
-
 #include "exporter.hpp"
 #include <iostream>
 
@@ -187,8 +180,8 @@ Uploader::upload(const Profile* profile)
 {
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-        std::string ddog_errmsg(ddog_Error_message(&result.err).ptr);
-        errmsg = "Error serializing pprof, err:" + ddog_errmsg;
+        std::string ddog_err(ddog_Error_message(&result.err).ptr);
+        errmsg = "Error serializing pprof, err:" + ddog_err;
         ddog_Error_drop(&result.err);
         std::cout << errmsg << std::endl;
         return false;
@@ -217,8 +210,8 @@ Uploader::upload(const Profile* profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
-    ddog_prof_Exporter_Request_BuildResult build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter.get(), start, end, { .ptr = file, .len = 1 }, &tags, nullptr, 5000);
+    auto build_res = ddog_prof_Exporter_Request_build(
+      ddog_exporter.get(), start, end, { .ptr = file, .len = 1 }, &tags, nullptr, nullptr, 5000);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
@@ -281,6 +274,7 @@ ProfileBuilder::build_ptr()
 Profile::Profile(ProfileType type, unsigned int _max_nframes)
   : type_mask{ type & ProfileType::All }
   , max_nframes{ _max_nframes }
+  , nframes{ 0 }
 {
     // Push an element to the end of the vector, returning the position of
     // insertion
@@ -337,6 +331,19 @@ Profile::~Profile()
     ddog_prof_Profile_drop(ddog_profile);
 }
 
+std::string_view
+Profile::insert_or_get(std::string_view sv)
+{
+    auto it = strings.find(sv);
+    if (it != strings.end()) {
+        return *it;
+    } else {
+        string_storage.emplace_back(sv);
+        strings.insert(string_storage.back());
+        return string_storage.back();
+    }
+}
+
 bool
 Profile::reset()
 {
@@ -351,6 +358,8 @@ Profile::reset()
 bool
 Profile::start_sample(unsigned int nframes)
 {
+    // NB, since string_storage is a deque, `clear()` may not return all of
+    // the allocated space
     strings.clear();
     string_storage.clear();
     clear_buffers();
@@ -364,17 +373,6 @@ Profile::push_frame_impl(std::string_view name, std::string_view filename, uint6
     if (cur_frame >= lines.size() || cur_frame >= locations.size())
         return;
 
-    // Ensure strings are stored.
-    auto insert_or_get = [this](std::string_view sv) -> std::string_view {
-        auto it = strings.find(sv);
-        if (it != strings.end()) {
-            return *it;
-        } else {
-            string_storage.emplace_back(sv);
-            strings.insert(string_storage.back());
-            return string_storage.back();
-        }
-    };
     name = insert_or_get(name);
     filename = insert_or_get(filename);
 
@@ -419,16 +417,12 @@ Profile::push_label(const ExportLabelKey key, std::string_view val)
         return false;
     }
 
-    std::string_view key_sv = keys[static_cast<size_t>(key)];
-    auto [it, _] = strings.insert(std::string{ val });
-    if (it == strings.end()) {
-        std::cout << "Bad push_label" << std::endl;
-        return false;
-    }
-
     // Label may not persist, so it needs to be saved
+    std::string_view key_sv = keys[static_cast<size_t>(key)];
+    val = insert_or_get(val);
+
     labels[cur_label].key = to_slice(key_sv);
-    labels[cur_label].str = to_slice(*it);
+    labels[cur_label].str = to_slice(val);
     cur_label++;
     return true;
 }
@@ -587,6 +581,9 @@ Profile::push_lock_name(std::string_view lock_name)
 bool
 Profile::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name)
 {
+    if (thread_name.empty()) {
+        thread_name = std::to_string(thread_id);
+    }
     if (!push_label(ExportLabelKey::thread_id, thread_id) ||
         !push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
         !push_label(ExportLabelKey::thread_name, thread_name)) {
@@ -616,9 +613,10 @@ Profile::push_task_name(std::string_view task_name)
 }
 
 bool
-Profile::push_span_id(int64_t span_id)
+Profile::push_span_id(uint64_t span_id)
 {
-    if (!push_label(ExportLabelKey::span_id, span_id)) {
+    int64_t recoded_id = reinterpret_cast<int64_t&>(span_id);
+    if (!push_label(ExportLabelKey::span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
     }
@@ -626,9 +624,10 @@ Profile::push_span_id(int64_t span_id)
 }
 
 bool
-Profile::push_local_root_span_id(int64_t local_root_span_id)
+Profile::push_local_root_span_id(uint64_t local_root_span_id)
 {
-    if (!push_label(ExportLabelKey::local_root_span_id, local_root_span_id)) {
+    int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id);
+    if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
     }
@@ -664,5 +663,3 @@ Profile::push_class_name(std::string_view class_name)
     }
     return true;
 }
-
-#endif

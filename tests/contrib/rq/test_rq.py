@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import time
 
 import pytest
@@ -8,14 +7,17 @@ import redis
 import rq
 
 from ddtrace import Pin
+from ddtrace.contrib.rq import get_version
 from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
 
 from ..config import REDIS_CONFIG
 from .jobs import JobClass
+from .jobs import MyException
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -56,6 +58,14 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
+def test_and_implement_get_version():
+    version = get_version()
+    assert type(version) == str
+    assert version != ""
+
+    emit_integration_and_version_to_test_agent("rq", version)
+
+
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_queue_failing_job(sync_queue):
     # Exception raising behavior was changed in 1.10.1
@@ -64,7 +74,7 @@ def test_queue_failing_job(sync_queue):
         sync_queue.enqueue(job_fail)
         return
 
-    with pytest.raises(Exception):
+    with pytest.raises(MyException):
         sync_queue.enqueue(job_fail)
 
 
@@ -135,9 +145,7 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         distributed_tracing_enabled,
         worker_service_name,
     )
-    num_traces_expected = None
-    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
-        num_traces_expected = 2 if distributed_tracing_enabled is False else 1
+    num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"

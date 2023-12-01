@@ -1,60 +1,78 @@
-#!/usr/bin/env python3
 import mock
 import pytest
 
-
-try:
-    from ddtrace.appsec.iast import oce
-    from ddtrace.appsec.iast._input_info import Input_info
-    from ddtrace.appsec.iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec.iast._taint_tracking import setup as taint_tracking_setup
-    from ddtrace.appsec.iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec.iast._taint_utils import LazyTaintDict
-    from ddtrace.appsec.iast._taint_utils import check_tainted_args
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+from ddtrace.appsec._iast._taint_utils import LazyTaintList
+from ddtrace.appsec._iast._taint_utils import check_tainted_args
 
 
 def setup():
-    taint_tracking_setup(bytes.join, bytearray.join)
+    patch_iast()
+    create_context()
     oce._enabled = True
 
 
 def test_tainted_types():
-    tainted = taint_pyobject("hello", Input_info("request_body", "hello", "request_body"))
+    tainted = taint_pyobject(
+        pyobject="hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(b"hello", Input_info("request_body", "hello", 0))
+    tainted = taint_pyobject(
+        pyobject=b"hello", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert is_pyobject_tainted(tainted)
 
-    tainted = taint_pyobject(bytearray("hello", encoding="utf-8"), Input_info("request_body", "hello", 0))
+    tainted = taint_pyobject(
+        bytearray("hello", encoding="utf-8"),
+        source_name="request_body",
+        source_value="hello",
+        source_origin=OriginType.PARAMETER,
+    )
     assert is_pyobject_tainted(tainted)
 
     # Not tainted as string is empty
-    not_tainted = taint_pyobject("", Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        "", source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(123456, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        123456, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(1234.56, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        1234.56, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject({"a": "1", "b": 2}, Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        {"a": "1", "b": 2}, source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
     # Not tainted as not text type
-    not_tainted = taint_pyobject(["a", "1", "b", 2], Input_info("request_body", "hello", "request_body"))
+    not_tainted = taint_pyobject(
+        ["a", "1", "b", 2], source_name="request_body", source_value="hello", source_origin=OriginType.PARAMETER
+    )
     assert not is_pyobject_tainted(not_tainted)
 
 
 def test_tainted_getitem():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
-        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
     )
 
     # Strings are tainted, but integers are not
@@ -74,7 +92,8 @@ def test_tainted_getitem():
 def test_tainted_get():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
     tainted_knights = LazyTaintDict(
-        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1}
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", "")), "not string": 1},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
     )
 
     # Not-existing key returns None or default
@@ -102,7 +121,10 @@ def test_tainted_get():
 
 def test_tainted_items():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
-    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
 
     # Keys and values are tainted if string-like
     for k, v in tainted_knights.items():
@@ -117,7 +139,10 @@ def test_tainted_items():
 
 def test_tainted_keys_and_values():
     knights = {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))}
-    tainted_knights = LazyTaintDict({"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))})
+    tainted_knights = LazyTaintDict(
+        {"gallahad": "".join(("the pure", "")), "robin": "".join(("the brave", ""))},
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
 
     # Keys are tainted if string-like
     for k in tainted_knights.keys():
@@ -132,13 +157,37 @@ def test_tainted_keys_and_values():
         assert not is_pyobject_tainted(v)
 
 
+def test_recursivity():
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    def check_taint(v):
+        if isinstance(v, str):
+            assert is_pyobject_tainted(v)
+        elif isinstance(v, dict):
+            for k, ev in v.items():
+                assert is_pyobject_tainted(k)
+                check_taint(ev)
+        elif isinstance(v, list):
+            for ev in v:
+                check_taint(ev)
+
+    check_taint(tainted_dict)
+
+
 def test_checked_tainted_args():
     cursor = mock.Mock()
-    setattr(cursor.execute, "__name__", "execute")
-    setattr(cursor.executemany, "__name__", "executemany")
+    cursor.execute.__name__ = "execute"
+    cursor.executemany.__name__ = "executemany"
 
     arg = "nobody expects the spanish inquisition"
-    tainted_arg = taint_pyobject(arg, Input_info("request_body", arg, 0))
+
+    tainted_arg = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
 
     untainted_arg = "gallahad the pure"
 
@@ -184,3 +233,59 @@ def test_checked_tainted_args():
     assert check_tainted_args(
         args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="psycopg", method=cursor.execute
     )
+
+
+def test_json_encode_dict():
+    import json
+
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_dict) == (
+        '{"tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", '
+        '{"tr_key_005": "tr_val_004"}], "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}}}'
+    )
+
+
+def test_json_encode_list():
+    import json
+
+    tainted_list = LazyTaintList(
+        ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
+
+
+def test_simplejson_encode_dict():
+    import simplejson as json
+
+    tainted_dict = LazyTaintDict(
+        {
+            "tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+            "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}},
+        },
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_dict) == (
+        '{"tr_key_001": ["tr_val_001", "tr_val_002", "tr_val_003", '
+        '{"tr_key_005": "tr_val_004"}], "tr_key_002": {"tr_key_003": {"tr_key_004": "tr_val_005"}}}'
+    )
+
+
+def test_simplejson_encode_list():
+    import simplejson as json
+
+    tainted_list = LazyTaintList(
+        ["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}],
+        origins=(OriginType.PARAMETER, OriginType.PARAMETER),
+    )
+
+    assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'

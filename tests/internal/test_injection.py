@@ -1,10 +1,7 @@
 from contextlib import contextmanager
-from random import shuffle
-import sys
 
 import mock
 import pytest
-from six import PY2
 
 from ddtrace.internal.injection import InvalidLine
 from ddtrace.internal.injection import eject_hook
@@ -15,9 +12,11 @@ from ddtrace.internal.utils.inspection import linenos
 
 
 @contextmanager
-def injected_hook(f, hook, arg):
+def injected_hook(f, hook, arg, line=None):
     code = f.__code__
-    line = min(linenos(f))
+
+    if line is None:
+        line = min(linenos(f))
 
     inject_hook(f, hook, line, arg)
 
@@ -25,8 +24,6 @@ def injected_hook(f, hook, arg):
 
     eject_hook(f, hook, line, arg)
 
-    if sys.version_info[:2] not in {(3, 5), (3, 6)} and sys.version_info < (3, 11):
-        assert f.__code__ == code
     assert f.__code__ is not code
 
 
@@ -40,7 +37,7 @@ def injection_target(a, b):
 
 
 def loop_target(n):
-    for i in range(n):
+    for _ in range(n):
         a, b = injection_target(n, n + 1)
 
 
@@ -157,13 +154,11 @@ def test_eject_hooks_same_line():
 
     lo = min(linenos(injection_target)) + 1
     lines = [lo] * 3
-    shuffled_lines = list(lines)
-    shuffle(shuffled_lines)
 
     failed = inject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
-    failed = eject_hooks(injection_target, list(zip(hooks, shuffled_lines, hooks)))
+    failed = eject_hooks(injection_target, list(zip(hooks, lines, hooks)))
     assert failed == []
 
     assert injection_target(1, 2) == (2, 1)
@@ -190,10 +185,7 @@ def test_inject_instance_method():
     lo = min(linenos(Stuff.instancestuff))
     hook = mock.Mock()
     old_method = Stuff.instancestuff
-    if PY2:
-        inject_hook(Stuff.instancestuff.__func__, hook, lo, 0)
-    else:
-        inject_hook(Stuff.instancestuff, hook, lo, 0)
+    inject_hook(Stuff.instancestuff, hook, lo, 0)
 
     stuff = Stuff()
     assert stuff.instancestuff(42) == 42
@@ -234,7 +226,7 @@ def test_inject_in_multiline():
 
 
 def test_property():
-    stuff = sys.modules["tests.submod.stuff"]
+    import tests.submod.stuff as stuff
 
     f = stuff.Stuff.propertystuff.fget
 
@@ -243,5 +235,19 @@ def test_property():
     with injected_hook(f, hook, arg):
         stuff.Stuff().propertystuff
     stuff.Stuff().propertystuff
+
+    hook.assert_called_once_with(arg)
+
+
+def test_finally():
+    import tests.submod.stuff as stuff
+
+    f = stuff.finallystuff
+
+    hook, arg = mock.Mock(), mock.Mock()
+
+    with injected_hook(f, hook, arg, line=157):
+        f()
+    f()
 
     hook.assert_called_once_with(arg)

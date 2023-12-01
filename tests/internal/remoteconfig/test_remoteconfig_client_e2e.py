@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import sys
 
 import mock
 from mock.mock import ANY
-import pytest
 
 from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
@@ -15,7 +13,7 @@ from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def _expected_payload(
@@ -23,10 +21,15 @@ def _expected_payload(
     has_errors=False,
     targets_version=0,
     backend_client_state=None,
-    config_states=[],
-    cached_target_files=[],
+    config_states=None,
+    cached_target_files=None,
     error_msg=None,
 ):
+    if config_states is None:
+        config_states = []
+    if cached_target_files is None:
+        cached_target_files = []
+
     payload = {
         "client": {
             "id": rc_client.id,
@@ -37,6 +40,7 @@ def _expected_payload(
                 "language": "python",
                 "tracer_version": _pep440_to_semver(),
                 "service": None,
+                "extra_services": [],
                 "env": None,
                 "app_version": None,
             },
@@ -74,7 +78,6 @@ def _assert_response(mock_send_request, expected_response):
     assert response == expected_response
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(RemoteConfigClient, "_send_request")
 @mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
@@ -97,14 +100,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     mock_appsec_rc_capabilities.return_value = "Ag=="
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         enable_appsec_rc()
         rc_client = RemoteConfigClient()
 
         asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
         rc_client.register_product("ASM_FEATURES", asm_callback)
-
-    # del os.environ["DD_REMOTE_CONFIGURATION_ENABLED"]
 
     assert len(rc_client._products) == 1
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -806,7 +807,7 @@ def test_remote_config_client_callback_error(
     mock_callback = mock.mock.MagicMock()
     rc_client.register_product("ASM_FEATURES", callback_with_exception)
 
-    with override_env(dict(DD_REMOTE_CONFIGURATION_ENABLED="false")):
+    with override_global_config(dict(_remote_config_enabled=False)):
         # 0.
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
         rc_client.request()

@@ -3,6 +3,7 @@ import os
 import time
 
 import mock
+import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
@@ -69,6 +70,64 @@ class TestRuntimeTags(TracerTestCase):
                 assert tags == [("env", "staging.dog")]
 
 
+@pytest.mark.subprocess(env={})
+def test_runtime_tags_empty():
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+
+    tags = list(RuntimeTags())
+    assert len(tags) == 4
+
+    tags = dict(tags)
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
+
+
+@pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
+def test_runtime_tags_usm():
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+
+    tags = list(RuntimeTags())
+    assert len(tags) == 7, tags
+
+    tags = dict(tags)
+    assert set(tags.keys()) == set(
+        ["lang", "lang_interpreter", "lang_version", "tracer_version", "service", "version", "env"]
+    )
+    assert tags["service"] == "my-service"
+    assert tags["env"] == "test-env"
+    assert tags["version"] == "1.2.3"
+
+
+@pytest.mark.subprocess(env={"DD_TAGS": "version:1.2.3,custom:tag,test:key", "DD_VERSION": "4.5.6"})
+def test_runtime_tags_dd_tags():
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+
+    tags = list(RuntimeTags())
+    assert len(tags) == 7, tags
+
+    tags = dict(tags)
+    assert set(tags.keys()) == set(
+        ["lang", "lang_interpreter", "lang_version", "tracer_version", "version", "custom", "test"]
+    )
+    assert tags["custom"] == "tag"
+    assert tags["test"] == "key"
+    assert tags["version"] == "4.5.6"
+
+
+@pytest.mark.subprocess()
+def test_runtime_tags_manual_tracer_tags():
+    from ddtrace import tracer
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+
+    tracer.set_tags({"manual": "tag"})
+
+    tags = list(RuntimeTags())
+    assert len(tags) == 5, tags
+
+    tags = dict(tags)
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "manual"])
+    assert tags["manual"] == "tag"
+
+
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
         metrics = set([k for (k, v) in RuntimeMetrics()])
@@ -82,7 +141,8 @@ class TestRuntimeMetrics(BaseTestCase):
 class TestRuntimeWorker(TracerTestCase):
     def test_tracer_metrics(self):
         # Mock socket.socket to hijack the dogstatsd socket
-        with mock.patch("socket.socket"):
+        with mock.patch("socket.socket") as sock:
+            sock.return_value.getsockopt.return_value = 0
             # configure tracer for runtime metrics
             interval = 1.0 / 4
             with runtime_metrics_service(tracer=self.tracer, flush_interval=interval):
@@ -98,8 +158,7 @@ class TestRuntimeWorker(TracerTestCase):
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
                     statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
-
-                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                    received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
         # we expect more than one flush since it is also called on shutdown
         assert len(received) > 1
@@ -113,14 +172,14 @@ class TestRuntimeWorker(TracerTestCase):
 
         # check to last set of metrics returned to confirm tags were set
         for gauge in received[-1:]:
-            self.assertRegexpMatches(gauge, "service:parent")
-            self.assertRegexpMatches(gauge, "service:child")
-            self.assertNotRegexpMatches(gauge, "service:db")
-            self.assertRegexpMatches(gauge, "env:tests.dog")
-            self.assertRegexpMatches(gauge, "lang_interpreter:CPython")
-            self.assertRegexpMatches(gauge, "lang_version:")
-            self.assertRegexpMatches(gauge, "lang:python")
-            self.assertRegexpMatches(gauge, "tracer_version:")
+            self.assertRegex(gauge, "service:parent")
+            self.assertRegex(gauge, "service:child")
+            self.assertNotRegex(gauge, "service:db")
+            self.assertRegex(gauge, "env:tests.dog")
+            self.assertRegex(gauge, "lang_interpreter:CPython")
+            self.assertRegex(gauge, "lang_version:")
+            self.assertRegex(gauge, "lang:python")
+            self.assertRegex(gauge, "tracer_version:")
 
     def test_root_and_child_span_runtime_internal_span_types(self):
         with runtime_metrics_service(tracer=self.tracer):

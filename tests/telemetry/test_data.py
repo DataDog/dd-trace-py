@@ -6,7 +6,7 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace.internal.compat import PY3
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -16,18 +16,16 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.settings import _config as config
+from ddtrace.settings.asm import config as asm_config
 
 
 def test_get_application():
     """validates return value of get_application"""
 
-    runtime_v = ""
-    if PY3:
-        runtime_v = _format_version_info(sys.implementation.version)
+    runtime_v = _format_version_info(sys.implementation.version)
 
     expected_application = {
-        "service_name": "unnamed_python_service",
+        "service_name": DEFAULT_SERVICE_NAME,
         "service_version": "",
         "env": "",
         "language_name": "python",
@@ -35,7 +33,7 @@ def test_get_application():
         "tracer_version": ddtrace.__version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
-        "products": {"appsec": {"version": ddtrace.__version__, "enabled": config._appsec_enabled}},
+        "products": {"appsec": {"version": ddtrace.__version__, "enabled": asm_config._asm_enabled}},
     }
 
     assert get_application("", "", "") == expected_application

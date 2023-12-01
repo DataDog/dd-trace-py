@@ -20,7 +20,7 @@ from .utils import _resource_from_cache_prefix
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 
 log = logging.Logger(__name__)
@@ -31,6 +31,16 @@ DEFAULT_SERVICE = config.service or schematize_service_name("flask-cache")
 COMMAND_KEY = "flask_cache.key"
 CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
+
+
+def get_version():
+    # type: () -> str
+    try:
+        import flask_caching
+
+        return getattr(flask_caching, "__version__", "")
+    except ImportError:
+        return ""
 
 
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):

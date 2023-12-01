@@ -3,17 +3,14 @@ from flask.views import View
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
-from ddtrace.internal.compat import PY2
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
 
 base_exception_name = "builtins.Exception"
-if PY2:
-    base_exception_name = "exceptions.Exception"
 
-EXPECTED_METADATA = {"component": "flask"}
+EXPECTED_METADATA = {"component": "flask", "_dd.base_service": ""}
 
 
 class FlaskViewTestCase(BaseFlaskTestCase):
@@ -52,6 +49,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
+        self.assertNotEqual(handler_span.parent_id, 0)
         self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_view_handler_error(self):
@@ -137,6 +135,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
+        self.assertNotEqual(handler_span.parent_id, 0)
         self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_method_view_handler_error(self):

@@ -10,7 +10,6 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor import wrapt
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -21,6 +20,7 @@ from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
+from .. import trace_utils
 from ..trace_utils import unwrap
 
 
@@ -35,10 +35,15 @@ config._add(
 )
 
 
+def get_version():
+    # type: () -> str
+    return getattr(pynamodb, "__version__", "")
+
+
 def patch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return
-    setattr(pynamodb.connection.base, "_datadog_patch", True)
+    pynamodb.connection.base._datadog_patch = True
 
     wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
     Pin(service=None).onto(pynamodb.connection.base.Connection)
@@ -46,12 +51,11 @@ def patch():
 
 def unpatch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
-        setattr(pynamodb.connection.base, "_datadog_patch", False)
+        pynamodb.connection.base._datadog_patch = False
         unwrap(pynamodb.connection.base.Connection, "_make_api_call")
 
 
 def patched_api_call(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)

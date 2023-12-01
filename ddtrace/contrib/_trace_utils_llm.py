@@ -1,29 +1,30 @@
 import abc
 import os
 import time
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
+from ddtrace import Pin
+from ddtrace import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
-
-
-if TYPE_CHECKING:
-    from ddtrace import Pin
-    from ddtrace import Span
 
 
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config, stats_url, site, api_key):
+    def __init__(self, config, stats_url, site, api_key, app_key=None):
+        # FIXME: this currently does not consider if the tracer is configured to
+        # use a different hostname. eg. tracer.configure(host="new-hostname")
+        # Ideally the metrics client should live on the tracer or some other core
+        # object that is strongly linked with configuration.
         self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
         self._config = config
         self._log_writer = V2LogWriter(
@@ -32,33 +33,47 @@ class BaseLLMIntegration:
             interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
             timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
         )
+        self._llmobs_writer = LLMObsWriter(
+            site=site,
+            api_key=api_key,
+            app_key=app_key,
+            interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+            timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+        )
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+        self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
 
-    def is_pc_sampled_span(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
             return False
         return self._span_pc_sampler.sample(span)
 
-    def is_pc_sampled_log(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_log(self, span: Span) -> bool:
         if not self._config.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
-    def start_log_writer(self):
-        # type: (...) -> None
+    def is_pc_sampled_llmobs(self, span: Span) -> bool:
+        # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
+        if not self._config.llmobs_enabled:
+            return False
+        return self._llmobs_pc_sampler.sample(span)
+
+    def start_log_writer(self) -> None:
         self._log_writer.start()
 
+    def start_llm_writer(self):
+        # type: (...) -> None
+        self._llmobs_writer.start()
+
     @abc.abstractmethod
-    def _set_base_span_tags(self, span):
-        # type: (Span) -> None
+    def _set_base_span_tags(self, span, **kwargs):
+        # type: (Span, Dict[str, Any]) -> None
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id):
-        # type: (Pin, str) -> Span
+    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -69,11 +84,12 @@ class BaseLLMIntegration:
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
-        self._set_base_span_tags(span)
+        self._set_base_span_tags(span, **kwargs)
         return span
 
+    @classmethod
     @abc.abstractmethod
-    def _logs_tags(self, span):
+    def _logs_tags(cls, span):
         # type: (Span) -> str
         """Generate ddtags from the corresponding span."""
         pass
@@ -98,8 +114,9 @@ class BaseLLMIntegration:
         log.update(attrs)
         self._log_writer.enqueue(log)
 
+    @classmethod
     @abc.abstractmethod
-    def _metrics_tags(self, span):
+    def _metrics_tags(cls, span):
         # type: (Span) -> list
         """Generate a list of metrics tags from a given span."""
         return []
@@ -133,3 +150,15 @@ class BaseLLMIntegration:
         if len(text) > self._config.span_char_limit:
             text = text[: self._config.span_char_limit] + "..."
         return text
+
+    def llm_record(self, span, attrs):
+        # type: (Span, Dict[str, Any]) -> None
+        """Create a LLM record to send to the LLM Obs intake."""
+        if not self._config.llmobs_enabled:
+            return
+        llm_record = {}
+        if span is not None:
+            llm_record["dd.trace_id"] = str(span.trace_id)
+            llm_record["dd.span_id"] = str(span.span_id)
+        llm_record.update(attrs)
+        self._llmobs_writer.enqueue(llm_record)
