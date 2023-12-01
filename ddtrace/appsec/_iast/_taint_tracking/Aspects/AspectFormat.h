@@ -4,8 +4,6 @@
 #include "TaintTracking/Source.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
-#include <Python.h>
-#include <pybind11/pybind11.h>
 
 template<class StrType>
 StrType
