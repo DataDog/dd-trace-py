@@ -3,7 +3,7 @@ name: Framework tests
 on:
   push:
     branches:
-      - 2.x
+      - main
   pull_request:
 
 concurrency:
