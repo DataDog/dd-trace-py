@@ -32,12 +32,6 @@ using TaintRangeMapType = std::map<uintptr_t, std::pair<Py_hash_t, TaintedObject
 
 #endif // NDEBUG
 
-inline static uintptr_t
-get_unique_id(const PyObject* str)
-{
-    return uintptr_t(str);
-}
-
 struct TaintRange
 {
     RANGE_START start = 0;
@@ -128,16 +122,12 @@ api_are_all_text_all_ranges(py::object& candidate_text, const py::tuple& paramet
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
-void
-set_fast_tainted_if_notinterned_unicode(PyObject* objptr);
 inline void
 api_set_fast_tainted_if_unicode(const py::object& obj)
 {
     set_fast_tainted_if_notinterned_unicode(obj.ptr());
 }
 
-bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr);
 inline bool
 api_is_unicode_and_not_fast_tainted(const py::object str)
 {

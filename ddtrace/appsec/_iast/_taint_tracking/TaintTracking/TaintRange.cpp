@@ -1,66 +1,6 @@
 #include "TaintRange.h"
 #include "Initializer/Initializer.h"
-
-#include <utility>
-
-using namespace pybind11::literals;
-
-using namespace std;
-
-#define _GET_HASH_KEY(hash) (hash & 0xFFFFFF)
-
-typedef struct _PyASCIIObject_State_Hidden
-{
-    unsigned int : 8;
-    unsigned int hidden : 24;
-} PyASCIIObject_State_Hidden;
-
-// Used to quickly exit on cases where the object is a non interned unicode
-// string and does not have the fast-taint mark on its internal data structure.
-// In any other case it will return false so the evaluation continue for (more
-// slowly) checking if bytes and bytearrays are tainted.
-__attribute__((flatten)) bool
-is_notinterned_notfasttainted_unicode(const PyObject* objptr)
-{
-    if (!objptr) {
-        return true; // cannot taint a nullptr
-    }
-
-    if (!PyUnicode_Check(objptr)) {
-        return false; // not a unicode, continue evaluation
-    }
-
-    if (PyUnicode_CHECK_INTERNED(objptr)) {
-        return true; // interned but it could still be tainted
-    }
-
-    const PyASCIIObject_State_Hidden* e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (!e) {
-        return true; // broken string object? better to skip it
-    }
-    // it cannot be fast tainted if hash is set to -1 (not computed)
-    Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
-    return hash == -1 || e->hidden != _GET_HASH_KEY(hash);
-}
-
-// For non interned unicode strings, set a hidden mark on it's internsal data
-// structure that will allow us to quickly check if the string is not tainted
-// and thus skip further processing without having to search on the tainting map
-__attribute__((flatten)) void
-set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
-{
-    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
-        return;
-    }
-    auto e = (PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (e) {
-        Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
-        if (hash == -1) {
-            hash = PyObject_Hash(objptr);
-        }
-        e->hidden = _GET_HASH_KEY(hash);
-    }
-}
+#include "Utils/StringUtils.h"
 
 void
 TaintRange::reset()

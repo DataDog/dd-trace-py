@@ -6,20 +6,6 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-size_t
-get_pyobject_size(PyObject* obj)
-{
-    size_t len_candidate_text{ 0 };
-    if (PyUnicode_Check(obj)) {
-        len_candidate_text = PyUnicode_GET_LENGTH(obj);
-    } else if (PyBytes_Check(obj)) {
-        len_candidate_text = PyBytes_Size(obj);
-    } else if (PyByteArray_Check(obj)) {
-        len_candidate_text = PyByteArray_Size(obj);
-    }
-    return len_candidate_text;
-}
-
 template<class StrType>
 StrType
 common_replace(const py::str& string_method,
@@ -194,9 +180,9 @@ api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_tex
     py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
     std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
-    py::bytearray result_new_id = copy_string_new_id(py::bytearray() + get<0>(result));
-    set_ranges(result_new_id.ptr(), get<1>(result));
-    return result_new_id;
+    PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
+    set_ranges(new_result, get<1>(result));
+    return py::cast<py::bytearray>(new_result);
 }
 
 template<class StrType>
@@ -206,9 +192,9 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
     std::tuple result = _convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     StrType result_text = get<0>(result);
     TaintRangeRefs result_ranges = get<1>(result);
-    StrType result_new_id = copy_string_new_id(result_text);
-    set_ranges(result_new_id.ptr(), result_ranges);
-    return result_new_id;
+    PyObject* new_result = new_pyobject_id(result_text.ptr());
+    set_ranges(new_result, result_ranges);
+    return py::cast<StrType>(new_result);
 }
 
 unsigned long int

@@ -32,9 +32,9 @@ api_format_aspect(StrType& candidate_text,
         std::tuple result = _convert_escaped_text_to_taint_text<StrType>(new_template_format, ranges_orig);
         StrType result_text = get<0>(result);
         TaintRangeRefs result_ranges = get<1>(result);
-        StrType result_new_id = copy_string_new_id(result_text);
-        set_ranges(result_new_id.ptr(), result_ranges);
-        return result_new_id;
+        PyObject* new_result = new_pyobject_id(result_text.ptr());
+        set_ranges(new_result, result_ranges);
+        return py::cast<StrType>(new_result);
     }
     return py::getattr(candidate_text, "format")(*args, **kwargs);
 }
