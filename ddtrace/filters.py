@@ -1,15 +1,15 @@
 import abc
 import re
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace.ext import http
 from ddtrace.internal.processor.trace import TraceProcessor
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 
 class TraceFilter(TraceProcessor):

@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-import six
 
 from tests.utils import call_program
 
@@ -81,12 +80,7 @@ def test_fork_gevent(monkeypatch):
     assert exitcode == 0
 
 
-atleast_py37 = sys.version_info[:2] >= (3, 7)
-
-if atleast_py37:
-    methods = multiprocessing.get_all_start_methods()
-else:
-    methods = []
+methods = multiprocessing.get_all_start_methods()
 
 
 @pytest.mark.parametrize(
@@ -137,6 +131,6 @@ def test_memalloc_no_init_error_on_fork():
 def test_profiler_start_up_with_module_clean_up_in_protobuf_app():
     # This can cause segfaults if we do module clean up with later versions of
     # protobuf. This is a regression test.
-    from google.protobuf import empty_pb2  # noqa
+    from google.protobuf import empty_pb2  # noqa:F401
 
     print("OK")

@@ -491,8 +491,8 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 6, 0) or sys.version_info >= (3, 12),
-    reason="Python 3.6+ test, IAST not supported with Python 3.12",
+    sys.version_info >= (3, 12),
+    reason="Python 3.7+ test, IAST not supported with Python 3.12",
 )
 def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
     with override_global_config(dict(_iast_enabled=True, _asm_enabled=True)):
@@ -747,7 +747,6 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
@@ -756,7 +755,7 @@ def test_ip_subnet_regression():
         (b"", ["runtime-id"], None),
     ],
 )
-def test_set_http_meta_headers_useragent_py3(
+def test_set_http_meta_headers_useragent(  # noqa:F811
     mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
 ):
     assert int_config.myint.is_header_tracing_configured is False

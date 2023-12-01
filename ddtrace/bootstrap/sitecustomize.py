@@ -15,17 +15,17 @@ Add all monkey-patching that needs to run by default here
 # initialisation logic should be placed in preload.py.
 from ddtrace import LOADED_MODULES  # isort:skip
 
-import logging  # noqa
-import os  # noqa
+import logging  # noqa:I001
+import os  # noqa:F401
 import sys
-import warnings  # noqa
+import warnings  # noqa:F401
 
-from ddtrace import config  # noqa
+from ddtrace import config  # noqa:F401
 from ddtrace._logger import _configure_log_injection
-from ddtrace.internal.logger import get_logger  # noqa
-from ddtrace.internal.module import ModuleWatchdog  # noqa
-from ddtrace.internal.module import find_loader  # noqa
-from ddtrace.internal.utils.formats import asbool  # noqa
+from ddtrace.internal.logger import get_logger  # noqa:F401
+from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.module import find_loader  # noqa:F401
+from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config.logs_injection:
@@ -36,7 +36,7 @@ log = get_logger(__name__)
 
 
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
-    import gevent.monkey  # noqa
+    import gevent.monkey  # noqa:F401
 
     if gevent.monkey.is_module_patched("threading"):
         warnings.warn(  # noqa: B028
@@ -139,7 +139,7 @@ try:
             sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize
 
         try:
-            import sitecustomize  # noqa
+            import sitecustomize  # noqa:F401
         except ImportError:
             # If an additional sitecustomize is not found then put the ddtrace
             # sitecustomize back.
@@ -155,7 +155,7 @@ try:
             sys.path.insert(index, bootstrap_dir)
     else:
         try:
-            import sitecustomize  # noqa
+            import sitecustomize  # noqa:F401
         except ImportError:
             log.debug("additional sitecustomize not found")
         else:

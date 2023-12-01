@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import textwrap
 
 import mock
@@ -15,7 +14,6 @@ from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
@@ -59,7 +57,6 @@ class PytestTestCase(TracerTestCase):
 
         emit_integration_and_version_to_test_agent("pytest", version)
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all(self):
         """Test with --ddtrace-patch-all."""
         py_file = self.testdir.makepyfile(
@@ -77,7 +74,6 @@ class PytestTestCase(TracerTestCase):
 
         assert len(spans) == 0
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
     def test_patch_all_init(self):
         """Test with ddtrace-patch-all via ini."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")

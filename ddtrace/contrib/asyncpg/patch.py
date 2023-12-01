@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING  # noqa:I001
+from types import ModuleType
 import asyncpg
 
 from ddtrace import Pin
@@ -24,11 +24,10 @@ from ..trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from types import ModuleType
-    from typing import Dict
-    from typing import Union
+    from typing import Dict  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from asyncpg.prepared_stmt import PreparedStatement
+    from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
 
 
 DBMS_NAME = "postgresql"
@@ -127,8 +126,7 @@ async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
     return await _traced_query(pin, func, query, args, kwargs)
 
 
-def _patch(asyncpg):
-    # type: (ModuleType) -> None
+def _patch(asyncpg: ModuleType) -> None:
     wrap(asyncpg, "connect", _traced_connect(asyncpg))
     for method in ("execute", "bind_execute", "query", "bind_execute_many"):
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
@@ -147,8 +145,7 @@ def patch():
     asyncpg._datadog_patch = True
 
 
-def _unpatch(asyncpg):
-    # type: (ModuleType) -> None
+def _unpatch(asyncpg: ModuleType) -> None:
     unwrap(asyncpg, "connect")
     for method in ("execute", "bind_execute", "query", "bind_execute_many"):
         unwrap(asyncpg.protocol.Protocol, method)
