@@ -446,6 +446,18 @@ def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mo
         )
 
 
+def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+    ):
+        with openai_vcr.use_cassette("completion.yaml"):
+            client = openai.OpenAI()
+            client.completions.with_raw_response.create(
+                model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+            )
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
