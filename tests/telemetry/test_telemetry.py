@@ -15,7 +15,6 @@ def _assert_dependencies_sort_and_remove(items, is_request=True, must_have_deps=
     found_dependencies_event = False
     for item in items:
         body = item["body"] if is_request else item
-        from pprint import pformat; print("JJJ event: %s" % pformat(item))
         if body["request_type"] == "app-dependencies-loaded":
             found_dependencies_event = True
             continue
