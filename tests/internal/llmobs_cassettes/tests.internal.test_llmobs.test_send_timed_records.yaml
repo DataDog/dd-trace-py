@@ -19,7 +19,7 @@ interactions:
       DD-APPLICATION-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
   response:
     body:
       string: '{"data":{"id":"f4f3df38-be21-42e6-8f32-2b591adda846","type":"records","attributes":{"model":"ada","model_provider":"openai","records":[{"id":"cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6","type":"completion","timestamp":1681852797000,"input":{"prompts":["who
@@ -68,7 +68,7 @@ interactions:
       DD-APPLICATION-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
   response:
     body:
       string: '{"data":{"id":"eeee4cb1-a8ff-4227-b130-731b294f45ce","type":"records","attributes":{"model":"gpt-3.5-turbo","model_provider":"openai","records":[{"id":"chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu","type":"chat","timestamp":1681853029000,"input":{"messages":[{"content":"You

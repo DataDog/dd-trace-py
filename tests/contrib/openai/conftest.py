@@ -123,6 +123,16 @@ def mock_logs(scope="session"):
 
 
 @pytest.fixture
+def mock_llmobs_writer(scope="session"):
+    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def ddtrace_config_openai():
     config = {}
     return config

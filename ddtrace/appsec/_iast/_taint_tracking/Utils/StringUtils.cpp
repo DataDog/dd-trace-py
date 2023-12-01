@@ -6,46 +6,63 @@
 // if CLion tells it's not used!
 #include "StringUtils.h"
 
-// TODO: check if really needed
-// #define PY_SSIZE_T_CLEAN
-#include <Python.h>
-
-using namespace std;
 using namespace pybind11::literals;
 
-py::str
-copy_string_new_id(const py::str& source)
+using namespace std;
+
+#define _GET_HASH_KEY(hash) (hash & 0xFFFFFF)
+
+typedef struct _PyASCIIObject_State_Hidden
 {
-    if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
-        return source;
+    unsigned int : 8;
+    unsigned int hidden : 24;
+} PyASCIIObject_State_Hidden;
+
+// Used to quickly exit on cases where the object is a non interned unicode
+// string and does not have the fast-taint mark on its internal data structure.
+// In any other case it will return false so the evaluation continue for (more
+// slowly) checking if bytes and bytearrays are tainted.
+__attribute__((flatten)) bool
+is_notinterned_notfasttainted_unicode(const PyObject* objptr)
+{
+    if (!objptr) {
+        return true; // cannot taint a nullptr
     }
 
-    py::str newstr = string(source);
-    return newstr;
-}
-
-py::bytes
-copy_string_new_id(const py::bytes& source)
-{
-    if (PyUnicode_CHECK_INTERNED(source.ptr()) == SSTATE_NOT_INTERNED) {
-        return source;
+    if (!PyUnicode_Check(objptr)) {
+        return false; // not a unicode, continue evaluation
     }
-    auto newstr = strdup(PYBIND11_BYTES_AS_STRING(source.ptr()));
-    py::bytes newbytes = newstr;
-    free(newstr);
-    return newbytes;
+
+    if (PyUnicode_CHECK_INTERNED(objptr)) {
+        return true; // interned but it could still be tainted
+    }
+
+    const _PyASCIIObject_State_Hidden* e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
+    if (!e) {
+        return true; // broken string object? better to skip it
+    }
+    // it cannot be fast tainted if hash is set to -1 (not computed)
+    Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
+    return hash == -1 || e->hidden != _GET_HASH_KEY(hash);
 }
 
-py::bytearray
-copy_string_new_id(const py::bytearray& source)
+// For non interned unicode strings, set a hidden mark on it's internsal data
+// structure that will allow us to quickly check if the string is not tainted
+// and thus skip further processing without having to search on the tainting map
+__attribute__((flatten)) void
+set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
 {
-    return source;
-}
-
-py::object
-copy_string_new_id(const py::object& source)
-{
-    return source;
+    if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
+        return;
+    }
+    auto e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
+    if (e) {
+        Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
+        if (hash == -1) {
+            hash = PyObject_Hash(objptr);
+        }
+        e->hidden = _GET_HASH_KEY(hash);
+    }
 }
 
 string
@@ -91,4 +108,18 @@ new_pyobject_id(PyObject* tainted_object)
         return res;
     }
     return tainted_object;
+}
+
+size_t
+get_pyobject_size(PyObject* obj)
+{
+    size_t len_candidate_text{ 0 };
+    if (PyUnicode_Check(obj)) {
+        len_candidate_text = PyUnicode_GET_LENGTH(obj);
+    } else if (PyBytes_Check(obj)) {
+        len_candidate_text = PyBytes_Size(obj);
+    } else if (PyByteArray_Check(obj)) {
+        len_candidate_text = PyByteArray_Size(obj);
+    }
+    return len_candidate_text;
 }
