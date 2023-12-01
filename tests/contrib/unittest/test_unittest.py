@@ -75,19 +75,19 @@ class UnittestTestCase(TracerTestCase):
 
         assert spans[3].name == TEST_OPERATION_NAME
         assert spans[3].get_tag(test.NAME) == "test_will_pass_first"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
 
@@ -134,26 +134,26 @@ class UnittestTestCase(TracerTestCase):
 
         assert spans[3].name == TEST_OPERATION_NAME
         assert spans[3].get_tag(test.NAME) == "test_will_pass_first"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert spans[4].name == TEST_OPERATION_NAME
         assert spans[4].get_tag(test.NAME) == "test_will_pass_second"
-        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
 
@@ -200,20 +200,20 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].name == TEST_OPERATION_NAME
         assert spans[3].get_tag(test.NAME) == "test_will_be_skipped"
         assert spans[3].get_tag(test.SKIP_REASON) == ""
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(test.SKIP_REASON) is None
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(test.SKIP_REASON) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -259,20 +259,20 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].name == TEST_OPERATION_NAME
         assert spans[3].get_tag(test.NAME) == "test_will_be_skipped"
         assert spans[3].get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(test.SKIP_REASON) is None
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(test.SKIP_REASON) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -324,7 +324,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].name == TEST_OPERATION_NAME
         assert spans[3].get_tag(test.NAME) == "test_will_be_skipped_first"
         assert spans[3].get_tag(test.SKIP_REASON) == "demonstrating skipping with a reason"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -332,13 +332,13 @@ class UnittestTestCase(TracerTestCase):
         assert spans[4].name == TEST_OPERATION_NAME
         assert spans[4].get_tag(test.NAME) == "test_will_be_skipped_second"
         assert spans[4].get_tag(test.SKIP_REASON) == "demonstrating skipping with a different reason"
-        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(test.SKIP_REASON) is None
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -346,7 +346,7 @@ class UnittestTestCase(TracerTestCase):
 
         assert test_module_span.name == MODULE_OPERATION_NAME
         assert test_module_span.get_tag(test.COMMAND) == "python -m unittest"
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(test.SKIP_REASON) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
@@ -401,7 +401,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].get_tag(test.NAME) == "test_will_be_skipped"
         assert spans[3].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[3].get_tag(test.SKIP_REASON) == ""
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -410,13 +410,13 @@ class UnittestTestCase(TracerTestCase):
         assert spans[4].get_tag(test.NAME) == "test_wont_be_skipped"
         assert spans[4].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[4].get_tag(test.SKIP_REASON) is None
-        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert test_suite_span.get_tag(test.SKIP_REASON) is None
@@ -424,7 +424,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert test_module_span.get_tag(test.SKIP_REASON) is None
@@ -470,13 +470,13 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].get_tag(test.NAME) == "test_will_fail"
         assert spans[3].get_tag(ERROR_MSG) == "False is not true"
         assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -484,7 +484,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_suite_span.get_tag(ERROR_TYPE) is None
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_module_span.get_tag(ERROR_MSG) is None
@@ -537,7 +537,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].get_tag(test.NAME) == "test_will_fail_first"
         assert spans[3].get_tag(ERROR_MSG) == "False is not true"
         assert spans[3].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -546,13 +546,13 @@ class UnittestTestCase(TracerTestCase):
         assert spans[4].get_tag(test.NAME) == "test_will_fail_second"
         assert spans[4].get_tag(ERROR_MSG) == "False is not true"
         assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_suite_span.get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -560,7 +560,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_suite_span.get_tag(ERROR_TYPE) is None
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert test_module_span.get_tag(ERROR_MSG) is None
@@ -616,7 +616,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[3].get_tag(test.NAME) == "test_will_be_skipped_with_a_reason"
         assert spans[3].get_tag(test.TEST_STATUS) == test.Status.SKIP.value
         assert spans[3].get_tag(test.SKIP_REASON) == "another skip reason"
-        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[3].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[3].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[3].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[3].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -629,7 +629,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[4].get_tag(test.SKIP_REASON) is None
         assert spans[4].get_tag(ERROR_MSG) == "False is not true"
         assert spans[4].get_tag(ERROR_TYPE) == "builtins.AssertionError"
-        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[4].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[4].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[4].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[4].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -638,7 +638,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[5].get_tag(test.NAME) == "test_will_pass_first"
         assert spans[5].get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert spans[5].get_tag(test.SKIP_REASON) is None
-        assert spans[5].get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert spans[5].get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert spans[5].get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert spans[5].get_tag(MODULE_ID) == str(test_module_span.span_id)
         assert spans[5].get_tag(SUITE_ID) == str(test_suite_span.span_id)
@@ -646,7 +646,7 @@ class UnittestTestCase(TracerTestCase):
         assert spans[5].get_tag(ERROR_TYPE) is None
 
         assert test_suite_span.name == SUITE_OPERATION_NAME
-        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_suite_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_suite_span.get_tag(test.SUITE) == "UnittestExampleTestCase"
         assert test_suite_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert test_suite_span.get_tag(test.SKIP_REASON) is None
@@ -656,7 +656,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_suite_span.get_tag(ERROR_TYPE) is None
 
         assert test_module_span.name == MODULE_OPERATION_NAME
-        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest_plugin.test_unittest"
+        assert test_module_span.get_tag(test.MODULE) == "tests.contrib.unittest.test_unittest"
         assert test_module_span.get_tag(test.SUITE) is None
         assert test_module_span.get_tag(test.TEST_STATUS) == test.Status.FAIL.value
         assert test_module_span.get_tag(test.SKIP_REASON) is None
@@ -726,7 +726,7 @@ class UnittestTestCase(TracerTestCase):
             {
                 "name": MODULE_OPERATION_NAME,
                 test.TEST_STATUS: test.Status.FAIL.value,
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
                 MODULE_ID: str(test_module_span.span_id),
             },
             {
@@ -744,7 +744,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest1",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -755,7 +755,7 @@ class UnittestTestCase(TracerTestCase):
                 ERROR_TYPE: "builtins.AssertionError",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -764,7 +764,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest1",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": SUITE_OPERATION_NAME,
@@ -781,7 +781,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest2",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_2.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -790,7 +790,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest2",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_2.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
         ]
 
@@ -870,7 +870,7 @@ class UnittestTestCase(TracerTestCase):
             {
                 "name": MODULE_OPERATION_NAME,
                 test.TEST_STATUS: test.Status.FAIL.value,
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
                 MODULE_ID: str(test_module_span.span_id),
             },
             {
@@ -888,7 +888,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest1",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -899,7 +899,7 @@ class UnittestTestCase(TracerTestCase):
                 ERROR_TYPE: "builtins.AssertionError",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -908,7 +908,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest1",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_1.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": SUITE_OPERATION_NAME,
@@ -925,7 +925,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest2",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_2.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -935,7 +935,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest2",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_2.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
             {
                 "name": TEST_OPERATION_NAME,
@@ -945,7 +945,7 @@ class UnittestTestCase(TracerTestCase):
                 test.SUITE: "SubTest2",
                 MODULE_ID: str(test_module_span.span_id),
                 SUITE_ID: str(test_suite_span_subtest_2.span_id),
-                test.MODULE: "tests.contrib.unittest_plugin.test_unittest",
+                test.MODULE: "tests.contrib.unittest.test_unittest",
             },
         ]
 
