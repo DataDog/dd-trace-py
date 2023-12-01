@@ -2,19 +2,19 @@ import os
 import re
 import sys
 from typing import TYPE_CHECKING
+from typing import List
 
+from ddtrace import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from ddtrace import Span
 
 import graphql
 from graphql import MiddlewareManager
@@ -291,8 +291,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _set_span_errors(errors, span):
-    # type: (List[GraphQLError], Span) -> None
+def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return

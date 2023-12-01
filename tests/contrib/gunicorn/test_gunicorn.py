@@ -4,14 +4,14 @@ import os
 import subprocess
 import sys
 import time
-from typing import Dict
-from typing import NamedTuple
-from typing import Optional
+from typing import Dict  # noqa:F401
+from typing import NamedTuple  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import pytest
 
 from ddtrace.internal import compat
-from ddtrace.internal.utils.retry import RetryError  # noqa
+from ddtrace.internal.utils.retry import RetryError  # noqa:F401
 from tests.utils import flaky
 from tests.utils import snapshot_context
 from tests.webclient import Client
@@ -39,10 +39,7 @@ IMPORT_AUTO = "import ddtrace.auto"
 
 
 def parse_payload(data):
-    decoded = data
-    if sys.version_info[1] == 5:
-        decoded = data.decode("utf-8")
-    return json.loads(decoded)
+    return json.loads(data)
 
 
 def _gunicorn_settings_factory(

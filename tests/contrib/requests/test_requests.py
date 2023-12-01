@@ -16,7 +16,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
-from ddtrace.contrib.requests.connection import _extract_hostname
+from ddtrace.contrib.requests.connection import _extract_hostname_and_path
 from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -135,6 +135,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.error == 0
         assert s.span_type == "http"
         assert http.QUERY_STRING not in s.get_tags()
+        assert s.resource == "GET /status/200"
 
     def test_auth_200(self):
         self.session.get(URL_AUTH_200)
@@ -142,6 +143,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == URL_200
+        assert s.resource == "GET /status/200"
 
     def test_200_send(self):
         # when calling send directly
@@ -163,6 +165,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
+        assert s.resource == "GET /status/200"
 
     def test_200_query_string(self):
         # ensure query string is removed before adding url to metadata
@@ -185,6 +188,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("component") == "requests"
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == SOCKET
+        assert s.resource == "GET /status/200"
 
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
@@ -205,6 +209,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert_span_http_status_code(s, 200)
             assert s.error == 0
             assert s.span_type == "http"
+            assert s.resource == "GET /status/200"
 
     def test_post_500(self):
         out = self.session.post(URL_500)
@@ -221,6 +226,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
+        assert s.resource == "POST /status/500"
 
     def test_non_existant_url(self):
         try:
@@ -264,6 +270,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
+        assert s.resource == "GET /status/500"
 
     def test_default_service_name(self):
         # ensure a default service name is set
@@ -275,6 +282,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert s.service == "requests"
+        assert s.resource == "GET /status/200"
 
     def test_user_set_service_name(self):
         # ensure a service name set by the user has precedence
@@ -325,6 +333,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert s.name == "requests.request"
         assert s.service == "requests"
+        assert s.resource == "GET /status/200"
 
     def test_user_service_name_precedence(self):
         # ensure the user service name takes precedence over
@@ -375,6 +384,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org"
+        assert s.resource == "GET /status/200"
 
     def test_split_by_domain_precedence(self):
         # ensure the split by domain has precedence all the time
@@ -390,6 +400,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         assert s.get_tag("out.host") == SOCKET
         assert s.service == "httpbin.org"
+        assert s.resource == "GET /status/200"
 
     def test_split_by_domain_wrong(self):
         # ensure the split by domain doesn't crash in case of a wrong URL;
@@ -556,6 +567,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.error == 0
         assert dd_span.span_type == "http"
+        assert dd_span.resource == "GET /status/200"
 
     def test_request_and_response_headers(self):
         # Disabled when not configured
@@ -694,31 +706,28 @@ session.get("http://httpbin.org/status/200")
 
 
 @pytest.mark.parametrize(
-    "uri,hostname",
+    "uri,hostname,path",
     [
-        ("http://localhost:8080", "localhost:8080"),
-        ("http://localhost:8080/", "localhost:8080"),
-        ("http://localhost", "localhost"),
-        ("http://localhost/", "localhost"),
-        ("http://asd:wwefwf@localhost:8080", "localhost:8080"),
-        ("http://asd:wwefwf@localhost:8080/", "localhost:8080"),
-        ("http://asd:wwefwf@localhost:8080/path", "localhost:8080"),
-        ("http://asd:wwefwf@localhost:8080/path?query", "localhost:8080"),
-        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "localhost:8080"),
-        ("http://asd:wwefwf@localhost:8080/path#frag?ment", "localhost:8080"),
-        ("http://localhost:8080/path#frag?ment", "localhost:8080"),
-        ("http://localhost/path#frag?ment", "localhost"),
+        ("http://localhost:8080", "localhost:8080", ""),
+        ("http://localhost:8080/", "localhost:8080", "/"),
+        ("http://localhost", "localhost", ""),
+        ("http://localhost/", "localhost", "/"),
+        ("http://asd:wwefwf@localhost:8080", "localhost:8080", ""),
+        ("http://asd:wwefwf@localhost:8080/", "localhost:8080", "/"),
+        ("http://asd:wwefwf@localhost:8080/path", "localhost:8080", "/path"),
+        ("http://asd:wwefwf@localhost:8080/path?query", "localhost:8080", "/path"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "localhost:8080", "/path"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", "localhost:8080", "/path"),
+        ("http://localhost:8080/path#frag?ment", "localhost:8080", "/path"),
+        ("http://localhost/path#frag?ment", "localhost", "/path"),
     ],
 )
-def test_extract_hostname(uri, hostname):
-    assert _extract_hostname(uri) == hostname
+def test_extract_hostname(uri, hostname, path):
+    assert _extract_hostname_and_path(uri) == (hostname, path)
 
 
 def test_extract_hostname_invalid_port():
-    if sys.version_info < (3, 6):
-        assert _extract_hostname("http://localhost:-1/") == "localhost"
-    else:
-        assert _extract_hostname("http://localhost:-1/") == "localhost:?"
+    assert _extract_hostname_and_path("http://localhost:-1/") == ("localhost:?", "/")
 
 
 @pytest.mark.parametrize(

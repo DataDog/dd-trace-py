@@ -22,8 +22,8 @@ import os
 import os.path
 import re
 import sys
-from typing import Any
-from typing import Optional
+from typing import Any  # noqa
+from typing import Optional  # noqa
 
 from docutils import nodes
 from docutils import statemachine

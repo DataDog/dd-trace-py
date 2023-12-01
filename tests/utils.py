@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import List
+from typing import List  # noqa:F401
 
 import attr
 import pkg_resources
