@@ -68,7 +68,6 @@
         "redis": [
             "ddtrace/contrib/rediscluster/*",
             "ddtrace/contrib/redis/*",
-            "ddtrace/contrib/aioredis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -470,6 +469,7 @@
             "@tracing",
             "@contrib",
             "@openai",
+            "@requests",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -1039,15 +1039,6 @@
             "@pg",
             "tests/contrib/aiopg/*"
         ],
-        "aioredis": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@redis",
-            "tests/contrib/aioredis/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
-        ],
         "aredis": [
             "@bootstrap",
             "@core",
@@ -1167,6 +1158,7 @@
             "@tracing",
             "@contrib",
             "@langchain",
+            "@requests",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]

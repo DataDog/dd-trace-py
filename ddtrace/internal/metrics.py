@@ -1,5 +1,5 @@
-from typing import Dict
-from typing import Optional
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace.internal import agent
 from ddtrace.internal.dogstatsd import get_dogstatsd_client

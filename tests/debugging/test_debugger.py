@@ -546,14 +546,14 @@ def test_debugger_multiple_function_probes_on_same_lazy_module():
     with debugger() as d:
         d.add_probes(*probes)
 
-        import tests.submod.stuff  # noqa
+        import tests.submod.stuff  # noqa:F401
 
         assert len(d._probe_registry) == len(probes)
         assert all(_.error_type is None for _ in d._probe_registry.values())
 
 
 # DEV: The following tests are to ensure compatibility with the tracer
-import ddtrace.vendor.wrapt as wrapt  # noqa
+import ddtrace.vendor.wrapt as wrapt  # noqa:E402,F401
 
 
 def wrapper(wrapped, instance, args, kwargs):

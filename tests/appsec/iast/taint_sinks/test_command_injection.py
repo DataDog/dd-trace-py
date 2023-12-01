@@ -7,6 +7,10 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
@@ -15,14 +19,6 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 from tests.utils import override_global_config
 
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
 
@@ -319,6 +315,25 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
         assert span_report
 
         assert len(list(span_report.vulnerabilities)) == 2
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
+def test_string_cmdi(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        patch()
+        cmd = taint_pyobject(
+            pyobject="dir -l .",
+            source_name="test_run",
+            source_value="dir -l .",
+            source_origin=OriginType.PARAMETER,
+        )
+        with tracer.trace("test_string_cmdi"):
+            subprocess.run(cmd, shell=True, check=True)
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+
+        assert len(list(span_report.vulnerabilities)) == 1
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])

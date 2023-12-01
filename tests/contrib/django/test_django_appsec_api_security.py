@@ -2,9 +2,6 @@
 import base64
 import gzip
 import json
-import sys
-
-import pytest
 
 from ddtrace.appsec import _constants
 from ddtrace.settings.asm import config as asm_config
@@ -45,7 +42,6 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security(client, test_spans, tracer):
     import django
 
@@ -119,7 +115,6 @@ def test_api_security(client, test_spans, tracer):
             assert equal_with_meta(api, expected_value), name
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
 
@@ -160,7 +155,6 @@ def test_api_security_with_srb(client, test_spans, tracer):
             assert equal_with_meta(api, expected_value), name
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_deactivated(client, test_spans, tracer):
     """Test if blocking is still working as expected with api security deactivated"""
 

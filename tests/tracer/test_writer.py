@@ -16,7 +16,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -587,10 +586,7 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
 def test_flush_connection_timeout_connect(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, 2019))
-        if PY3:
-            exc_type = OSError
-        else:
-            exc_type = socket.error
+        exc_type = OSError
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -610,10 +606,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
-        if PY3:
-            exc_types = (httplib.BadStatusLine, ConnectionResetError)
-        else:
-            exc_types = (httplib.BadStatusLine,)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
@@ -636,7 +629,7 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = OSError if PY3 else IOError
+        error = OSError
         with pytest.raises(error):
             writer.write([])
             writer.flush_queue(raise_exc=True)

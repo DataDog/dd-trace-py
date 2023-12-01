@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    requests: Updates the resource names of ``requests.requests`` spans to include the method and path of the request.

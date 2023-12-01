@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-import typing
+import typing  # noqa:F401
 
 import attr
 
@@ -7,7 +7,7 @@ from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.settings.profiling import config
 
-from .. import event
+from .. import event  # noqa:F401
 
 
 class CollectorError(Exception):

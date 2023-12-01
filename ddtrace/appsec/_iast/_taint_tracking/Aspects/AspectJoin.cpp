@@ -53,7 +53,7 @@ aspect_join_str(PyObject* sep,
 
     PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DECREF(result);
+    Py_DecRef(result);
     return new_result;
 }
 
@@ -134,7 +134,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 
     PyObject* new_result{ new_pyobject_id(result) };
     set_tainted_object(new_result, result_to, tx_taint_map);
-    Py_DECREF(result);
+    Py_DecRef(result);
     return new_result;
 }
 
@@ -160,7 +160,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
                 PyList_Append(list_aux, item);
             }
             arg0 = list_aux;
-            Py_DECREF(iterator);
+            Py_DecRef(iterator);
             decref_arg0 = true;
         }
     }
@@ -181,7 +181,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {
-            Py_DECREF(arg0);
+            Py_DecRef(arg0);
         }
         return result;
     }
@@ -192,7 +192,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
     auto res = aspect_join(sep, result, arg0, ctx_map);
     if (decref_arg0) {
-        Py_DECREF(arg0);
+        Py_DecRef(arg0);
     }
     return res;
 }
