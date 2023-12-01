@@ -182,7 +182,7 @@ api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_tex
     std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
     set_ranges(new_result, get<1>(result));
-    return py::cast<py::bytearray>(new_result);
+    return py::reinterpret_steal<py::bytearray>(new_result);
 }
 
 template<class StrType>
@@ -194,7 +194,7 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
     TaintRangeRefs result_ranges = get<1>(result);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
     set_ranges(new_result, result_ranges);
-    return py::cast<StrType>(new_result);
+    return py::reinterpret_steal<StrType>(new_result);
 }
 
 unsigned long int
@@ -364,17 +364,14 @@ pyexport_aspect_helpers(py::module& m)
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::bytes>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a,
-          py::return_value_policy::move);
+          "ranges_orig"_a);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::str>,
           "taint_escaped_text"_a,
-          "ranges_orig"_a,
-          py::return_value_policy::move);
+          "ranges_orig"_a);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text_ba,
           "taint_escaped_text"_a,
-          "ranges_orig"_a,
-          py::return_value_policy::move);
+          "ranges_orig"_a);
     m.def("parse_params", &parse_params);
 }

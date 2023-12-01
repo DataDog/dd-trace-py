@@ -34,7 +34,7 @@ api_format_aspect(StrType& candidate_text,
         TaintRangeRefs result_ranges = get<1>(result);
         PyObject* new_result = new_pyobject_id(result_text.ptr());
         set_ranges(new_result, result_ranges);
-        return py::cast<StrType>(new_result);
+        return py::reinterpret_steal<StrType>(new_result);
     }
     return py::getattr(candidate_text, "format")(*args, **kwargs);
 }
@@ -42,9 +42,5 @@ api_format_aspect(StrType& candidate_text,
 void
 pyexport_format_aspect(py::module& m)
 {
-    m.def("_format_aspect",
-          &api_format_aspect<py::str>,
-          "candidate_text"_a,
-          "parameter_list"_a,
-          py::return_value_policy::move);
+    m.def("_format_aspect", &api_format_aspect<py::str>, "candidate_text"_a, "parameter_list"_a);
 }
