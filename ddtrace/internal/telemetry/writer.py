@@ -487,9 +487,7 @@ class TelemetryWriter(PeriodicService):
             updated_deps = update_imported_dependencies(self._imported_dependencies, list(sys.modules.values()))
 
         if updated_deps:
-            payload = {
-                "dependencies": updated_deps
-            }
+            payload = {"dependencies": updated_deps}
             self.add_event(payload, payload_type)
 
     def add_log(self, level, message, stack_trace="", tags=None):
