@@ -187,23 +187,23 @@ def test_update_imported_dependencies_both_empty():
 
 
 def test_update_imported_dependencies():
-    import numpy
+    import xmltodict
 
     already_imported = {}
-    res = update_imported_dependencies(already_imported, [numpy])
+    res = update_imported_dependencies(already_imported, [xmltodict])
     assert len(res) == 1
-    assert res[0]["name"] == "numpy"
+    assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
-    assert "numpy" in already_imported
-    assert isinstance(already_imported["numpy"], Distribution)
-    assert already_imported["numpy"].name == "numpy"
-    assert already_imported["numpy"].version == res[0]["version"]
+    assert "xmltodict" in already_imported
+    assert isinstance(already_imported["xmltodict"], Distribution)
+    assert already_imported["xmltodict"].name == "xmltodict"
+    assert already_imported["xmltodict"].version == res[0]["version"]
 
     import typing
 
     import pytest
 
-    res = update_imported_dependencies(already_imported, [numpy, typing, pytest])
+    res = update_imported_dependencies(already_imported, [xmltodict, typing, pytest])
     assert len(res) == 1  # typing is stdlib so should not be in the result
     assert res[0]["name"] == "pytest"
     assert res[0]["version"]

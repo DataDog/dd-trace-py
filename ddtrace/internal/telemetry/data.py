@@ -85,7 +85,7 @@ def update_imported_dependencies(
             continue
         try:
             package = filename_to_package(str(module_path.resolve()))
-            if not package or (package.name in already_imported):
+            if not package or (package.name in already_imported) or package.name == "ddtrace":
                 continue  # not third party or already imported
         except AttributeError:
             continue

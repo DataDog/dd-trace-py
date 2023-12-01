@@ -149,9 +149,7 @@ telemetry_writer.disable()
 
     runtime_id = stdout.strip().decode("utf-8")
 
-    requests = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_requests(), must_have_deps=False, remove_heartbeat=False
-    )
+    requests = test_agent_session.get_requests()
 
     # We expect events from the parent process to get sent, but none from the child process
     assert len(requests) == 1
