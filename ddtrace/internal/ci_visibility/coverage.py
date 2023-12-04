@@ -57,9 +57,10 @@ def _stop_coverage(module):
         del module._dd_coverage
 
 
-def _module_has_dd_coverage_enabled(module) -> bool:
+def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
     if not hasattr(module, "_dd_coverage"):
-        log.warning("Datadog Coverage has not been initiated")
+        if not silent_mode:
+            log.warning("Datadog Coverage has not been initiated")
         return False
     return True
 

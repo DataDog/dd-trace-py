@@ -408,7 +408,9 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
-        if _CIVisibility._instance._collect_coverage_enabled and not _module_has_dd_coverage_enabled(pytest):
+        if _CIVisibility._instance._collect_coverage_enabled and not _module_has_dd_coverage_enabled(
+            pytest, silent_mode=True
+        ):
             pytest._dd_coverage = _start_coverage(session.config.rootdir)
 
         _store_span(session, test_session_span)
