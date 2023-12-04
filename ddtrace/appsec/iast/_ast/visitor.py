@@ -3,6 +3,7 @@
 from _ast import Expr
 from _ast import ImportFrom
 import ast
+import copy
 import sys
 from typing import TYPE_CHECKING
 
@@ -155,6 +156,34 @@ class AstVisitor(ast.NodeTransformer):
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
 
+    def _get_function_name(self, call_node, is_function):  # type: (ast.Call, bool) -> str
+        if is_function:
+            return call_node.func.id  # type: ignore[attr-defined]
+        # If the call is to a method
+        elif type(call_node.func) == ast.Name:
+            return call_node.func.id
+
+        return call_node.func.attr  # type: ignore[attr-defined]
+
+    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+        """
+        Creates the arguments for the original function
+        """
+        function_name = self._get_function_name(call_node, is_function)
+        function_name_arg = (
+            self._name_node(call_node, function_name, ctx=ast.Load()) if is_function else copy.copy(call_node.func)
+        )
+
+        # Arguments for stack info change from:
+        # my_function(self, *args, **kwargs)
+        # to:
+        # _add_original_function_as_arg(function_name=my_function, self, *args, **kwargs)
+        new_args = [
+            function_name_arg,
+        ] + call_node.args
+
+        return new_args
+
     def _node(self, type_, pos_from_node, **kwargs):
         # type: (Any, Any, Any) -> Any
         """
@@ -247,6 +276,16 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
+    def _int_constant(self, from_node, value):
+        return ast.Constant(
+            lineno=from_node.lineno,
+            col_offset=from_node.col_offset,
+            end_lineno=getattr(from_node, "end_lineno", from_node.lineno),
+            end_col_offset=from_node.col_offset + 1,
+            value=value,
+            kind=None,
+        )
+
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
@@ -319,6 +358,11 @@ class AstVisitor(ast.NodeTransformer):
             func_name_node = func_member.id
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
+                # Send 0 as flag_added_args value
+                call_node.args.insert(0, self._int_constant(call_node, 0))
+                # Insert original function name as first parameter
+                call_node.args = self._add_original_function_as_arg(call_node, True)
+                # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
             else:
@@ -346,6 +390,12 @@ class AstVisitor(ast.NodeTransformer):
                 # Move the Attribute.value to 'args'
                 new_arg = func_member.value
                 call_node.args.insert(0, new_arg)
+                # Send 1 as flag_added_args value
+                call_node.args.insert(0, self._int_constant(call_node, 1))
+
+                # Insert None as first parameter instead of a.b.c.method
+                # to avoid unexpected side effects such as a.b.read(4).method
+                call_node.args.insert(0, self._none_constant(call_node))
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
@@ -354,6 +404,8 @@ class AstVisitor(ast.NodeTransformer):
             elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
                 aspect = self._aspect_modules.get(method_name, None)
                 if aspect:
+                    # Send 0 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 0))
                     # Move the Function to 'args'
                     call_node.args.insert(0, call_node.func)
 

@@ -16,6 +16,12 @@ class BufferFull(Exception):
 class BufferItemTooLarge(Exception):
     pass
 
+class EncodingValidationError(Exception):
+    def __init__(self, msg="", debug_message=""):
+        Exception.__init__(self, msg)
+        self.msg = msg
+        self.debug_message = debug_message
+
 class BufferedEncoder(object):
     max_size: int
     max_item_size: int

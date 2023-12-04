@@ -96,6 +96,7 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env={
+        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
@@ -127,19 +128,50 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
-                "flask": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
+                "simplejson": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
+            venvs=[
+                # Flask 1.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "flask": "~=1.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
+                    },
+                ),
+                # Flask 2.x.x
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                # Flask 3.x.x
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="profile-diff",
@@ -156,7 +188,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
@@ -183,6 +215,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -1203,8 +1241,12 @@ venv = Venv(
                     # pynamodb dropped support for Python 2.7/3.5 in 4.4
                     pys=select_pys(max_version="3.5"),
                     pkgs={
+                        "cfn-lint": "~=0.37.0",
                         "pynamodb": ["~=4.3.0"],
-                        "moto": ">=0.0,<1.0",
+                        # Moto drops support for python2.7 after 1.x.x
+                        "moto": "~=1.3.0",
+                        "python-jose[cryptography]": "~=3.2.0",
+                        "pyyaml": "~=5.3.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -1369,7 +1411,23 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "boto": latest,
+                        "botocore": "~=1.19.0",
+                        "boto3": "~=1.16.0",
+                        "python-jose[cryptography]": "~=3.2.0",
+                        # Moto drops support for python2.7 after 1.x.x and no longer offers < 1.0.0
+                        "moto": "~=1.3.0",
+                        "cfn-lint": "~=0.37.0",
+                        "Jinja2": "~=2.11.0",
+                        "rsa": "<4.7.1",
+                        "pyyaml": "~=5.3.0",
+                    },
+                )
+            ],
         ),
         Venv(
             name="botocore",
@@ -2434,7 +2492,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": latest,
+                "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
                 "flask": latest,
