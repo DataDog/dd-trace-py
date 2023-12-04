@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+import urllib.parse
 
 import attr
 import pkg_resources
@@ -961,7 +962,15 @@ class SnapshotTest(object):
 
 
 @contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
+def snapshot_context(
+    token,
+    agent_sample_rate_by_service=None,
+    ignores=None,
+    tracer=None,
+    async_mode=True,
+    variants=None,
+    wait_for_num_traces=None,
+):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -994,9 +1003,14 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
-
         try:
-            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+            query = urllib.parse.urlencode(
+                {
+                    "test_session_token": token,
+                    "agent_sample_rate_by_service": json.dumps(agent_sample_rate_by_service or {}),
+                }
+            )
+            conn.request("GET", "/test/session/start?" + query)
         except Exception as e:
             pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
