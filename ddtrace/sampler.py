@@ -149,7 +149,7 @@ class RateByServiceSampler(BasePrioritySampler):
         env="",  # type: str
     ):
         # type: (...) -> None
-        self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
+        self._by_service_samplers[self._key(service, env)] = _AgentRateSampler(sample_rate)
 
     def sample(self, span, allow_false=True):
         sampled, sampler = self._make_sampling_decision(span)
@@ -162,7 +162,7 @@ class RateByServiceSampler(BasePrioritySampler):
         return not allow_false or sampled
 
     def _choose_priority_category(self, sampler):
-        # type: (bool) -> str
+        # type: (BaseSampler) -> str
         if sampler is self._default_sampler:
             return _PRIORITY_CATEGORY.DEFAULT
         elif isinstance(sampler, _AgentRateSampler):
@@ -180,7 +180,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
-        samplers = {}
+        samplers = {}  # type: Dict[str, RateSampler]
         for key, sample_rate in iteritems(rate_by_service):
             samplers[key] = _AgentRateSampler(sample_rate)
 
@@ -309,17 +309,21 @@ class DatadogSampler(RateByServiceSampler):
         """
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
-        sampler = None
+        sampler = self._default_sampler  # type: BaseSampler
+        sample_rate = self.sample_rate
         if matched_rule:
             sampled = matched_rule.sample(span)
+            sample_rate = matched_rule.sample_rate
         else:
             sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
+            if isinstance(sampler, RateSampler):
+                sample_rate = sampler.sample_rate
 
         _set_sampling_tags(
             span,
             sampled,
-            matched_rule.sample_rate if matched_rule else sampler.sample_rate,
-            self._choose_priority_category(matched_rule, sampler),
+            sample_rate,
+            self._choose_priority_category_with_rule(matched_rule, sampler),
         )
         cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
@@ -327,9 +331,9 @@ class DatadogSampler(RateByServiceSampler):
             return True
         return not cleared_rate_limit or sampled
 
-    def _choose_priority_category(self, matched_rule, sampler):
-        # type: (bool, RateSampler) -> str
-        if matched_rule:
+    def _choose_priority_category_with_rule(self, rule, sampler):
+        # type: (Optional[SamplingRule], BaseSampler) -> str
+        if rule:
             return _PRIORITY_CATEGORY.RULE
         if self.limiter._has_been_configured:
             return _PRIORITY_CATEGORY.USER
