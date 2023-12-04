@@ -56,7 +56,7 @@ def test_inject(tracer):  # noqa: F811
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
 
-def test_inject_with_baggage_http_propagation(tracer):
+def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
         ctx._set_baggage_item("key1", "val1")
@@ -296,7 +296,7 @@ def test_extract(tracer):  # noqa: F811
             }
 
 
-def test_extract_with_baggage_http_propagation(tracer):
+def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         headers = {
             "x-datadog-trace-id": "1234",
