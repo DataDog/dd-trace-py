@@ -359,7 +359,7 @@ jobs:
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
         run: pytest -k 'not test_pool_timeout'
 
-  mako-testsuite-1_1_4:
+  mako-testsuite-1_3_0:
     runs-on: ubuntu-latest
     needs: needs-run
     env:
@@ -380,7 +380,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sqlalchemy/mako
-          ref: rel_1_1_4
+          ref: rel_1_3_0
           path: mako
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success'
@@ -557,7 +557,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: |
           . ../ddtrace/.github/workflows/setup-tox.sh py39
-          
+
           pip install -e .
           pytest -p no:warnings -k "not test_import" tests/
 
