@@ -27,7 +27,7 @@ class TestTraceAcceptedByAgent:
         [
             ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": "some_str_3"}),
             ({"env": "test-env", b"tag1": "some_str_1", b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-            ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": u"😐"}),
+            ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": "😐"}),
         ],
     )
     def test_trace_with_meta_accepted_by_agent(self, tags):
@@ -48,7 +48,7 @@ class TestTraceAcceptedByAgent:
         [
             ({"num1": 12345, "num2": 53421, "num3": 1, "num4": 10}),
             ({b"num1": 123.45, b"num2": 543.21, b"num3": 11.0, b"num4": 1.20}),
-            ({u"😐": "123.45", b"num2": "1", "num3": "999.99", "num4": "12345"}),
+            ({"😐": "123.45", b"num2": "1", "num3": "999.99", "num4": "12345"}),
         ],
     )
     def test_trace_with_metrics_accepted_by_agent(self, metrics):

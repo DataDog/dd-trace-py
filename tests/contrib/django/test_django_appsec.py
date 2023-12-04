@@ -15,14 +15,14 @@ from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from tests.appsec.test_processor import _IP
 from tests.appsec.test_processor import RESPONSE_CUSTOM_HTML
 from tests.appsec.test_processor import RESPONSE_CUSTOM_JSON
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.test_processor import RULES_SRB
-from tests.appsec.test_processor import RULES_SRBCA
 from tests.appsec.test_processor import RULES_SRB_METHOD
 from tests.appsec.test_processor import RULES_SRB_RESPONSE
-from tests.appsec.test_processor import _IP
+from tests.appsec.test_processor import RULES_SRBCA
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -390,7 +390,11 @@ def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True, client_ip_header="Fooipheader")):
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, url="/?a=1&b&c=d", headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"}
+            client,
+            test_spans,
+            tracer,
+            url="/?a=1&b&c=d",
+            headers={"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"},  # noqa: E501
         )
         assert response.status_code == 200
         # X_REAL_IP should be ignored since the client provided a header

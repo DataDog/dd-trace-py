@@ -7,6 +7,7 @@ from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
@@ -32,6 +33,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
+APPSEC_PRODUCTS = [PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD]
+
 
 class AppSecRC(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
@@ -41,6 +44,10 @@ class AppSecRC(PubSub):
     def __init__(self, _preprocess_results, callback):
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "ASM")
+
+
+def _forksafe_appsec_rc():
+    remoteconfig_poller.start_subscribers_by_product(APPSEC_PRODUCTS)
 
 
 def enable_appsec_rc(test_tracer=None):
@@ -78,14 +85,13 @@ def enable_appsec_rc(test_tracer=None):
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
 
+    forksafe.register(_forksafe_appsec_rc)
+
 
 def disable_appsec_rc():
     # only used to avoid data leaks between tests
-
-    remoteconfig_poller.unregister(PRODUCTS.ASM_FEATURES)
-    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-    remoteconfig_poller.unregister(PRODUCTS.ASM)
-    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
+    for product_name in APPSEC_PRODUCTS:
+        remoteconfig_poller.unregister(product_name)
 
 
 def _add_rules_to_list(features, feature, message, ruleset):

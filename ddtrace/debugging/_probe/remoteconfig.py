@@ -14,11 +14,11 @@ import six
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._expressions import dd_compile
-from ddtrace.debugging._probe.model import CaptureLimits
-from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineProbe
@@ -288,8 +288,7 @@ def get_probes(config, status_logger):
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
-            message=str(e),
-            exc_info=sys.exc_info(),
+            error=(type(e).__name__, str(e)),
         )
         return []
 

@@ -1,17 +1,17 @@
 import flask
 import flask_login
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...appsec._utils import _UserInfoRetriever
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
+from .. import trace_utils
 from ..flask.wrappers import get_current_app
 
 

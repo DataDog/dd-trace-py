@@ -36,7 +36,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         import threading
         import time
 
-        import psutil
+        from ddtrace.vendor import psutil
 
         # Something to bump CPU utilization
         def busy_wait(duration_ms):
@@ -116,7 +116,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         _ = [thread.join() for thread in threads]
 
         # Check for RSS
-        wasted_memory = [" "] * 16 * 1024 ** 2  # 16 megs
+        wasted_memory = [" "] * 16 * 1024**2  # 16 megs
         self.assertTrue(check_metrics(*get_metrics()))
         del wasted_memory
 

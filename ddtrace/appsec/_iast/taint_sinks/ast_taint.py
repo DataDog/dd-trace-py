@@ -12,12 +12,12 @@ if TYPE_CHECKING:
     from typing import Callable
 
 
-def ast_funcion(
+def ast_function(
     func,  # type: Callable
+    flag_added_args,  # type: Any
     *args,  # type: Any
-    **kwargs  # type: Any
+    **kwargs,  # type: Any
 ):  # type: (...) -> Any
-
     cls = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""
@@ -26,6 +26,9 @@ def ast_funcion(
             cls_name = cls.__class__.__name__
         except AttributeError:
             pass
+
+    if flag_added_args > 0:
+        args = args[flag_added_args:]
 
     if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
         # Weak, run the analyzer

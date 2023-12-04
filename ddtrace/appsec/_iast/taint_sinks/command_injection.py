@@ -1,7 +1,7 @@
 import re
+from typing import TYPE_CHECKING
 from typing import List
 from typing import Set
-from typing import TYPE_CHECKING
 from typing import Union
 
 import six
@@ -179,7 +179,7 @@ def _iast_report_cmdi(shell_args):
     if isinstance(shell_args, (list, tuple)):
         for arg in shell_args:
             if get_tainted_ranges(arg):
-                report_cmdi = join_aspect(" ".join, " ", shell_args)
+                report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
                 break
     elif get_tainted_ranges(shell_args):
         report_cmdi = shell_args

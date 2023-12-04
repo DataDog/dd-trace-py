@@ -15,8 +15,6 @@ try:
 # catch async function syntax errors when using Python<3.7 with no async support
 except SyntaxError:
     pass
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace.contrib.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.psycopg.cursor import Psycopg3TracedCursor
@@ -24,6 +22,7 @@ from ddtrace.contrib.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.psycopg.extensions import _unpatch_extensions
 from ddtrace.contrib.psycopg.extensions import get_psycopg2_extensions
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
@@ -40,7 +39,8 @@ try:
     # using unwrap
     _original_connect = psycopg_import.Connection.__dict__["connect"]
     _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-except ImportError:
+# AttributeError can happen due to circular imports under certain integration methods
+except (ImportError, AttributeError):
     pass
 
 
@@ -119,7 +119,6 @@ def _patch(psycopg_module):
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
-
         # patch all psycopg2 extensions
         _psycopg2_extensions = get_psycopg2_extensions(psycopg_module)
         config.psycopg["_extensions_to_patch"] = _psycopg2_extensions
@@ -129,7 +128,6 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
-
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))

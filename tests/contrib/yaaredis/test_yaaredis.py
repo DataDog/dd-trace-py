@@ -3,12 +3,12 @@ import os
 import uuid
 
 import pytest
-from wrapt import ObjectProxy
 import yaaredis
 
 from ddtrace import Pin
 from ddtrace.contrib.yaaredis.patch import patch
 from ddtrace.contrib.yaaredis.patch import unpatch
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
@@ -89,7 +89,7 @@ async def test_basics(snapshot_context, traced_yaaredis):
 @pytest.mark.asyncio
 async def test_unicode(snapshot_context, traced_yaaredis):
     with snapshot_context():
-        await traced_yaaredis.get(u"😐")
+        await traced_yaaredis.get("😐")
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_pipeline_traced(snapshot_context, traced_yaaredis):
     with snapshot_context():
         p = await traced_yaaredis.pipeline(transaction=False)
         await p.set("blah", 32)
-        await p.rpush("foo", u"éé")
+        await p.rpush("foo", "éé")
         await p.hgetall("xxx")
         await p.execute()
 

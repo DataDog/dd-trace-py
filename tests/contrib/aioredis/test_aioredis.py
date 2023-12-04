@@ -3,13 +3,13 @@ import os
 
 import aioredis
 import pytest
-from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.aioredis.patch import aioredis_version
 from ddtrace.contrib.aioredis.patch import patch
 from ddtrace.contrib.aioredis.patch import unpatch
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -87,7 +87,7 @@ async def test_basic_request(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_unicode_request(redis_client):
-    val = await redis_client.get(u"😐")
+    val = await redis_client.get("😐")
     assert val is None
 
 
@@ -286,7 +286,6 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
-
     with tracer.trace("web-request", service="test"):
         if aioredis_version >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)
