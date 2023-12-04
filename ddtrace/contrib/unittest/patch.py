@@ -574,7 +574,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result.stopTest(test=instance)
             else:
                 if _is_test_coverage_enabled(instance):
-                    if not _module_has_dd_coverage_enabled(unittest):
+                    if not _module_has_dd_coverage_enabled(unittest, silent_mode=True):
                         unittest._dd_coverage = _start_coverage(root_directory)
                     _switch_coverage_context(unittest._dd_coverage, fqn_test)
                 result = func(*args, **kwargs)
