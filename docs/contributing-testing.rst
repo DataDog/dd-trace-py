@@ -170,3 +170,23 @@ Lastly, we will register it as a suite in the same file under ``"suites":``:
     ],
 
 Once you've completed these steps, CircleCI will run the new test suite.
+
+How do I update a Riot environment to use the latest version of a package?
+--------------------------------------------------------------------------
+
+Reading through the above example and others in ``riotfile.py``, you may notice that some package versions are specified
+as the variable ``latest``. When the Riotfile is compiled into the ``.txt`` files in the ``.riot`` directory, ``latest`` tells
+the compiler to pin the newest version of the package available on PyPI according to semantic versioning.
+
+Because this version resolution happens during Riotfile compilation, ``latest`` doesn't always mean "latest" once the compiled
+requirements files are checked into source control. In order to stay current, these requirements files need to be recompiled
+periodically.
+
+Assume you have a ``Venv`` instance in the Riotfile that uses the ``latest`` variable. Note the ``name`` field of this
+environment object.
+
+1. Run ``scripts/ddtest`` to enter a shell in the testrunner container
+2. ``export VENV_NAME=<name_you_noted_above>``
+3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
+   ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
+4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
