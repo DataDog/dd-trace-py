@@ -1,8 +1,8 @@
 import os
 import sys
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import mock
 import pytest
@@ -17,7 +17,7 @@ from tests.utils import override_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 
 def pytest_configure(config):
@@ -118,6 +118,16 @@ def mock_logs(scope="session"):
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_writer(scope="session"):
+    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
     yield m
     patcher.stop()
 

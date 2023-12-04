@@ -6,7 +6,6 @@ https://github.com/cherrypy/cherrypy/blob/master/cherrypy/tutorial/tut01_hellowo
 
 import logging
 import os.path
-import sys
 
 # Import CherryPy global namespace
 import cherrypy
@@ -24,10 +23,7 @@ class TestError(Exception):
     pass
 
 
-if sys.version_info[0] < 3:
-    UNICODE_ENDPOINT = "üŋïĉóđē".encode("utf-8")
-else:
-    UNICODE_ENDPOINT = "üŋïĉóđē"
+UNICODE_ENDPOINT = "üŋïĉóđē"
 
 
 class StubApp:

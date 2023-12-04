@@ -1,5 +1,4 @@
 import os
-import sys
 
 import aiohttp
 import pytest
@@ -113,10 +112,7 @@ async def test():
         for h in ("x-datadog-trace-id", "x-datadog-parent-id", "x-datadog-sampling-priority"):
             assert h not in headers
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     if variant == "global":
@@ -143,10 +139,7 @@ async def test():
         async with session.get(URL_200) as resp:
             pass
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_SERVICE"] = "global-service-name"
@@ -174,10 +167,7 @@ async def test():
         async with session.get(URL_200) as resp:
             pass
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     if schema_version is not None:
@@ -202,10 +192,7 @@ async def test():
         async with session.get(URL_200) as resp:
             pass
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, err
@@ -213,7 +200,6 @@ else:
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python versions below 3.6 sort dictionaries differently")
 async def test_trace_query_string(snapshot_context):
     """
     When trace_query_string is enabled

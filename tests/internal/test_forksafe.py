@@ -2,8 +2,6 @@ from collections import Counter
 import os
 
 import pytest
-import six
-from six.moves import _thread
 
 from ddtrace.internal import forksafe
 
@@ -144,10 +142,7 @@ def test_hook_exception():
     assert exit_code == 12
 
 
-if six.PY2:
-    lock_release_exc_type = _thread.error
-else:
-    lock_release_exc_type = RuntimeError
+lock_release_exc_type = RuntimeError
 
 
 def test_lock_basic():
@@ -333,11 +328,11 @@ def test_gevent_gunicorn_behaviour():
 
     # ---- Application code ----
 
-    import os  # noqa
-    import sys  # noqa
+    import os  # noqa:F401
+    import sys  # noqa:F401
 
-    import gevent.hub  # noqa
-    import gevent.monkey  # noqa
+    import gevent.hub  # noqa:F401
+    import gevent.monkey  # noqa:F401
 
     def run_child():
         # We mimic what gunicorn does in child processes

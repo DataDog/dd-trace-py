@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 
-import preload  # noqa
+import preload  # noqa:F401
 
 
 # Check for and import any sitecustomize that would have normally been used
@@ -14,7 +14,7 @@ if bootstrap_dir in abs_paths:
     our_sitecustomize_module = sys.modules["sitecustomize"]
     del sys.modules["sitecustomize"]
     try:
-        import sitecustomize  # noqa
+        import sitecustomize  # noqa:F401
     except ImportError:
         # If an additional sitecustomize is not found then put our
         # sitecustomize back.
@@ -23,6 +23,6 @@ if bootstrap_dir in abs_paths:
         sys.path.insert(index, bootstrap_dir)
 else:
     try:
-        import sitecustomize  # noqa
+        import sitecustomize  # noqa:F401
     except ImportError:
         pass
