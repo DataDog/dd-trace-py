@@ -258,7 +258,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
         super()._record_request(pin, integration, span, args, kwargs)
         for idx, m in enumerate(kwargs.get("messages", [])):
             if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(m.get("content", "")))
+                span.set_tag_str(
+                    "openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", "")))
+                )
             span.set_tag_str("openai.request.messages.%d.role" % idx, m.get("role", ""))
             span.set_tag_str("openai.request.messages.%d.name" % idx, m.get("name", ""))
 
@@ -270,8 +272,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             idx = choice.index
+            finish_reason = getattr(choice, "finish_reason", None)
             message = choice.message
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice.finish_reason))
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
             span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice.message.role)
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str(

@@ -484,6 +484,38 @@ def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
         )
 
 
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_chat_completion_image_input",
+    ignores=[
+        "meta.http.useragent",
+        "meta.openai.api_type",
+        "meta.openai.api_base",
+    ],
+)
+def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
+    image_url = (
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+        ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    )
+    with openai_vcr.use_cassette("chat_completion_image_input.yaml"):
+        client = openai.OpenAI()
+        client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What’s in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": image_url,
+                        },
+                    ],
+                }
+            ],
+        )
+
+
 def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_chat_completion",
