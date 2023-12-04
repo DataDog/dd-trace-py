@@ -136,7 +136,7 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
                 "simplejson": latest,
-                "psycopg2": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
