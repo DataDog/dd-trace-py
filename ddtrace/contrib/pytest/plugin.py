@@ -21,6 +21,9 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.coverage.patch import _coverage_data
+from ddtrace.contrib.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import DDTRACE_INCLUDE_CLASS_HELP_MSG
 from ddtrace.contrib.pytest.constants import FRAMEWORK
@@ -45,6 +48,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
 from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
@@ -420,6 +424,8 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
+        if _CIVisibility._instance._collect_coverage_enabled:
+            patch_coverage()
 
         _store_span(session, test_session_span)
 
@@ -432,6 +438,9 @@ def pytest_sessionfinish(session, exitstatus):
             if _CIVisibility.test_skipping_enabled():
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
+            if _CIVisibility._instance._collect_coverage_enabled:
+                _add_pct_covered_to_span(_coverage_data, test_session_span)
+                unpatch_coverage()
             test_session_span.finish()
         _CIVisibility.disable()
 
