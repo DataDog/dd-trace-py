@@ -1,7 +1,7 @@
 from collections import defaultdict
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -41,14 +41,14 @@ from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import DefaultDict  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 log = get_logger(__name__)
 

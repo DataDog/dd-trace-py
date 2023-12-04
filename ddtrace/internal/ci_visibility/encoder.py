@@ -1,6 +1,6 @@
 import json
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -19,12 +19,12 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Optional
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
 
-    from ..span import Span
+    from ..span import Span  # noqa:F401
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):

@@ -1,5 +1,5 @@
 ---
-default_branch: origin/2.x
+default_branch: origin/main
 unreleased_version_title: Unreleased
 sections:
   # The prelude section is implicitly included.

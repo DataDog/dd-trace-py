@@ -1,6 +1,5 @@
 import logging
 
-import pytest
 import six
 
 import ddtrace
