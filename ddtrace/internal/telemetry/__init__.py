@@ -13,7 +13,7 @@ from .writer import TelemetryWriter
 from ddtrace.settings import _config as config
 
 
-telemetry_writer = TelemetryWriter()
+telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
 
 __all__ = ["telemetry_writer"]
 
