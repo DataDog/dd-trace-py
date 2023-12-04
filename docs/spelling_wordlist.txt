@@ -128,6 +128,7 @@ LLM
 langchain
 lifecycle
 linters
+lockfiles
 logbook
 loguru
 lookups
@@ -229,6 +230,7 @@ submodules
 substring
 testagent
 TestCase
+testrunner
 timestamp
 tokenizer
 tracecontext
