@@ -444,6 +444,8 @@ def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
     ],
 )
 def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     image_url = (
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
