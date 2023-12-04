@@ -276,6 +276,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+        self._first_trace = True
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -708,6 +709,12 @@ class Tracer(object):
             span._local_root = span
             if config.report_hostname:
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+
+        if self._first_trace:
+            span._meta["_dd.install.id"] = config._install_id
+            span._meta["_dd.install.time"] = config._install_time
+            span._meta["_dd.install.type"] = config._install_type
+            self._first_trace = False
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
