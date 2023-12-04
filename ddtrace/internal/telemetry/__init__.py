@@ -9,8 +9,9 @@ To start the service manually, invoke the ``enable`` method::
 import os
 import sys
 
-from .writer import TelemetryWriter
 from ddtrace.settings import _config as config
+
+from .writer import TelemetryWriter
 
 
 telemetry_writer = TelemetryWriter()  # type: TelemetryWriter

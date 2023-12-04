@@ -18,8 +18,8 @@ import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
 
-from .base import CeleryBaseTestCase
 from ...utils import override_global_config
+from .base import CeleryBaseTestCase
 
 
 class MyException(Exception):
