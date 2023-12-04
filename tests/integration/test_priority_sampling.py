@@ -126,9 +126,9 @@ def test_agent_sample_rate_keep():
     # Subsequent traces should have the rate applied.
     with tracer.trace("test", service="test") as span:
         pass
-    # TODO this metric should be set
-    assert span.get_metric("_dd.agent_psr") != pytest.approx(0.9999)
+    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.9999)
     assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
+    assert span.get_tag("_dd.p.dm") == "-1"
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -147,6 +147,6 @@ def test_agent_sample_rate_reject():
     # Subsequent traces should have the rate applied.
     with tracer.trace("test", service="test") as span:
         pass
-    # TODO this metric should be set
-    assert span.get_metric("_dd.agent_psr") != pytest.approx(0.0001)
+    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
     assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
+    assert span.get_tag("_dd.p.dm") == "-1"
