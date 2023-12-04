@@ -488,9 +488,8 @@ class TelemetryWriter(PeriodicService):
         if not config._telemetry_dependency_collection:
             return
 
-        with self._lock:
-            sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
-            updated_deps = update_imported_dependencies(self._imported_dependencies, sys_modules_paths)
+        sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
+        updated_deps = update_imported_dependencies(self._imported_dependencies, sys_modules_paths)
 
         if updated_deps:
             payload = {"dependencies": updated_deps}
