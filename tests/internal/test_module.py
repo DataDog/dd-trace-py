@@ -415,3 +415,25 @@ def test_module_watchdog_weakref():
     instance = ModuleWatchdog._instance
     instance._om = None
     assert ModuleWatchdog._instance._origin_map
+
+
+def test_module_watchdog_namespace_import():
+    ModuleWatchdog.install()
+
+    ns_imported = False
+
+    def ns_hook(module):
+        nonlocal ns_imported
+        ns_imported = True
+
+    ModuleWatchdog.register_module_hook("namespace_test", ns_hook)
+
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+
+        import namespace_test.ns_module  # noqa:F401
+
+        assert ns_imported
+    finally:
+        sys.path.pop(0)
+        ModuleWatchdog.uninstall()
