@@ -287,7 +287,7 @@ def format_aspect(
     orig_function,  # type: Optional[Callable]
     flag_added_args,  # type: int
     *args,  # type: Any
-    **kwargs,  # type: Dict[str, Any]
+    **kwargs  # type: Dict[str, Any]
 ):  # type: (...) -> str
     if not orig_function:
         orig_function = args[0].format
