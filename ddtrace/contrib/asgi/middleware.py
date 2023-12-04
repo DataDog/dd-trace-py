@@ -193,9 +193,9 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            parse_body_result = await core.dispatch("asgi.request.parse.body", receive, headers)[0]
+            parse_body_result = core.dispatch("asgi.request.parse.body", receive, headers)[0]
             if len(parse_body_result) == 1:
-                receive, body = parse_body_result[0]
+                receive, body = await parse_body_result[0]
             else:
                 body = None
 
