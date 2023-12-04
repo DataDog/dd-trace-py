@@ -378,7 +378,6 @@ class TelemetryWriter(PeriodicService):
         # Reset the error after it has been reported.
         self._error = (0, "")
         self.add_event(payload, "app-started")
-        self._app_dependencies_loaded_event()
 
     def _app_heartbeat_event(self):
         # type: () -> None
@@ -442,7 +441,7 @@ class TelemetryWriter(PeriodicService):
     def _update_dependencies_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
-        if not config._telemetry_dependency_collection:
+        if not config._telemetry_dependency_collection or not self._enabled:
             return
 
         for module_path in newly_imported_deps:
@@ -485,7 +484,7 @@ class TelemetryWriter(PeriodicService):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
         from ddtrace.internal.module import origin
 
-        if not config._telemetry_dependency_collection:
+        if not config._telemetry_dependency_collection or not self._enabled:
             return
 
         sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]

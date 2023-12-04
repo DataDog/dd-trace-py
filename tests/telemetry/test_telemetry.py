@@ -104,7 +104,7 @@ else:
 
     runtime_id = stdout.strip().decode("utf-8")
 
-    requests = _assert_dependencies_sort_and_remove(test_agent_session.get_requests())
+    requests = test_agent_session.get_requests()
 
     # We expect 2 events from the parent process to get sent (without dependencies), but none from the child process
     assert len(requests) == 2

@@ -427,7 +427,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
             for hook in hooks:
                 hook(module)
-        if config._telemetry_dependency_collection:
+        if config._telemetry_enabled and config._telemetry_dependency_collection:
             telemetry_writer._new_dependencies.add(str(module_path))
 
     @classmethod

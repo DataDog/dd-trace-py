@@ -121,6 +121,7 @@ def _package_file_mapping():
 
 def filename_to_package(filename):
     # type: (str) -> t.Optional[Distribution]
+
     mapping = _package_file_mapping()
     if mapping is None:
         return None

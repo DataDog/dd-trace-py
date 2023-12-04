@@ -17,7 +17,6 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-from tests.telemetry.test_telemetry import _assert_dependencies_sort_and_remove
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -63,11 +62,11 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     # force a flush
     telemetry_writer.periodic()
 
-    requests = _assert_dependencies_sort_and_remove(test_agent_session.get_requests())
+    requests = test_agent_session.get_requests()
     assert len(requests) == 1
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = test_agent_session.get_events()
     assert len(events) == 1
 
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
