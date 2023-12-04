@@ -486,12 +486,9 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
-<<<<<<< HEAD
-=======
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
->>>>>>> f2d38250fc (ci: test against the latest minor release of Mako (#7826))
 
   asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
