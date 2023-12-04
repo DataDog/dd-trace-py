@@ -14,7 +14,7 @@ interactions:
       DD-APPLICATION-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/unstable/llm-obs/records
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
   response:
     body:
       string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'

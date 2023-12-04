@@ -2,7 +2,7 @@ import base64
 import gzip
 import json
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
@@ -18,7 +18,7 @@ from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa:F401
 
 
 log = get_logger(__name__)

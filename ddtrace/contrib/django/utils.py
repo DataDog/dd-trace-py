@@ -1,10 +1,10 @@
 import json
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
@@ -395,7 +395,10 @@ def _after_request_tags(pin, span: Span, request, response):
                 status,
                 response_cookies,
             )
-            core.dispatch("django.after_request_headers.finalize", response.content, None)
+            content = getattr(response, "content", None)
+            if content is None:
+                content = getattr(response, "streaming_content", None)
+            core.dispatch("django.after_request_headers.finalize", content, None)
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

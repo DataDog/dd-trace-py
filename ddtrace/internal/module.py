@@ -1,5 +1,6 @@
 import abc
 from collections import defaultdict
+from importlib._bootstrap import _init_module_attrs
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
@@ -8,14 +9,14 @@ import sys
 from types import ModuleType
 from typing import Any
 from typing import Callable
-from typing import DefaultDict
+from typing import DefaultDict  # noqa:F401
 from typing import Dict
 from typing import Iterable
-from typing import List
+from typing import List  # noqa:F401
 from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Type
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Type  # noqa:F401
 from typing import Union
 from typing import cast
 from weakref import WeakValueDictionary as wvdict
@@ -131,24 +132,22 @@ def find_loader(fullname):
     return getattr(find_spec(fullname), "loader", None)
 
 
-LEGACY_DICT_COPY = sys.version_info < (3, 6)
+def is_namespace_spec(spec: ModuleSpec) -> bool:
+    return spec.origin is None and spec.submodule_search_locations is not None
 
 
-class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader):
-        # type: (Loader) -> None
+class _ImportHookChainedLoader:
+    def __init__(self, loader, spec=None):
+        # type: (Optional[Loader], Optional[ModuleSpec]) -> None
         self.loader = loader
+        self.spec = spec
+
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
-        # DEV: load_module is deprecated so we define it at runtime if also
-        # defined by the default loader. We also check and define for the
-        # methods that are supposed to replace the load_module functionality.
-        if hasattr(loader, "load_module"):
-            self.load_module = self._load_module  # type: ignore[assignment]
         if hasattr(loader, "create_module"):
-            self.create_module = self._create_module  # type: ignore[assignment]
+            self.create_module = self._create_module
         if hasattr(loader, "exec_module"):
-            self.exec_module = self._exec_module  # type: ignore[assignment]
+            self.exec_module = self._exec_module
 
     def __getattribute__(self, name):
         if name == "__class__":
@@ -167,18 +166,33 @@ class _ImportHookChainedLoader(Loader):
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
 
-    def _load_module(self, fullname):
-        # type: (str) -> ModuleType
-        module = self.loader.load_module(fullname)
+    def load_module(self, fullname):
+        # type: (str) -> Optional[ModuleType]
+        if self.loader is None:
+            if self.spec is None:
+                return None
+            sys.modules[self.spec.name] = module = ModuleType(fullname)
+            _init_module_attrs(self.spec, module)
+        else:
+            module = self.loader.load_module(fullname)
+
         for callback in self.callbacks.values():
             callback(module)
 
         return module
 
     def _create_module(self, spec):
-        return self.loader.create_module(spec)
+        if self.loader is not None:
+            return self.loader.create_module(spec)
 
-    def _exec_module(self, module):
+        if is_namespace_spec(spec):
+            module = ModuleType(spec.name)
+            _init_module_attrs(spec, module)
+            return module
+
+        return None
+
+    def _exec_module(self, module: ModuleType) -> None:
         # Collect and run only the first hook that matches the module.
         pre_exec_hook = None
 
@@ -186,7 +200,9 @@ class _ImportHookChainedLoader(Loader):
             if isinstance(_, ModuleWatchdog):
                 try:
                     for cond, hook in _._pre_exec_module_hooks:
-                        if isinstance(cond, str) and cond == module.__name__ or cond(module.__name__):
+                        if (isinstance(cond, str) and cond == module.__name__) or (
+                            callable(cond) and cond(module.__name__)
+                        ):
                             # Several pre-exec hooks could match, we keep the first one
                             pre_exec_hook = hook
                             break
@@ -199,7 +215,12 @@ class _ImportHookChainedLoader(Loader):
         if pre_exec_hook:
             pre_exec_hook(self, module)
         else:
-            self.loader.exec_module(module)
+            if self.loader is None:
+                spec = getattr(module, "__spec__", None)
+                if spec is not None and is_namespace_spec(spec):
+                    sys.modules[spec.name] = module
+            else:
+                self.loader.exec_module(module)
 
         for callback in self.callbacks.values():
             callback(module)
@@ -243,29 +264,33 @@ class BaseModuleWatchdog(abc.ABC):
         raise NotImplementedError()
 
     def find_module(self, fullname, path=None):
-        # type: (str, Optional[str]) -> Union[Loader, None]
+        # type: (str, Optional[str]) -> Optional[Loader]
         if fullname in self._finding:
             return None
 
         self._finding.add(fullname)
 
         try:
-            loader = find_loader(fullname)
-            if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    loader = _ImportHookChainedLoader(loader)
+            original_loader = find_loader(fullname)
+            if original_loader is not None:
+                loader = (
+                    _ImportHookChainedLoader(original_loader)
+                    if not isinstance(original_loader, _ImportHookChainedLoader)
+                    else original_loader
+                )
 
                 loader.add_callback(type(self), self.after_import)
 
-                return loader
+                return cast(Loader, loader)
 
         finally:
             self._finding.remove(fullname)
 
         return None
 
-    def find_spec(self, fullname, path=None, target=None):
-        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
+    def find_spec(
+        self, fullname: str, path: Optional[str] = None, target: Optional[ModuleType] = None
+    ) -> Optional[ModuleSpec]:
         if fullname in self._finding:
             return None
 
@@ -283,11 +308,10 @@ class BaseModuleWatchdog(abc.ABC):
 
             loader = getattr(spec, "loader", None)
 
-            if loader is not None:
-                if not isinstance(loader, _ImportHookChainedLoader):
-                    spec.loader = _ImportHookChainedLoader(loader)
+            if not isinstance(loader, _ImportHookChainedLoader):
+                spec.loader = cast(Loader, _ImportHookChainedLoader(loader, spec))
 
-                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
+            cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 

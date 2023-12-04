@@ -5,13 +5,13 @@ import codecs
 import os
 import re
 from sys import builtin_module_names
-from typing import TYPE_CHECKING
+from types import ModuleType
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Tuple
 
 
 if TYPE_CHECKING:
-    from types import ModuleType
-    from typing import Optional
-    from typing import Tuple
+    from typing import Optional  # noqa:F401
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
@@ -123,8 +123,7 @@ def _remove_flask_run(text):  # type (str) -> str
     return new_text
 
 
-def astpatch_module(module, remove_flask_run=False):
-    # type: (ModuleType, bool) -> Tuple[str, str]
+def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
     module_name = module.__name__
     module_path = str(origin(module))
     try:

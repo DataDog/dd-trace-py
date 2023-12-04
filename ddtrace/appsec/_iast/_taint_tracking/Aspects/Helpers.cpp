@@ -6,20 +6,6 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-size_t
-get_pyobject_size(PyObject* obj)
-{
-    size_t len_candidate_text{ 0 };
-    if (PyUnicode_Check(obj)) {
-        len_candidate_text = PyUnicode_GET_LENGTH(obj);
-    } else if (PyBytes_Check(obj)) {
-        len_candidate_text = PyBytes_Size(obj);
-    } else if (PyByteArray_Check(obj)) {
-        len_candidate_text = PyByteArray_Size(obj);
-    }
-    return len_candidate_text;
-}
-
 template<class StrType>
 StrType
 common_replace(const py::str& string_method,
@@ -34,7 +20,7 @@ common_replace(const py::str& string_method,
         return res;
     }
 
-    set_ranges(res.ptr(), api_shift_taint_ranges(candidate_text_ranges, 0));
+    set_ranges(res.ptr(), shift_taint_ranges(candidate_text_ranges, 0));
     return res;
 }
 
@@ -94,25 +80,37 @@ range_sort(const TaintRangePtr& t1, const TaintRangePtr& t2)
     return t1->start < t2->start;
 }
 
+template<class StrType>
+StrType
+_all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode)
+{
+    TaintRangeRefs text_ranges = api_get_ranges(text);
+    return AsFormattedEvidence<StrType>(text, text_ranges, tag_mapping_mode, nullopt);
+}
+
+template<class StrType>
+StrType
+_int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode)
+{
+    return AsFormattedEvidence<StrType>(text, text_ranges, tag_mapping_mode, nullopt);
+}
+
 // TODO OPTIMIZATION: Remove py::types once this isn't used in Python
 template<class StrType>
 StrType
-as_formatted_evidence(StrType& text,
-                      optional<TaintRangeRefs>& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges)
+AsFormattedEvidence(StrType& text,
+                    TaintRangeRefs& text_ranges,
+                    const optional<TagMappingMode>& tag_mapping_mode,
+                    const optional<const py::dict>& new_ranges)
 {
-    if (!text_ranges) {
-        text_ranges = api_get_ranges(text);
-    }
-    if (text_ranges->empty()) {
+    if (text_ranges.empty()) {
         return text;
     }
     vector<StrType> res_vector;
     long index = 0;
 
-    sort(text_ranges->begin(), text_ranges->end(), &range_sort);
-    for (const auto& taint_range : *text_ranges) {
+    sort(text_ranges.begin(), text_ranges.end(), &range_sort);
+    for (const auto& taint_range : text_ranges) {
         py::object content;
         if (!tag_mapping_mode) {
             content = get_default_content(taint_range);
@@ -128,7 +126,7 @@ as_formatted_evidence(StrType& text,
                     // Nothing
                 }
             }
-        StrType tag = get_tag<StrType>(content);
+        auto tag = get_tag<StrType>(content);
 
         auto range_end = taint_range->start + taint_range->length;
 
@@ -143,6 +141,22 @@ as_formatted_evidence(StrType& text,
     }
     res_vector.push_back(text[py::slice(py::int_(index), nullptr, nullptr)]);
     return StrType(EVIDENCE_MARKS::BLANK).attr("join")(res_vector);
+}
+
+template<class StrType>
+StrType
+ApiAsFormattedEvidence(StrType& text,
+                       optional<TaintRangeRefs>& text_ranges,
+                       const optional<TagMappingMode>& tag_mapping_mode,
+                       const optional<const py::dict>& new_ranges)
+{
+    TaintRangeRefs _ranges;
+    if (!text_ranges) {
+        _ranges = api_get_ranges(text);
+    } else {
+        _ranges = text_ranges.value();
+    }
+    return AsFormattedEvidence<StrType>(text, _ranges, tag_mapping_mode, new_ranges);
 }
 
 vector<string>
@@ -165,10 +179,10 @@ api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_tex
 {
     py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
-    std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
-    py::bytearray result_new_id = copy_string_new_id(py::bytearray() + get<0>(result));
-    set_ranges(result_new_id.ptr(), get<1>(result));
-    return result_new_id;
+    std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
+    PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
+    set_ranges(new_result, get<1>(result));
+    return py::reinterpret_steal<py::bytearray>(new_result);
 }
 
 template<class StrType>
@@ -178,9 +192,9 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
     std::tuple result = _convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     StrType result_text = get<0>(result);
     TaintRangeRefs result_ranges = get<1>(result);
-    StrType result_new_id = copy_string_new_id(result_text);
-    set_ranges(result_new_id.ptr(), result_ranges);
-    return result_new_id;
+    PyObject* new_result = new_pyobject_id(result_text.ptr());
+    set_ranges(new_result, result_ranges);
+    return py::reinterpret_steal<StrType>(new_result);
 }
 
 unsigned long int
@@ -315,24 +329,38 @@ pyexport_aspect_helpers(py::module& m)
     m.def("common_replace", &common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
     m.def("common_replace", &common_replace<py::str>, "string_method"_a, "candidate_text"_a);
     m.def("common_replace", &common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
-    m.def("as_formatted_evidence",
-          &as_formatted_evidence<py::bytes>,
+    m.def("_all_as_formatted_evidence",
+          &_all_as_formatted_evidence<py::str>,
+          "text"_a,
+          "tag_mapping_function"_a = nullopt,
+          py::return_value_policy::move);
+    m.def("_int_as_formatted_evidence",
+          &_int_as_formatted_evidence<py::str>,
           "text"_a,
           "text_ranges"_a = nullopt,
           "tag_mapping_function"_a = nullopt,
-          "new_ranges"_a = nullopt);
+          py::return_value_policy::move);
     m.def("as_formatted_evidence",
-          &as_formatted_evidence<py::str>,
+          &ApiAsFormattedEvidence<py::bytes>,
           "text"_a,
           "text_ranges"_a = nullopt,
           "tag_mapping_function"_a = nullopt,
-          "new_ranges"_a = nullopt);
+          "new_ranges"_a = nullopt,
+          py::return_value_policy::move);
     m.def("as_formatted_evidence",
-          &as_formatted_evidence<py::bytearray>,
+          &ApiAsFormattedEvidence<py::str>,
           "text"_a,
           "text_ranges"_a = nullopt,
           "tag_mapping_function"_a = nullopt,
-          "new_ranges"_a = nullopt);
+          "new_ranges"_a = nullopt,
+          py::return_value_policy::move);
+    m.def("as_formatted_evidence",
+          &ApiAsFormattedEvidence<py::bytearray>,
+          "text"_a,
+          "text_ranges"_a = nullopt,
+          "tag_mapping_function"_a = nullopt,
+          "new_ranges"_a = nullopt,
+          py::return_value_policy::move);
     m.def("_convert_escaped_text_to_tainted_text",
           &api_convert_escaped_text_to_taint_text<py::bytes>,
           "taint_escaped_text"_a,
