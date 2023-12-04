@@ -9,7 +9,6 @@ from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
-from ddtrace.appsec._iast._taint_utils import _is_tainted_struct
 from tests.utils import override_global_config
 
 
