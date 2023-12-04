@@ -486,9 +486,6 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
-      - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
 
   asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
