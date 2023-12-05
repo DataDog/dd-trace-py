@@ -14,8 +14,8 @@ from typing import TextIO  # noqa:F401
 import six
 
 import ddtrace
-from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -599,7 +599,7 @@ class AgentWriter(HTTPWriter):
     def start(self):
         super(AgentWriter, self).start()
         try:
-            if not telemetry.telemetry_writer.started:
+            if config._telemetry_enabled and not telemetry.telemetry_writer.started:
                 telemetry.telemetry_writer._app_started_event()
                 telemetry.telemetry_writer._app_dependencies_loaded_event()
 
