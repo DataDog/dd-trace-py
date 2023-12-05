@@ -235,6 +235,7 @@ unpatch
 unpatched
 unobfuscated
 unregister
+unserializable
 unshallow
 unvendored
 uri
