@@ -1,16 +1,17 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
+
 import subprocess  # nosec
 
 from flask import Flask
 from flask import Response
 from flask import request
 
-
 import ddtrace.auto  # noqa: F401  # isort: skip
-
+from tests.appsec.integrations.packages.pkg_requests import pkg_requests
 
 app = Flask(__name__)
+app.register_blueprint(pkg_requests)
 
 
 @app.route("/")
@@ -43,4 +44,4 @@ def iast_cmdi_vulnerability():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    app.run(debug=False, port=8000)

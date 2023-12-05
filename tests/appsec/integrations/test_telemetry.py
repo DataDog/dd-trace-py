@@ -2,7 +2,6 @@ from tests.appsec.appsec_utils import flask_server
 from tests.utils import flaky
 
 
-@flaky(until=1704067200)
 def test_iast_span_metrics():
     with flask_server(iast_enabled="true", token=None) as context:
         _, flask_client, pid = context
