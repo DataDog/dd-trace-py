@@ -2326,6 +2326,8 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
 @pytest.mark.parametrize(
@@ -2402,6 +2404,8 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
 @pytest.mark.parametrize(
@@ -2461,3 +2465,5 @@ def test_llmobs_chat_completion_function_call(
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
