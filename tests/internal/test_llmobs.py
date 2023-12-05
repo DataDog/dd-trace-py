@@ -59,7 +59,8 @@ def _completion_record():
                     "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, "
                     "led by mathematician Alan Turing."
                 }
-            ]
+            ],
+            "durations": [1.234],
         },
     }
 
@@ -87,7 +88,8 @@ def _chat_completion_record():
                     "and your quest will not go unnoticed",
                     "role": "assistant",
                 }
-            ]
+            ],
+            "durations": [2.345],
         },
     }
 
