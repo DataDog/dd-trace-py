@@ -41,7 +41,7 @@ def get_version() -> str:
 
 
 def bytes_to_str(str_or_bytes):
-    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
+    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope, integration_config):
