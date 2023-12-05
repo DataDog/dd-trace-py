@@ -320,16 +320,20 @@ def test_custom_writer():
     tracer = ddtrace.Tracer()
 
     class CustomWriter(TraceWriter):
-        def recreate(self) -> TraceWriter:
+        def recreate(self):
+            # type: () -> TraceWriter
             return self
 
-        def stop(self, timeout: Optional[float] = None) -> None:
+        def stop(self, timeout=None):
+            # type: (Optional[float]) -> None
             pass
 
-        def write(self, spans: Optional[List[Span]] = None) -> None:
+        def write(self, spans=None):
+            # type: (Optional[List[Span]]) -> None
             pass
 
-        def flush_queue(self) -> None:
+        def flush_queue(self):
+            # type: () -> None
             pass
 
     tracer._writer = CustomWriter()
