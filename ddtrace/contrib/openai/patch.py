@@ -276,7 +276,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 },
                 "output": {
                     "completions": [{"content": choice.text} for choice in unique_choices],
-                    "durations": [(now - span.start) * 1e3 for _ in unique_choices],
+                    "durations": [now - span.start for _ in unique_choices],
                 },
             }
             self.llm_record(span, attrs_dict)
@@ -315,7 +315,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                             "role": choice.message.role,
                         }
                     ],
-                    "durations": [(now - span.start) * 1e3],
+                    "durations": [now - span.start],
                 },
             }
             self.llm_record(span, attrs_dict)
