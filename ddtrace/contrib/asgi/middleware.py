@@ -200,7 +200,10 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            receive, body = await core.dispatch("asgi.request.parse.body", receive, headers)[0][0]
+            body = None
+            parse_body_result = core.dispatch("asgi.request.parse.body", receive, headers)[0]
+            if len(parse_body_result) == 1:
+                receive, body = await parse_body_result[0]
 
             client = scope.get("client")
             if isinstance(client, list) and len(client):
