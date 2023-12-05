@@ -4,6 +4,7 @@
 #include "TaintTracking/Source.h"
 #include "TaintTracking/TaintRange.h"
 #include "TaintTracking/TaintedObject.h"
+#include "TaintedOps/TaintedOps.h"
 
 inline void
 pyexport_m_taint_tracking(py::module& m)
