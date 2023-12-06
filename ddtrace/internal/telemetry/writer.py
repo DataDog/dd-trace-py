@@ -3,13 +3,14 @@ import itertools
 import os
 import sys
 import time
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Union
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -28,6 +29,8 @@ from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
+from ..packages import Distribution
+from ..packages import filename_to_package
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
@@ -85,15 +88,15 @@ from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
-from .data import get_dependencies
 from .data import get_host_info
+from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
-from .metrics import MetricTagType
+from .metrics import MetricTagType  # noqa:F401
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType
+from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -128,8 +131,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._agent_url, self._endpoint)
 
-    def send_event(self, request):
-        # type: (Dict) -> Optional[httplib.HTTPResponse]
+    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -195,6 +197,9 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self._new_dependencies = set()  # type: set[str]
+        self._imported_dependencies: Dict[str, Distribution] = dict()
+
         self.started = False
         forksafe.register(self._fork_writer)
 
@@ -411,6 +416,12 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
+    def _flush_new_imported_dependencies(self) -> List[str]:
+        with self._lock:
+            new_deps = list(self._new_dependencies)
+            self._new_dependencies.clear()
+        return new_deps
+
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
@@ -426,6 +437,27 @@ class TelemetryWriter(PeriodicService):
             "configuration": configurations,
         }
         self.add_event(payload, "app-client-configuration-change")
+
+    def _update_dependencies_event(self, newly_imported_deps: List[str]):
+        """Adds events to report imports done since the last periodic run"""
+
+        if not config._telemetry_dependency_collection or not self._enabled:
+            return
+
+        for module_path in newly_imported_deps:
+            if not module_path:
+                continue
+
+            package = filename_to_package(module_path)
+            if not package:
+                continue
+
+        with self._lock:
+            packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+
+        if packages:
+            payload = {"dependencies": packages}
+            self.add_event(payload, "app-dependencies-loaded")
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
@@ -448,11 +480,19 @@ class TelemetryWriter(PeriodicService):
                     "value": value,
                 }
 
-    def _app_dependencies_loaded_event(self):
-        # type: () -> None
+    def _app_dependencies_loaded_event(self, payload_type: str = "app-dependencies-loaded"):
         """Adds a Telemetry event which sends a list of installed python packages to the agent"""
-        payload = {"dependencies": get_dependencies()}
-        self.add_event(payload, "app-dependencies-loaded")
+        from ddtrace.internal.module import origin
+
+        if not config._telemetry_dependency_collection or not self._enabled:
+            return
+
+        sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
+        updated_deps = update_imported_dependencies(self._imported_dependencies, sys_modules_paths)
+
+        if updated_deps:
+            payload = {"dependencies": updated_deps}
+            self.add_event(payload, payload_type)
 
     def add_log(self, level, message, stack_trace="", tags=None):
         # type: (str, str, str, Optional[Dict]) -> None
@@ -588,6 +628,11 @@ class TelemetryWriter(PeriodicService):
         configurations = self._flush_configuration_queue()
         if configurations:
             self._app_client_configuration_changed_event(configurations)
+
+        if config._telemetry_dependency_collection:
+            newly_imported_deps = self._flush_new_imported_dependencies()
+            if newly_imported_deps:
+                self._update_dependencies_event(newly_imported_deps)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued

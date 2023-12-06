@@ -17,7 +17,6 @@ from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
@@ -28,9 +27,13 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
-from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _start_coverage
+from ddtrace.internal.ci_visibility.coverage import _stop_coverage
+from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -81,23 +84,6 @@ def _set_tracer(tracer: ddtrace.tracer):
     unittest._datadog_tracer = tracer
 
 
-def _start_coverage(root_dir: str):
-    coverage = _initialize_coverage(root_dir)
-    coverage.start()
-    return coverage
-
-
-def _detach_coverage(coverage_data, span: ddtrace.Span, root_dir: str):
-    span_id = str(span.trace_id)
-    coverage_data.stop()
-    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
-        log.warning("No coverage collector or data found for item")
-        return
-    span.set_tag_str(COVERAGE_TAG_NAME, build_coverage_payload(coverage_data, root_dir, test_id=span_id))
-    coverage_data.erase()
-    del coverage_data
-
-
 def _is_test_coverage_enabled(test_object) -> bool:
     return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
 
@@ -127,7 +113,7 @@ def _is_marked_as_unskippable(test_object) -> bool:
     test_suite_name = _extract_suite_name_from_test_method(test_object)
     test_name = _extract_test_method_name(test_object)
     test_module_path = _extract_module_file_path(test_object)
-    test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
+    test_module_suite_name = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
     return (
         hasattr(_CIVisibility, "_unittest_data")
         and test_module_suite_name in _CIVisibility._unittest_data["unskippable_tests"]
@@ -167,14 +153,6 @@ def _store_suite_identifier(module):
                 _set_identifier(suite, "suite")
 
 
-def _is_test_module(item) -> bool:
-    return hasattr(item, "_datadog_object") and item._datadog_object == "module"
-
-
-def _is_test_suite(item) -> bool:
-    return hasattr(item, "_datadog_object") and item._datadog_object == "suite"
-
-
 def _is_test(item) -> bool:
     if (
         type(item) == unittest.TestSuite
@@ -198,10 +176,6 @@ def _extract_command_name_from_session(session: unittest.TextTestRunner) -> str:
 def _extract_test_method_name(test_object) -> str:
     """Extract test method name from `unittest` instance."""
     return getattr(test_object, "_testMethodName", "")
-
-
-def _extract_suite_name(item) -> str:
-    return type(item._tests[0]).__name__
 
 
 def _extract_session_span() -> Union[ddtrace.Span, None]:
@@ -234,10 +208,6 @@ def _update_status_item(item: ddtrace.Span, status: str):
 def _extract_suite_name_from_test_method(item) -> str:
     item_type = type(item)
     return getattr(item_type, "__name__", "")
-
-
-def _extract_module_name_from_test_method(item) -> str:
-    return getattr(item, "__module__", "")
 
 
 def _extract_module_name_from_module(item) -> str:
@@ -321,14 +291,6 @@ def _is_valid_module_suite_call(func) -> bool:
     return type(func).__name__ == "method" or type(func).__name__ == "instancemethod"
 
 
-def _is_suite_span(span: ddtrace.Span) -> bool:
-    return span.get_tag(_EVENT_TYPE) == _SUITE_TYPE
-
-
-def _is_test_span(span: ddtrace.Span) -> bool:
-    return span.get_tag(_EVENT_TYPE) == SpanTypes.TEST
-
-
 def _is_invoked_by_cli(instance: unittest.TextTestRunner) -> bool:
     return (
         hasattr(instance, "progName")
@@ -345,10 +307,6 @@ def _extract_test_method_object(test_object):
 
 def _is_invoked_by_text_test_runner() -> bool:
     return hasattr(_CIVisibility, "_datadog_entry") and _CIVisibility._datadog_entry == "TextTestRunner"
-
-
-def _generate_module_suite_test_path(test_module_path: str, test_suite_name: str, test_name: str) -> str:
-    return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
 
 
 def _generate_module_suite_path(test_module_path: str, test_suite_name: str) -> str:
@@ -546,7 +504,7 @@ def _mark_test_as_unskippable(obj):
     test_name = obj.__name__
     test_suite_name = str(obj).split(".")[0].split()[1]
     test_module_path = get_relative_or_absolute_path_for_path(obj.__code__.co_filename, os.getcwd())
-    test_module_suite_name = _generate_module_suite_test_path(test_module_path, test_suite_name, test_name)
+    test_module_suite_name = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
     _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
     return obj
 
@@ -566,8 +524,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
     Creates module and suite spans for `unittest` test executions.
     """
     if _is_valid_test_call(kwargs) and _is_test(instance) and hasattr(_CIVisibility, "_unittest_data"):
-        test_suite_name = _extract_suite_name_from_test_method(instance)
         test_name = _extract_test_method_name(instance)
+        test_suite_name = _extract_suite_name_from_test_method(instance)
         test_module_path = _extract_module_file_path(instance)
         test_module_suite_path = _generate_module_suite_path(test_module_path, test_suite_name)
         test_suite_span = _extract_suite_span(test_module_suite_path)
@@ -585,6 +543,8 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         with _start_test_span(instance, test_suite_span) as span:
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
+            fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
+
             if _CIVisibility.test_skipping_enabled():
                 if _is_marked_as_unskippable(instance):
                     span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
@@ -614,12 +574,13 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result.stopTest(test=instance)
             else:
                 if _is_test_coverage_enabled(instance):
-                    coverage = _start_coverage(root_directory)
-                    instance._coverage = coverage
+                    if not _module_has_dd_coverage_enabled(unittest, silent_mode=True):
+                        unittest._dd_coverage = _start_coverage(root_directory)
+                    _switch_coverage_context(unittest._dd_coverage, fqn_test)
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
-            if hasattr(instance, "_coverage"):
-                _detach_coverage(instance._coverage, span, root_directory)
+            if _is_test_coverage_enabled(instance):
+                _report_coverage_to_span(unittest._dd_coverage, span, root_directory)
 
         _update_remaining_suites_and_modules(
             test_module_suite_path, test_module_path, test_module_span, test_suite_span
@@ -846,6 +807,8 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
             )
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(test_session_span)
+            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+                _stop_coverage(unittest)
 
         raise e
     return result
@@ -875,6 +838,8 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
             _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
             _finish_span(_CIVisibility._datadog_session_span)
             del _CIVisibility._datadog_session_span
+            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+                _stop_coverage(unittest)
         raise e
 
     _CIVisibility._datadog_finished_sessions += 1
@@ -885,4 +850,6 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
         _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
         _finish_span(_CIVisibility._datadog_session_span)
         del _CIVisibility._datadog_session_span
+        if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+            _stop_coverage(unittest)
     return result

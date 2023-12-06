@@ -1,11 +1,10 @@
 import os
 import re
-import shlex
 import subprocess  # nosec
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Set
-from typing import Union
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
 
@@ -26,11 +25,11 @@ from ._base import _check_positions_contained
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import Dict
+    from typing import Any  # noqa:F401
+    from typing import Dict  # noqa:F401
 
-    from ..reporter import IastSpanReporter
-    from ..reporter import Vulnerability
+    from ..reporter import IastSpanReporter  # noqa:F401
+    from ..reporter import Vulnerability  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -84,8 +83,7 @@ def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):
 
 def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
     cmd_args = args[0] if len(args) else kwargs["args"]
-    cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-    _iast_report_cmdi(cmd_args_list)
+    _iast_report_cmdi(cmd_args)
 
     return wrapped(*args, **kwargs)
 
@@ -106,7 +104,6 @@ class CommandInjection(VulnerabilityBase):
     @classmethod
     def _extract_sensitive_tokens(cls, vulns_to_text):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
-
         ret = {}  # type: Dict[int, Dict[str, Any]]
         for vuln, text in six.iteritems(vulns_to_text):
             vuln_hash = hash(vuln)

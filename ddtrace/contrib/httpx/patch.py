@@ -1,5 +1,4 @@
 import os
-import typing
 
 import httpx
 from six import ensure_binary
@@ -23,12 +22,8 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-
-
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -117,7 +112,7 @@ def _set_span_meta(span, request, response):
 
 
 async def _wrapped_async_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
@@ -146,7 +141,7 @@ async def _wrapped_async_send(
 
 
 def _wrapped_sync_send(
-    wrapped,  # type: BoundFunctionWrapper
+    wrapped: BoundFunctionWrapper,
     instance,  # type: httpx.AsyncClient
     args,  # type: typing.Tuple[httpx.Request]
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]

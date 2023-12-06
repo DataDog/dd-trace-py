@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import sys
 
 import mock
 from mock.mock import ANY
-import pytest
 
 from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
