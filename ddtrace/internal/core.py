@@ -183,7 +183,7 @@ class EventHub:
                     "instead of dispatch('foo', [l1, l2], arg2)."
                 )
         results = EventResultDict()
-        for name, listener in reversed(self._listeners[event_id].items()):
+        for name, listener in reversed(list(self._listeners[event_id].items())):
             try:
                 result = listener(*args)
                 results[name] = EventResult(ResultType.RESULT_OK, result)
