@@ -109,13 +109,21 @@ class _DDWSGIMiddlewareBase(object):
             call_key="req_span",
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
-                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                result = core.dispatch("wsgi.block.started", ctx, construct_url).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 start_response(str(status), headers)
                 closing_iterable = [content]
                 not_blocked = False
 
             def blocked_view():
-                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                result = core.dispatch("wsgi.block.started", ctx, construct_url).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 return content, status, headers
 
             core.dispatch("wsgi.block_decided", blocked_view)
@@ -133,7 +141,8 @@ class _DDWSGIMiddlewareBase(object):
                     _, _, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
                     closing_iterable = [content]
 
-            return core.dispatch("wsgi.request.complete", ctx, closing_iterable, self.app_is_iterator)[0][0]
+            result = core.dispatch("wsgi.request.complete", ctx, closing_iterable, self.app_is_iterator).traced_iterable
+            return result.value if result else []
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None

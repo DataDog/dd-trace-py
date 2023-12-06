@@ -202,9 +202,8 @@ def has_listeners(event_id):
     return _EVENT_HUB.get().has_listeners(event_id)  # type: ignore
 
 
-def on(event_id, callback):
-    # type: (str, Callable) -> None
-    return _EVENT_HUB.get().on(event_id, callback)  # type: ignore
+def on(event_id: str, callback: Callable, name: Optional[str] = None) -> None:
+    _EVENT_HUB.get().on(event_id, callback, name)  # type: ignore
 
 
 def reset_listeners():
@@ -212,8 +211,7 @@ def reset_listeners():
     _EVENT_HUB.get().reset()  # type: ignore
 
 
-def dispatch(event_id, args, *other_args):
-    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
+def dispatch(event_id: str, args, *other_args) -> EventResultDict:
     return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
