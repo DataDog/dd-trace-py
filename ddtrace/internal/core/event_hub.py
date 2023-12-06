@@ -34,12 +34,18 @@ def on_all(callback: Callable[..., Any]) -> None:
         _all_listeners.insert(0, callback)
 
 
-def reset() -> None:
-    """Remove all registered listeners"""
+def reset(event_id: Optional[str] = None) -> None:
+    """Remove all registered listeners. If an event_id is provided, only clear those
+    event listeners.
+    """
     global _listeners
     global _all_listeners
-    _listeners.clear()
-    _all_listeners.clear()
+
+    if not event_id:
+        _listeners.clear()
+        _all_listeners.clear()
+    elif event_id in _listeners:
+        del _listeners[event_id]
 
 
 def dispatch(event_id: str, args: Tuple[Any, ...]) -> None:
