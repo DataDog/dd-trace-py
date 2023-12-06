@@ -53,6 +53,11 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_LANGCHAIN_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_LANGCHAIN_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
+        #  send LLMObs payloads. This is a placeholder for when we do.
+        "llmobs_prompt_completion_sample_rate": float(
+            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+        ),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
         "_api_key": os.getenv("DD_API_KEY"),
@@ -550,7 +555,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if isinstance(embeddings, list) and isinstance(embeddings[0], list):
+        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
             for idx, embedding in enumerate(embeddings):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:
