@@ -139,7 +139,10 @@ class DDLogger(logging.Logger):
 
             # currently we only have one error code
             full_file_name = os.path.join(record.pathname, record.filename)
-            telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
+            msg = record.msg
+            if record.args:
+                msg = msg % record.args
+            telemetry.telemetry_writer.add_error(1, msg, full_file_name, record.lineno)
 
         # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log

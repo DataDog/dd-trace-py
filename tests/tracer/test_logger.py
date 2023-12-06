@@ -1,4 +1,5 @@
 import logging
+import os
 
 import mock
 import pytest
@@ -407,6 +408,29 @@ class DDLoggerTestCase(BaseTestCase):
         for record in (record3, record4, record5, record6):
             bucket = buckets[get_key(record)]
             self.assertEqual(bucket.skipped, 0)
+
+    def test_logger_handle_telemetry_error_message(self):
+        """
+        When calling `DDLogger.handle`
+            With level=ERROR the telemetry writer correctly formats the log messages
+        """
+        log = get_logger("test.logger")
+
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_error") as add_error:
+            record = self._make_record(log, level=logging.ERROR, msg="record 1 %s %s", args=("arg1", "arg2"))
+            full_file_name = os.path.join(record.pathname, record.filename)
+
+            # test handle record with args
+            log.handle(record)
+            add_error.assert_called_once_with(1, record.msg % record.args, full_file_name, record.lineno)
+
+            # reset mock
+            add_error.reset_mock()
+
+            # test habdle record without args
+            record = self._make_record(log, level=logging.ERROR, msg="record 1")
+            log.handle(record)
+            add_error.assert_called_once_with(1, record.msg, full_file_name, record.lineno)
 
 
 @pytest.mark.subprocess(
