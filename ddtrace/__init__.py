@@ -1,6 +1,5 @@
 import sys
-import os
-
+from .settings import _config as config
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
@@ -21,7 +20,7 @@ from ._logger import configure_ddtrace_logger
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
-if asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true")):
+if config._telemetry_enabled:
     from ddtrace.internal import telemetry
 
     telemetry.install_excepthook()
