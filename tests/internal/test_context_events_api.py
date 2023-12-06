@@ -31,7 +31,7 @@ class TestContextEventsApi(unittest.TestCase):
         dynamic_value = 42
         handler_return = "from.event.{}"
         core.on(event_name, lambda magic_number: handler_return.format(magic_number))
-        result = core.dispatch(event_name, [dynamic_value])[0][0]
+        result = core.dispatch_with_results(event_name, (dynamic_value,))[0][0]
         assert result == handler_return.format(dynamic_value)
 
     def test_core_dispatch_star_args(self):
@@ -39,7 +39,7 @@ class TestContextEventsApi(unittest.TestCase):
         dynamic_value = 42
         handler_return = "from.event.{}"
         core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number))
-        result = core.dispatch(event_name, dynamic_value, 42)[0][0]
+        result = core.dispatch_with_results(event_name, (dynamic_value, 42))[0][0]
         assert result == handler_return.format(dynamic_value)
 
     def test_core_dispatch_multiple_listeners(self):
@@ -48,7 +48,7 @@ class TestContextEventsApi(unittest.TestCase):
         handler_return = "from.event.{}"
         core.on(event_name, lambda magic_number: handler_return.format(magic_number))
         core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!")
-        results, _ = core.dispatch(event_name, [dynamic_value])
+        results, _ = core.dispatch_with_results(event_name, (dynamic_value,))
         assert results[1] == handler_return.format(dynamic_value)
         assert results[0] == handler_return + str(dynamic_value) + "!"
 
@@ -73,7 +73,7 @@ class TestContextEventsApi(unittest.TestCase):
             t.start()
             threads.append(t)
 
-        results, exceptions = core.dispatch(event_name, [])
+        results, exceptions = core.dispatch_with_results(event_name, ())
 
         for t in threads:
             t.join()
