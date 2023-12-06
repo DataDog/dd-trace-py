@@ -139,7 +139,6 @@ class ResultType(enum.Enum):
 
 @dataclasses.dataclass
 class EventResult:
-    __slots__ = ("response_type", "value", "exception")
     response_type: ResultType = ResultType.RESULT_UNDEFINED
     value: Any = None
     exception: Optional[BaseException] = None
