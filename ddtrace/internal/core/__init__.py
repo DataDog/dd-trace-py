@@ -107,7 +107,11 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
-from .event_hub import on, reset as reset_listeners, has_listeners, dispatch, dispatch_with_results  # noqa:F401
+from .event_hub import dispatch
+from .event_hub import dispatch_with_results  # noqa:F401
+from .event_hub import has_listeners  # noqa:F401
+from .event_hub import on  # noqa:F401
+from .event_hub import reset as reset_listeners  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover

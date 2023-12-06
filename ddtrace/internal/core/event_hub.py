@@ -42,7 +42,7 @@ def dispatch(event_id: str, args: tuple[Any, ...]) -> None:
 def dispatch_with_results(event_id: str, args: tuple[Any, ...]) -> tuple[list[Any], list[Optional[Exception]]]:
     global _listeners
     if event_id not in _listeners:
-        return
+        return [], []
 
     results: list[Any] = []
     exceptions: list[Optional[Exception]] = []
