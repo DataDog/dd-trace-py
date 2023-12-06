@@ -290,6 +290,9 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
+    def _telemetry_entry(self, item):
+        return item.telemetry_name(), item.value(), item.source()
+
     def _app_started_event(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
@@ -304,7 +307,14 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                self._telemetry_entry(config._config_item("_trace_enabled")),
+                self._telemetry_entry(config._config_item("_profiling_enabled")),
+                self._telemetry_entry(config._config_item("_asm_enabled")),
+                self._telemetry_entry(config._config_item("_dsm_enabled")),
+                self._telemetry_entry(config._config_item("_trace_sample_rate")),
+                self._telemetry_entry(config._config_item("logs_injection")),
+                self._telemetry_entry(config._config_item("trace_http_header_tags")),
+                self._telemetry_entry(config._config_item("tags")),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, asm_config._asm_enabled, "unknown"),

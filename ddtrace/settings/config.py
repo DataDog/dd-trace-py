@@ -197,8 +197,8 @@ _ConfigSource = Literal["default", "env", "code", "remote_config"]
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
-    def __init__(self, name, default, envs):
-        # type: (str, Any, List[Tuple[str, Callable[[str], Any]]]) -> None
+    def __init__(self, name, default, envs, telemetry_name):
+        # type: (str, Any, List[Tuple[str, Callable[[str], Any]]], str) -> None
         self._name = name
         self._default_value = default
         if callable(default):
@@ -207,6 +207,7 @@ class _ConfigItem:
         self._code_value = None
         self._rc_value = None
         self._envs = envs
+        self._telemetry_name = telemetry_name
         for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
@@ -237,6 +238,10 @@ class _ConfigItem:
             return self._env_value
         return self._default_value
 
+    def telemetry_name(self):
+        # type: () -> str
+        return self._telemetry_name
+
     def source(self):
         # type: () -> _ConfigSource
         if self._rc_value is not None:
@@ -266,25 +271,53 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
+        "_trace_enabled": _ConfigItem(
+            name="trace_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+            telemetry_name="trace_enabled",
+        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
+            telemetry_name="trace_sample_rate",
         ),
         "logs_injection": _ConfigItem(
             name="logs_injection",
             default=False,
             envs=[("DD_LOGS_INJECTION", asbool)],
+            telemetry_name="logs_injection_enabled",
         ),
         "trace_http_header_tags": _ConfigItem(
             name="trace_http_header_tags",
             default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+            telemetry_name="trace_header_tags",
         ),
         "tags": _ConfigItem(
             name="tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
+            telemetry_name="trace_tags",
+        ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+            telemetry_name="profiling_enabled",
+        ),
+        "_asm_enabled": _ConfigItem(
+            name="asm_enabled",
+            default=False,
+            envs=[("DD_APPSEC_ENABLED", asbool)],
+            telemetry_name="appsec_enabled",
+        ),
+        "_dsm_enabled": _ConfigItem(
+            name="dsm_enabled",
+            default=False,
+            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
+            telemetry_name="data_streams_enabled",
         ),
     }
 
@@ -554,7 +587,7 @@ class Config(object):
         :param dict settings: A dictionary that contains integration settings;
             to preserve immutability of these values, the dictionary is copied
             since it contains integration defaults.
-        :param bool merge: Whether to merge any existing settings with those provided,
+        param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
@@ -648,8 +681,11 @@ class Config(object):
 
         from ..internal.telemetry import telemetry_writer
 
-        cs = [{"name": k, "value": self._config[k].value(), "origin": self._get_source(k)} for k, _, _ in items]
-        telemetry_writer.add_event({"configuration": cs}, "app-client-configuration-change")
+        cs = [
+            {"name": self._config[k].telemetry_name(), "value": self._config[k].value(), "origin": self._get_source(k)}
+            for k, _, _ in items
+        ]
+        telemetry_writer._app_client_configuration_changed_event(cs)
         self._notify_subscribers([i[0] for i in items])
 
     def _reset(self):
@@ -659,6 +695,10 @@ class Config(object):
     def _get_source(self, item):
         # type: (str) -> str
         return self._config[item].source()
+
+    def _config_item(self, name):
+        # type: (str) -> _ConfigItem
+        return self._config[name]
 
     def _remoteconfigPubSub(self):
         from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
