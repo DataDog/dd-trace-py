@@ -16,6 +16,7 @@ from ddtrace import Span
 from ddtrace.internal import debug
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
@@ -197,6 +198,9 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
+            # shove an unserializable object into the config log output
+            # regression: this used to cause an exception to be raised
+            ddtrace.config.version = AgentWriter(agent_url="foobar")
             tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
