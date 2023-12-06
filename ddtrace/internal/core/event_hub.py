@@ -1,12 +1,15 @@
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace import config
 
 
-_listeners: dict[str, list[Callable[..., Any]]] = {}
-_all_listeners: list[Callable[[str, tuple[Any, ...]], None]] = []
+_listeners: Dict[str, List[Callable[..., Any]]] = {}
+_all_listeners: List[Callable[[str, Tuple[Any, ...]], None]] = []
 
 
 def has_listeners(event_id: str) -> bool:
@@ -39,7 +42,7 @@ def reset() -> None:
     _all_listeners.clear()
 
 
-def dispatch(event_id: str, args: tuple[Any, ...]) -> None:
+def dispatch(event_id: str, args: Tuple[Any, ...]) -> None:
     """Call all hooks for the provided event_id with the provided args"""
     global _all_listeners
     global _listeners
@@ -62,7 +65,7 @@ def dispatch(event_id: str, args: tuple[Any, ...]) -> None:
                 raise
 
 
-def dispatch_with_results(event_id: str, args: tuple[Any, ...]) -> tuple[list[Any], list[Optional[Exception]]]:
+def dispatch_with_results(event_id: str, args: Tuple[Any, ...]) -> Tuple[List[Any], List[Optional[Exception]]]:
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
     """
