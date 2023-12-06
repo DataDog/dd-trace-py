@@ -85,6 +85,7 @@ class CIVisibilityGitClient(object):
             self._base_url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
+            self._base_url = "http://localhost:5000{}".format(GIT_API_BASE_PATH)
 
     def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
@@ -141,7 +142,7 @@ class CIVisibilityGitClient(object):
         # type: (...) -> None
         log.setLevel(log_level)
         telemetry.telemetry_writer.enable()
-        _metadata_upload_status = METADATA_UPLOAD_STATUS.IN_PROCESS
+        _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
             if _tags is None:
                 _tags = {}
@@ -160,7 +161,7 @@ class CIVisibilityGitClient(object):
             )
             if backend_commits is None:
                 log.debug("No backend commits found, returning early.")
-                _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                 return
 
             commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
@@ -175,12 +176,16 @@ class CIVisibilityGitClient(object):
                         GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
                     )
                     if packfiles_details.returncode == 0:
+                        log.warning("ROMAIN UPLOADING PACKFILES")
                         if cls._upload_packfiles(
                             requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
                         ):
-                            _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
+                            log.warning("ROMAIN UPLOADED PACKFILES")
+                            _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
+                            log.warning("ROMAIN SAYS METADATA UPLOAD STATUS IS... %s" % _metadata_upload_status.value)
                             return
-                    _metadata_upload_status = METADATA_UPLOAD_STATUS.FAILED
+                        log.warning("ROMAIN DID NOT UPLOAD PACKFILES")
+                    _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                     raise ValueError(packfiles_details.stderr)
             else:
                 log.debug("Revision list empty, no packfiles to build and upload")
@@ -188,8 +193,6 @@ class CIVisibilityGitClient(object):
                 record_objects_pack_data(0, 0)
         finally:
             import time
-
-            time.sleep(15)
             telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod
@@ -233,7 +236,7 @@ class CIVisibilityGitClient(object):
                     request_error = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                     log.warning(
                         "Error searching commits, response status code: %s , response body: %s",
-                        (response.status, response.body),
+                        response.status, response.body,
                     )
                     log.debug("Response body: %s", response.body)
                     return None
@@ -264,6 +267,7 @@ class CIVisibilityGitClient(object):
         if headers is not None:
             _headers.update(headers)
         try:
+            log.warning("ROMAIN DO REQUEST GIT CLIENT URL is %s" % url)
             conn = get_connection(url, timeout=timeout)
             log.debug("Sending request: %s %s %s %s", "POST", url, payload, _headers)
             conn.request("POST", url, payload, _headers)
@@ -300,6 +304,7 @@ class CIVisibilityGitClient(object):
             headers = {"Content-Type": content_type}
             with StopWatch() as stopwatch:
                 error_type = None
+                log.warning("ROMAIN WONDERS WHAT URL IS HERE %s" % base_url)
                 try:
                     response = _response or cls._do_request(
                         requests_mode, base_url, "/packfile", payload, serializer, headers=headers

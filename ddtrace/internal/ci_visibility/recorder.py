@@ -88,6 +88,7 @@ def _get_custom_configurations():
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
+        log.warning("ROMAIN DO REQUEST RECORDER URL is %s" % url)
         conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
         log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
         conn.request("POST", url, payload, headers)
@@ -203,7 +204,12 @@ class CIVisibility(Service):
             return False, False
 
         try:
-            self._git_client.wait_for_metadata_upload()
+            try:
+                self._git_client.wait_for_metadata_upload()
+            except ValueError:
+                log.warning("Error waiting for git metadata upload, test skipping will be best effort", exc_info=True)
+                raise
+                return False, False
             if self._git_client._metadata_upload_status == METADATA_UPLOAD_STATUS.FAILED:
                 log.warning("Metadata upload failed, test skipping will be best effort")
         except TimeoutError:
@@ -221,6 +227,7 @@ class CIVisibility(Service):
                 log.debug("Cannot make request to setting endpoint if API key is not set")
                 return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
+            url = "http://localhost:5000" + SETTING_ENDPOINT
             _headers = {
                 AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
                 "Content-Type": "application/json",
@@ -247,6 +254,7 @@ class CIVisibility(Service):
         sw.start()
         try:
             response = _do_request("POST", url, json.dumps(payload), _headers)
+            log.warning("ROMAIN response %s", response.body)
         except TimeoutError:
             log.warning("Request timeout while fetching enabled features")
             record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.TIMEOUT)
@@ -346,6 +354,8 @@ class CIVisibility(Service):
             }
         }
 
+        log.warning("ROMAIN PAYLOAD %s", payload)
+
         _headers = {
             "dd-api-key": self._api_key,
             "Content-Type": "application/json",
@@ -357,6 +367,7 @@ class CIVisibility(Service):
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
+            url = "http://localhost:5000" + SKIPPABLE_ENDPOINT
         else:
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
@@ -382,9 +393,12 @@ class CIVisibility(Service):
             log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
             return
 
+
         if "data" not in parsed:
             log.warning("Skippable tests request missing data, no tests will be skipped")
             return
+
+        log.warning("ROMAIN DATA IN PARSED %s" % parsed['data'])
 
         try:
             for item in parsed["data"]:

@@ -379,6 +379,7 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
             cwd=cwd,
             std_in=revisions.encode("utf-8"),
         )
+        log.warning("ROMAIN PROCESS DETAILS %s", process_details)
         yield prefix, process_details
     finally:
         if isinstance(tempdir, compat.TemporaryDirectory):
