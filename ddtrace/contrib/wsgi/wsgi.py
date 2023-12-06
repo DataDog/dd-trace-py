@@ -138,7 +138,9 @@ class _DDWSGIMiddlewareBase(object):
                 else:
                     core.dispatch("wsgi.app.success", ctx, closing_iterable)
                 if core.get_item(HTTP_REQUEST_BLOCKED):
-                    _, _, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                    _, _, content = core.dispatch(
+                        "wsgi.block.started", ctx, construct_url
+                    ).status_headers_content.value or (None, None, "")
                     closing_iterable = [content]
 
             result = core.dispatch("wsgi.request.complete", ctx, closing_iterable, self.app_is_iterator).traced_iterable
