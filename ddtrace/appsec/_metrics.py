@@ -11,7 +11,7 @@ log = get_logger(__name__)
 
 
 @deduplication
-def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
+def _set_waf_error_metric(msg: str, error_details: str, info: DDWaf_info) -> None:
     try:
         tags = {
             "waf_version": version(),
@@ -19,7 +19,14 @@ def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
         }
         if info and info.version:
             tags["event_rules_version"] = info.version
-        telemetry.telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
+        if error_details:
+            tags["error_details"] = error_details
+        telemetry.telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE_TAG_APPSEC,
+            "waf.errors",
+            1.0,
+            tags=tuple((k, v) for k, v in tags.items()),
+        )
     except Exception:
         log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
 
