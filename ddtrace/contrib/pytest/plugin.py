@@ -498,7 +498,12 @@ def pytest_collection_modifyitems(session, config, items):
             item_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
             if test_is_unskippable:
-                log.debug("Test %s in module %s is marked as unskippable", (item_name, item.module))
+                log.debug(
+                    "Test %s in module %s (file: %s ) is marked as unskippable",
+                    item_name,
+                    item.module.__name__,
+                    item.module.__file__,
+                )
                 item._dd_itr_test_unskippable = True
 
             # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has been
