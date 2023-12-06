@@ -3,7 +3,9 @@ name: Testrunner
 on:
   push:
     branches:
-      - '2.x'
+      - 'main'
+    paths:
+      - 'docker/**'
 
 jobs:
   build-and-publish:
