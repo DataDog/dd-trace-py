@@ -251,7 +251,7 @@ def inject_trace_to_stepfunction_input(params, span):
         log.warning("Unable to inject context. The StepFunction input was None.")
         return
 
-    if isinstance(params["input"], dict):
+    elif isinstance(params["input"], dict):
         if "_datadog" in params["input"]:
             log.warning("Input already has trace context.")
             return
@@ -259,7 +259,7 @@ def inject_trace_to_stepfunction_input(params, span):
         HTTPPropagator.inject(span.context, params["input"]["_datadog"])
         return
 
-    if isinstance(params["input"], str):
+    elif isinstance(params["input"], str):
         try:
             input_obj = json.loads(params["input"])
         except ValueError:
@@ -271,8 +271,10 @@ def inject_trace_to_stepfunction_input(params, span):
         input_json = json.dumps(input_obj)
 
         params["input"] = input_json
+        return
 
-    log.warning("Unable to inject context. The StepFunction input was not a dict or a JSON string.")
+    else:
+        log.warning("Unable to inject context. The StepFunction input was not a dict or a JSON string.")
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -614,8 +616,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation, cloud_provider="aws", cloud_service="sns", direction=SpanDirection.OUTBOUND
                         )
-                    if endpoint_name == "stepfunctions" and (
-                        operation == "start-execution" or operation == "start-sync-execution"
+                    if endpoint_name == "states" and (
+                        operation == "StartExecution" or operation == "StartSyncExecution"
                     ):
                         inject_trace_to_stepfunction_input(params, span)
                         span.name = schematize_cloud_messaging_operation(
