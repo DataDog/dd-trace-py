@@ -211,7 +211,7 @@ def reset_listeners():
     _EVENT_HUB.get().reset()  # type: ignore
 
 
-def dispatch(event_id: str, args, *other_args) -> EventResultDict:
+def dispatch(event_id: str, args=[], *other_args) -> EventResultDict:
     return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 

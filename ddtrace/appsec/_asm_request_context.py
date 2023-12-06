@@ -449,12 +449,12 @@ def _set_headers_and_response(response, headers, *_):
 
 def _call_waf_first(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
-    call_waf_callback()
+    return call_waf_callback()
 
 
 def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    call_waf_callback()
+    return call_waf_callback()
 
 
 def _on_block_decided(callback):
