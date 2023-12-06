@@ -172,7 +172,7 @@ class EventHub:
     def reset(self):
         self._listeners.clear()
 
-    def dispatch(self, event_id, args=[], *other_args) -> EventResultDict:
+    def dispatch(self, event_id, args, *other_args) -> EventResultDict:
         if not isinstance(args, list):
             args = [args] + list(other_args)
         else:
