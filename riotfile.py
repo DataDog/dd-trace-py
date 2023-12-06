@@ -94,6 +94,7 @@ venv = Venv(
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
+        "pytest-randomly": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
     },
@@ -690,7 +691,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "django": [latest],
+                        "django": ["~=4.2"],
                         "psycopg": latest,
                         "channels": latest,
                     },
