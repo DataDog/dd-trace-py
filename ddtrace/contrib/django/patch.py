@@ -717,8 +717,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
             pin,
             _DjangoUserInfoRetriever(result_user),
         ).user
-        if result:
-            return result.value
+        if result and result.value[0]:
+            return result.value[1]
 
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)

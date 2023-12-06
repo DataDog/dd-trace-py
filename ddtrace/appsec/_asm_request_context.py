@@ -355,8 +355,6 @@ def _start_context(
 
 
 def _on_context_started(ctx):
-    if not asm_config._asm_enabled or in_context():
-        return
     resources = _start_context(
         ctx.get_item("remote_addr"),
         ctx.get_item("headers"),
