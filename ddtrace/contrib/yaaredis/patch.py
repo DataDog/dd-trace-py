@@ -10,7 +10,7 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ..redis.asyncio_patch import _run_redis_command_async
+from ..trace_utils_redis import _run_redis_command_async
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 
