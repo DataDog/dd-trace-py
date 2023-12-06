@@ -208,6 +208,7 @@ def test_module_deleted():
 
     del sys.modules[name]
     gc.collect()
+    assert name not in sys.modules
 
     assert str(path) not in ModuleWatchdog._instance._origin_map
 

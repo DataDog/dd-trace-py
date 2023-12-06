@@ -235,6 +235,20 @@ def test_checked_tainted_args():
     )
 
 
+@pytest.fixture
+def lazy_taint_json_patch():
+    from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
+    from ddtrace.appsec._iast._patches.json_tainting import try_unwrap
+    from ddtrace.appsec._iast._patches.json_tainting import try_wrap_function_wrapper
+
+    try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    yield
+    try_unwrap("json.encoder", "JSONEncoder.default")
+    try_unwrap("simplejson.encoder", "JSONEncoder.default")
+
+
+@pytest.mark.usefixtures("lazy_taint_json_patch")
 def test_json_encode_dict():
     import json
 
@@ -252,6 +266,7 @@ def test_json_encode_dict():
     )
 
 
+@pytest.mark.usefixtures("lazy_taint_json_patch")
 def test_json_encode_list():
     import json
 
@@ -263,6 +278,7 @@ def test_json_encode_list():
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
 
 
+@pytest.mark.usefixtures("lazy_taint_json_patch")
 def test_simplejson_encode_dict():
     import simplejson as json
 
@@ -280,6 +296,7 @@ def test_simplejson_encode_dict():
     )
 
 
+@pytest.mark.usefixtures("lazy_taint_json_patch")
 def test_simplejson_encode_list():
     import simplejson as json
 
