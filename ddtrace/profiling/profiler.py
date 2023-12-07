@@ -28,8 +28,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
-from pprint import pprint
-
+from ddtrace.profiling import _threading
 
 
 LOG = logging.getLogger(__name__)
@@ -306,6 +305,16 @@ class _ProfilerInstance(service.Service):
             }
         )
 
+    def print_kineto_event_data(self, event):
+        kineto_start_tid = event.start_thread_id()
+        kineto_end_tid = event.end_thread_id()
+        kineto_fwd_tid = event.fwd_thread_id()
+        kineto_event_name = event.name()
+        print("[handle torch trace] start thread id: " + str(kineto_start_tid))
+        print("[handle torch trace] end thread id: " + str(kineto_end_tid))
+        print("[handle torch trace] fwd thread id: " + str(kineto_fwd_tid))
+        print("[handle torch trace] kineto event name: " + str(kineto_event_name))
+
     def handle_torch_trace(self, prof):
         NANOS_PER_MICROSECOND = 1e3
         print("handle torch trace was called")
@@ -316,19 +325,38 @@ class _ProfilerInstance(service.Service):
         print(prof.events()[0])
         print("[handle torch trace] pytorch trace start time: ")
         print(prof.profiler.kineto_results.trace_start_us())
+        kineto_events = prof.profiler.kineto_results.events()
+        print("[handle torch trace] raw kineto event: ")
+        for e in kineto_events[:5]:
+            self.print_kineto_event_data(e)
+
+        assert len(kineto_events) > 0
+        # print(kineto_events[0].)
         trace_start_ns = prof.profiler.kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
         for i, e in enumerate(prof.events()):
             device_name = "cuda " + str(e.device_index)
             # start_time_ns = e.time_range.start * NANOS_PER_MICROSECOND
-            end_time_ns = trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND
+            end_time_ns = int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND)
+            event_duration = e.time_range.elapsed_us() * 1000  # convert us -> ns
             if str(e.device_type).startswith("DeviceType.CUDA") and i % 10 == 0:
-                gpu_time = e.time_range.elapsed_us() * 1000  # convert us -> ns
                 # gpu time sample
                 ddup.start_sample(1)
-                ddup.push_gputime(gpu_time, 1)
+                ddup.push_gputime(event_duration, 1)
                 ddup.push_gpu_device_name(device_name)
                 ddup.push_end_timestamp_ns(end_time_ns)
-                ddup.push_threadinfo(e.thread, "", e.thread)
+                ddup.push_threadinfo(
+                    e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+                )
+                ddup.push_frame(e.name, "", 0, -1)
+                ddup.flush_sample()
+
+            if e.name == "cudaLaunchKernel":
+                ddup.start_sample(1)
+                ddup.push_cputime(event_duration, 1)
+                ddup.push_end_timestamp_ns(end_time_ns)
+                ddup.push_threadinfo(
+                    e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+                )
                 ddup.push_frame(e.name, "", 0, -1)
                 ddup.flush_sample()
 
