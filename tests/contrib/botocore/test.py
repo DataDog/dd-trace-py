@@ -2025,16 +2025,18 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    @pytest.mark.xfail(strict=False)  # FIXME: flaky test
     def test_sns_send_message_trace_injection_with_message_attributes(self):
         # TODO: Move away from inspecting MessageAttributes using span tag
-        sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
         topic = sns.create_topic(Name="testTopic")
 
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
