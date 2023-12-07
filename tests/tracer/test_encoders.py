@@ -304,6 +304,7 @@ def test_msgpack_encoding_after_bufferfull_rollback():
     rolledback_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
 
     encoded_traces = []
+    # Generates a string that should not exist in the string table :fingers-crossed:
     high_cardinality_string = ""
     while True:
         trace = gen_trace(nspans=50)
@@ -318,10 +319,6 @@ def test_msgpack_encoding_after_bufferfull_rollback():
             break
         encoded_traces.append(trace)
 
-    import pdb
-
-    pdb.set_trace()
-
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add the high cardinality tag to the last span of the small trace.
     # The string table should be reset after a rollback. If not setting this tag
@@ -330,12 +327,12 @@ def test_msgpack_encoding_after_bufferfull_rollback():
     rolledback_encoder.put(small_trace)  # this should not raise BufferFull :fingers-crossed:
     encoded_traces.append(small_trace)
 
-    # Note that we assert on the decoded versions because the encoded
-    # can vary due to non-deterministic map key/value positioning
+    # Encode a trace without triggering a rollback/BufferFull exception
     ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
     for tt in encoded_traces:
         ref_encoder.put(tt)
 
+    # Ensure the two encoders have the same state
     assert ref_encoder.encode() == rolledback_encoder.encode()
 
 
