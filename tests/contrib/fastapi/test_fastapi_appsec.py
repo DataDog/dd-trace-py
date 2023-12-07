@@ -1,5 +1,6 @@
 import json
 
+import fastapi
 from fastapi import Request
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
@@ -298,29 +299,32 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
 
 
 def test_request_suspicious_request_block_match_cookies(app, client, tracer, test_spans):
-    @app.get("/")
-    def test_route():
-        return PlainTextResponse("OK")
+    @app.get("/test_cookies", response_class=PlainTextResponse)
+    def test_route(response: fastapi.Response):
+        response.status_code = fastapi.status.HTTP_201_CREATED
+        return "OK Cookie"
 
     # value jdfoSDGFkivRG_234 must be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFkivRG_234"})
-        assert resp.status_code == 403
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234 45"})
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
+        assert resp.status_code == 403
         root_span = get_root_span(test_spans)
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
     # other value must not be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFHappykivRG_234"})
-        assert resp.status_code == 200
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFHappykivRG_234"})
+        assert resp.status_code == 201
+        assert get_response_body(resp) == "OK Cookie"
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFkivRG_234"})
-        assert resp.status_code == 200
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234"})
+        assert resp.status_code == 201
+        assert get_response_body(resp) == "OK Cookie"
 
 
 def test_request_suspicious_request_block_match_path_params(app, client, tracer, test_spans):

@@ -1,4 +1,3 @@
-from http import cookies
 import sys
 from typing import Any
 from typing import Mapping
@@ -159,7 +158,6 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            request_cookies = None
             for key, value in scope["headers"]:
                 if key == b"host":
                     try:
@@ -168,10 +166,7 @@ class TraceMiddleware:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
-                elif key == b"cookie":
-                    c = cookies.SimpleCookie(bytes_to_str(value))
-                    request_cookies = {k: v.value for k, v in c.items()}
-
+                    break
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
@@ -212,7 +207,6 @@ class TraceMiddleware:
                 query=query_string,
                 request_headers=headers,
                 raw_uri=url,
-                request_cookies=request_cookies,
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
