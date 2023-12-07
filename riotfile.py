@@ -1158,6 +1158,7 @@ venv = Venv(
         Venv(
             name="requests",
             command="pytest {cmdargs} tests/contrib/requests",
+            pkgs={"urllib3": "~=1.0"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7"),
