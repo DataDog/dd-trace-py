@@ -257,29 +257,6 @@ import ddtrace.auto
     ]
 
 
-def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer._app_dependencies_loaded_event()
-    # force a flush
-    telemetry_writer.periodic()
-    events = test_agent_session.get_events()
-    assert len(events) == 1
-    already_imported = {}
-    sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
-    payload = {"dependencies": update_imported_dependencies(already_imported, sys_modules_paths)}
-    assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
-
-
-def test_app_dependencies_loaded_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer._app_dependencies_loaded_event()
-        # force a flush
-        telemetry_writer.periodic()
-        events = test_agent_session.get_events()
-        assert len(events) <= 1  # could have a heartbeat
-        if events:
-            assert events[0]["request_type"] != "app-dependencies-loaded"
-
-
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 

@@ -444,14 +444,6 @@ class TelemetryWriter(PeriodicService):
         if not config._telemetry_dependency_collection or not self._enabled:
             return
 
-        for module_path in newly_imported_deps:
-            if not module_path:
-                continue
-
-            package = filename_to_package(module_path)
-            if not package:
-                continue
-
         with self._lock:
             packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
@@ -479,20 +471,6 @@ class TelemetryWriter(PeriodicService):
                     "origin": origin,
                     "value": value,
                 }
-
-    def _app_dependencies_loaded_event(self, payload_type: str = "app-dependencies-loaded"):
-        """Adds a Telemetry event which sends a list of installed python packages to the agent"""
-        from ddtrace.internal.module import origin
-
-        if not config._telemetry_dependency_collection or not self._enabled:
-            return
-
-        sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
-        updated_deps = update_imported_dependencies(self._imported_dependencies, sys_modules_paths)
-
-        if updated_deps:
-            payload = {"dependencies": updated_deps}
-            self.add_event(payload, payload_type)
 
     def add_log(self, level, message, stack_trace="", tags=None):
         # type: (str, str, str, Optional[Dict]) -> None
@@ -629,11 +607,10 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        # JJJ
-        # if config._telemetry_dependency_collection:
-        #     newly_imported_deps = self._flush_new_imported_dependencies()
-        #     if newly_imported_deps:
-        #         self._update_dependencies_event(newly_imported_deps)
+        if config._telemetry_dependency_collection:
+            newly_imported_deps = self._flush_new_imported_dependencies()
+            if newly_imported_deps:
+                self._update_dependencies_event(newly_imported_deps)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued

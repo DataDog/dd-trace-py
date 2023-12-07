@@ -64,6 +64,7 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
     events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+
     assert len(events) == 4
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-integrations-change"
@@ -257,7 +258,7 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = test_agent_session.get_events()
 
     assert len(events) == 2
 
