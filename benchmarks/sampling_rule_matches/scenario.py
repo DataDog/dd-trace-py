@@ -38,10 +38,11 @@ class SamplingRules(bm.Scenario):
         tag_names = [rands() for _ in range(self.num_tags)]
 
         # Generate all possible permutations of service and operation names
-        spans = [
-            Span(service=service, name=name, resource=resource, tags={tag: tag})
-            for service, name, resource, tag in itertools.product(services, operation_names, resource_names, tag_names)
-        ]
+        spans = []
+        for service, name, resource, tag in itertools.product(services, operation_names, resource_names, tag_names):
+            span = Span(service=service, name=name, resource=resource)
+            span.set_tag(tag, tag)
+            spans.append(span)
 
         # Create a single rule to use for all matches
         # Pick a random service/operation name
