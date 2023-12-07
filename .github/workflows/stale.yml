@@ -17,11 +17,9 @@ jobs:
           # DEV: GitHub Actions have an API rate limit of 1000 operations per hour per repository
           #      This limit is shared across all actions
           operations-per-run: 200
-          days-before-stale: 180
           days-before-close: 180
           exempt-issue-labels: 'proposal'
           exempt-pr-labels: 'proposal'
-          remove-stale-when-updated: true
           close-issue-message: |
             This issue has been automatically closed after six months of inactivity. If it's a
             feature request, it has been added to the maintainers' internal backlog and will be
