@@ -7,6 +7,7 @@ from cassandra.cluster import Cluster
 from cassandra.cluster import ResultSet
 from cassandra.query import BatchStatement
 from cassandra.query import SimpleStatement
+import mock
 
 from ddtrace import Pin
 from ddtrace import config
@@ -37,6 +38,51 @@ CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 logging.getLogger("cassandra").setLevel(logging.INFO)
 
 
+def _setup(testObject):
+    self = testObject or mock.Mock()
+
+    # skip all the modules if the Cluster is not available
+    if not Cluster:
+        raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
+
+    # create the KEYSPACE for this test module
+    self.cluster = Cluster(port=CASSANDRA_CONFIG["port"], connect_timeout=CONNECTION_TIMEOUT_SECS)
+    self.session = self.cluster.connect()
+    self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+    self.session.execute(
+        "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"  # noqa:E501
+    )
+    self.session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
+    self.session.execute(
+        "CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)"
+    )
+    self.session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')"
+    )
+    self.session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')"
+    )
+    self.session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')"
+    )
+
+
+def _teardown(testObject):
+    self = testObject or mock.Mock()
+    # destroy the KEYSPACE
+    self.session.execute("DROP TABLE IF EXISTS test.person")
+    self.session.execute("DROP TABLE IF EXISTS test.person_write")
+    self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+
+
+def setUpModule():
+    _setup(None)
+
+
+def tearDownModule():
+    _teardown(None)
+
+
 class CassandraBase(object):
     """
     Needs a running Cassandra
@@ -49,38 +95,10 @@ class CassandraBase(object):
     TEST_SERVICE = "test-cassandra"
 
     def setUp(self):
-        # skip all the modules if the Cluster is not available
-        if not Cluster:
-            raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
-
-        # create the KEYSPACE for this test module
-        self.cluster = Cluster(port=CASSANDRA_CONFIG["port"], connect_timeout=CONNECTION_TIMEOUT_SECS)
-        self.session = self.cluster.connect()
-        self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
-        self.session.execute(
-            "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"  # noqa:E501
-        )
-        self.session.execute(
-            "CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)"
-        )
-        self.session.execute(
-            "CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)"
-        )
-        self.session.execute(
-            "INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')"
-        )
-        self.session.execute(
-            "INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')"
-        )
-        self.session.execute(
-            "INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')"
-        )
+        _setup(self)
 
     def tearDown(self):
-        # destroy the KEYSPACE
-        self.session.execute("DROP TABLE IF EXISTS test.person")
-        self.session.execute("DROP TABLE IF EXISTS test.person_write")
-        self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+        _teardown(self)
 
     @contextlib.contextmanager
     def override_config(self, integration, values):
