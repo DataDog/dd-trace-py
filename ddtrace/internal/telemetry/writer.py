@@ -629,10 +629,11 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        if config._telemetry_dependency_collection:
-            newly_imported_deps = self._flush_new_imported_dependencies()
-            if newly_imported_deps:
-                self._update_dependencies_event(newly_imported_deps)
+        # JJJ
+        # if config._telemetry_dependency_collection:
+        #     newly_imported_deps = self._flush_new_imported_dependencies()
+        #     if newly_imported_deps:
+        #         self._update_dependencies_event(newly_imported_deps)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
