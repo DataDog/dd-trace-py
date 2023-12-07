@@ -1,5 +1,4 @@
 import sys
-from .settings import _config as config
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
@@ -19,6 +18,9 @@ from ._logger import configure_ddtrace_logger
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
+
+from .settings import _config as config
+
 if config._telemetry_enabled:
     from ddtrace.internal import telemetry
 
