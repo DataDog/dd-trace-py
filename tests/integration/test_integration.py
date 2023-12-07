@@ -18,7 +18,6 @@ from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
-from tests.utils import override_global_config
 
 
 FOUR_KB = 1 << 12

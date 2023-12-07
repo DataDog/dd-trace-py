@@ -1,9 +1,9 @@
 import inspect
-from typing import Any
-from typing import Awaitable
-from typing import Callable
-from typing import Iterable
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Awaitable  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import Union  # noqa:F401
 
 import grpc
 from grpc import aio
@@ -12,8 +12,8 @@ from grpc.aio._typing import RequestType
 from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
-from ddtrace import Pin
-from ddtrace import Span
+from ddtrace import Pin  # noqa:F401
+from ddtrace import Span  # noqa:F401
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
@@ -105,12 +105,11 @@ def _handle_server_exception(
 
 
 async def _wrap_aio_stream_response(
-    behavior,  # type: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], ResponseIterableType]
-    request_or_iterator,  # type: Union[RequestIterableType, RequestType]
-    servicer_context,  # type: aio.ServicerContext
-    span,  # type: Span
-):
-    # type: (...) -> ResponseIterableType
+    behavior: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], ResponseIterableType],
+    request_or_iterator: Union[RequestIterableType, RequestType],
+    servicer_context: aio.ServicerContext,
+    span: Span,
+) -> ResponseIterableType:
     try:
         call = behavior(request_or_iterator, servicer_context)
         async for response in call:
@@ -124,12 +123,11 @@ async def _wrap_aio_stream_response(
 
 
 async def _wrap_aio_unary_response(
-    behavior,  # type: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], Awaitable[ResponseType]]
-    request_or_iterator,  # type: Union[RequestIterableType, RequestType]
-    servicer_context,  # type: aio.ServicerContext
-    span,  # type: Span
-):
-    # type: (...) -> ResponseType
+    behavior: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], Awaitable[ResponseType]],
+    request_or_iterator: Union[RequestIterableType, RequestType],
+    servicer_context: aio.ServicerContext,
+    span: Span,
+) -> ResponseType:
     try:
         return await behavior(request_or_iterator, servicer_context)
     except Exception:
@@ -216,23 +214,19 @@ class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
         self._pin = pin
         self._handler_call_details = handler_call_details
 
-    async def unary_unary(self, request, context):
-        # type: (RequestType, aio.ServicerContext) -> ResponseType
+    async def unary_unary(self, request: RequestType, context: aio.ServicerContext) -> ResponseType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_UNARY)
         return await _wrap_aio_unary_response(self.__wrapped__.unary_unary, request, context, span)
 
-    async def unary_stream(self, request, context):
-        # type: (RequestType, aio.ServicerContext) -> ResponseType
+    async def unary_stream(self, request: RequestType, context: aio.ServicerContext) -> ResponseType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_SERVER_STREAMING)
         return await _wrap_aio_unary_response(self.__wrapped__.unary_stream, request, context, span)
 
-    async def stream_unary(self, request_iterator, context):
-        # type: (RequestIterableType, aio.ServicerContext) -> ResponseType
+    async def stream_unary(self, request_iterator: RequestIterableType, context: aio.ServicerContext) -> ResponseType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_CLIENT_STREAMING)
         return await _wrap_aio_unary_response(self.__wrapped__.stream_unary, request_iterator, context, span)
 
-    async def stream_stream(self, request_iterator, context):
-        # type: (RequestIterableType, aio.ServicerContext) -> ResponseType
+    async def stream_stream(self, request_iterator: RequestIterableType, context: aio.ServicerContext) -> ResponseType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_BIDI_STREAMING)
         return await _wrap_aio_unary_response(self.__wrapped__.stream_stream, request_iterator, context, span)
 
@@ -244,14 +238,14 @@ class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
         self._pin = pin
         self._handler_call_details = handler_call_details
 
-    async def unary_stream(self, request, context):
-        # type: (RequestType, aio.ServicerContext) -> ResponseIterableType
+    async def unary_stream(self, request: RequestType, context: aio.ServicerContext) -> ResponseIterableType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_SERVER_STREAMING)
         async for response in _wrap_aio_stream_response(self.__wrapped__.unary_stream, request, context, span):
             yield response
 
-    async def stream_stream(self, request_iterator, context):
-        # type: (RequestIterableType, aio.ServicerContext) -> ResponseIterableType
+    async def stream_stream(
+        self, request_iterator: RequestIterableType, context: aio.ServicerContext
+    ) -> ResponseIterableType:
         span = _create_span(self._pin, self._handler_call_details, constants.GRPC_METHOD_KIND_BIDI_STREAMING)
         async for response in _wrap_aio_stream_response(
             self.__wrapped__.stream_stream, request_iterator, context, span

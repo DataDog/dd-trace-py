@@ -2,7 +2,6 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC

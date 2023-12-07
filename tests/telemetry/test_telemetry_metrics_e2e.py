@@ -4,8 +4,6 @@ import os
 import subprocess
 import sys
 
-import pytest
-
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 

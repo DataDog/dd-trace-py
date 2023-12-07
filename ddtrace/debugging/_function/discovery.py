@@ -1,6 +1,5 @@
 from collections import defaultdict
 from collections import deque
-from functools import partial
 from pathlib import Path
 
 from ddtrace.internal.utils.inspection import undecorated

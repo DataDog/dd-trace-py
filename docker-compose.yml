@@ -36,7 +36,7 @@ services:
         ports:
             - "127.0.0.1:5432:5432"
     mariadb:
-        image: mariadb:10.7
+        image: mariadb:lts
         environment:
             - MYSQL_ROOT_PASSWORD=example
             - MYSQL_DATABASE=test
@@ -131,7 +131,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.15.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.16.0
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -154,7 +154,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: ghcr.io/datadog/dd-trace-py/testrunner:latest
+        image: ghcr.io/datadog/dd-trace-py/testrunner:253febbef2d235970f1c71ced77df6fe4fbeb449
         command: bash
         environment:
             - TOX_SKIP_DIST=True

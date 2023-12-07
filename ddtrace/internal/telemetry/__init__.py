@@ -9,6 +9,8 @@ To start the service manually, invoke the ``enable`` method::
 import os
 import sys
 
+from ddtrace.settings import _config as config
+
 from .writer import TelemetryWriter
 
 
@@ -49,9 +51,8 @@ def _excepthook(tp, value, root_traceback):
                 error_msg = "{}:{} {}".format(filename, lineno, str(value))
                 telemetry_writer.add_integration(integration_name, True, error_msg=error_msg)
 
-        if not telemetry_writer.started:
+        if config._telemetry_enabled and not telemetry_writer.started:
             telemetry_writer._app_started_event(False)
-            telemetry_writer._app_dependencies_loaded_event()
 
         telemetry_writer.app_shutdown()
 
