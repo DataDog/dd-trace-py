@@ -1626,6 +1626,7 @@ venv = Venv(
         Venv(
             name="algoliasearch",
             command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={"urllib3": "~=1.26.15"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.8"),
