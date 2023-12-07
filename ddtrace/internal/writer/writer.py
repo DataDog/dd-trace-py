@@ -603,7 +603,6 @@ class AgentWriter(HTTPWriter):
         try:
             if config._telemetry_enabled and not telemetry.telemetry_writer.started:
                 telemetry.telemetry_writer._app_started_event()
-                telemetry.telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
