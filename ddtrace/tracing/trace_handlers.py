@@ -580,7 +580,7 @@ def listen():
         "django.process_exception",
         "django.func.wrapped",
     ):
-        core.on(f"context.started.{context_name}", _start_span)
+        core.on(f"context.started.start_span.{context_name}", _start_span)
 
 
 listen()

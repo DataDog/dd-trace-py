@@ -134,7 +134,7 @@ ROOT_CONTEXT_ID = "__root"
 class ResultType(enum.Enum):
     RESULT_OK = 0
     RESULT_EXCEPTION = 1
-    RESULT_UNDEFINED = 2
+    RESULT_UNDEFINED = -1
 
 
 @dataclasses.dataclass
@@ -183,7 +183,8 @@ class EventHub:
                     "instead of dispatch('foo', [l1, l2], arg2)."
                 )
         results = EventResultDict()
-        for name, listener in reversed(list(self._listeners[event_id].items())):
+        # order is not guraranteed. Introduce two consecutive different events to ensure order
+        for name, listener in self._listeners[event_id].items():
             try:
                 result = listener(*args)
                 results[name] = EventResult(ResultType.RESULT_OK, result)
@@ -229,6 +230,7 @@ class ExecutionContext:
         if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, [self])
+        dispatch("context.started.start_span.%s" % self.identifier, [self])
 
     def __repr__(self):
         return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
