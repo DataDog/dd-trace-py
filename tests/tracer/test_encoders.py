@@ -300,42 +300,34 @@ def allencodings(f):
 
 
 def test_msgpack_encoding_after_bufferfull_rollback():
-    """Rolling back a BufferFull should not affect the encoder's state"""
-    rolledback_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
-
-    encoded_traces = []
-    # Generates a string that should not exist in the string table :fingers-crossed:
-    high_cardinality_string = ""
-    while True:
-        trace = gen_trace(nspans=50)
-        high_cardinality_string = rands(size=20, chars=string.ascii_letters)
-        # Add a high cardinality tag to the last span. This tag will be reused
-        # in the next trace, when encoder is rolled back.
-        trace[-1].set_tag_str("high_cardinality_tag", high_cardinality_string)
-        try:
-            rolledback_encoder.put(trace)
-        except BufferFull:
-            # buffer full exception triggers a rollback. We can break here.
-            break
-        encoded_traces.append(trace)
-
+    """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
+    # Encode a trace after a rollback/BufferFull occurs exception
+    rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
+    trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
+    rand_string = rands(size=20, chars=string.ascii_letters)
+    trace[-1].set_tag_str("some_tag", rand_string)
+    try:
+        # Encode a trace that will trigger a rollback/BufferFull exception
+        rolledback_encoder.put(trace)
+    except (BufferFull, BufferItemTooLarge):
+        pass
+    else:
+        pytest.fail("Expected BufferFull or BufferItemTooLarge exception")
+    # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
-    # Add the high cardinality tag to the last span of the small trace.
-    # The string table should be reset after a rollback. If not setting this tag
-    # will result in an encoding error
-    small_trace[0].set_tag_str("high_cardinality_tag", high_cardinality_string)
-    rolledback_encoder.put(small_trace)  # this should not raise BufferFull :fingers-crossed:
-    encoded_traces.append(small_trace)
+    # Add a tag to the small trace that was previously encoded in the encoder's StringTable
+    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
     ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
-    for tt in encoded_traces:
-        ref_encoder.put(tt)
+    ref_encoder.put(small_trace)
 
     # Ensure the two encoders have the same state
-    assert ref_encoder.encode() == rolledback_encoder.encode()
+    assert rolledback_encoder.encode() == ref_encoder.encode()
 
 
+@allencodings
 def test_custom_msgpack_encode(encoding):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     refencoder = REF_MSGPACK_ENCODERS[encoding]()
