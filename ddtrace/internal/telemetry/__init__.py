@@ -53,7 +53,6 @@ def _excepthook(tp, value, root_traceback):
 
         if config._telemetry_enabled and not telemetry_writer.started:
             telemetry_writer._app_started_event(False)
-            telemetry_writer._app_dependencies_loaded_event()
 
         telemetry_writer.app_shutdown()
 
