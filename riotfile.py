@@ -1755,11 +1755,10 @@ venv = Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "pytest-asyncio": latest,
+                        "pytest-asyncio": "~=0.21.1",
                         "redis": [
                             "~=4.1",
                             "~=4.3",
-                            latest,
                         ],
                     },
                 ),
@@ -1768,8 +1767,8 @@ venv = Venv(
                     pys="3.11",
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "pytest-asyncio": latest,
-                        "redis": ["~=4.3", latest],
+                        "pytest-asyncio": "~=0.21.1",
+                        "redis": ["~=4.3"],
                     },
                 ),
                 # FIXME[python-3.12]: blocked on redis release https://github.com/redis/redis-py/pull/2873
