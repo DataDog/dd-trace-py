@@ -1347,7 +1347,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "aiomysql": ["~=0.1.0", latest],
             },
         ),
@@ -1594,22 +1594,22 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4", latest]},
+                    pkgs={"urllib3": ["~=1.26.4"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12", latest]},
+                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6", latest]},
+                    pkgs={"urllib3": ["~=1.26.6"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8", latest]},
+                    pkgs={"urllib3": ["~=1.26.8"]},
                 ),
             ],
         ),
