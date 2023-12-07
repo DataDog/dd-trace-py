@@ -311,7 +311,7 @@ tracer.trace("hi").finish()
     expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = test_agent_session.get_events()
 
     assert len(events) > 1
     for event in events:
