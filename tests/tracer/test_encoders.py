@@ -299,7 +299,46 @@ def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
 
 
-@allencodings
+def test_msgpack_encoding_after_bufferfull_rollback():
+    """Rolling back a BufferFull should not affect the encoder's state"""
+    rolledback_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
+
+    encoded_traces = []
+    high_cardinality_string = ""
+    while True:
+        trace = gen_trace(nspans=50)
+        high_cardinality_string = rands(size=20, chars=string.ascii_letters)
+        # Add a high cardinality tag to the last span. This tag will be reused
+        # in the next trace, when encoder is rolled back.
+        trace[-1].set_tag_str("high_cardinality_tag", high_cardinality_string)
+        try:
+            rolledback_encoder.put(trace)
+        except BufferFull:
+            # buffer full exception triggers a rollback. We can break here.
+            break
+        encoded_traces.append(trace)
+
+    import pdb
+
+    pdb.set_trace()
+
+    small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
+    # Add the high cardinality tag to the last span of the small trace.
+    # The string table should be reset after a rollback. If not setting this tag
+    # will result in an encoding error
+    small_trace[0].set_tag_str("high_cardinality_tag", high_cardinality_string)
+    rolledback_encoder.put(small_trace)  # this should not raise BufferFull :fingers-crossed:
+    encoded_traces.append(small_trace)
+
+    # Note that we assert on the decoded versions because the encoded
+    # can vary due to non-deterministic map key/value positioning
+    ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
+    for tt in encoded_traces:
+        ref_encoder.put(tt)
+
+    assert ref_encoder.encode() == rolledback_encoder.encode()
+
+
 def test_custom_msgpack_encode(encoding):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     refencoder = REF_MSGPACK_ENCODERS[encoding]()
