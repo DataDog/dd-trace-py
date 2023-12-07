@@ -444,14 +444,6 @@ class TelemetryWriter(PeriodicService):
         if not config._telemetry_dependency_collection or not self._enabled:
             return
 
-        for module_path in newly_imported_deps:
-            if not module_path:
-                continue
-
-            package = filename_to_package(module_path)
-            if not package:
-                continue
-
         with self._lock:
             packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
