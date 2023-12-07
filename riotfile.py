@@ -336,7 +336,7 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
+            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": "~=0.21.1", "vcrpy": latest},
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
@@ -417,7 +417,7 @@ venv = Venv(
                 "msgpack": latest,
                 "httpretty": latest,
                 "typing-extensions": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
             },
             pys=select_pys(),
         ),
@@ -2002,7 +2002,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.7", max_version="3.11"),
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
                 "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
@@ -2018,7 +2018,7 @@ venv = Venv(
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",  # vcrpy errors with urllib3 2.x https://github.com/kevin1024/vcrpy/issues/688
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
                 "pillow": latest,
             },
             venvs=[
@@ -2219,7 +2219,7 @@ venv = Venv(
                 "langchain": ["==0.0.192", latest],
                 "openai": latest,
                 "vcrpy": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
                 "tiktoken": latest,
                 "pinecone-client": latest,
                 "cohere": latest,
@@ -2319,7 +2319,7 @@ venv = Venv(
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
             },
             venvs=[
                 # Python 3.7
