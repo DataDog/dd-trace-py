@@ -1805,6 +1805,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "requests": latest,
+                "websockets": "<11.0",
             },
             venvs=[
                 Venv(
@@ -1836,7 +1837,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12", latest],
+                        "sanic": ["~=22.3", "~=22.12"],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
