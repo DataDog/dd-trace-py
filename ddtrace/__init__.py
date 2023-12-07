@@ -4,7 +4,6 @@ from .settings import _config as config
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.utils.formats import asbool
 
 ModuleWatchdog.install()
 
