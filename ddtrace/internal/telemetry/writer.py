@@ -30,7 +30,6 @@ from ..compat import httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..packages import Distribution
-from ..packages import filename_to_package
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus

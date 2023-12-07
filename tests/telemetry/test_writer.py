@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -11,7 +10,6 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.data import update_imported_dependencies
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
