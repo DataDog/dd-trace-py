@@ -267,7 +267,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 "type": "completion",
                 "id": resp.id,
                 "timestamp": resp.created * 1000,
-                "model": span.get_tag("openai.request.model") or "",
+                "model": span.get_tag("openai.request.model") or resp.model,
                 "model_provider": "openai",
                 "input": {
                     "prompts": prompt,
@@ -301,7 +301,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                 "type": "chat",
                 "id": resp.id,
                 "timestamp": resp.created * 1000,
-                "model": span.get_tag("openai.request.model") or "",
+                "model": span.get_tag("openai.request.model") or resp.model,
                 "model_provider": "openai",
                 "input": {
                     "messages": [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in messages],
