@@ -299,7 +299,7 @@ def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
 
 
-def test_msgpack_encoding_after_bufferfull_rollback():
+def test_msgpack_encoding_after_an_exception_was_raised():
     """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
     # Encode a trace after a rollback/BufferFull occurs exception
     rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
