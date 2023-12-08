@@ -194,18 +194,19 @@ def get_error_ranges(error_range_str):
 
 
 _ConfigSource = Literal["default", "env", "code", "remote_config"]
+_JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
-        # type: (str, Any, List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (str, _JSONType, List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
         self._default_value = default
-        self._env_value = None
-        self._code_value = None
-        self._rc_value = None
+        self._env_value: _JSONType = None
+        self._code_value: _JSONType = None
+        self._rc_value: _JSONType = None
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
@@ -222,7 +223,7 @@ class _ConfigItem:
             raise ValueError("Invalid source: {}".format(source))
 
     def set_code(self, value):
-        # type: (Union[int, float, str, bool]) -> None
+        # type: (_JSONType) -> None
         self._code_value = value
 
     def unset_rc(self):
@@ -230,7 +231,7 @@ class _ConfigItem:
         self._rc_value = None
 
     def value(self):
-        # type: () -> Union[int, float, str, bool]
+        # type: () -> _JSONType
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:

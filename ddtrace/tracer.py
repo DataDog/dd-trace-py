@@ -22,7 +22,6 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -72,6 +71,8 @@ from .span import Span
 
 
 if TYPE_CHECKING:
+    from ddtrace.settings import Config  # noqa: F401
+
     from .internal.writer import AgentResponse  # noqa: F401
 
 

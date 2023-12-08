@@ -79,7 +79,7 @@ def _assert_response(mock_send_request, expected_response):
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
