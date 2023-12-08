@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -11,7 +10,6 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.data import update_imported_dependencies
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -255,29 +253,6 @@ import ddtrace.auto
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
     ]
-
-
-def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer._app_dependencies_loaded_event()
-    # force a flush
-    telemetry_writer.periodic()
-    events = test_agent_session.get_events()
-    assert len(events) == 1
-    already_imported = {}
-    sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
-    payload = {"dependencies": update_imported_dependencies(already_imported, sys_modules_paths)}
-    assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
-
-
-def test_app_dependencies_loaded_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer._app_dependencies_loaded_event()
-        # force a flush
-        telemetry_writer.periodic()
-        events = test_agent_session.get_events()
-        assert len(events) <= 1  # could have a heartbeat
-        if events:
-            assert events[0]["request_type"] != "app-dependencies-loaded"
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):

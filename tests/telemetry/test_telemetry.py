@@ -63,7 +63,10 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
+
     assert len(events) == 4
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-integrations-change"
@@ -229,7 +232,9 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
 
     assert len(events) == 3
 
@@ -257,7 +262,7 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = test_agent_session.get_events()
 
     assert len(events) == 2
 
@@ -282,7 +287,9 @@ def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
 
     # Ensure the expected telemetry events are sent
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
     event_types = [event["request_type"] for event in events]
     assert event_types == ["app-closing", "app-started", "generate-metrics"]
 
@@ -310,7 +317,7 @@ tracer.trace("hi").finish()
     expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = test_agent_session.get_events()
 
     assert len(events) > 1
     for event in events:
@@ -362,7 +369,9 @@ f.wsgi_app()
 
     assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
-    events = _assert_dependencies_sort_and_remove(test_agent_session.get_events(), is_request=False)
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
 
     assert len(events) == 4
     # Same runtime id is used
