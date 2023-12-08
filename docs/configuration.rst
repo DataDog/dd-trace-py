@@ -446,7 +446,8 @@ The following environment variables for the tracer are supported:
      default: ""
      description: |
         Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
-        Note that this setting is only compatible with ``ddtrace-run``.
+        Note that this setting is only compatible with ``ddtrace-run``, and that it doesn't work for methods implemented
+        by libraries for which there's an integration in ``ddtrace/contrib``.
      version_added:
        v2.1.0:
 

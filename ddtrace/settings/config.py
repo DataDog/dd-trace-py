@@ -406,6 +406,7 @@ class Config(object):
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
         self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+        self._telemetry_dependency_collection = asbool(os.getenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True))
 
         self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
