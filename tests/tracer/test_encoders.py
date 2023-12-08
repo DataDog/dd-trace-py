@@ -299,6 +299,36 @@ def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
 
 
+def test_msgpack_encoding_after_an_exception_was_raised():
+    """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
+    # Encode a trace after a rollback/BufferFull occurs exception
+    rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
+    trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
+    rand_string = rands(size=20, chars=string.ascii_letters)
+    # trace only has one span
+    trace[0].set_tag_str("some_tag", rand_string)
+    try:
+        # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
+        # BufferFull is not raised since only one span is being encoded
+        rolledback_encoder.put(trace)
+    except BufferItemTooLarge:
+        pass
+    else:
+        pytest.fail("Encoding the trace did not overflow the trace buffer. We should increase the size of the span.")
+    # Successfully encode a small trace
+    small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
+    # Add a tag to the small trace that was previously encoded in the encoder's StringTable
+    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    rolledback_encoder.put(small_trace)
+
+    # Encode a trace without triggering a rollback/BufferFull exception
+    ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
+    ref_encoder.put(small_trace)
+
+    # Ensure the two encoders have the same state
+    assert rolledback_encoder.encode() == ref_encoder.encode()
+
+
 @allencodings
 def test_custom_msgpack_encode(encoding):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
