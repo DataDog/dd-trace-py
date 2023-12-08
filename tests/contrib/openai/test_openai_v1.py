@@ -1947,7 +1947,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": "ada",
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
                     "output": {
@@ -1963,7 +1963,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": "ada",
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
                     "output": {
@@ -2024,7 +2024,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
                     "output": {
@@ -2040,7 +2040,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
                     "output": {
@@ -2094,7 +2094,7 @@ def test_llmobs_chat_completion_function_call(
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
