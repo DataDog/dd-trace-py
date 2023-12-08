@@ -1,11 +1,13 @@
 [[
   {
     "name": "internal",
-    "service": null,
+    "service": "",
     "resource": "root",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -23,7 +25,7 @@
   },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "corountine 1",
        "trace_id": 0,
        "span_id": 2,
@@ -33,7 +35,7 @@
      },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "corountine 2",
        "trace_id": 0,
        "span_id": 3,
@@ -43,7 +45,7 @@
      },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "corountine 3",
        "trace_id": 0,
        "span_id": 4,
@@ -53,7 +55,7 @@
      },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "corountine 4",
        "trace_id": 0,
        "span_id": 5,

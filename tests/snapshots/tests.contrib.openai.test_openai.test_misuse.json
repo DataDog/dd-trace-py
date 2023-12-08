@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,

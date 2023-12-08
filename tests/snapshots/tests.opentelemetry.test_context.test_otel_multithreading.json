@@ -1,11 +1,13 @@
 [[
   {
     "name": "internal",
-    "service": null,
+    "service": "",
     "resource": "otel-threading-root",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -23,7 +25,7 @@
   },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 2,
@@ -40,7 +42,7 @@
      },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 6,
@@ -50,7 +52,7 @@
         },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 7,
@@ -60,7 +62,7 @@
         },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 3,
@@ -77,7 +79,7 @@
      },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 8,
@@ -87,7 +89,7 @@
         },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 9,
@@ -97,7 +99,7 @@
         },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 4,
@@ -114,7 +116,7 @@
      },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 10,
@@ -124,7 +126,7 @@
         },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 11,
@@ -134,7 +136,7 @@
         },
      {
        "name": "internal",
-       "service": null,
+       "service": "",
        "resource": "s1",
        "trace_id": 0,
        "span_id": 5,
@@ -151,7 +153,7 @@
      },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s2",
           "trace_id": 0,
           "span_id": 12,
@@ -161,7 +163,7 @@
         },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "s3",
           "trace_id": 0,
           "span_id": 13,

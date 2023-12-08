@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": null,
+    "service": "",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,

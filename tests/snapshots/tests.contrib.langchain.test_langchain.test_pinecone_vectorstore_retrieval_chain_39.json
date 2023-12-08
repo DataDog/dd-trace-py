@@ -1,11 +1,13 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.chains.qa_with_sources.retrieval.RetrievalQAWithSourcesChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -34,7 +36,7 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.vectorstores.pinecone.Pinecone",
        "trace_id": 0,
        "span_id": 2,
@@ -79,7 +81,7 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.embeddings.openai.OpenAIEmbeddings",
           "trace_id": 0,
           "span_id": 4,
@@ -103,7 +105,7 @@
         },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.combine_documents.stuff.StuffDocumentsChain",
        "trace_id": 0,
        "span_id": 3,
@@ -130,7 +132,7 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.chains.llm.LLMChain",
           "trace_id": 0,
           "span_id": 5,
@@ -158,7 +160,7 @@
         },
            {
              "name": "langchain.request",
-             "service": null,
+             "service": "",
              "resource": "langchain.llms.openai.OpenAI",
              "trace_id": 0,
              "span_id": 6,

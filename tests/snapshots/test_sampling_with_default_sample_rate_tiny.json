@@ -1,11 +1,13 @@
 [[
   {
     "name": "trace3",
-    "service": null,
+    "service": "",
     "resource": "trace3",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
@@ -23,7 +25,7 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,

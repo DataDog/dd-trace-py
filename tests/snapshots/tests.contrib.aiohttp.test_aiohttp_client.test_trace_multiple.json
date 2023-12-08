@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -31,7 +31,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
@@ -46,7 +46,7 @@
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 1,
     "span_id": 1,
@@ -76,7 +76,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 1,
        "span_id": 2,
@@ -91,7 +91,7 @@
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 2,
     "span_id": 1,
@@ -121,7 +121,7 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 2,
        "span_id": 2,

@@ -1,7 +1,7 @@
 [[
   {
     "name": "p",
-    "service": null,
+    "service": "",
     "resource": "p",
     "trace_id": 0,
     "span_id": 1,
@@ -23,7 +23,7 @@
   },
      {
        "name": "c1",
-       "service": null,
+       "service": "",
        "resource": "c1",
        "trace_id": 0,
        "span_id": 2,
@@ -36,7 +36,7 @@
      },
      {
        "name": "c2",
-       "service": null,
+       "service": "",
        "resource": "c2",
        "trace_id": 0,
        "span_id": 3,
@@ -49,7 +49,7 @@
      },
         {
           "name": "gc",
-          "service": null,
+          "service": "",
           "resource": "gc",
           "trace_id": 0,
           "span_id": 4,
