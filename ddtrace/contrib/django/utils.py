@@ -387,7 +387,6 @@ def _after_request_tags(pin, span: Span, request, response):
                 span,
                 config.django,
                 request,
-                _extract_body(request),
                 url,
                 raw_uri,
                 status,
