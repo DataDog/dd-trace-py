@@ -1527,7 +1527,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             pkgs={
                 "graphene": ["~=3.0.0", latest],
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "~=0.21.1",
                 "graphql-relay": "~=3.1.5",
             },
         ),

@@ -471,6 +471,7 @@ def test_civisibilitywriter_agentless_url():
 
 
 def test_civisibilitywriter_coverage_agentless_url():
+    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -489,6 +490,7 @@ def test_civisibilitywriter_coverage_agentless_url():
 
 
 def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
+    ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = ""
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
