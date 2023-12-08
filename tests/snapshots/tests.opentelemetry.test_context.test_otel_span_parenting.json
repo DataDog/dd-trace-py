@@ -85,6 +85,8 @@
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 4,
+          "type": "",
+          "error": 0,
           "meta": {
             "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
           },

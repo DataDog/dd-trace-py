@@ -92,6 +92,8 @@
           "trace_id": 0,
           "span_id": 8,
           "parent_id": 3,
+          "type": "",
+          "error": 0,
           "duration": 23411792,
           "start": 1700080043406774092
         },
@@ -102,6 +104,8 @@
           "trace_id": 0,
           "span_id": 9,
           "parent_id": 3,
+          "type": "",
+          "error": 0,
           "duration": 61850083,
           "start": 1700080043430265967
         },
@@ -131,6 +135,8 @@
           "trace_id": 0,
           "span_id": 10,
           "parent_id": 4,
+          "type": "",
+          "error": 0,
           "duration": 22181375,
           "start": 1700080043407196592
         },
@@ -141,6 +147,8 @@
           "trace_id": 0,
           "span_id": 11,
           "parent_id": 4,
+          "type": "",
+          "error": 0,
           "duration": 62950666,
           "start": 1700080043429524884
         },
@@ -170,6 +178,8 @@
           "trace_id": 0,
           "span_id": 12,
           "parent_id": 5,
+          "type": "",
+          "error": 0,
           "duration": 22272375,
           "start": 1700080043407654425
         },
@@ -180,6 +190,8 @@
           "trace_id": 0,
           "span_id": 13,
           "parent_id": 5,
+          "type": "",
+          "error": 0,
           "duration": 62895166,
           "start": 1700080043430002634
         }]]

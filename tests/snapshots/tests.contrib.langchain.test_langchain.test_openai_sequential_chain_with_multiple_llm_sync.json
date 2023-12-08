@@ -134,6 +134,8 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",

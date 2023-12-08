@@ -76,6 +76,7 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -132,6 +133,7 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",

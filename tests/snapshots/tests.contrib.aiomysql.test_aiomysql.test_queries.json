@@ -1,7 +1,7 @@
 [[
   {
     "name": "mysql.query",
-    "service": null,
+    "service": "",
     "resource": "select 'Jellysmack'",
     "trace_id": 0,
     "span_id": 1,
@@ -36,7 +36,7 @@
 [
   {
     "name": "mysql.query",
-    "service": null,
+    "service": "",
     "resource": "select * from some_non_existant_table",
     "trace_id": 1,
     "span_id": 1,
