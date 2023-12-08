@@ -148,12 +148,15 @@ class EventResult:
         return self.response_type == ResultType.RESULT_OK
 
 
+_MissingEvent = EventResult()
+
+
 class EventResultDict(Dict[str, EventResult]):
     def __missing__(self, key: str):
-        return EventResult()
+        return _MissingEvent
 
     def __getattr__(self, name: str):
-        return self[name]
+        return dict.__getitem__(self, name)
 
 
 class EventHub:
@@ -164,9 +167,9 @@ class EventHub:
         # type: (str) -> bool
         return event_id in self._listeners
 
-    def on(self, event_id: str, callback: Callable, name: Optional[str] = None) -> None:
+    def on(self, event_id: str, callback: Callable, name: Any = None) -> None:
         if name is None:
-            name = f"id_{id(callback)}"
+            name = id(callback)
         self._listeners[event_id][name] = callback
 
     def reset(self):
@@ -186,12 +189,15 @@ class EventHub:
         # order is not guraranteed. Introduce two consecutive different events to ensure order
         for name, listener in self._listeners[event_id].items():
             try:
-                result = listener(*args)
-                results[name] = EventResult(ResultType.RESULT_OK, result)
+                if isinstance(name, str):
+                    results[name] = EventResult(ResultType.RESULT_OK, listener(*args))
+                else:
+                    listener(*args)
             except Exception as exception:
                 if config._raise:
                     raise
-                results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, exception)
+                if isinstance(name, str):
+                    results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, exception)
         return results
 
 
