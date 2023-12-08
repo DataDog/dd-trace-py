@@ -55,6 +55,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "component": "trace"
        },
@@ -118,6 +120,8 @@
        "trace_id": 3,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "component": "trace"
        },

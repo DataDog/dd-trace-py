@@ -61,6 +61,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "rediscluster",
@@ -85,6 +86,7 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "rediscluster",

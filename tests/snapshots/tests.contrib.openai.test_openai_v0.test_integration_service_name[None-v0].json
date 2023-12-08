@@ -55,6 +55,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "component": "requests",

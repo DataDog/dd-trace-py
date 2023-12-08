@@ -31,6 +31,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 13513,
        "start": 1692390477975743489
      }]]

@@ -30,6 +30,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
@@ -47,6 +49,8 @@
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 23362125,
           "start": 1700080043406289967
         },
@@ -57,6 +61,8 @@
           "trace_id": 0,
           "span_id": 7,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 61255875,
           "start": 1700080043429745967
         },
@@ -67,6 +73,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
@@ -104,6 +112,8 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },
@@ -141,6 +151,8 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
        },

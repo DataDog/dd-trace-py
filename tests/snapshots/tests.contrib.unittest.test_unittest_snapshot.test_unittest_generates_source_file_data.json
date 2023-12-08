@@ -49,6 +49,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "test",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
@@ -85,6 +86,7 @@
           "span_id": 3,
           "parent_id": 2,
           "type": "test",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
@@ -121,6 +123,7 @@
              "span_id": 4,
              "parent_id": 3,
              "type": "test",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
@@ -164,6 +167,7 @@
              "span_id": 5,
              "parent_id": 3,
              "type": "test",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
