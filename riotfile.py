@@ -830,7 +830,7 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest, "requests": latest},
+            pkgs={"blinker": latest, "requests": latest, "werkzeug": "~=2.0", "urllib3": "~=1.0"},
             venvs=[
                 # Flask 1.x.x
                 Venv(
@@ -874,7 +874,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.2",  # latest 2.2
+                            "~=2.2.0",  # latest 2.2
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -889,7 +889,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.2",  # latest 2.2
+                            "~=2.2.0",
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -900,8 +900,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.0",
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -916,8 +915,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.0",
                         ],
                     },
                 ),
