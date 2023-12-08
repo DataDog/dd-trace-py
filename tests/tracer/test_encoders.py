@@ -305,14 +305,16 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
-    trace[-1].set_tag_str("some_tag", rand_string)
+    # trace only has one span
+    trace[0].set_tag_str("some_tag", rand_string)
     try:
-        # Encode a trace that will trigger a rollback/BufferFull exception
+        # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
+        # BufferFull is not raised since only one span is being encoded
         rolledback_encoder.put(trace)
-    except (BufferFull, BufferItemTooLarge):
+    except BufferItemTooLarge:
         pass
     else:
-        pytest.fail("Expected BufferFull or BufferItemTooLarge exception")
+        pytest.fail("Encoding the trace did not overflow the trace buffer. We should increase the size of the span.")
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
