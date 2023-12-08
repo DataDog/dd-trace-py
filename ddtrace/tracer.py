@@ -711,9 +711,12 @@ class Tracer(object):
                 span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
         if self._first_trace:
-            span._meta["_dd.install.id"] = config._install_id
-            span._meta["_dd.install.time"] = config._install_time
-            span._meta["_dd.install.type"] = config._install_type
+            if config._install_id:
+                span._meta["_dd.install.id"] = config._install_id
+            if config._install_time:
+                span._meta["_dd.install.time"] = config._install_time
+            if config._install_type:
+                span._meta["_dd.install.type"] = config._install_type
             self._first_trace = False
 
         if not span._parent:
