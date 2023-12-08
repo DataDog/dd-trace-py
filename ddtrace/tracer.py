@@ -1058,7 +1058,7 @@ class Tracer(object):
         if "_trace_sample_rate" in items:
             # Reset the user sampler if one exists
             if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                self.configure(sampler=self._user_sampler)
+                self._sampler = self._user_sampler
                 return
 
             if cfg._get_source("_trace_sample_rate") != "default":
@@ -1067,5 +1067,3 @@ class Tracer(object):
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
-            # Hack to reconfigure the agent with the new sample rate
-            self.configure()
