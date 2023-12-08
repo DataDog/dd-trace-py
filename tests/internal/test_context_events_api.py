@@ -61,7 +61,7 @@ class TestContextEventsApi(unittest.TestCase):
                     if make_target_id % 2 == 0:
                         return make_target_id * 2
 
-                core.on(event_name, listener)
+                core.on(event_name, listener, f"name_{make_target_id}")
 
             sleep(make_target_id * 0.0001)  # ensure threads finish in order
             return target
