@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.waf.version": "1.15.0",
