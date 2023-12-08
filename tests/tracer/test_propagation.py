@@ -20,7 +20,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
-from ddtrace.propagation.http import HTTP_BAGGAGE_PREFIX
+from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -64,7 +64,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
         with tracer.trace("global_root_span") as span:
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            assert headers[HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
+            assert headers[_HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
 
 
 @pytest.mark.subprocess(

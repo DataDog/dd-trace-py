@@ -44,7 +44,7 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
-HTTP_BAGGAGE_PREFIX = "ot-baggage-"
+_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
@@ -109,8 +109,8 @@ def _extract_header_value(possible_header_names, headers, default=None):
 def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
-            if key[: len(HTTP_BAGGAGE_PREFIX)] == HTTP_BAGGAGE_PREFIX:
-                context._set_baggage_item(key[len(HTTP_BAGGAGE_PREFIX) :], value)
+            if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
+                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -901,7 +901,7 @@ class HTTPPropagator(object):
 
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
-                headers[HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+                headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
