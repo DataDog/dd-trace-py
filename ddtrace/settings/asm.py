@@ -3,6 +3,7 @@ from envier import Env
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import IAST
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 
@@ -45,6 +46,7 @@ class ASMConfig(Env):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
+    _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
 
 
 config = ASMConfig()
