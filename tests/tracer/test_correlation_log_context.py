@@ -14,6 +14,8 @@ def global_config():
     config.service = "test-service"
     config.env = "test-env"
     config.version = "test-version"
+    global tracer
+    tracer = Tracer()
     yield
     config.service = config.env = config.version = None
 
