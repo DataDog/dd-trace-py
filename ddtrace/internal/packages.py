@@ -102,6 +102,7 @@ def _package_file_mapping():
                 d = Distribution(name=ilmd_d.metadata["name"], version=ilmd_d.version, path=None)
                 for f in ilmd_d.files:
                     if _is_python_source_file(f):
+                        # mapping[fspath(f.locate())] = d
                         _path = fspath(f.locate())
                         mapping[_path] = d
                         _realp = os.path.realpath(_path)
