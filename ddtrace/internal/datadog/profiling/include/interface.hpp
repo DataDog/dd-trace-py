@@ -32,6 +32,7 @@ void ddup_push_acquire(int64_t acquire_time, int64_t count);
 void ddup_push_release(int64_t release_time, int64_t count);
 void ddup_push_alloc(uint64_t size, uint64_t count);
 void ddup_push_heap(uint64_t size);
+void ddup_push_cuda_event(int64_t count);
 void ddup_push_lock_name(const char *lock_name);
 void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id,
                           const char *thread_name);
@@ -48,6 +49,8 @@ void ddup_push_frame(const char *_name, const char *_filename, uint64_t address,
 void ddup_flush_sample();
 void ddup_set_runtime_id(const char *id, size_t sz);
 void ddup_upload();
+void ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns);
+void ddup_push_cuda_event_type(const char *cuda_event_type);
 
 
 #ifdef __cplusplus

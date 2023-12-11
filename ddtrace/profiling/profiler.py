@@ -27,6 +27,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling.collector import cuda_events
 from ddtrace.settings.profiling import config
 
 
@@ -267,6 +268,8 @@ class _ProfilerInstance(service.Service):
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
+
+        self._collectors.append(cuda_events.CudaEventCollector(r))
 
         exporters = self._build_default_exporters()
 

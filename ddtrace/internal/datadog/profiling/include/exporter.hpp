@@ -53,7 +53,9 @@ class Uploader;
   X(trace_resource_container, "trace resource container")                      \
   X(trace_endpoint, "trace endpoint")                                          \
   X(class_name, "class name")                                                  \
-  X(lock_name, "lock name")
+  X(lock_name, "lock name")                                                    \
+  X(end_timestamp_ns, "end_timestamp_ns")                                      \
+  X(cuda_event_type, "cuda event type")
 
 #define X_ENUM(a, b) a,
 enum class ExportTagKey { EXPORTER_TAGS(X_ENUM) _Length };
@@ -123,7 +125,8 @@ public:
     LockRelease = 1 << 4,
     Allocation = 1 << 5,
     Heap = 1 << 6,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap
+    CudaEvent = 1 << 7,
+    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | CudaEvent
   };
 
 private:
@@ -167,6 +170,7 @@ private:
     unsigned short alloc_space;
     unsigned short alloc_count;
     unsigned short heap_space;
+    unsigned short cuda_count;
   } val_idx;
 
   // Helpers
@@ -190,6 +194,7 @@ public:
   bool push_release(int64_t lock_time, int64_t count);
   bool push_alloc(uint64_t size, uint64_t count);
   bool push_heap(uint64_t size);
+  bool push_cuda_event(int64_t count);
 
   // Adds metadata to sample
   bool push_lock_name(std::string_view lock_name);
@@ -203,6 +208,8 @@ public:
   bool push_trace_resource_container(std::string_view trace_resource_container);
   bool push_exceptioninfo(std::string_view exception_type, int64_t count);
   bool push_class_name(std::string_view class_name);
+  bool push_end_timestamp_ns(uint64_t end_timestamp_ns);
+  bool push_cuda_event_type(std::string_view cuda_event_type);
 
   // Assumes frames are pushed in leaf-order
   void push_frame(std::string_view name,     // for ddog_prof_Function

@@ -312,6 +312,9 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     if (type_mask & ProfileType::Heap) {
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
+    if (type_mask & ProfileType::CudaEvent) {
+        val_idx.cuda_count = get_value_idx("cuda-samples", "count");
+    }
 
     values.resize(samplers.size());
     std::fill(values.begin(), values.end(), 0);
@@ -572,6 +575,17 @@ Profile::push_heap(uint64_t size)
 }
 
 bool
+Profile::push_cuda_event(int64_t count) 
+{
+    if (type_mask & ProfileType::CudaEvent) {
+        values[val_idx.cuda_count] += count;
+        return true;
+    }
+    std::cout << "bad push cuda events" << std::endl;
+    return false; 
+}
+
+bool
 Profile::push_lock_name(std::string_view lock_name)
 {
     push_label(ExportLabelKey::lock_name, lock_name);
@@ -658,6 +672,26 @@ bool
 Profile::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Profile::push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    if (!push_label(ExportLabelKey::end_timestamp_ns, end_timestamp_ns)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Profile::push_cuda_event_type(std::string_view cuda_event_type)
+{
+    if (!push_label(ExportLabelKey::cuda_event_type, cuda_event_type)) {
         std::cout << "bad push" << std::endl;
         return false;
     }

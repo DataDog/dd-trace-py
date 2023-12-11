@@ -190,6 +190,12 @@ ddup_push_heap(uint64_t size)
 }
 
 void
+ddup_push_cuda_event(int64_t count)
+{
+    g_profile->push_cuda_event(count);
+}
+
+void
 ddup_push_lock_name(const char* lock_name)
 {
     if (!lock_name)
@@ -304,4 +310,16 @@ ddup_upload()
     g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
+}
+
+void
+ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    g_profile->push_end_timestamp_ns(end_timestamp_ns);
+}
+
+void
+ddup_push_cuda_event_type(const char* cuda_event_type)
+{
+    g_profile->push_cuda_event_type(cuda_event_type);
 }

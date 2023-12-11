@@ -21,6 +21,7 @@ IF UNAME_SYSNAME == "Linux":
             LockRelease "ProfileType::LockRelease"
             Allocation  "ProfileType::Allocation"
             Heap        "ProfileType::Heap"
+            CudaEvent   "ProfileType::CudaEvent"
             All         "ProfileType::All"
     cdef extern from "interface.hpp":
         ctypedef signed int int64_t
@@ -46,6 +47,7 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_release(int64_t release_time, int64_t count)
         void ddup_push_alloc(uint64_t size, uint64_t count)
         void ddup_push_heap(uint64_t size)
+        void ddup_push_cuda_event(int64_t count)
         void ddup_push_lock_name(const char *lock_name)
         void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name)
         void ddup_push_task_id(int64_t task_id)
@@ -60,6 +62,8 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
         void ddup_upload()
+        void ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns)
+        void ddup_push_cuda_event_type(const char *cuda_event_type)
 
     def init(
             service: Optional[str],
@@ -112,6 +116,9 @@ IF UNAME_SYSNAME == "Linux":
 
     def push_heap(value: int) -> None:
         ddup_push_heap(value)
+    
+    def push_cuda_event(count: int) -> None:
+        ddup_push_cuda_event(count)
 
     def push_lock_name(lock_name: str) -> None:
         ddup_push_lock_name(ensure_binary(lock_name))
@@ -166,3 +173,10 @@ IF UNAME_SYSNAME == "Linux":
         runtime_id = ensure_binary(runtime.get_runtime_id())
         ddup_set_runtime_id(runtime_id, len(runtime_id))
         ddup_upload()
+
+    def push_end_timestamp_ns(end_timestamp_ns: int) -> None:
+        ddup_push_end_timestamp_ns(end_timestamp_ns)   
+
+    def push_cuda_event_type(cuda_event_type: str) -> None:
+        if cuda_event_type:
+            ddup_push_cuda_event_type(ensure_binary(cuda_event_type))
