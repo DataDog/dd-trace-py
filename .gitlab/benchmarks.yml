@@ -69,6 +69,12 @@ benchmark-set-http-meta:
   variables:
     SCENARIO: "set_http_meta"
 
+benchmark-django-simple:
+  extends: .benchmarks
+  timeout: 1h 30m
+  variables:
+    SCENARIO: "django_simple"
+
 benchmark-flask-simple:
   extends: .benchmarks
   timeout: 1h 30m
@@ -79,6 +85,11 @@ benchmark-flask-sqli:
   extends: .benchmarks
   variables:
     SCENARIO: "flask_sqli"
+    
+benchmark-core-api:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "core_api"
 
 benchmark-otel-span:
   extends: .benchmarks
@@ -89,3 +100,18 @@ appsec-iast-propagation:
   extends: .benchmarks
   variables:
     SCENARIO: "appsec_iast_propagation"
+
+benchmark-encoder:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "encoder"
+
+benchmark-http-propagation-extract:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "http_propagation_extract"
+
+benchmark-http-propagation-inject:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "http_propagation_inject"

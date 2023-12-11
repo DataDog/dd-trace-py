@@ -3,13 +3,6 @@
 Integrations
 ------------
 
-.. _aioredis:
-
-aioredis
-^^^^^^^^
-.. automodule:: ddtrace.contrib.aioredis
-
-
 .. _aiobotocore:
 
 aiobotocore
@@ -329,13 +322,6 @@ OpenAI
 pylibmc
 ^^^^^^^
 .. automodule:: ddtrace.contrib.pylibmc
-
-
-.. _pylons:
-
-Pylons
-^^^^^^
-.. automodule:: ddtrace.contrib.pylons
 
 
 .. _pynamodb:

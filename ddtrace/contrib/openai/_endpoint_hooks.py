@@ -71,6 +71,11 @@ class _EndpointHook:
     def handle_request(self, pin, integration, span, args, kwargs):
         self._record_request(pin, integration, span, args, kwargs)
         resp, error = yield
+        if hasattr(resp, "parse"):
+            # Users can request the raw response, in which case we need to process on the parsed response
+            # and return the original raw APIResponse.
+            self._record_response(pin, integration, span, args, kwargs, resp.parse(), error)
+            return resp
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -224,6 +229,8 @@ class _CompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -251,7 +258,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
         super()._record_request(pin, integration, span, args, kwargs)
         for idx, m in enumerate(kwargs.get("messages", [])):
             if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(m.get("content", "")))
+                span.set_tag_str(
+                    "openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", "")))
+                )
             span.set_tag_str("openai.request.messages.%d.role" % idx, m.get("role", ""))
             span.set_tag_str("openai.request.messages.%d.name" % idx, m.get("name", ""))
 
@@ -263,8 +272,9 @@ class _ChatCompletionHook(_BaseCompletionHook):
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             idx = choice.index
+            finish_reason = getattr(choice, "finish_reason", None)
             message = choice.message
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice.finish_reason))
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
             span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice.message.role)
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str(
@@ -283,6 +293,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return resp
 
 

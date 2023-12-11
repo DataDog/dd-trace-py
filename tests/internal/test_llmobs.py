@@ -9,6 +9,9 @@ from ddtrace.internal.llmobs import LLMObsWriter
 from tests.utils import request_token
 
 
+INTAKE_ENDPOINT = "https://api.datad0g.com/api/unstable/llm-obs/v1/records"
+
+
 logs_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
     record_mode="once",
@@ -56,7 +59,8 @@ def _completion_record():
                     "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, "
                     "led by mathematician Alan Turing."
                 }
-            ]
+            ],
+            "durations": [1.234],
         },
     }
 
@@ -84,7 +88,8 @@ def _chat_completion_record():
                     "and your quest will not go unnoticed",
                     "role": "assistant",
                 }
-            ]
+            ],
+            "durations": [2.345],
         },
     }
 
@@ -102,15 +107,11 @@ def test_send_completion(mock_logs):
         site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=1, timeout=1
     )
     llmobs_writer.start()
-    mock_logs.debug.assert_has_calls(
-        [mock.call("started llmobs writer to %r", "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
     llmobs_writer.enqueue(_completion_record())
     mock_logs.reset_mock()
     llmobs_writer.periodic()
-    mock_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLM records to %r", 1, "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
 
 
 @pytest.mark.vcr_logs
@@ -119,15 +120,11 @@ def test_send_chat_completion(mock_logs):
         site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=1, timeout=1
     )
     llmobs_writer.start()
-    mock_logs.debug.assert_has_calls(
-        [mock.call("started llmobs writer to %r", "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
     llmobs_writer.enqueue(_chat_completion_record())
     mock_logs.reset_mock()
     llmobs_writer.periodic()
-    mock_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLM records to %r", 1, "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
 
 
 @pytest.mark.vcr_logs
@@ -141,9 +138,10 @@ def test_send_completion_bad_api_key(mock_logs):
     mock_logs.error.assert_called_with(
         "failed to send %d LLM records to %r, got response code %r, status: %r",
         1,
-        "https://api.datad0g.com/api/unstable/llm-obs/records",
+        INTAKE_ENDPOINT,
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
+        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com",'
+        b'"twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
     )
 
 
@@ -158,9 +156,10 @@ def test_send_completion_bad_app_key(mock_logs):
     mock_logs.error.assert_called_with(
         "failed to send %d LLM records to %r, got response code %r, status: %r",
         1,
-        "https://api.datad0g.com/api/unstable/llm-obs/records",
+        INTAKE_ENDPOINT,
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
+        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com",'
+        b'"twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
     )
 
 
@@ -175,16 +174,12 @@ def test_send_timed_records(mock_logs):
     llmobs_writer.enqueue(_completion_record())
     llmobs_writer.enqueue(_completion_record())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLM records to %r", 2, "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 2, INTAKE_ENDPOINT)])
 
     llmobs_writer.enqueue(_chat_completion_record())
     mock_logs.reset_mock()
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLM records to %r", 1, "https://api.datad0g.com/api/unstable/llm-obs/records")]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
 
 
 def test_send_on_exit(mock_logs, run_python_code_in_subprocess):
