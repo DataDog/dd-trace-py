@@ -1,3 +1,5 @@
+import os
+
 import coverage
 
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
@@ -47,3 +49,10 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
     pct_covered = func(*args, **kwargs)
     _coverage_data[PCT_COVERED_KEY] = pct_covered
     return pct_covered
+
+
+def _is_coverage_patched():
+    return coverage._datadog_patch
+
+def _is_coverage_invoked_by_coverage_run():
+    return os.environ.get("COVERAGE_RUN", False)
