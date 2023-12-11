@@ -111,6 +111,26 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
         rc_client._products = {}
         asm_callback.stop()
 
+        mock_callback = mock.MagicMock()
+
+        def _mock_appsec_callback(features, test_tracer=None):
+            mock_callback(features)
+
+        callback_content = {"b": [1, 2, 3]}
+        target = "1/ASM/2"
+        config = {"Config": "data"}
+        test_list_callbacks = []
+        callback = RCClientMockPubSub(None, _mock_appsec_callback)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
+        callback.start_subscriber()
+        for callback_to_dispach in test_list_callbacks:
+            callback_to_dispach.publish()
+        time.sleep(0.5)
+
+        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": 2})
+        assert len(test_list_callbacks) > 0
+        callback.stop()
+
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_config_exists(mock_extract_target_file):
@@ -342,29 +362,6 @@ def test_apply_default_callback():
     assert CallbackClass.config == config
     assert CallbackClass.result == callback_content
     assert test_list_callbacks == [callback]
-
-
-def test_apply_merge_callback():
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
-        mock_callback = mock.MagicMock()
-
-        def _mock_appsec_callback(features, test_tracer=None):
-            mock_callback(features)
-
-        callback_content = {"b": [1, 2, 3]}
-        target = "1/ASM/2"
-        config = {"Config": "data"}
-        test_list_callbacks = []
-        callback = RCClientMockPubSub(None, _mock_appsec_callback)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
-        callback.start_subscriber()
-        for callback_to_dispach in test_list_callbacks:
-            callback_to_dispach.publish()
-        time.sleep(0.5)
-
-        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": ANY})
-        assert len(test_list_callbacks) > 0
-        callback.stop()
 
 
 def test_apply_merge_multiple_callback():
