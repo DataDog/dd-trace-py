@@ -372,6 +372,10 @@ class Config(object):
         # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
+        self.propagation_http_baggage_enabled = asbool(
+            os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
+        )
+
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
