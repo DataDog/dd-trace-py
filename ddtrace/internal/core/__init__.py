@@ -100,21 +100,23 @@ like this::
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
-from collections import defaultdict
 from contextlib import contextmanager
 import logging
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace import config
+from . import event_hub  # noqa:F401
+from .event_hub import dispatch
+from .event_hub import dispatch_with_results  # noqa:F401
+from .event_hub import has_listeners  # noqa:F401
+from .event_hub import on  # noqa:F401
+from .event_hub import reset as reset_listeners  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
-    from typing import Tuple  # noqa:F401
 
     from ddtrace.span import Span  # noqa:F401
 
@@ -129,76 +131,7 @@ log = logging.getLogger(__name__)
 
 
 _CURRENT_CONTEXT = None
-_EVENT_HUB = None
 ROOT_CONTEXT_ID = "__root"
-
-
-class EventHub:
-    def __init__(self):
-        self.reset()
-
-    def has_listeners(self, event_id):
-        # type: (str) -> bool
-        return event_id in self._listeners
-
-    def on(self, event_id, callback):
-        # type: (str, Callable) -> None
-        if callback not in self._listeners[event_id]:
-            self._listeners[event_id].insert(0, callback)
-
-    def reset(self):
-        if hasattr(self, "_listeners"):
-            del self._listeners
-        self._listeners = defaultdict(list)
-
-    def dispatch(self, event_id, args, *other_args):
-        # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-        if not isinstance(args, list):
-            args = [args] + list(other_args)
-        else:
-            if other_args:
-                raise TypeError(
-                    "When the first argument expected by the event handler is a list, all arguments "
-                    "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
-                    "instead of dispatch('foo', [l1, l2], arg2)."
-                )
-        results = []
-        exceptions = []
-        for listener in self._listeners.get(event_id, []):
-            result = None
-            exception = None
-            try:
-                result = listener(*args)
-            except Exception as exc:
-                exception = exc
-                if config._raise:
-                    raise
-            results.append(result)
-            exceptions.append(exception)
-        return results, exceptions
-
-
-_EVENT_HUB = contextvars.ContextVar("EventHub_var", default=EventHub())
-
-
-def has_listeners(event_id):
-    # type: (str) -> bool
-    return _EVENT_HUB.get().has_listeners(event_id)  # type: ignore
-
-
-def on(event_id, callback):
-    # type: (str, Callable) -> None
-    return _EVENT_HUB.get().on(event_id, callback)  # type: ignore
-
-
-def reset_listeners():
-    # type: () -> None
-    _EVENT_HUB.get().reset()  # type: ignore
-
-
-def dispatch(event_id, args, *other_args):
-    # type: (...) -> Tuple[List[Optional[Any]], List[Optional[Exception]]]
-    return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
 class ExecutionContext:
@@ -214,7 +147,7 @@ class ExecutionContext:
         self._data.update(kwargs)
         if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
-        dispatch("context.started.%s" % self.identifier, [self])
+        dispatch("context.started.%s" % self.identifier, (self,))
 
     def __repr__(self):
         return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
@@ -228,7 +161,7 @@ class ExecutionContext:
         return self._parents[0] if self._parents else None
 
     def end(self):
-        dispatch_result = dispatch("context.ended.%s" % self.identifier, [self])
+        dispatch_result = dispatch_with_results("context.ended.%s" % self.identifier, (self,))
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)
