@@ -2178,19 +2178,14 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/tornado",
             venvs=[
                 Venv(
-                    # tornado added support for Python 3.7 in 5.1
-                    pys="3.7",
-                    pkgs={"tornado": ["~=5.1", "~=6.1", latest]},
-                ),
-                Venv(
                     # tornado added support for Python 3.8/3.9 in 6.1
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"tornado": ["~=6.1", latest]},
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={"tornado": ["~=6.1", "==6.2"]},
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"tornado": [latest]},
+                    pkgs={"tornado": ["==6.2", "==6.3.1"]},
                 ),
             ],
         ),
