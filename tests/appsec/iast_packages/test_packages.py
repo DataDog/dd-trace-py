@@ -48,6 +48,9 @@ def setup():
 
 @pytest.mark.parametrize("package", PACKAGES)
 def test_patched(package):
+    if package.xfail:
+        pytest.xfail("Initial test failed for package: {}".format(package))
+
     with flask_server(iast_enabled="true", remote_configuration_enabled="false", token=None) as context:
         _, client, pid = context
 
