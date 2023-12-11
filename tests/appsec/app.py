@@ -9,7 +9,7 @@ from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
-from tests.appsec.integrations.packages.pkg_requests import pkg_requests
+from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
 
 
 app = Flask(__name__)
