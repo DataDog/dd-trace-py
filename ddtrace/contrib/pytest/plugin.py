@@ -47,14 +47,12 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
-from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
-from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
 from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
@@ -80,6 +78,13 @@ def encode_test_parameter(parameter):
 def is_enabled(config):
     """Check if the ddtrace plugin is enabled."""
     return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
+
+
+def _is_pytest_cov_enabled(config):
+    config_result = config.getoption("--cov", default=False)
+    if type(config_result) == list and config_result == [True]:
+        return True
+    return config_result
 
 
 def _extract_span(item):
@@ -382,7 +387,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
-    if config.getoption("--cov", default=False):
+    if _is_pytest_cov_enabled(config):
         patch_coverage()
 
 
