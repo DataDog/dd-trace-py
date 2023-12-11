@@ -1,12 +1,5 @@
 ---
-prelude: >
-    Datadog Tracing adds support for OpenTracing Baggage Items with HTTP Propagation.
-  
-    .. note::
-    Methods for working with Baggage Items programmatically are private and subject to change.
 features:
   - |
-    tracing: This introduces support for OpenTracing Baggage Items with HTTP Propagation.
-    Enable HTTP Propagation by setting ``DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED`` to true.
-    Get/Set baggage item by referring to ``_set_baggage_item`` and ``_get_baggage_item`` methods on ``Context`` class
+    tracing: Introduces support for OpenTracing Baggage Items with HTTP Propagation. Enable this support by ``DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED=true``. The ``Context._set_baggage_item`` and ``Context._get_baggage_item`` internal methods are provided for manual modifications to the Baggage Items. These API changes are subject to change.
 
