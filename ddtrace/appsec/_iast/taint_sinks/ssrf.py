@@ -1,7 +1,7 @@
 import re
-from typing import Callable
-from typing import Dict
-from typing import Set
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Set  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -16,7 +16,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
-from ..reporter import IastSpanReporter
+from ..reporter import IastSpanReporter  # noqa:F401
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained

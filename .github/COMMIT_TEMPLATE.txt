@@ -1,9 +1,16 @@
-feat/fix/docs/refactor/ci(xxx): Your message here
+# <--------------- 50 characters ---------------> |
+feat/fix/docs/refactor/ci(xxx): commit title here
 
-# To disable Intelligent Test Runner for this commit, uncomment the following line
+# Write the commit message body in between the two lines above and below
+# <-------------------------- 72 characters --------------------------> |
+
+# <-------------------------- 72 characters --------------------------> |
+# To disable Intelligent Test Runner for this commit, uncomment the
+# following line
 # ITR:NoSkip
 
-# To force run extra suites in CircleCI on top of what's detected, uncomment as needed
+# To force run extra suites in CircleCI on top of what's detected,
+# uncomment as needed
 
 # To force run all test suites:
 # CircleCI:all
@@ -12,7 +19,7 @@ feat/fix/docs/refactor/ci(xxx): Your message here
 # CircleCI:django,flask,wsgi
 
 # CircleCI suites are:
-# aiobotocore, aiohttp, aiomysql, aiopg, aioredis, algoliasearch, appsec, appsec_iast,
+# aiobotocore, aiohttp, aiomysql, aiopg, algoliasearch, appsec, appsec_iast,
 # appsec_iast_memcheck, appsec_integrations, aredis, asgi, asyncpg, asynctest, aws_lambda,
 # botocore, bottle, cassandra, celery, cherrypy, ci_visibility, consul, datastreams,
 # ddtracerun, debugger, django, django_hosts, djangorestframework, dogpile_cache,

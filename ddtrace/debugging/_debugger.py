@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+import linecache
 import os
 from pathlib import Path
 import sys
@@ -323,7 +324,7 @@ class Debugger(Service):
             self._collector.push(signal)
 
         except Exception:
-            log.error("Failed to execute debugger probe hook", exc_info=True)
+            log.error("Failed to execute probe hook", exc_info=True)
 
     def _dd_debugger_wrapper(self, wrappers: Dict[str, FunctionProbe]) -> Wrapper:
         """Debugger wrapper.
@@ -429,11 +430,19 @@ class Debugger(Service):
             assert line is not None  # nosec
             functions = FunctionDiscovery.from_module(module).at_line(line)
             if not functions:
-                message = "Cannot inject probe %s: no functions at line %d within source file %s" % (
-                    probe.probe_id,
-                    line,
-                    origin(module),
-                )
+                module_origin = str(origin(module))
+                if linecache.getline(module_origin, line):
+                    # The source actually has a line at the given line number
+                    message = (
+                        f"Cannot install probe {probe.probe_id}: "
+                        f"function at line {line} within source file {module_origin} "
+                        "is likely decorated with an unsupported decorator."
+                    )
+                else:
+                    message = (
+                        f"Cannot install probe {probe.probe_id}: "
+                        f"no functions at line {line} within source file {module_origin} found"
+                    )
                 log.error(message)
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
@@ -550,10 +559,9 @@ class Debugger(Service):
                 assert probe.module is not None and probe.func_qname is not None  # nosec
                 function = FunctionDiscovery.from_module(module).by_name(probe.func_qname)
             except ValueError:
-                message = "Cannot inject probe %s: no function '%s' in module %s" % (
-                    probe.probe_id,
-                    probe.func_qname,
-                    probe.module,
+                message = (
+                    f"Cannot install probe {probe.probe_id}: no function '{probe.func_qname}' in module {probe.module}"
+                    "found (note: if the function exists, it might be decorated with an unsupported decorator)"
                 )
                 self._probe_registry.set_error(probe, "NoFunctionInModule", message)
                 log.error(message)

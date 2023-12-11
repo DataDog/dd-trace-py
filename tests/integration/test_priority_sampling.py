@@ -1,6 +1,9 @@
 import time
 
+import pytest
+
 from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
@@ -8,6 +11,8 @@ from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import override_global_config
+
+from .test_integration import AGENT_VERSION
 
 
 def _turn_tracer_into_dummy(tracer):
@@ -104,3 +109,44 @@ def test_priority_sampling_response():
             sampler_key in t._writer._sampler._by_service_samplers
         ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
         t.shutdown()
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.9999})
+def test_agent_sample_rate_keep():
+    """Ensure that the agent sample rate is respected when a trace is auto sampled."""
+    from ddtrace import tracer
+
+    # First trace won't actually have the sample rate applied since the response has not yet been received.
+    with tracer.trace(""):
+        pass
+    # Force a flush to get the response back.
+    tracer.flush()
+
+    # Subsequent traces should have the rate applied.
+    with tracer.trace("test", service="test") as span:
+        pass
+    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.9999)
+    assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
+    assert span.get_tag("_dd.p.dm") == "-1"
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
+def test_agent_sample_rate_reject():
+    """Ensure that the agent sample rate is respected when a trace is auto rejected."""
+    from ddtrace import tracer
+
+    # First trace won't actually have the sample rate applied since the response has not yet been received.
+    with tracer.trace(""):
+        pass
+
+    # Force a flush to get the response back.
+    tracer.flush()
+
+    # Subsequent traces should have the rate applied.
+    with tracer.trace("test", service="test") as span:
+        pass
+    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
+    assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
+    assert span.get_tag("_dd.p.dm") == "-1"

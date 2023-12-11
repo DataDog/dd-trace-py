@@ -10,7 +10,6 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -413,14 +412,14 @@ def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        request.cookies = LazyTaintDict(
+        request.cookies = taint_structure(
             request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
             override_pyobject_tainted=True,
         )
 

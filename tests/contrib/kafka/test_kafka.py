@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -8,7 +9,6 @@ from confluent_kafka import TopicPartition
 from confluent_kafka import admin as kafka_admin
 import mock
 import pytest
-import six
 
 from ddtrace import Pin
 from ddtrace import Tracer
@@ -29,10 +29,7 @@ from tests.utils import override_config
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key"
-if six.PY3:
-    PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-else:
-    PAYLOAD = bytes("hueh hueh hueh")
+PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 DSM_TEST_PATH_HEADER_SIZE = 20
 
 
@@ -373,7 +370,7 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
 
 
 def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
@@ -420,14 +417,12 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
 
 
 def _generate_in_subprocess(random_topic):
-    import six
-
     import ddtrace
     from ddtrace.contrib.kafka.patch import patch
     from ddtrace.contrib.kafka.patch import unpatch
     from ddtrace.filters import TraceFilter
 
-    PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8") if six.PY3 else bytes("hueh hueh hueh")
+    PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
     class KafkaConsumerPollFilter(TraceFilter):
         def process_trace(self, trace):
@@ -531,7 +526,7 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
                 consumer.commit(asynchronous=False, message=message)
                 return message
 
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     consumer = non_auto_commit_consumer
     try:
         del dsm_processor._current_context.value
@@ -568,7 +563,7 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
                 return message
 
     consumer = non_auto_commit_consumer
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
@@ -598,7 +593,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
             if message:
                 return message
 
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
@@ -632,7 +627,7 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
             if message:
                 return message
 
-    PAYLOAD = bytes("data streams", encoding="utf-8") if six.PY3 else bytes("data streams")
+    PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
     except AttributeError:
@@ -657,7 +652,7 @@ def test_data_streams_default_context_propagation(dummy_tracer, consumer, produc
     Pin.override(consumer, tracer=dummy_tracer)
 
     test_string = "context test"
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key="test_key")
     producer.flush()
@@ -680,7 +675,7 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     Pin.override(consumer, tracer=dummy_tracer)
 
     test_string = "context test"
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key="test_key")
     producer.flush()
@@ -718,7 +713,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     Pin.override(consumer, tracer=dummy_tracer)
 
     test_string = "payload hash test"
-    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+    PAYLOAD = bytes(test_string, encoding="utf-8")
 
     producer.produce(kafka_topic, PAYLOAD, key="test_payload_hash_key")
     producer.flush()
@@ -740,3 +735,61 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
 
     assert consume_span.name == "kafka.consume"
     assert consume_span.get_tag("pathway.hash") is not None
+
+
+def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
+    def json_serializer(msg, s_obj):
+        return json.dumps(msg).encode("utf-8")
+
+    conf = {
+        "bootstrap.servers": BOOTSTRAP_SERVERS,
+        "key.serializer": json_serializer,
+        "value.serializer": json_serializer,
+    }
+    _producer = confluent_kafka.SerializingProducer(conf)
+
+    def json_deserializer(as_bytes, ctx):
+        try:
+            return json.loads(as_bytes)
+        except json.decoder.JSONDecodeError:
+            return as_bytes
+
+    conf = {
+        "bootstrap.servers": BOOTSTRAP_SERVERS,
+        "group.id": GROUP_ID,
+        "auto.offset.reset": "earliest",
+        "key.deserializer": json_deserializer,
+        "value.deserializer": json_deserializer,
+    }
+
+    _consumer = confluent_kafka.DeserializingConsumer(conf)
+    tp = TopicPartition(kafka_topic, 0)
+    tp.offset = 0  # we want to read the first message
+    _consumer.commit(offsets=[tp])
+    _consumer.subscribe([kafka_topic])
+
+    Pin.override(_producer, tracer=dummy_tracer)
+    Pin.override(_consumer, tracer=dummy_tracer)
+
+    test_string = "serializing_test"
+    PAYLOAD = {"val": test_string}
+
+    _producer.produce(kafka_topic, key={"name": "keykey"}, value=PAYLOAD)
+    _producer.flush()
+
+    message = None
+    while message is None or message.value() != PAYLOAD:
+        message = _consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == PAYLOAD
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span = traces[len(traces) - 1][0]
+
+    assert produce_span.get_tag("kafka.message_key") is not None
+
+    # consumer span will not have tag set since we can't serialize the deserialized key from the original type to
+    # a string
+    assert consume_span.get_tag("kafka.message_key") is None

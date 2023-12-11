@@ -1,15 +1,14 @@
 import logging
 import os
-import sys
 import typing as t
 
 from ddtrace.internal.utils.cache import callonce
 
 
 try:
-    import pathlib
+    import pathlib  # noqa: F401
 except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]
+    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
 
 
 LOG = logging.getLogger(__name__)
@@ -31,10 +30,6 @@ except AttributeError:
         """
         if isinstance(path, (str, bytes)):
             return path
-
-        # Hack for Python 3.5: there's no __fspath__ :(
-        if sys.version_info[:2] == (3, 5) and isinstance(path, pathlib.Path):
-            return str(path)
 
         # Work from the object's type to match method resolution of other magic
         # methods.
@@ -107,7 +102,12 @@ def _package_file_mapping():
                 d = Distribution(name=ilmd_d.metadata["name"], version=ilmd_d.version, path=None)
                 for f in ilmd_d.files:
                     if _is_python_source_file(f):
-                        mapping[fspath(f.locate())] = d
+                        # mapping[fspath(f.locate())] = d
+                        _path = fspath(f.locate())
+                        mapping[_path] = d
+                        _realp = os.path.realpath(_path)
+                        if _realp != _path:
+                            mapping[_realp] = d
 
         return mapping
 
@@ -122,6 +122,7 @@ def _package_file_mapping():
 
 def filename_to_package(filename):
     # type: (str) -> t.Optional[Distribution]
+
     mapping = _package_file_mapping()
     if mapping is None:
         return None

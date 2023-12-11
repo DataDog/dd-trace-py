@@ -1,9 +1,9 @@
 import functools
 import sys
-from typing import Callable
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -517,7 +517,6 @@ def _on_django_after_request_headers_post(
     span: Span,
     django_config,
     request,
-    body,
     url,
     raw_uri,
     status,
@@ -536,7 +535,6 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        request_body=body,
         peer_ip=core.get_item("http.request.remote_ip", span=span),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
