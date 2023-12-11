@@ -89,13 +89,21 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        with override_global_config(dict(health_metrics_enabled=True, _trace_writer_buffer_size=8 << 20)):
+        with override_global_config(dict(health_metrics_enabled=True, _trace_writer_buffer_size=15000)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            writer.write(
-                [Span(name="a" * 5000, trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(1, 2**10)]
-            )
+
+            massive_trace = []
+            for i in range(10):
+                span = Span("mmon", "mmon" + str(i), "mmon" + str(i))
+                for j in range(50):
+                    key = "opqr012|~" + str(i) + str(j)
+                    val = "stuv345!@#" + str(i) + str(j)
+                    span.set_tag_str(key, val)
+                massive_trace.append(span)
+
+            writer.write(massive_trace)
             writer.stop()
             writer.join()
 
@@ -119,7 +127,7 @@ class AgentWriterTests(BaseTestCase):
         with override_global_config(dict(health_metrics_enabled=True)):
             writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False)
             for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
             writer.flush_queue()
             statsd.distribution.assert_has_calls(
                 [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
@@ -134,7 +142,7 @@ class AgentWriterTests(BaseTestCase):
             statsd.reset_mock()
 
             for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
             writer.stop()
             writer.join()
 
@@ -218,24 +226,21 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, buffer_size=1000)
             for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
-            writer.write(
-                [Span(name="a" * 5000 * i, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2**10)]
-            )
+                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+            writer.write([Span(name="a" * i, trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(2**10)])
             writer.stop()
             writer.join()
 
             # metrics should be reset after traces are sent
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
 
-        client_count = len(writer._clients)
         statsd.distribution.assert_has_calls(
             [
                 mock.call(
                     "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
-                    client_count,
+                    1,
                     tags=["reason:t_too_big"],
                 ),
             ],
@@ -245,7 +250,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
-            writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=5125, dogstatsd=statsd)
+            writer = self.WRITER_CLASS("http://asdf:1234", buffer_size=1000, dogstatsd=statsd)
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
             writer.write([Span(name="a", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -299,17 +304,17 @@ class AgentWriterTests(BaseTestCase):
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
         with override_global_config(dict(health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)):
-            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd)
+            # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, api_version="v0.4")
             writer.run_periodic = writer_run_periodic
             writer._put = writer_put
 
             traces = [
-                [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)]
-                for i in range(1, 5)
+                [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)] for i in range(1, 5)
             ]
 
             traces_too_big = [
-                [Span(name="a" * 5000, trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(1, 2**10)]
+                [Span(name="a" * 5000, trace_id=i, span_id=j + 1, parent_id=j) for j in range(1, 2**10)]
                 for i in range(4)
             ]
 
@@ -725,7 +730,7 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
         # Defaults on windows
         ("cygwin", None, None, False, False, "v0.4"),
         # Default with priority sampler
-        ("cygwin", None, None, True, False, "v0.5"),
+        ("cygwin", None, None, True, False, "v0.4"),
         # Explicitly passed in API version is always used
         ("cygwin", "v0.3", None, True, False, "v0.3"),
         ("cygwin", "v0.3", "v0.4", False, False, "v0.3"),
