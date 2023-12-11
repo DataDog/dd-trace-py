@@ -17,7 +17,6 @@ from ...internal.compat import parse
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
-from ...settings.asm import config as asm_config
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
@@ -40,15 +39,12 @@ from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
-from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
-from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
-from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -73,14 +69,12 @@ from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
 from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
 from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
 from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SAMPLING_RATE
 from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
 from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
 from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
-from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -290,8 +284,40 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
-    def _telemetry_entry(self, item):
-        return item.telemetry_name(), item.value(), item.source()
+    def configs_changed(self, cfg_names):
+        cs = [{"name": n, "value": v, "origin": o} for n, v, o in [self._telemetry_entry(n) for n in cfg_names]]
+        self._app_client_configuration_changed_event(cs)
+
+    def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, str]:
+        item = config._config[cfg_name]
+        if cfg_name == "_trace_enabled":
+            name = "trace_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_profiling_enabled":
+            name = "profiling_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_asm_enabled":
+            name = "appsec_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_dsm_enabled":
+            name = "data_streams_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_trace_sample_rate":
+            name = "trace_sample_rate"
+            value = str(item.value())
+        elif cfg_name == "logs_injection":
+            name = "logs_injection_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "trace_http_header_tags":
+            name = "trace_http_header_tags"
+            value = ",".join(":".join(x) for x in item.value().items())
+        elif cfg_name == "tags":
+            name = "trace_tags"
+            value = ",".join(":".join(x) for x in item.value().items())
+        else:
+            raise ValueError("Unknown configuration item: %s" % cfg_name)
+        print(name, value, item.source())
+        return name, value, item.source()
 
     def _app_started_event(self, register_app_shutdown=True):
         # type: (bool) -> None
@@ -307,17 +333,15 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                self._telemetry_entry(config._config_item("_trace_enabled")),
-                self._telemetry_entry(config._config_item("_profiling_enabled")),
-                self._telemetry_entry(config._config_item("_asm_enabled")),
-                self._telemetry_entry(config._config_item("_dsm_enabled")),
-                self._telemetry_entry(config._config_item("_trace_sample_rate")),
-                self._telemetry_entry(config._config_item("logs_injection")),
-                self._telemetry_entry(config._config_item("trace_http_header_tags")),
-                self._telemetry_entry(config._config_item("tags")),
+                self._telemetry_entry("_trace_enabled"),
+                self._telemetry_entry("_profiling_enabled"),
+                self._telemetry_entry("_asm_enabled"),
+                self._telemetry_entry("_dsm_enabled"),
+                self._telemetry_entry("_trace_sample_rate"),
+                self._telemetry_entry("logs_injection"),
+                self._telemetry_entry("trace_http_header_tags"),
+                self._telemetry_entry("tags"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
-                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
-                (TELEMETRY_ASM_ENABLED, asm_config._asm_enabled, "unknown"),
                 (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
@@ -330,7 +354,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
-                (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
@@ -346,7 +369,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
