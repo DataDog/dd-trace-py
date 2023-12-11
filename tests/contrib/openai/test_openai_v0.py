@@ -444,6 +444,8 @@ def test_chat_completion_tool_calling(openai, openai_vcr, snapshot_tracer):
     ],
 )
 def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     image_url = (
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
@@ -2303,10 +2305,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
                     "timestamp": 1681852797000,
-                    "model": "ada",
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
-                    "output": {"completions": [{"content": ", relax!” I said to my laptop"}]},
+                    "output": {"completions": [{"content": ", relax!” I said to my laptop"}], "durations": [mock.ANY]},
                 }
             ),
             mock.call.enqueue(
@@ -2316,14 +2318,16 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
                     "timestamp": 1681852797000,
-                    "model": "ada",
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
-                    "output": {"completions": [{"content": " (1"}]},
+                    "output": {"completions": [{"content": " (1"}], "durations": [mock.ANY]},
                 }
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
 @pytest.mark.parametrize(
@@ -2373,10 +2377,13 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
-                    "output": {"completions": [{"content": resp.choices[0].message.content, "role": "assistant"}]},
+                    "output": {
+                        "completions": [{"content": resp.choices[0].message.content, "role": "assistant"}],
+                        "durations": [mock.ANY],
+                    },
                 }
             ),
             mock.call.enqueue(
@@ -2386,14 +2393,19 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
-                    "output": {"completions": [{"content": resp.choices[1].message.content, "role": "assistant"}]},
+                    "output": {
+                        "completions": [{"content": resp.choices[1].message.content, "role": "assistant"}],
+                        "durations": [mock.ANY],
+                    },
                 }
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
 @pytest.mark.parametrize(
@@ -2436,7 +2448,7 @@ def test_llmobs_chat_completion_function_call(
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": resp.model,
+                    "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
@@ -2446,9 +2458,12 @@ def test_llmobs_chat_completion_function_call(
                     "output": {
                         "completions": [
                             {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
-                        ]
+                        ],
+                        "durations": [mock.ANY],
                     },
                 }
             ),
         ]
     )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]

@@ -79,3 +79,10 @@ def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
         log.warning("Tried to add total covered percentage to session span but the format was unexpected")
         return
     span.set_tag(test.TEST_LINES_PCT, lines_pct_value)
+
+def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:
+    return "{}.{}.{}".format(test_module_path, test_suite_name, test_name)
+
+
+def _generate_fully_qualified_module_name(test_module_path: str, test_suite_name: str) -> str:
+    return "{}.{}".format(test_module_path, test_suite_name)

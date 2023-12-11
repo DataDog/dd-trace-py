@@ -133,7 +133,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         )
     if request_spans:
         trace_utils.set_http_meta(request_spans[0], "starlette", request_path_params=scope.get("path_params"))
-    core.dispatch("asgi.start_request", "starlette")
+    core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
 

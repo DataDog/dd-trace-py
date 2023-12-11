@@ -4,6 +4,36 @@ import re
 import pytest
 
 
+def _assert_dependencies_sort_and_remove(items, is_request=True, must_have_deps=True, remove_heartbeat=True):
+    """
+    Dependencies can produce one or two events depending on the order of the imports (before/after the
+    app-started event) so this function asserts that there is at least one and removes them from the list. Also removes
+    app-heartbeat because in can be flaky.
+    """
+
+    new_items = []
+    found_dependencies_event = False
+    for item in items:
+        body = item["body"] if is_request else item
+        if body["request_type"] == "app-dependencies-loaded":
+            found_dependencies_event = True
+            continue
+        if body["request_type"] == "app-heartbeat" and remove_heartbeat:
+            continue
+
+        new_items.append(item)
+
+    if must_have_deps:
+        assert found_dependencies_event
+
+    if is_request:
+        new_items.sort(key=lambda x: (x["body"]["request_type"], x["body"]["seq_id"]), reverse=False)
+    else:
+        new_items.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
+
+    return new_items
+
+
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
@@ -33,14 +63,15 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = test_agent_session.get_events()
-    assert len(events) == 5
-    events.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
+
+    assert len(events) == 4
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-integrations-change"
-    assert events[3]["request_type"] == "app-started"
-    assert events[4]["request_type"] == "generate-metrics"
+    assert events[1]["request_type"] == "app-integrations-change"
+    assert events[2]["request_type"] == "app-started"
+    assert events[3]["request_type"] == "generate-metrics"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -78,7 +109,7 @@ else:
 
     requests = test_agent_session.get_requests()
 
-    # We expect 2 events from the parent process to get sent, but none from the child process
+    # We expect 2 events from the parent process to get sent (without dependencies), but none from the child process
     assert len(requests) == 2
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
@@ -122,7 +153,7 @@ telemetry_writer.disable()
 
     requests = test_agent_session.get_requests()
 
-    # We expect event from the parent process to get sent, but none from the child process
+    # We expect events from the parent process to get sent, but none from the child process
     assert len(requests) == 1
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
@@ -201,9 +232,11 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events()
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
 
-    assert len(events) == 4
+    assert len(events) == 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
@@ -231,17 +264,16 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 3
+    assert len(events) == 2
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
     assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-dependencies-loaded"
-    assert events[2]["request_type"] == "app-started"
-    assert events[2]["payload"]["error"]["code"] == 1
+    assert events[1]["request_type"] == "app-started"
+    assert events[1]["payload"]["error"]["code"] == 1
 
-    assert "ddtrace/internal/sampling.py" in events[2]["payload"]["error"]["message"]
-    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[2]["payload"]["error"]["message"]
+    assert "ddtrace/internal/sampling.py" in events[1]["payload"]["error"]["message"]
+    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[1]["payload"]["error"]["message"]
 
 
 def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
@@ -255,9 +287,11 @@ def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
 
     # Ensure the expected telemetry events are sent
-    events = test_agent_session.get_events()
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
+    )
     event_types = [event["request_type"] for event in events]
-    assert event_types == ["generate-metrics", "app-closing", "app-dependencies-loaded", "app-started"]
+    assert event_types == ["app-closing", "app-started", "generate-metrics"]
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -335,17 +369,13 @@ f.wsgi_app()
 
     assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
-    events = test_agent_session.get_events()
-
-    assert len(events) == 5
-    # Same runtime id is used
-    assert (
-        events[0]["runtime_id"]
-        == events[1]["runtime_id"]
-        == events[2]["runtime_id"]
-        == events[3]["runtime_id"]
-        == events[4]["runtime_id"]
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), must_have_deps=False, is_request=False
     )
+
+    assert len(events) == 4
+    # Same runtime id is used
+    assert events[0]["runtime_id"] == events[1]["runtime_id"] == events[2]["runtime_id"] == events[3]["runtime_id"]
 
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
