@@ -51,6 +51,10 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
     return pct_covered
 
 
+def run_coverage_report():
+    current_coverage_object = coverage.Coverage.current()
+    _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
+
 def _is_coverage_patched():
     return coverage._datadog_patch
 

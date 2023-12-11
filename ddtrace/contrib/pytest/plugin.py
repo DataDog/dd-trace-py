@@ -25,6 +25,7 @@ from ddtrace.contrib.coverage.patch import _coverage_data
 from ddtrace.contrib.coverage.patch import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.patch import _is_coverage_patched
 from ddtrace.contrib.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.coverage.patch import run_coverage_report
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import DDTRACE_INCLUDE_CLASS_HELP_MSG
@@ -442,6 +443,8 @@ def pytest_sessionfinish(session, exitstatus):
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
             if _is_coverage_patched():
+                if _is_coverage_invoked_by_coverage_run() and not _is_pytest_cov_enabled(session.config):
+                    run_coverage_report()
                 _add_pct_covered_to_span(_coverage_data, test_session_span)
                 unpatch_coverage()
             test_session_span.finish()
