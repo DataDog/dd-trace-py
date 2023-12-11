@@ -100,10 +100,7 @@ like this::
 
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
-from collections import defaultdict
 from contextlib import contextmanager
-import dataclasses
-import enum
 import logging
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -113,8 +110,15 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ddtrace import config
 from ddtrace.span import Span  # noqa:F401
+
+from . import event_hub  # noqa:F401
+from .event_hub import EventResultDict  # noqa:F401
+from .event_hub import dispatch
+from .event_hub import dispatch_with_results  # noqa:F401
+from .event_hub import has_listeners  # noqa:F401
+from .event_hub import on  # noqa:F401
+from .event_hub import reset as reset_listeners  # noqa:F401
 
 
 try:
@@ -127,99 +131,7 @@ log = logging.getLogger(__name__)
 
 
 _CURRENT_CONTEXT = None
-_EVENT_HUB = None
 ROOT_CONTEXT_ID = "__root"
-
-
-class ResultType(enum.Enum):
-    RESULT_OK = 0
-    RESULT_EXCEPTION = 1
-    RESULT_UNDEFINED = -1
-
-
-@dataclasses.dataclass
-class EventResult:
-    response_type: ResultType = ResultType.RESULT_UNDEFINED
-    value: Any = None
-    exception: Optional[BaseException] = None
-
-    def __bool__(self):
-        "EventResult can easily be checked as a valid result"
-        return self.response_type == ResultType.RESULT_OK
-
-
-_MissingEvent = EventResult()
-
-
-class EventResultDict(Dict[str, EventResult]):
-    def __missing__(self, key: str):
-        return _MissingEvent
-
-    def __getattr__(self, name: str):
-        return dict.__getitem__(self, name)
-
-
-class EventHub:
-    def __init__(self):
-        self._listeners = defaultdict(dict)
-
-    def has_listeners(self, event_id):
-        # type: (str) -> bool
-        return event_id in self._listeners
-
-    def on(self, event_id: str, callback: Callable, name: Any = None) -> None:
-        if name is None:
-            name = id(callback)
-        self._listeners[event_id][name] = callback
-
-    def reset(self):
-        self._listeners.clear()
-
-    def dispatch(self, event_id, args, *other_args) -> EventResultDict:
-        if not isinstance(args, list):
-            args = [args] + list(other_args)
-        else:
-            if other_args:
-                raise TypeError(
-                    "When the first argument expected by the event handler is a list, all arguments "
-                    "must be passed in a list. For example, use dispatch('foo', [[l1, l2], arg2]) "
-                    "instead of dispatch('foo', [l1, l2], arg2)."
-                )
-        results = EventResultDict()
-        # order is not guraranteed. Introduce two consecutive different events to ensure order
-        for name, listener in self._listeners[event_id].items():
-            try:
-                if isinstance(name, str):
-                    results[name] = EventResult(ResultType.RESULT_OK, listener(*args))
-                else:
-                    listener(*args)
-            except Exception as exception:
-                if config._raise:
-                    raise
-                if isinstance(name, str):
-                    results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, exception)
-        return results
-
-
-_EVENT_HUB = contextvars.ContextVar("EventHub_var", default=EventHub())
-
-
-def has_listeners(event_id):
-    # type: (str) -> bool
-    return _EVENT_HUB.get().has_listeners(event_id)  # type: ignore
-
-
-def on(event_id: str, callback: Callable, name: Optional[str] = None) -> None:
-    _EVENT_HUB.get().on(event_id, callback, name)  # type: ignore
-
-
-def reset_listeners():
-    # type: () -> None
-    _EVENT_HUB.get().reset()  # type: ignore
-
-
-def dispatch(event_id: str, args=[], *other_args) -> EventResultDict:
-    return _EVENT_HUB.get().dispatch(event_id, args, *other_args)  # type: ignore
 
 
 class ExecutionContext:
@@ -235,8 +147,8 @@ class ExecutionContext:
         self._data.update(kwargs)
         if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
-        dispatch("context.started.%s" % self.identifier, [self])
-        dispatch("context.started.start_span.%s" % self.identifier, [self])
+        dispatch("context.started.%s" % self.identifier, (self,))
+        dispatch("context.started.start_span.%s" % self.identifier, (self,))
 
     def __repr__(self):
         return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
@@ -250,7 +162,7 @@ class ExecutionContext:
         return self._parents[0] if self._parents else None
 
     def end(self):
-        dispatch_result = dispatch("context.ended.%s" % self.identifier, [self])
+        dispatch_result = dispatch_with_results("context.ended.%s" % self.identifier, (self,))
         if self._span is None:
             try:
                 _CURRENT_CONTEXT.reset(self._token)

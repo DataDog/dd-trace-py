@@ -194,7 +194,7 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            result = core.dispatch("asgi.request.parse.body", receive, headers).await_receive_and_body
+            result = core.dispatch_with_results("asgi.request.parse.body", receive, headers).await_receive_and_body
             if result:
                 receive, body = await result.value
 
@@ -232,7 +232,7 @@ class TraceMiddleware:
                     trace_utils.set_http_meta(
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
-                    core.dispatch("asgi.start_response", "asgi")
+                    core.dispatch("asgi.start_response", ("asgi",))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -252,7 +252,7 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                result = core.dispatch("asgi.block.started", ctx, url).status_headers_content
+                result = core.dispatch_with_results("asgi.block.started", ctx, url).status_headers_content
                 if result:
                     status, headers, content = result.value
                 else:
@@ -273,7 +273,7 @@ class TraceMiddleware:
                         span.finish()
 
             try:
-                core.dispatch("asgi.start_request", "asgi")
+                core.dispatch("asgi.start_request", ("asgi",))
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)

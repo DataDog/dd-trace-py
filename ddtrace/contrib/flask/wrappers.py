@@ -47,7 +47,7 @@ def _wrap_call(
         call_key="flask_call",
     ) as ctx, ctx.get_item("flask_call"):
         if do_dispatch:
-            result = core.dispatch("flask.wrapped_view", kwargs).callback_and_args
+            result = core.dispatch_with_results("flask.wrapped_view", (kwargs,)).callback_and_args
             if result:
                 callback_block, _kwargs = result.value
                 if callback_block:
