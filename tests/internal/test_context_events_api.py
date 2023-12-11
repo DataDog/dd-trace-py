@@ -208,6 +208,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 
@@ -219,7 +220,7 @@ class TestContextEventsApi(unittest.TestCase):
         def on_all_exception(*_):
             raise TypeError("OH NO!")
 
-        core.on("my.cool.event", on_exception)
+        core.on("my.cool.event", on_exception, "res")
         core.on("context.started.my.cool.context", on_exception)
         core.on("context.ended.my.cool.context", on_exception)
         core.event_hub.on_all(on_all_exception)
@@ -228,10 +229,10 @@ class TestContextEventsApi(unittest.TestCase):
         assert core.dispatch("my.cool.event", (1, 2, 3)) is None
 
         # Dispatch with results will return the exception from the on listener only
-        results, exceptions = core.dispatch_with_results("my.cool.event", (1, 2, 3))
-        assert results == [None]
-        assert len(exceptions) == 1
-        assert isinstance(exceptions[0], RuntimeError)
+        result = core.dispatch_with_results("my.cool.event", (1, 2, 3)).res
+        assert result.value is None
+        assert isinstance(result.exception, RuntimeError)
+        assert result.response_type == core.event_hub.ResultType.RESULT_EXCEPTION
 
         # Context with data continues to work as expected
         with core.context_with_data("my.cool.context"):
@@ -303,8 +304,8 @@ class TestContextEventsApi(unittest.TestCase):
         core.event_hub.on_all(l1)
 
         # The results/exceptions from all listeners don't get reported
-        assert core.dispatch_with_results("event.1", (1, 2)) == ([], [])
-        assert core.dispatch_with_results("event.2", ()) == ([], [])
+        assert core.dispatch_with_results("event.1", (1, 2)) is core.event_hub._MissingEventDict
+        assert core.dispatch_with_results("event.2", ()) is core.event_hub._MissingEventDict
 
         with core.context_with_data("my.cool.context") as ctx:
             pass
@@ -313,6 +314,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 

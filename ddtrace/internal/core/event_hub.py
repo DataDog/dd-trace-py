@@ -123,7 +123,7 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...]) -> EventResultDi
         return _MissingEventDict
 
     results = EventResultDict()
-    for name, hook in _listeners[event_id]:
+    for name, hook in _listeners[event_id].items():
         try:
             results[name] = EventResult(ResultType.RESULT_OK, hook(*args))
         except Exception as e:
