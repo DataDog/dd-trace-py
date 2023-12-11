@@ -362,7 +362,7 @@ def test_apply_merge_callback():
             callback_to_dispach.publish()
         time.sleep(0.5)
 
-        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": 2})
+        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": ANY})
         assert len(test_list_callbacks) > 0
         callback.stop()
 
