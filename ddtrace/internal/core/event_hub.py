@@ -82,7 +82,7 @@ def reset(event_id: Optional[str] = None) -> None:
         del _listeners[event_id]
 
 
-def dispatch(event_id: str, args: Tuple[Any, ...]) -> None:
+def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
     """Call all hooks for the provided event_id with the provided args"""
     global _all_listeners
     global _listeners
@@ -105,7 +105,7 @@ def dispatch(event_id: str, args: Tuple[Any, ...]) -> None:
                 raise
 
 
-def dispatch_with_results(event_id: str, args: Tuple[Any, ...]) -> EventResultDict:
+def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
     """
