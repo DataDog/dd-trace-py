@@ -1,5 +1,5 @@
-from typing import List
-from typing import Tuple
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY

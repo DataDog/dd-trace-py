@@ -14,8 +14,11 @@ class RetryError(Exception):
     pass
 
 
-def retry(after, until=lambda result: result is None, initial_wait=0):
-    # type: (t.Union[int, float, t.Iterable[t.Union[int, float]]], t.Callable[[t.Any], bool], float) -> t.Callable
+def retry(
+    after: t.Union[int, float, t.Iterable[t.Union[int, float]]],
+    until: t.Callable[[t.Any], bool] = lambda result: result is None,
+    initial_wait: float = 0,
+) -> t.Callable:
     def retry_decorator(f):
         @wraps(f)
         def retry_wrapped(*args, **kwargs):

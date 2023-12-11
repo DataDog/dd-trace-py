@@ -374,7 +374,7 @@ class CMakeBuild(build_ext):
             print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
             if not ext.permissive_build:
                 raise
-        except Exception as e:
+        except Exception:
             print("WARNING: An error occurred while building the CMake extension.")
             raise
 
@@ -535,7 +535,8 @@ def get_ddup_ext():
 
 bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
 ]
 
 setup(

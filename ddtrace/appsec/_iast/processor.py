@@ -20,7 +20,7 @@ from ._utils import _is_iast_enabled
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.span import Span
+    from ddtrace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 

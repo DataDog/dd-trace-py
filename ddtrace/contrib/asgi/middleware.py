@@ -41,7 +41,7 @@ def get_version() -> str:
 
 
 def bytes_to_str(str_or_bytes):
-    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
+    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope, integration_config):
@@ -193,7 +193,10 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            receive, body = await core.dispatch("asgi.request.parse.body", receive, headers)[0][0]
+            body = None
+            parse_body_result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers))[0]
+            if len(parse_body_result) == 1:
+                receive, body = await parse_body_result[0]
 
             client = scope.get("client")
             if isinstance(client, list) and len(client):
@@ -229,7 +232,7 @@ class TraceMiddleware:
                     trace_utils.set_http_meta(
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
-                    core.dispatch("asgi.start_response", "asgi")
+                    core.dispatch("asgi.start_response", ("asgi",))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -249,7 +252,7 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                status, headers, content = core.dispatch("asgi.block.started", ctx, url)[0][0]
+                status, headers, content = core.dispatch_with_results("asgi.block.started", (ctx, url))[0][0]
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
@@ -266,7 +269,7 @@ class TraceMiddleware:
                         span.finish()
 
             try:
-                core.dispatch("asgi.start_request", "asgi")
+                core.dispatch("asgi.start_request", ("asgi",))
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)

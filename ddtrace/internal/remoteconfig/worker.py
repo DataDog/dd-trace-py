@@ -1,12 +1,12 @@
 import os
-from typing import List
+from typing import List  # noqa:F401
 
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds

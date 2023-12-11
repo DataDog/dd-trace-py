@@ -18,7 +18,6 @@ from typing import Tuple
 from typing import cast
 
 import ddtrace
-from ddtrace import config as ddconfig
 from ddtrace.debugging._async import dd_coroutine_wrapper
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
