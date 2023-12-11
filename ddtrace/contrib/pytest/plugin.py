@@ -21,7 +21,9 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.coverage.patch import _coverage_data, _is_coverage_invoked_by_coverage_run, _is_coverage_patched
+from ddtrace.contrib.coverage.patch import _coverage_data
+from ddtrace.contrib.coverage.patch import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.coverage.patch import _is_coverage_patched
 from ddtrace.contrib.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
