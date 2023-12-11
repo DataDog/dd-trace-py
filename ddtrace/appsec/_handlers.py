@@ -210,16 +210,13 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         http_req = fn_args[0]
 
-        if not isinstance(http_req.COOKIES, LazyTaintDict):
-            http_req.COOKIES = LazyTaintDict(http_req.COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
-        if not isinstance(http_req.GET, LazyTaintDict):
-            http_req.GET = LazyTaintDict(http_req.GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
-        if not isinstance(http_req.POST, LazyTaintDict):
-            http_req.POST = LazyTaintDict(http_req.POST, origins=(OriginType.BODY, OriginType.BODY))
+        http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
+        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+        http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
         if not is_pyobject_tainted(getattr(http_req, "_body", None)):
             http_req._body = taint_pyobject(
                 http_req.body,
@@ -228,10 +225,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 source_origin=OriginType.BODY,
             )
 
-        if not isinstance(http_req.META, LazyTaintDict):
-            http_req.META = LazyTaintDict(http_req.META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        if not isinstance(http_req.headers, LazyTaintDict):
-            http_req.headers = LazyTaintDict(http_req.headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
         )
@@ -247,6 +241,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
+        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
         if fn_kwargs:
             try:
                 for k, v in fn_kwargs.items():
@@ -264,7 +259,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -277,9 +272,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
         _set_metric_iast_instrumented_source(OriginType.BODY)
 
-        return wrapped(
-            *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
-        )
+        return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
 

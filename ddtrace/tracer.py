@@ -5,6 +5,7 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -62,10 +63,15 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
 from .span import Span
+
+
+if TYPE_CHECKING:
+    from .internal.writer import AgentResponse  # noqa: F401
 
 
 log = get_logger(__name__)
@@ -228,11 +234,11 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
+                response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
         self._writer: TraceWriter = writer
@@ -441,12 +447,12 @@ class Tracer(object):
         elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
             self._writer = AgentWriter(
                 self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
+                response_callback=self._agent_response_callback,
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -493,6 +499,20 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
+
+    def _agent_response_callback(self, resp):
+        # type: (AgentResponse) -> None
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            if isinstance(self._sampler, BasePrioritySampler):
+                self._sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
+        except ValueError:
+            log.error("sample_rate is negative, cannot update the rate samplers")
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
