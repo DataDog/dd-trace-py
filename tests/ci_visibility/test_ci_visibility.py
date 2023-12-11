@@ -466,6 +466,9 @@ def test_git_do_request_evp(git_repo):
 def test_civisibilitywriter_agentless_url():
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_ci_visibility_agentless_url": "https://foo.bar"}):
+            ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url = (
+                ddtrace.config._ci_visibility_agentless_url
+            )  # this is what override_global_config is supposed to do, but in this case it doesn't work
             dummy_writer = DummyCIVisibilityWriter()
             assert dummy_writer.intake_url == "https://foo.bar"
 
