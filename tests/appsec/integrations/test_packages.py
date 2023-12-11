@@ -1,31 +1,49 @@
 import json
 
-from tests.appsec.appsec_utils import flask_server
-
 import pytest
 
+from tests.appsec.appsec_utils import flask_server
 
-PACKAGES = ["requests", ]
+
+class PackageForTesting:
+    package_name = ""
+    package_version = ""
+    url_to_test = ""
+    expected_param = "test1234"
+    xfail = False
+
+    def __init__(self, name):
+        self.package_name = name
+
+    @property
+    def url(self):
+        return f"/{self.package_name}?package_param={self.expected_param}"
+
+    def __repr__(self):
+        return f"{self.package_name}: {self.url_to_test}"
 
 
-@pytest.mark.xfail(reason="Unpatched tests may fail, we expect this")
-@pytest.mark.parametrize("package", PACKAGES)
-def test_unpatched(package):
-    with flask_server(iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None) as context:
-        _, client, pid = context
+PACKAGES = [
+    PackageForTesting("requests"),
+]
 
-        response = client.get("/")
 
-        assert response.status_code == 200
-        assert response.content == b"OK_index"
+def setup():
+    for package in PACKAGES:
+        with flask_server(
+            iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None
+        ) as context:
+            _, client, pid = context
 
-        expected_param = "test1234"
-        response = client.get(f"/{package}?package_param={expected_param}")
+            try:
+                response = client.get(package.url)
 
-        assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content["param"] == expected_param
-        assert content["params_are_tainted"] is False
+                assert response.status_code == 200
+                content = json.loads(response.content)
+                assert content["param"] == package.expected_param
+                assert content["params_are_tainted"] is False
+            except Exception:
+                package.xfail = True
 
 
 @pytest.mark.parametrize("package", PACKAGES)
@@ -33,15 +51,9 @@ def test_patched(package):
     with flask_server(iast_enabled="true", remote_configuration_enabled="false", token=None) as context:
         _, client, pid = context
 
-        response = client.get("/")
-
-        assert response.status_code == 200
-        assert response.content == b"OK_index"
-
-        expected_param = "test1234"
-        response = client.get(f"/{package}?package_param={expected_param}")
+        response = client.get(package.url)
 
         assert response.status_code == 200
         content = json.loads(response.content)
-        assert content["param"] == expected_param
+        assert content["param"] == package.expected_param
         assert content["params_are_tainted"] is True

@@ -1,5 +1,4 @@
 from tests.appsec.appsec_utils import flask_server
-from tests.utils import flaky
 
 
 def test_iast_span_metrics():

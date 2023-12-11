@@ -7,8 +7,10 @@ from flask import Flask
 from flask import Response
 from flask import request
 
+
 import ddtrace.auto  # noqa: F401  # isort: skip
 from tests.appsec.integrations.packages.pkg_requests import pkg_requests
+
 
 app = Flask(__name__)
 app.register_blueprint(pkg_requests)
