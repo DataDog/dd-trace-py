@@ -159,7 +159,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
         "with_opentelemetry_instrument",
     ],
 )
-@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.flask.version"])
+@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.flask.version", "internal"])
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as otel_span:
         headers = {
