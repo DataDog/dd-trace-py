@@ -270,6 +270,7 @@ venv = Venv(
                 "requests": latest,
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
+                "werkzeug": "<2.0",
                 "httpretty": "<1.1",
             },
         ),
@@ -1033,7 +1034,7 @@ venv = Venv(
         Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
-            pkgs={"pytest-asyncio": latest},
+            pkgs={"pytest-asyncio": "==0.21.1"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
@@ -1083,7 +1084,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/starlette",
             pkgs={
                 "httpx": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": latest,
@@ -1231,7 +1232,7 @@ venv = Venv(
         Venv(
             name="asgi",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "httpx": latest,
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
             },
@@ -1307,7 +1308,7 @@ venv = Venv(
         Venv(
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
+            pkgs={"pytest-asyncio": "==0.21.1", "async_generator": ["~=1.10"]},
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
                 # aiobotocore 1.x and higher require Python 3.6 or higher
@@ -1325,7 +1326,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
                 "httpx": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
             },
@@ -1499,7 +1500,7 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
                 "googleapis-common-protos": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
             },
             venvs=[
                 Venv(
@@ -1534,7 +1535,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/graphql",
             pys=select_pys(min_version="3.7"),
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
             },
         ),
@@ -1579,7 +1580,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "httpx": [
                     "~=0.17.0",
                     "~=0.22.0",
@@ -1688,7 +1689,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -1703,7 +1704,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -1778,14 +1779,14 @@ venv = Venv(
             pys=select_pys(min_version="3.7", max_version="3.9"),
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "aredis": latest,
             },
         ),
         Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
-            pkgs={"pytest-asyncio": latest},
+            pkgs={"pytest-asyncio": "~=0.21.1"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1802,7 +1803,7 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "websockets": "<11.0",
             },
@@ -1888,7 +1889,7 @@ venv = Venv(
             name="asyncpg",
             command="pytest {cmdargs} tests/contrib/asyncpg",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
             },
             venvs=[
                 # our test_asyncpg.py uses `yield` in an async function and is not compatible with Python 3.5
@@ -1918,7 +1919,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncio",
             pys=select_pys(),
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
             },
         ),
         Venv(
@@ -1950,7 +1951,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
             },
             venvs=[
                 Venv(pys=["3.7"]),
@@ -2058,7 +2059,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": "==0.21.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
@@ -2281,7 +2282,7 @@ venv = Venv(
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=4.66.0", latest],
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
             },
         ),
         Venv(
