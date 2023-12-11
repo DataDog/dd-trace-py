@@ -43,7 +43,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -888,47 +887,59 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "aws.sqs.receive"
 
     @mock_stepfunctions
-    def test_stepfunctions_client(self):
-        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        sf.create_state_machine(
-            name="foo",
-            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
-            roleArn="arn:aws:iam::012345678901:role/DummyRole",
-        )
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:foo", input='{"baz":1}')
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
-        assert span.get_tag("aws.region") == "us-west-2"
-        assert span.get_tag("region") == "us-west-2"
-        assert span.get_tag("aws.operation") == "StartExecution"
-        assert span.get_tag("component") == "botocore"
-        assert span.get_tag("span.kind"), "client"
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.states"
-        assert span.resource == "states.startexecution"
-        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:foo")
-
-    @mock_stepfunctions
     def test_stepfunctions_send_start_execution_trace_injection(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
-            name="foo",
+            name="lincoln",
             definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
             roleArn="arn:aws:iam::012345678901:role/DummyRole",
         )
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
-        sf.start_execution(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:foo", input='{"baz":1}')
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
+        )
         # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
         spans = self.get_spans()
         assert spans
         span = spans[0]
         assert span.name == "states.command"  # This confirms our patch is working
-        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:foo")
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_array_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="miller",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller", input='["one", "two", "three"]'
+        )
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_true_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="hobart",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart", input="true")
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart")
 
     def _test_kinesis_client(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
