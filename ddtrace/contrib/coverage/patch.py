@@ -38,7 +38,7 @@ def unpatch():
     if not getattr(coverage, "_datadog_patch", False) or not is_coverage_imported():
         return
 
-    _u(coverage.Coverage.report, "report_total_pct_covered_wrapper")
+    _u(coverage.Coverage, "report")
 
     coverage._datadog_patch = False
 

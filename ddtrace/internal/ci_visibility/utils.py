@@ -71,7 +71,7 @@ def _add_start_end_source_file_path_data_to_span(
 
 
 def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
-    if not coverage_data or "pct_covered" not in coverage_data:
+    if not coverage_data or PCT_COVERED_KEY not in coverage_data:
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
     lines_pct_value = coverage_data[PCT_COVERED_KEY]
