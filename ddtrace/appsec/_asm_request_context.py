@@ -129,7 +129,7 @@ class _DataHandler:
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
             env.must_call_globals = False
             if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks = env.callbacks.get(_CONTEXT_CALL)
+                callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
                 if env is not None:
                     for function in callbacks:
