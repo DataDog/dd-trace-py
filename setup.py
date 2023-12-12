@@ -43,7 +43,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.0"
+LIBDDWAF_VERSION = "1.15.1"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")

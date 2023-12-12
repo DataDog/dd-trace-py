@@ -293,14 +293,14 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
     core.on("flask.request_init", _on_request_init)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)
-core.on("django.wsgi_environ", _on_wsgi_environ)
+core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
 core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
-core.on("asgi.request.parse.body", _on_asgi_request_parse_body)
+core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")

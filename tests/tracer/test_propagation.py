@@ -12,6 +12,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._utils import get_wsgi_header
+from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
@@ -53,6 +54,17 @@ def test_inject(tracer):  # noqa: F811
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
+        ctx._set_baggage_item("key1", "val1")
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+            assert headers[_HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
 
 
 @pytest.mark.subprocess(
@@ -257,6 +269,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
+        "ot-baggage-key1": "value1",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -281,6 +294,24 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.origin": "synthetics",
                 "_dd.p.test": "value",
             }
+
+
+def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span._get_baggage_item("key1") == "value1"
+            with tracer.trace("child_span") as child_span:
+                assert child_span._get_baggage_item("key1") == "value1"
 
 
 @pytest.mark.subprocess(

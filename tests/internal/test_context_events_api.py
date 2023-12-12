@@ -1,11 +1,29 @@
 import threading
 from time import sleep
+from typing import Any
+from typing import List
 import unittest
 
 import mock
 import pytest
 
+from ddtrace import config
 from ddtrace.internal import core
+
+
+def with_config_raise_value(raise_value: bool):
+    def _outer(func):
+        def _inner(*args, **kwargs):
+            original_value = config._raise
+            config._raise = raise_value
+            try:
+                return func(*args, **kwargs)
+            finally:
+                config._raise = original_value
+
+        return _inner
+
+    return _outer
 
 
 class TestContextEventsApi(unittest.TestCase):
@@ -26,33 +44,33 @@ class TestContextEventsApi(unittest.TestCase):
         has_listeners = core.has_listeners(event_name)
         assert has_listeners
 
-    def test_core_dispatch(self):
+    def test_core_dispatch_with_results(self):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number: handler_return.format(magic_number))
-        result = core.dispatch(event_name, [dynamic_value])[0][0]
+        core.on(event_name, lambda magic_number: handler_return.format(magic_number), "res")
+        result = core.dispatch_with_results(event_name, (dynamic_value,)).res.value
         assert result == handler_return.format(dynamic_value)
 
-    def test_core_dispatch_star_args(self):
+    def test_core_dispatch_with_results_multiple_args(self):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number))
-        result = core.dispatch(event_name, dynamic_value, 42)[0][0]
+        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number), "res")
+        result = core.dispatch_with_results(event_name, (dynamic_value, 42)).res.value
         assert result == handler_return.format(dynamic_value)
 
-    def test_core_dispatch_multiple_listeners(self):
+    def test_core_dispatch_with_results_multiple_listeners(self):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number: handler_return.format(magic_number))
-        core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!")
-        results, _ = core.dispatch(event_name, [dynamic_value])
-        assert results[1] == handler_return.format(dynamic_value)
-        assert results[0] == handler_return + str(dynamic_value) + "!"
+        core.on(event_name, lambda magic_number: handler_return.format(magic_number), "res_a")
+        core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!", "res_b")
+        results = core.dispatch_with_results(event_name, (dynamic_value,))
+        assert results.res_a.value == handler_return.format(dynamic_value)
+        assert results.res_b.value == handler_return + str(dynamic_value) + "!"
 
-    def test_core_dispatch_multiple_listeners_multiple_threads(self):
+    def test_core_dispatch_with_results_multiple_listeners_multiple_threads(self):
         event_name = "my.cool.event"
 
         def make_target(make_target_id):
@@ -61,7 +79,7 @@ class TestContextEventsApi(unittest.TestCase):
                     if make_target_id % 2 == 0:
                         return make_target_id * 2
 
-                core.on(event_name, listener)
+                core.on(event_name, listener, f"name_{make_target_id}")
 
             sleep(make_target_id * 0.0001)  # ensure threads finish in order
             return target
@@ -73,15 +91,232 @@ class TestContextEventsApi(unittest.TestCase):
             t.start()
             threads.append(t)
 
-        results, exceptions = core.dispatch(event_name, [])
+        result = core.dispatch_with_results(event_name, ())
 
         for t in threads:
             t.join()
 
-        results = [r for r in results if r is not None]
+        results = [r.value for r in result.values() if r.value is not None]
+        exceptions = [r.exception for r in result.values() if r.exception is not None]
         expected = list(i * 2 for i in range(thread_count) if i % 2 == 0)
         assert sorted(results) == sorted(expected)
         assert len(exceptions) <= thread_count
+
+    def test_core_dispatch(self):
+        class Listener:
+            args: tuple
+
+            def __call__(self, *args: Any) -> None:
+                self.args = args
+
+        listener = Listener()
+
+        event_name = "my.cool.event"
+        dynamic_value = 42
+        core.on(event_name, listener)
+        core.dispatch(event_name, (dynamic_value,))
+
+        assert listener.args == (dynamic_value,)
+
+    def test_core_dispatch_multiple_args(self):
+        class Listener:
+            results: int = 0
+
+            def __call__(self, magic_number: int, forty_two: int) -> None:
+                self.results += magic_number + forty_two
+
+        l1 = Listener()
+
+        event_name = "my.cool.event"
+        dynamic_value = 42
+        core.on(event_name, l1)
+        core.dispatch(event_name, (dynamic_value, 42))
+        assert l1.results == 84
+
+    def test_core_dispatch_multiple_listeners(self):
+        class Listener:
+            results: int = 0
+
+            def __call__(self, magic_number: int) -> None:
+                self.results += magic_number
+
+        l1 = Listener()
+        l2 = Listener()
+
+        event_name = "my.cool.event"
+        dynamic_value = 42
+        core.on(event_name, l1)
+        core.on(event_name, l2)
+        core.dispatch(event_name, (dynamic_value,))
+
+        assert l1.results == dynamic_value
+        assert l2.results == dynamic_value
+
+    def test_core_dispatch_multiple_listeners_multiple_threads(self):
+        event_name = "my.cool.event"
+
+        class Listener:
+            calls: int = 0
+
+            def __call__(self) -> None:
+                self.calls += 1
+
+        def make_target(make_target_id, listener):
+            def target():
+                core.on(event_name, listener)
+
+            sleep(make_target_id * 0.0001)  # ensure threads finish in order
+            return target
+
+        threads = []
+        thread_count = 10
+        listeners = [Listener()] * thread_count
+        for idx in range(thread_count):
+            t = threading.Thread(target=make_target(idx, listeners[idx]))
+            t.start()
+            threads.append(t)
+
+        core.dispatch(event_name, ())
+
+        for t in threads:
+            t.join()
+
+        for listener in listeners:
+            assert listener.calls == 1
+
+    def test_core_dispatch_all_listeners(self):
+        class Listener:
+            calls: List[tuple]
+
+            def __init__(self):
+                self.calls = []
+
+            def __call__(self, event_id: str, args: tuple) -> None:
+                self.calls.append((event_id, args))
+
+        l1 = Listener()
+
+        core.event_hub.on_all(l1)
+
+        core.dispatch("event.1", (1, 2))
+        core.dispatch("event.2", ())
+
+        with core.context_with_data("my.cool.context") as ctx:
+            pass
+
+        assert l1.calls == [
+            ("event.1", (1, 2)),
+            ("event.2", ()),
+            ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx,)),
+        ]
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_exceptions_no_raise(self):
+        def on_exception(*_):
+            raise RuntimeError("OH NO!")
+
+        def on_all_exception(*_):
+            raise TypeError("OH NO!")
+
+        core.on("my.cool.event", on_exception, "res")
+        core.on("context.started.my.cool.context", on_exception)
+        core.on("context.ended.my.cool.context", on_exception)
+        core.event_hub.on_all(on_all_exception)
+
+        # Dispatch does not raise any exceptions, and returns nothing
+        assert core.dispatch("my.cool.event", (1, 2, 3)) is None
+
+        # Dispatch with results will return the exception from the on listener only
+        result = core.dispatch_with_results("my.cool.event", (1, 2, 3)).res
+        assert result.value is None
+        assert isinstance(result.exception, RuntimeError)
+        assert result.response_type == core.event_hub.ResultType.RESULT_EXCEPTION
+
+        # Context with data continues to work as expected
+        with core.context_with_data("my.cool.context"):
+            pass
+
+    # The default raise value for tests is True, but let's be explicit to be safe
+    @with_config_raise_value(raise_value=True)
+    def test_core_dispatch_exceptions_all_raise(self):
+        def on_exception(*_):
+            raise RuntimeError("OH NO!")
+
+        def on_all_exception(*_):
+            raise TypeError("OH NO!")
+
+        core.on("my.cool.event", on_exception)
+        core.on("context.started.my.cool.context", on_exception)
+        core.on("context.ended.my.cool.context", on_exception)
+        core.event_hub.on_all(on_all_exception)
+
+        # We stop after the first exception is raised, on_all listeners get called first
+        with pytest.raises(TypeError):
+            core.dispatch("my.cool.event", (1, 2, 3))
+
+        # We stop after the first exception is raised, on_all listeners get called first
+        with pytest.raises(TypeError):
+            core.dispatch_with_results("my.cool.event", (1, 2, 3))
+
+        # We stop after the first exception is raised, on_all listeners get called first
+        with pytest.raises(TypeError):
+            with core.context_with_data("my.cool.context"):
+                pass
+
+    # The default raise value for tests is True, but let's be explicit to be safe
+    @with_config_raise_value(raise_value=True)
+    def test_core_dispatch_exceptions_raise(self):
+        def on_exception(*_):
+            raise RuntimeError("OH NO!")
+
+        def noop(*_):
+            pass
+
+        core.on("my.cool.event", on_exception)
+        core.on("context.started.my.cool.context", noop)
+        core.on("context.ended.my.cool.context", on_exception)
+        core.event_hub.on_all(noop)
+
+        with pytest.raises(RuntimeError):
+            core.dispatch("my.cool.event", (1, 2, 3))
+
+        with pytest.raises(RuntimeError):
+            core.dispatch_with_results("my.cool.event", (1, 2, 3))
+
+        with pytest.raises(RuntimeError):
+            with core.context_with_data("my.cool.context"):
+                pass
+
+    def test_core_dispatch_with_results_all_listeners(self):
+        class Listener:
+            calls: List[tuple]
+
+            def __init__(self):
+                self.calls = []
+
+            def __call__(self, event_id: str, args: tuple) -> None:
+                self.calls.append((event_id, args))
+
+        l1 = Listener()
+
+        core.event_hub.on_all(l1)
+
+        # The results/exceptions from all listeners don't get reported
+        assert core.dispatch_with_results("event.1", (1, 2)) is core.event_hub._MissingEventDict
+        assert core.dispatch_with_results("event.2", ()) is core.event_hub._MissingEventDict
+
+        with core.context_with_data("my.cool.context") as ctx:
+            pass
+
+        assert l1.calls == [
+            ("event.1", (1, 2)),
+            ("event.2", ()),
+            ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx,)),
+        ]
 
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
