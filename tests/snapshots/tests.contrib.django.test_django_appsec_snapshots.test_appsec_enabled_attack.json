@@ -7,10 +7,11 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.9.0",
+      "_dd.appsec.event_rules.version": "1.10.0",
       "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"nfd-000-006\",\n      \"name\": \"Detect failed attempt to fetch sensitive files\",\n      \"tags\": {\n        \"capec\": \"1000/118/169\",\n        \"category\": \"attack_attempt\",\n        \"confidence\": \"1\",\n        \"cwe\": \"200\",\n        \"type\": \"security_scanner\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"^404$\",\n        \"parameters\": [\n          {\n            \"address\": \"server.response.status\",\n            \"highlight\": [\n              \"404\"\n            ],\n            \"key_path\": [],\n            \"value\": \"404\"\n          }\n        ]\n      },\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"\\\\.(cgi|bat|dll|exe|key|cert|crt|pem|der|pkcs|pkcs|pkcs[0-9]*|nsf|jsa|war|java|class|vb|vba|so|git|svn|hg|cvs)([^a-zA-Z0-9_]|$)\",\n        \"parameters\": [\n          {\n            \"address\": \"server.request.uri.raw\",\n            \"highlight\": [\n              \".git\"\n            ],\n            \"key_path\": [],\n            \"value\": \"/.git\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
-      "_dd.appsec.waf.version": "1.15.0",
+      "_dd.appsec.waf.version": "1.15.1",
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
@@ -43,7 +44,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 152,
+      "_dd.appsec.event_rules.loaded": 153,
       "_dd.appsec.waf.duration": 236.874,
       "_dd.appsec.waf.duration_ext": 339.26963806152344,
       "_dd.measured": 1,
@@ -62,6 +63,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
@@ -77,6 +80,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -92,6 +97,8 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -107,6 +114,8 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
@@ -122,6 +131,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
@@ -137,6 +148,8 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000",
@@ -152,6 +165,8 @@
                 "trace_id": 0,
                 "span_id": 10,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000",
@@ -167,6 +182,8 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 10,
+                   "type": "",
+                   "error": 0,
                    "meta": {
                      "_dd.base_service": "",
                      "_dd.p.tid": "654a694400000000",
@@ -182,6 +199,8 @@
                    "trace_id": 0,
                    "span_id": 13,
                    "parent_id": 10,
+                   "type": "",
+                   "error": 0,
                    "meta": {
                      "_dd.base_service": "",
                      "_dd.p.tid": "654a694400000000",
@@ -197,6 +216,8 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "meta": {
                         "_dd.base_service": "",
                         "_dd.p.tid": "654a694400000000",
@@ -212,6 +233,8 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "meta": {
                         "_dd.base_service": "",
                         "_dd.p.tid": "654a694400000000",
@@ -227,6 +250,8 @@
                          "trace_id": 0,
                          "span_id": 17,
                          "parent_id": 15,
+                         "type": "",
+                         "error": 0,
                          "meta": {
                            "_dd.base_service": "",
                            "_dd.p.tid": "654a694400000000",
@@ -242,6 +267,8 @@
                             "trace_id": 0,
                             "span_id": 19,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "meta": {
                               "_dd.base_service": "",
                               "_dd.p.tid": "654a694400000000",
@@ -257,6 +284,8 @@
                             "trace_id": 0,
                             "span_id": 20,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "meta": {
                               "_dd.base_service": "",
                               "_dd.p.tid": "654a694400000000",
@@ -272,6 +301,8 @@
                                "trace_id": 0,
                                "span_id": 22,
                                "parent_id": 20,
+                               "type": "",
+                               "error": 0,
                                "meta": {
                                  "_dd.base_service": "",
                                  "_dd.p.tid": "654a694400000000",
@@ -287,6 +318,8 @@
                                   "trace_id": 0,
                                   "span_id": 23,
                                   "parent_id": 22,
+                                  "type": "",
+                                  "error": 0,
                                   "meta": {
                                     "_dd.base_service": "",
                                     "_dd.p.tid": "654a694400000000",
@@ -302,6 +335,8 @@
                                      "trace_id": 0,
                                      "span_id": 24,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
                                        "_dd.p.tid": "654a694400000000",
@@ -317,6 +352,8 @@
                                      "trace_id": 0,
                                      "span_id": 25,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
                                        "_dd.p.tid": "654a694400000000",
@@ -333,6 +370,7 @@
                                      "span_id": 26,
                                      "parent_id": 23,
                                      "type": "template",
+                                     "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
                                        "_dd.p.tid": "654a694400000000",
@@ -349,6 +387,8 @@
                                      "trace_id": 0,
                                      "span_id": 27,
                                      "parent_id": 23,
+                                     "type": "",
+                                     "error": 0,
                                      "meta": {
                                        "_dd.base_service": "",
                                        "_dd.p.tid": "654a694400000000",
@@ -364,6 +404,8 @@
                             "trace_id": 0,
                             "span_id": 21,
                             "parent_id": 17,
+                            "type": "",
+                            "error": 0,
                             "meta": {
                               "_dd.base_service": "",
                               "_dd.p.tid": "654a694400000000",
@@ -379,6 +421,8 @@
                          "trace_id": 0,
                          "span_id": 18,
                          "parent_id": 15,
+                         "type": "",
+                         "error": 0,
                          "meta": {
                            "_dd.base_service": "",
                            "_dd.p.tid": "654a694400000000",
@@ -394,6 +438,8 @@
                       "trace_id": 0,
                       "span_id": 16,
                       "parent_id": 13,
+                      "type": "",
+                      "error": 0,
                       "meta": {
                         "_dd.base_service": "",
                         "_dd.p.tid": "654a694400000000",
@@ -409,6 +455,8 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000",
@@ -424,6 +472,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
@@ -439,6 +489,8 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
