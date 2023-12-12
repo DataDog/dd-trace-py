@@ -81,7 +81,7 @@ def is_enabled(config):
     return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
-def _is_pytest_cov_enabled(config):
+def _is_pytest_cov_enabled(config) -> bool:
     config_result = config.getoption("--cov", default=False)
     if type(config_result) == list and config_result == [True]:
         return True

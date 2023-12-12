@@ -790,6 +790,20 @@ def _finish_span(current_span: ddtrace.Span):
     current_span.finish()
 
 
+def _finish_test_session_span():
+    _finish_remaining_suites_and_modules(
+        _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+    )
+    _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
+    if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+        _stop_coverage(unittest)
+    if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
+        run_coverage_report()
+        _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
+        unpatch_coverage()
+    _finish_span(_CIVisibility._datadog_session_span)
+
+
 def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: dict):
     """
     Creates session span and discovers test suites and tests for the current `unittest` CLI execution
@@ -810,18 +824,8 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
-        if _CIVisibility.enabled and test_session_span and hasattr(_CIVisibility, "_unittest_data"):
-            _finish_remaining_suites_and_modules(
-                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-            )
-            _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-                _stop_coverage(unittest)
-            if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
-                run_coverage_report()
-                _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
-                unpatch_coverage()
-            _finish_span(test_session_span)
+        if _CIVisibility.enabled and _CIVisibility._datadog_session_span and hasattr(_CIVisibility, "_unittest_data"):
+            _finish_test_session_span()
 
         raise e
     return result
@@ -845,32 +849,11 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
     except SystemExit as e:
         _CIVisibility._datadog_finished_sessions += 1
         if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
-            _finish_remaining_suites_and_modules(
-                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-            )
-            _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-                _stop_coverage(unittest)
-            if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
-                run_coverage_report()
-                _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
-                unpatch_coverage()
-            _finish_span(_CIVisibility._datadog_session_span)
+            _finish_test_session_span()
             del _CIVisibility._datadog_session_span
         raise e
-
     _CIVisibility._datadog_finished_sessions += 1
     if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
-        _finish_remaining_suites_and_modules(
-            _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-        )
-        _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-        if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-            _stop_coverage(unittest)
-        if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
-            run_coverage_report()
-            _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
-            unpatch_coverage()
-        _finish_span(_CIVisibility._datadog_session_span)
+        _finish_test_session_span()
         del _CIVisibility._datadog_session_span
     return result
