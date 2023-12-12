@@ -35,6 +35,14 @@ The following environment variables for the tracer are supported:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
 
+   DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         Enables propagation of baggage items through http headers with prefix ``ot-baggage-``.
+     version_added:
+       v2.4.0:
+
    DD_VERSION:
      description: |
          Set an application's version in traces and logs e.g. ``1.2.3``,
