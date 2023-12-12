@@ -226,8 +226,7 @@ class CIVisibility(Service):
         sw = StopWatch()
         sw.start()
         try:
-            json_payload = json.dumps(payload)
-            response = _do_request("POST", url, json_payload, headers)
+            response = _do_request("POST", url, json.dumps(payload), headers)
         except TimeoutError:
             log.warning("Request timeout while fetching enabled features")
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
@@ -265,6 +264,7 @@ class CIVisibility(Service):
         except KeyError:
             log.warning("Unexpected response from settings API, disabling Intelligent Test Runner")
             log.debug("Missing key in API response", exc_info=True)
+            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
             return _CIVisiblitySettings(False, False, False, False)
 
         record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled, require_git, itr_enabled)
