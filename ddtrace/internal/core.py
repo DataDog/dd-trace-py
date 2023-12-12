@@ -309,7 +309,12 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+def _reset_context():
+    global _CURRENT_CONTEXT
+    _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+
+
+_reset_context()
 _CONTEXT_CLASS = ExecutionContext
 
 

@@ -2212,7 +2212,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "langchain": ["==0.0.192", "==0.0.259"],
-                "openai": "~=1.1.0",
+                "openai": latest,
                 "vcrpy": latest,
                 "pytest-asyncio": "~=0.21.1",
                 "tiktoken": latest,
