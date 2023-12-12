@@ -24,7 +24,7 @@ unset(BUILD_MACOS CACHE)
 
 FetchContent_Declare(
         absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
+        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip"
 )
 FetchContent_MakeAvailable(absl)
 
