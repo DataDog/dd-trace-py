@@ -692,6 +692,10 @@ class Config(object):
                 item.unset_rc()
             return
 
+        if len(data["config"]) == 0:
+            log.warning("unexpected number of RC payloads %r", data)
+            return
+
         config = data["config"][0]
         if "lib_config" not in config:
             log.warning("unexpected RC payload %r", config)

@@ -50,7 +50,7 @@ def _expected_payload(
                 "config_states": config_states,
                 "has_error": has_errors,
             },
-            "capabilities": "Ag==",
+            "capabilities": "EAA=",
         },
         "cached_target_files": cached_target_files,
     }
@@ -790,7 +790,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.internal.remoteconfig.client.appsec_rc_capabilities")
 def test_remote_config_client_callback_error(
     mock_appsec_rc_capabilities,
     mock_send_request,
