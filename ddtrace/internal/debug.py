@@ -176,7 +176,6 @@ def pretty_collect(tracer, color=True):
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}
     Application Security enabled: {appsec_enabled}
-    Remote Configuration enabled: {remote_config_enabled}
     IAST enabled (experimental): {iast_enabled}
     Debug logging: {debug}
     Writing traces to: {agent_url}
@@ -196,7 +195,6 @@ def pretty_collect(tracer, color=True):
     Tracer Tags: {tracer_tags}""".format(
         tracer_enabled=info.get("tracer_enabled"),
         appsec_enabled=info.get("asm_enabled"),
-        remote_config_enabled=info.get("remote_config_enabled"),
         iast_enabled=info.get("iast_enabled"),
         debug=info.get("debug"),
         agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
