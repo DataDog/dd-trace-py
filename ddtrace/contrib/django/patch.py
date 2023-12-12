@@ -724,9 +724,9 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
                 pin,
                 _DjangoUserInfoRetriever(result_user),
             ),
-        )[0]
-        if result and result[0][0]:
-            return result[0][1]
+        ).user
+        if result and result.value[0]:
+            return result.value[1]
 
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
@@ -822,7 +822,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    return core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs))[0][0]
+    return core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result.value
 
 
 def patch():
