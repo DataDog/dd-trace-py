@@ -1,7 +1,7 @@
 import os
 import time
-from typing import TYPE_CHECKING
-from typing import cast
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
@@ -14,6 +14,7 @@ from ddtrace.settings.asm import config as asm_config
 from ..._deduplications import deduplication
 from .. import oce
 from .._overhead_control_engine import Operation
+from .._stacktrace import get_info_frame
 from .._utils import _has_to_scrub
 from .._utils import _is_evidence_value_parts
 from .._utils import _scrub
@@ -24,22 +25,15 @@ from ..reporter import Source
 from ..reporter import Vulnerability
 
 
-try:
-    # Python >= 3.4
-    from .._stacktrace import get_info_frame
-except ImportError:
-    # Python 2
-    from .._stacktrace_py2 import get_info_frame
-
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Set
-    from typing import Text
-    from typing import Union
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Set  # noqa:F401
+    from typing import Text  # noqa:F401
+    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 
