@@ -309,7 +309,7 @@ class TelemetryWriter(PeriodicService):
             name = "logs_injection_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "trace_http_header_tags":
-            name = "trace_http_header_tags"
+            name = "trace_header_tags"
             value = ",".join(":".join(x) for x in item.value().items())
         elif cfg_name == "tags":
             name = "trace_tags"
@@ -342,7 +342,6 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
-                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),

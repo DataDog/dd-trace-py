@@ -191,7 +191,7 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-_ConfigSource = Literal["default", "env", "code", "remote_config"]
+_ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 
 
 class _ConfigItem:
@@ -248,7 +248,7 @@ class _ConfigItem:
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
-            return "env"
+            return "env_var"
         return "default"
 
     def __repr__(self):
