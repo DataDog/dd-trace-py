@@ -47,7 +47,7 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, tracer_enabled, serv
         os.remove(filepath)
 
 
-@pytest.mark.skip(reason="We're still finding a solution to this corner case. It hangs in CI")
+@pytest.mark.skip(reason="This also hangs without the tracer so it's expected behaviour")
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
@@ -103,7 +103,10 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, se
         assert response.content == b"OK_test-body-hang"
 
 
-@pytest.mark.skip(reason="We're still finding a solution to this corner case. It hangs in CI")
+@pytest.mark.skip(
+    reason="This corner case (Content-Length bigger than actual data sent) will hang. However, if we didn't read the "
+           "data stream and the endpoint did (which will do since it's a POST), it would also hang. We just hang earlier."
+)
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server,)))
