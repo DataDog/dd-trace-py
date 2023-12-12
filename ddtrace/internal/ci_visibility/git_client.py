@@ -31,6 +31,7 @@ from .. import compat
 from .. import telemetry
 from ..utils.http import Response
 from ..utils.http import get_connection
+from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -85,7 +86,6 @@ class CIVisibilityGitClient(object):
             self._base_url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = "https://api.{}{}".format(os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE), GIT_API_BASE_PATH)
-            self._base_url = "http://localhost:5000{}".format(GIT_API_BASE_PATH)
 
     def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
@@ -100,7 +100,7 @@ class CIVisibilityGitClient(object):
                 self._worker.start()
         log.debug("Upload git metadata to URL %s started with PID %s", self._base_url, self._worker.pid)
 
-    def wait_for_metadata_upload(self, timeout=10):
+    def wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
         with StopWatch() as stopwatch:
             while self._metadata_upload_status.value not in [
@@ -123,9 +123,6 @@ class CIVisibilityGitClient(object):
 
                 self._worker.join(timeout=1)
                 time.sleep(1)
-
-    def shutdown(self):
-        self._worker.join(timeout=5)
 
     @classmethod
     def _run_protocol(
@@ -176,15 +173,11 @@ class CIVisibilityGitClient(object):
                         GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
                     )
                     if packfiles_details.returncode == 0:
-                        log.warning("ROMAIN UPLOADING PACKFILES")
                         if cls._upload_packfiles(
                             requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
                         ):
-                            log.warning("ROMAIN UPLOADED PACKFILES")
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
-                            log.warning("ROMAIN SAYS METADATA UPLOAD STATUS IS... %s" % _metadata_upload_status.value)
                             return
-                        log.warning("ROMAIN DID NOT UPLOAD PACKFILES")
                     _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                     raise ValueError(packfiles_details.stderr)
             else:
@@ -192,7 +185,6 @@ class CIVisibilityGitClient(object):
                 _metadata_upload_status = METADATA_UPLOAD_STATUS.SUCCESS
                 record_objects_pack_data(0, 0)
         finally:
-            import time
             telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod
@@ -236,7 +228,8 @@ class CIVisibilityGitClient(object):
                     request_error = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                     log.warning(
                         "Error searching commits, response status code: %s , response body: %s",
-                        response.status, response.body,
+                        response.status,
+                        response.body,
                     )
                     log.debug("Response body: %s", response.body)
                     return None
@@ -267,10 +260,11 @@ class CIVisibilityGitClient(object):
         if headers is not None:
             _headers.update(headers)
         try:
-            log.warning("ROMAIN DO REQUEST GIT CLIENT URL is %s" % url)
+            parsed_url = verify_url(url)
+            url_path = parsed_url.path
             conn = get_connection(url, timeout=timeout)
-            log.debug("Sending request: %s %s %s %s", "POST", url, payload, _headers)
-            conn.request("POST", url, payload, _headers)
+            log.debug("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
+            conn.request("POST", url_path, payload, _headers)
             resp = compat.get_connection_response(conn)
             log.debug("Response status: %s", resp.status)
             result = Response.from_http_response(resp)
@@ -290,6 +284,7 @@ class CIVisibilityGitClient(object):
     @classmethod
     def _upload_packfiles(cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):
         # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
+
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
@@ -304,7 +299,6 @@ class CIVisibilityGitClient(object):
             headers = {"Content-Type": content_type}
             with StopWatch() as stopwatch:
                 error_type = None
-                log.warning("ROMAIN WONDERS WHAT URL IS HERE %s" % base_url)
                 try:
                     response = _response or cls._do_request(
                         requests_mode, base_url, "/packfile", payload, serializer, headers=headers

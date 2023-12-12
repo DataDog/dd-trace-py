@@ -379,41 +379,6 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
             cwd=cwd,
             std_in=revisions.encode("utf-8"),
         )
-        log.warning("ROMAIN PROCESS DETAILS %s", process_details)
-        yield prefix, process_details
-    finally:
-        if isinstance(tempdir, compat.TemporaryDirectory):
-            log.debug("Cleaning up temporary directory: %s", basepath)
-            tempdir.cleanup()
-
-
-@contextlib.contextmanager
-def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
-    # type: (str, Optional[str], bool) -> Generator
-    basename = str(random.randint(1, 1000000))
-
-    # check that the tempdir and cwd are on the same filesystem, otherwise git pack-objects will fail
-    cwd = cwd if cwd else os.getcwd()
-    tempdir = compat.TemporaryDirectory()
-    if _get_device_for_path(cwd) == _get_device_for_path(tempdir.name):
-        basepath = tempdir.name
-    else:
-        log.debug("tempdir %s and cwd %s are on different filesystems, using cwd", tempdir.name, cwd)
-        basepath = cwd
-
-    prefix = "{basepath}/{basename}".format(basepath=basepath, basename=basename)
-
-    log.debug("Building packfiles in prefix path: %s", prefix)
-
-    try:
-        process_details = _git_subprocess_cmd_with_details(
-            "pack-objects",
-            "--compression=9",
-            "--max-pack-size=3m",
-            prefix,
-            cwd=cwd,
-            std_in=revisions.encode("utf-8"),
-        )
         yield prefix, process_details
     finally:
         if isinstance(tempdir, compat.TemporaryDirectory):

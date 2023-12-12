@@ -2,6 +2,7 @@ from collections import defaultdict
 import json
 import os
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import NamedTuple  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -25,6 +26,7 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.provider import CIContextProvider
 
 from .. import agent
+from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
@@ -59,6 +61,11 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15
 
+_CIVisiblitySettings = NamedTuple(
+    "_CIVisiblitySettings",
+    [("coverage_enabled", bool), ("skipping_enabled", bool), ("require_git", bool), ("itr_enabled", bool)],
+)
+
 
 def _extract_repository_name_from_url(repository_url):
     # type: (str) -> str
@@ -88,10 +95,11 @@ def _get_custom_configurations():
 def _do_request(method, url, payload, headers):
     # type: (str, str, str, Dict) -> Response
     try:
-        log.warning("ROMAIN DO REQUEST RECORDER URL is %s" % url)
+        parsed_url = verify_url(url)
+        url_path = parsed_url.path
         conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
-        log.debug("Sending request: %s %s %s %s", method, url, payload, headers)
-        conn.request("POST", url, payload, headers)
+        log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
+        conn.request("POST", url_path, payload, headers)
         resp = compat.get_connection_response(conn)
         log.debug("Response status: %s", resp.status)
         result = Response.from_http_response(resp)
@@ -197,23 +205,76 @@ class CIVisibility(Service):
             return False
         return True
 
+    def _check_settings_api(self, url, headers):
+        # type: (str, Dict[str, str]) -> _CIVisiblitySettings
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "test_level": SUITE if self._suite_skipping_mode else TEST,
+                    "service": self._service,
+                    "env": ddconfig.env,
+                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
+                    "sha": self._tags.get(ci.git.COMMIT_SHA),
+                    "branch": self._tags.get(ci.git.BRANCH),
+                    "configurations": self._configurations,
+                },
+            }
+        }
+
+        sw = StopWatch()
+        sw.start()
+        try:
+            json_payload = json.dumps(payload)
+            response = _do_request("POST", url, json_payload, headers)
+        except TimeoutError:
+            log.warning("Request timeout while fetching enabled features")
+            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
+            return _CIVisiblitySettings(False, False, False, False)
+        if response.status >= 400:
+            log.warning(
+                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
+            )
+            error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+            record_settings(sw.elapsed() * 1000, error=error_code)
+            return _CIVisiblitySettings(False, False, False, False)
+        try:
+            if isinstance(response.body, bytes):
+                parsed = json.loads(response.body.decode())
+            else:
+                parsed = json.loads(response.body)
+        except JSONDecodeError:
+            log.warning("Settings request responded with invalid JSON '%s'", response.body)
+            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.BAD_JSON)
+            return _CIVisiblitySettings(False, False, False, False)
+
+        if "errors" in parsed and parsed["errors"][0] == "Not found":
+            log.warning("Settings request contained an error, disabling Intelligent Test Runner")
+            record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
+            return _CIVisiblitySettings(False, False, False, False)
+
+        log.debug("Parsed API response: %s", parsed)
+
+        try:
+            attributes = parsed["data"]["attributes"]
+            coverage_enabled = attributes["code_coverage"]
+            skipping_enabled = attributes["tests_skipping"]
+            require_git = attributes["require_git"]
+            itr_enabled = attributes.get("itr_enabled", False)
+        except KeyError:
+            log.warning("Unexpected response from settings API, disabling Intelligent Test Runner")
+            log.debug("Missing key in API response", exc_info=True)
+            return _CIVisiblitySettings(False, False, False, False)
+
+        record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled, require_git, itr_enabled)
+
+        return _CIVisiblitySettings(coverage_enabled, skipping_enabled, require_git, itr_enabled)
+
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
         # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            return False, False
-
-        try:
-            try:
-                self._git_client.wait_for_metadata_upload()
-            except ValueError:
-                log.warning("Error waiting for git metadata upload, test skipping will be best effort", exc_info=True)
-                raise
-                return False, False
-            if self._git_client._metadata_upload_status == METADATA_UPLOAD_STATUS.FAILED:
-                log.warning("Metadata upload failed, test skipping will be best effort")
-        except TimeoutError:
-            log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
             return False, False
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
@@ -227,7 +288,6 @@ class CIVisibility(Service):
                 log.debug("Cannot make request to setting endpoint if API key is not set")
                 return False, False
             url = "https://api." + self._dd_site + SETTING_ENDPOINT
-            url = "http://localhost:5000" + SETTING_ENDPOINT
             _headers = {
                 AGENTLESS_API_KEY_HEADER_NAME: self._api_key,
                 "Content-Type": "application/json",
@@ -236,57 +296,30 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
             return False, False
 
-        payload = {
-            "data": {
-                "id": str(uuid4()),
-                "type": "ci_app_test_service_libraries_settings",
-                "attributes": {
-                    "service": self._service,
-                    "env": ddconfig.env,
-                    "repository_url": self._tags.get(ci.git.REPOSITORY_URL),
-                    "sha": self._tags.get(ci.git.COMMIT_SHA),
-                    "branch": self._tags.get(ci.git.BRANCH),
-                },
-            }
-        }
+        settings = self._check_settings_api(url, _headers)
 
-        sw = StopWatch()
-        sw.start()
-        try:
-            response = _do_request("POST", url, json.dumps(payload), _headers)
-            log.warning("ROMAIN response %s", response.body)
-        except TimeoutError:
-            log.warning("Request timeout while fetching enabled features")
-            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.TIMEOUT)
-            return False, False
-        if response.status >= 400:
-            log.warning(
-                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
-            )
-            error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-            record_settings(sw.elapsed() * 1000, False, False, error_code)
-            return False, False
-        try:
-            if isinstance(response.body, bytes):
-                parsed = json.loads(response.body.decode())
-            else:
-                parsed = json.loads(response.body)
-        except JSONDecodeError:
-            log.warning("Settings request responded with invalid JSON '%s'", response.body)
-            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.BAD_JSON)
-            return False, False
+        if settings.require_git:
+            log.info("Settings API requires git metadata, waiting for git metadata upload to complete")
+            try:
+                try:
+                    self._git_client.wait_for_metadata_upload()
+                    if self._git_client._metadata_upload_status == METADATA_UPLOAD_STATUS.FAILED:
+                        log.warning("Metadata upload failed, test skipping will be best effort")
+                except ValueError:
+                    log.warning(
+                        "Error waiting for git metadata upload, test skipping will be best effort", exc_info=True
+                    )
+                    return False, False
+            except TimeoutError:
+                log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
+                return False, False
 
-        if "errors" in parsed and parsed["errors"][0] == "Not found":
-            log.warning("Settings request contained an error, disabling Intelligent Test Runner")
-            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.UNKNOWN)
-            return False, False
+            # The most recent API response overrides the first one
+            settings = self._check_settings_api(url, _headers)
+            if settings.require_git:
+                log.warning("git metadata upload did not complete in time, test skipping will be best effort")
 
-        attributes = parsed["data"]["attributes"]
-        coverage_enabled = attributes["code_coverage"]
-        skipping_enabled = attributes["tests_skipping"]
-        record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled)
-
-        return coverage_enabled, skipping_enabled
+        return settings.coverage_enabled, settings.skipping_enabled
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
@@ -334,9 +367,16 @@ class CIVisibility(Service):
         # Make sure git uploading has finished
         # this will block the thread until that happens
         try:
-            self._git_client.wait_for_metadata_upload()
-            if self._git_client._metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
-                log.warning("git metadata upload was not successful, some tets may not be skipped")
+            try:
+                self._git_client.wait_for_metadata_upload()
+                if self._git_client._metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
+                    log.warning("git metadata upload was not successful, some tests may not be skipped")
+            except ValueError:
+                log.warning(
+                    "Error waiting for metadata upload to complete while fetching tests to skip"
+                    ", some tests may not be skipped",
+                    exc_info=True,
+                )
         except TimeoutError:
             log.debug("Timed out waiting for git metadata upload, some tests may not be skipped")
 
@@ -354,8 +394,6 @@ class CIVisibility(Service):
             }
         }
 
-        log.warning("ROMAIN PAYLOAD %s", payload)
-
         _headers = {
             "dd-api-key": self._api_key,
             "Content-Type": "application/json",
@@ -367,7 +405,6 @@ class CIVisibility(Service):
             }
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
-            url = "http://localhost:5000" + SKIPPABLE_ENDPOINT
         else:
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
@@ -393,12 +430,9 @@ class CIVisibility(Service):
             log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
             return
 
-
         if "data" not in parsed:
             log.warning("Skippable tests request missing data, no tests will be skipped")
             return
-
-        log.warning("ROMAIN DATA IN PARSED %s" % parsed['data'])
 
         try:
             for item in parsed["data"]:
@@ -484,7 +518,13 @@ class CIVisibility(Service):
     def _stop_service(self):
         # type: () -> None
         if self._git_client is not None:
-            self._git_client.wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+            try:
+                try:
+                    self._git_client.wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+                except ValueError:
+                    log.debug("Error waiting for metadata upload to complete during shutdown", exc_info=True)
+            except TimeoutError:
+                log.debug("Timed out waiting for metadata upload to complete during shutdown.")
         try:
             self.tracer.shutdown()
         except Exception:
