@@ -21,9 +21,6 @@ class Psycopg3TracedAsyncCursor(Psycopg3TracedCursor, dbapi_async.TracedAsyncCur
         # messages will be the same.
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
-        # and finally, yield the traced cursor.
-        return self
-
 
 class Psycopg3FetchTracedAsyncCursor(Psycopg3TracedAsyncCursor, dbapi_async.FetchTracedAsyncCursor):
     """Psycopg3FetchTracedAsyncCursor for psycopg"""
