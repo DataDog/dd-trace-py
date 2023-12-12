@@ -125,7 +125,7 @@ def test_ipblock_match_403_json(app, client, tracer, test_spans):
 @pytest.fixture
 def setup_core_ok_after_test():
     yield
-    core.on("asgi.request.parse.body", _on_asgi_request_parse_body)
+    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
 
 
 @pytest.mark.usefixtures("setup_core_ok_after_test")
