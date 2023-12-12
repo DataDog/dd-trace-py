@@ -137,7 +137,7 @@ def test_core_callback_request_body(app, client, tracer, test_spans):
         return PlainTextResponse(body["body"])
 
     # test if asgi middleware is ok without any callback registered
-    core._EVENT_HUB.get()._listeners["asgi.request.parse.body"].clear()
+    core.reset_listeners(event_id="asgi.request.parse.body")
 
     payload, content_type = '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json"
 
