@@ -187,9 +187,14 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
     # other values must not be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/index.html?toto=ytrace")
+        resp = client.get("/index.html?toto=ytrac%65")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok: ytrace"
+    # same encoded value must be blocked
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get("/index.html?toto=xtrac%65")
+        assert resp.status_code == 403
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
