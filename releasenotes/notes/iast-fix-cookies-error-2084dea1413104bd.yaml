@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Cookies vulnerabilities are only reported
+    if response cookies are insecure.
