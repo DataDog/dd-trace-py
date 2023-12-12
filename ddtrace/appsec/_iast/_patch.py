@@ -1,7 +1,7 @@
 import ctypes
 import gc
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -11,10 +11,10 @@ from ._utils import _is_iast_enabled
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import Optional
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Optional  # noqa:F401
 
 
 _DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
