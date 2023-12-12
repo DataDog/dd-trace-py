@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where concurrent mutations to the ``context._meta`` dict
+    caused `RuntimeError: dictionary changed size during iteration`.

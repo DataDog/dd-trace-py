@@ -46,7 +46,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
 
     auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, (RANGE_START)len_candidate_text);
-    const auto& res_new_id = new_pyobject_id(result_o);
+    const auto res_new_id = new_pyobject_id(result_o);
     Py_DecRef(result_o);
     set_tainted_object(res_new_id, tainted, tx_taint_map);
 

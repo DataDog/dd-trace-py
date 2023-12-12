@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where requesting raw API responses from openai>=1.0 resulted in attribute errors while tagging.

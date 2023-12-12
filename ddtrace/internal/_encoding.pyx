@@ -278,13 +278,26 @@ cdef class MsgpackStringTable(StringTable):
             self.pk.length = self._sp_len
             self._next_id = self._sp_id
 
+        # After rolling back the string table next_id we must remove all stale string -> _id pairs
+        # This will resolve two classes of encoding errors:
+        #  - multiple strings referencing the same string table index. In this scenario
+        #    two different strings in the encoded trace could be serialized with the same _id. In this scenario
+        #    two different strings could reference one string in the encoded trace (string swapping).
+        # - when the string table references an index of the string table that is not serialized. The encoded
+        #    trace can not be decoded without accessing an invalid index. In this scenario the agent will
+        #    return a 400 status code.
+        self._table = {s: idx for s, idx in self._table.items() if idx < self._next_id}
+
     cdef get_bytes(self):
         cdef int ret
-        cdef stdint.uint32_t table_size = self._next_id
-        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
-        cdef int old_pos = self.pk.length
-
+        cdef stdint.uint32_t table_size
+        cdef int offset
+        cdef int old_pos
         with self._lock:
+            table_size = self._next_id
+            offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
+            old_pos = self.pk.length
+
             # Update table size prefix
             self.pk.length = offset
             ret = msgpack_pack_array(&self.pk, table_size)
@@ -297,7 +310,7 @@ cdef class MsgpackStringTable(StringTable):
                 return None
             self.pk.length = old_pos
 
-        return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
+            return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
     @property
     def size(self):
