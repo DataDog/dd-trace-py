@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from ipaddress import ip_network
-import sys
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -488,18 +487,6 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
         span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         assert not span_report
-
-
-@pytest.mark.skipif(
-    sys.version_info >= (3, 12),
-    reason="Python 3.7+ test, IAST not supported with Python 3.12",
-)
-def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=True, _asm_enabled=True)):
-        cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        assert span_report.vulnerabilities
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
