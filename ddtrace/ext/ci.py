@@ -66,9 +66,6 @@ RUNTIME_NAME = "runtime.name"
 # Runtime Version
 RUNTIME_VERSION = "runtime.version"
 
-# Runtime Architecture
-RUNTIME_ARCHITECTURE = "runtime.architecture"
-
 # Version of the ddtrace library
 LIBRARY_VERSION = "library_version"
 
@@ -94,7 +91,6 @@ def _get_runtime_and_os_metadata():
         OS_VERSION: platform.release(),
         RUNTIME_NAME: platform.python_implementation(),
         RUNTIME_VERSION: platform.python_version(),
-        RUNTIME_ARCHITECTURE: platform.architecture()[0],
     }
 
 

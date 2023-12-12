@@ -303,7 +303,7 @@ class CIVisibility(Service):
             try:
                 try:
                     self._git_client.wait_for_metadata_upload()
-                    if self._git_client._metadata_upload_status == METADATA_UPLOAD_STATUS.FAILED:
+                    if self._git_client.metadata_upload_status.value == METADATA_UPLOAD_STATUS.FAILED:  # type: ignore
                         log.warning("Metadata upload failed, test skipping will be best effort")
                 except ValueError:
                     log.warning(
@@ -369,7 +369,7 @@ class CIVisibility(Service):
         try:
             try:
                 self._git_client.wait_for_metadata_upload()
-                if self._git_client._metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
+                if self._git_client.metadata_upload_status.value != METADATA_UPLOAD_STATUS.SUCCESS:
                     log.warning("git metadata upload was not successful, some tests may not be skipped")
             except ValueError:
                 log.warning(
@@ -517,7 +517,8 @@ class CIVisibility(Service):
 
     def _stop_service(self):
         # type: () -> None
-        if self._git_client is not None:
+        if self._should_upload_git_metadata and not self._git_client.metadata_upload_finished():
+            log.debug("git metadata upload still in progress, waiting before shutting down")
             try:
                 try:
                     self._git_client.wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
