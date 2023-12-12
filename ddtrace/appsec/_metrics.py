@@ -71,7 +71,7 @@ def _set_waf_init_metric(info):
 
 def _set_waf_request_metrics(*args):
     try:
-        list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results()
+        list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results() or ([], [], [])
         if any((list_results, list_result_info, list_is_blocked)):
             is_blocked = any(list_is_blocked)
             is_triggered = any((result.data for result in list_results))

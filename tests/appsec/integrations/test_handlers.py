@@ -5,13 +5,11 @@ from requests.exceptions import ConnectionError
 
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.utils import flaky
 
 
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-@flaky(until=1704067200)
 def test_when_appsec_reads_chunked_requests(appsec_enabled, tracer_enabled, server):
     def read_in_chunks(filepath, chunk_size=1024):
         file_object = open(filepath, "rb")
@@ -73,7 +71,6 @@ def test_corner_case_when_appsec_reads_chunked_request_with_no_body(appsec_enabl
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-@flaky(until=1704067200)
 def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, tracer_enabled, server):
     """A bug was detected when running a Flask application locally
 
