@@ -201,9 +201,9 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            parse_body_result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers))[0]
-            if len(parse_body_result) == 1:
-                receive, body = await parse_body_result[0]
+            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            if result:
+                receive, body = await result.value
 
             client = scope.get("client")
             if isinstance(client, list) and len(client):
@@ -259,7 +259,11 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                status, headers, content = core.dispatch_with_results("asgi.block.started", (ctx, url))[0][0]
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)

@@ -339,4 +339,4 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
 
 core.on("django.login", _on_django_login)
-core.on("django.auth", _on_django_auth)
+core.on("django.auth", _on_django_auth, "user")
