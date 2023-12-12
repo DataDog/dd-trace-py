@@ -114,7 +114,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # 0.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
     rc_client.request()
-    expected_response = _expected_payload(rc_client, capabilities="EAI=")
+    expected_response = _expected_payload(rc_client)
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
@@ -132,9 +132,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
     rc_client.request()
-    expected_response = _expected_payload(
-        rc_client, capabilities="EAI=", targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0="
-    )
+    expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
@@ -153,7 +151,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=2,
         config_states=[{"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2}],
         backend_client_state="eyJmb28iOiAiYmFyIn0=",
@@ -188,7 +185,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=3,
         config_states=[{"id": "ASM_FEATURES-base", "version": 2, "product": "ASM_FEATURES", "apply_state": 2}],
         backend_client_state="eyJmb28iOiAiYmFyIn0=",
@@ -223,7 +219,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=4,
         config_states=[],
         backend_client_state="eyJmb28iOiAiYmFyIn0=",
@@ -247,7 +242,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=5,
         config_states=[
             {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -295,7 +289,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=6,
         config_states=[
             {"id": "ASM_FEATURES-base", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -343,7 +336,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=7,
         config_states=[
             {"id": "ASM_FEATURES-third", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -402,7 +394,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=8,
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -452,7 +443,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=9,
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -501,7 +491,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=10,
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -550,7 +539,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=11,
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -616,7 +604,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=12,
         config_states=[
             {"id": "ASM_FEATURES-second", "version": 1, "product": "ASM_FEATURES", "apply_state": 2},
@@ -678,7 +665,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=12,
         has_errors=True,
         error_msg="Not all client configurations have target files",
@@ -742,7 +728,6 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     rc_client.request()
     expected_response = _expected_payload(
         rc_client,
-        capabilities="EAI=",
         targets_version=12,
         has_errors=True,
         error_msg=(
