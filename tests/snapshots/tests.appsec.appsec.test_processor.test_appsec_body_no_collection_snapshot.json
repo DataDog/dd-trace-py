@@ -22,7 +22,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 152,
+      "_dd.appsec.event_rules.loaded": 153,
       "_dd.appsec.waf.duration": 204.672,
       "_dd.appsec.waf.duration_ext": 280.3802490234375,
       "_dd.top_level": 1,
