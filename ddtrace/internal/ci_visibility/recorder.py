@@ -130,7 +130,8 @@ class CIVisibility(Service):
                 self.tracer = Tracer()
 
         self._configurations = ci._get_runtime_and_os_metadata()
-        if custom_configurations := _get_custom_configurations():
+        custom_configurations = _get_custom_configurations()
+        if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
