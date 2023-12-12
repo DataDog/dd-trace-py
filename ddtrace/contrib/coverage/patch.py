@@ -1,4 +1,6 @@
+from copy import copy
 import os
+import sys
 
 import coverage
 
@@ -12,6 +14,8 @@ from ddtrace.vendor import wrapt
 log = get_logger(__name__)
 
 _coverage_data = {}
+
+_original_sys_argv_command = copy(sys.argv)
 
 
 def get_version():
@@ -57,8 +61,16 @@ def run_coverage_report():
 
 
 def _is_coverage_patched():
-    return coverage._datadog_patch
+    return hasattr(coverage, "_datadog_patch") and coverage._datadog_patch
+
+
+def _command_has_coverage_run(_original_sys_argv_command):
+    new_command = " ".join(_original_sys_argv_command)
+    return "coverage run -m" in new_command
 
 
 def _is_coverage_invoked_by_coverage_run():
-    return os.environ.get("COVERAGE_RUN", False)
+    if os.environ.get("COVERAGE_RUN", False):
+        log.warning("ENDED UP TRUE")
+        return True
+    return _command_has_coverage_run(_original_sys_argv_command)
