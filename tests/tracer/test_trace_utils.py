@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ipaddress import ip_network
+import sys
 
 from hypothesis import given
 from hypothesis.strategies import booleans
