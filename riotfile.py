@@ -169,6 +169,10 @@ venv = Venv(
             name="appsec_iast_packages",
             pys=select_pys(min_version="3.8"),
             command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pkgs={
+                "requests": latest,
+                "flask": "~=3.0",
+            },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
