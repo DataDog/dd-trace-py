@@ -50,7 +50,7 @@ def _base_rc_config(cfg):
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
             "expected": {"_trace_sample_rate": 0.9},
-            "expected_source": {"_trace_sample_rate": "env"},
+            "expected_source": {"_trace_sample_rate": "env_var"},
         },
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
@@ -68,7 +68,7 @@ def _base_rc_config(cfg):
         {
             "env": {"DD_LOGS_INJECTION": "true"},
             "expected": {"logs_injection": True},
-            "expected_source": {"logs_injection": "env"},
+            "expected_source": {"logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
@@ -81,7 +81,7 @@ def _base_rc_config(cfg):
             "expected": {
                 "trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}
             },
-            "expected_source": {"trace_http_header_tags": "env"},
+            "expected_source": {"trace_http_header_tags": "env_var"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
