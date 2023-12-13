@@ -1,11 +1,12 @@
 [[
   {
     "name": "aws.lambda",
-    "service": null,
+    "service": "",
     "resource": "aws.lambda",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
@@ -26,11 +27,13 @@
   },
      {
        "name": "timeout",
-       "service": null,
+       "service": "",
        "resource": "timeout",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 200258517,
        "start": 1691161771833341867
      }]]
