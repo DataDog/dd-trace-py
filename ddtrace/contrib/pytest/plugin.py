@@ -82,10 +82,13 @@ def is_enabled(config):
 
 
 def _is_pytest_cov_enabled(config) -> bool:
-    config_result = config.getoption("--cov", default=False)
-    if type(config_result) == list and config_result == [True]:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--cov", default=False)
+    if type(cov_option) == list and cov_option == [True] and not nocov_option:
         return True
-    return config_result
+    return cov_option
 
 
 def _extract_span(item):
