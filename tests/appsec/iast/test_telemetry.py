@@ -8,22 +8,15 @@ from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
-from ddtrace.appsec._iast._utils import _is_python_version_supported
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
-from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 @pytest.mark.parametrize(
@@ -48,7 +41,6 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_metric_executed_sink(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
@@ -80,8 +72,6 @@ def test_metric_executed_sink(telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
-@flaky(until=1704067200)
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_metric_instrumented_propagation(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
@@ -94,7 +84,6 @@ def test_metric_instrumented_propagation(telemetry_writer):
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="Python version not supported by IAST")
 def test_metric_request_tainted(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)

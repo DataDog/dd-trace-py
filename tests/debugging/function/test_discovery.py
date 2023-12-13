@@ -1,10 +1,6 @@
-from functools import wraps
-from pathlib import Path
-
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import _undecorate
 import tests.submod.stuff as stuff
 
 

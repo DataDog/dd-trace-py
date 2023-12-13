@@ -6,14 +6,7 @@ import os
 
 import pytest
 
-
-try:
-    # Disable unused import warning pylint: disable=W0611
-    from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
-
-
+from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
 
@@ -66,10 +59,13 @@ def test_aspect_patched_result(aspect, args, kwargs):
     assert getattr(patched_callers, aspect)(*args, **kwargs) == getattr(unpatched_callers, aspect)(*args, **kwargs)
 
 
-def teardown():
+def teardown_module(_):
     """
     Remove the callers file after the tests are done.
     """
     for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
-        os.remove(_file)
+        try:
+            os.remove(_file)
+        except FileNotFoundError:
+            pass
         assert not os.path.exists(_file)

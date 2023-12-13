@@ -1,10 +1,10 @@
 import json
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
@@ -269,8 +269,7 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-        results = core.dispatch("django.extract_body", [])[0]
-        headers = results[0] if results else None
+        headers = core.dispatch_with_results("django.extract_body").headers.value
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
@@ -366,8 +365,7 @@ def _after_request_tags(pin, span: Span, request, response):
 
             url = get_request_uri(request)
 
-            results = core.dispatch("django.after_request_headers", [])[0]
-            request_headers = results[0] if results else None
+            request_headers = core.dispatch_with_results("django.after_request_headers").headers.value
             if not request_headers:
                 request_headers = _get_request_headers(request)
 
@@ -384,18 +382,22 @@ def _after_request_tags(pin, span: Span, request, response):
 
             core.dispatch(
                 "django.after_request_headers.post",
-                request_headers,
-                response_headers,
-                span,
-                config.django,
-                request,
-                _extract_body(request),
-                url,
-                raw_uri,
-                status,
-                response_cookies,
+                (
+                    request_headers,
+                    response_headers,
+                    span,
+                    config.django,
+                    request,
+                    url,
+                    raw_uri,
+                    status,
+                    response_cookies,
+                ),
             )
-            core.dispatch("django.after_request_headers.finalize", response.content, None)
+            content = getattr(response, "content", None)
+            if content is None:
+                content = getattr(response, "streaming_content", None)
+            core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

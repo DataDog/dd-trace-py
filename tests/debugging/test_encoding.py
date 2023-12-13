@@ -17,6 +17,8 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
 from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
+from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
+from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
 from tests.debugging.test_config import debugger_config
 from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
@@ -626,3 +628,36 @@ def test_capture_value_redacted_type():
             ],
             "size": 4,
         }
+
+
+@pytest.mark.parametrize("_type", BUILTIN_MAPPNG_TYPES)
+def test_capture_value_mapping_type(_type):
+    try:
+        d = _type({"bar": 42})
+    except TypeError:
+        # defaultdict requires a factory
+        d = _type(int, {"bar": 42})
+
+    assert utils.capture_value(d) == {
+        "type": utils.qualname(_type),
+        "entries": [
+            (
+                {"type": "str", "value": "'bar'"},
+                {"type": "int", "value": "42"},
+            ),
+        ],
+        "size": 1,
+    }
+
+
+@pytest.mark.parametrize("_type", BUILTIN_SEQUENCE_TYPES)
+def test_capture_value_sequence_type(_type):
+    s = _type(["foo"])
+
+    assert utils.capture_value(s) == {
+        "type": utils.qualname(_type),
+        "elements": [
+            {"type": "str", "value": "'foo'"},
+        ],
+        "size": 1,
+    }

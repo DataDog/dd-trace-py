@@ -10,7 +10,6 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -53,6 +52,7 @@ class ASM_Environment:
         self.callbacks: Dict[str, Any] = {}
         self.telemetry: Dict[str, Any] = {}
         self.addresses_sent: Set[str] = set()
+        self.must_call_globals: bool = True
 
 
 def _get_asm_context() -> ASM_Environment:
@@ -96,10 +96,11 @@ def unregister(span: Span) -> None:
     env = _get_asm_context()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
-    elif env.span is span:
+    elif env.span is span and env.must_call_globals:
         # needed for api security flushing information before end of the span
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
+        env.must_call_globals = False
 
 
 class _DataHandler:
@@ -125,7 +126,8 @@ class _DataHandler:
     def finalise(self):
         if self.active:
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, [])
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+            env.must_call_globals = False
             if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
                 callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
@@ -410,14 +412,14 @@ def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        request.cookies = LazyTaintDict(
+        request.cookies = taint_structure(
             request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
             override_pyobject_tainted=True,
         )
 
@@ -443,10 +445,14 @@ def _set_headers_and_response(response, headers, *_):
             set_body_response(response)
 
 
+def _call_waf_first(integration, *_):
+    log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
+    return call_waf_callback()
+
+
 def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    call_waf_callback()
-    return get_headers().get("Accept", "").lower()
+    return call_waf_callback()
 
 
 def _on_block_decided(callback):
@@ -460,13 +466,17 @@ def _get_headers_if_appsec():
 
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
+    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _call_waf)
+    core.on("flask.start_response", _call_waf, "waf")
+
     core.on("django.start_response.post", _call_waf)
     core.on("django.finalize_response", _call_waf)
-    core.on("django.after_request_headers", _get_headers_if_appsec)
-    core.on("django.extract_body", _get_headers_if_appsec)
+    core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
+    core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
+
+    core.on("asgi.start_request", _call_waf_first)
+    core.on("asgi.start_response", _call_waf)

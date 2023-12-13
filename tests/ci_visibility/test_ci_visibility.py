@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import os
 import textwrap
 import time
 
@@ -10,6 +9,8 @@ import pytest
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
+from ddtrace.ext.git import _build_git_packfiles_with_details
+from ddtrace.ext.git import _GitSubprocessDetails
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -19,8 +20,6 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import TimeoutError
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -30,7 +29,8 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_SHA = "b3672ea5cbc584124728c48a443825d2940e0ddd"
+TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
+TEST_SHA_2 = "b3672ea5cbc584124728c48a443825d2940e0eee"
 
 
 def test_filters_test_spans():
@@ -215,7 +215,7 @@ def test_repository_name_not_extracted_warning():
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
 
 
-DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA)
+DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA_1)
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -312,13 +312,22 @@ def test_git_client_get_repository_url_env_var_precedence_empty_tags(git_repo):
 
 
 def test_git_client_get_latest_commits(git_repo):
-    latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
-    assert latest_commits == [TEST_SHA]
+    with mock.patch(
+        "ddtrace.ext.git._git_subprocess_cmd_with_details",
+        return_value=_GitSubprocessDetails(
+            "b3672ea5cbc584124728c48a443825d2940e0ddd\nb3672ea5cbc584124728c48a443825d2940e0eee", "", 10, 0
+        ),
+    ) as mock_git_subprocess_cmd_with_details:
+        latest_commits = CIVisibilityGitClient._get_latest_commits(cwd=git_repo)
+        assert latest_commits == [TEST_SHA_1, TEST_SHA_2]
+        mock_git_subprocess_cmd_with_details.assert_called_once_with(
+            "log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=git_repo
+        )
 
 
 def test_git_client_search_commits():
     remote_url = "git@github.com:test-repo-url.git"
-    latest_commits = [TEST_SHA]
+    latest_commits = [TEST_SHA_1]
     serializer = CIVisibilityGitClientSerializerV1("foo")
     backend_commits = CIVisibilityGitClient._search_commits(
         REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, latest_commits, serializer, DUMMY_RESPONSE
@@ -362,63 +371,19 @@ def test_get_client_do_request_evp_proxy_headers():
 
 
 def test_git_client_get_filtered_revisions(git_repo):
-    excluded_commits = [TEST_SHA]
+    excluded_commits = [TEST_SHA_1]
     filtered_revisions = CIVisibilityGitClient._get_filtered_revisions(excluded_commits, cwd=git_repo)
     assert filtered_revisions == ""
-
-
-def test_git_client_build_packfiles(git_repo):
-    found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
-        assert packfiles_path
-        parts = packfiles_path.split("/")
-        directory = "/".join(parts[:-1])
-        rand = parts[-1]
-        assert os.path.isdir(directory)
-        for filename in os.listdir(directory):
-            if rand in filename:
-                found_rand = True
-                if filename.endswith(".idx"):
-                    found_idx = True
-                elif filename.endswith(".pack"):
-                    found_pack = True
-            if found_rand and found_idx and found_pack:
-                break
-        else:
-            pytest.fail()
-    assert not os.path.isdir(directory)
-
-
-@mock.patch("ddtrace.ext.git.TemporaryDirectory")
-def test_git_client_build_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
-    _temp_dir_mock.side_effect = ValueError("Invalid cross-device link")
-    found_rand = found_idx = found_pack = False
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
-        assert packfiles_path
-        parts = packfiles_path.split("/")
-        directory = "/".join(parts[:-1])
-        rand = parts[-1]
-        assert os.path.isdir(directory)
-        for filename in os.listdir(directory):
-            if rand in filename:
-                found_rand = True
-                if filename.endswith(".idx"):
-                    found_idx = True
-                elif filename.endswith(".pack"):
-                    found_pack = True
-            if found_rand and found_idx and found_pack:
-                break
-        else:
-            pytest.fail()
-    # CWD is not a temporary dir, so no deleted after using it.
-    assert os.path.isdir(directory)
 
 
 def test_git_client_upload_packfiles(git_repo):
     serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
-    with CIVisibilityGitClient._build_packfiles("%s\n" % TEST_SHA, cwd=git_repo) as packfiles_path:
+    with _build_git_packfiles_with_details("%s\n" % TEST_SHA_1, cwd=git_repo) as (packfiles_path, packfiles_details):
         with mock.patch("ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._do_request") as dr:
+            dr.return_value = Response(
+                status=200,
+            )
             CIVisibilityGitClient._upload_packfiles(
                 REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
             )
@@ -453,7 +418,7 @@ def test_git_do_request_agentless(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
+            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "base_url/repositoryendpoint",
@@ -486,7 +451,7 @@ def test_git_do_request_evp(git_repo):
                 {"mock_header_name": "mock_header_value"},
             )
 
-            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint")
+            mock_get_connection.assert_called_once_with("base_url/repositoryendpoint", timeout=20)
             mock_http_connection.request.assert_called_once_with(
                 "POST",
                 "base_url/repositoryendpoint",
@@ -880,9 +845,11 @@ def test_run_protocol_unshallow_git_ge_227():
             _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
             _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
             _get_filtered_revisions=mock.DEFAULT,
-            _build_packfiles=mock.DEFAULT,
             _upload_packfiles=mock.DEFAULT,
-        ):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
                 CIVisibilityGitClient._run_protocol(None, None, None)
 
@@ -898,9 +865,11 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
             _get_latest_commits=classmethod(lambda *args, **kwargs: ["latest1", "latest2"]),
             _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
             _get_filtered_revisions=mock.DEFAULT,
-            _build_packfiles=mock.DEFAULT,
             _upload_packfiles=mock.DEFAULT,
-        ):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             with mock.patch.object(CIVisibilityGitClient, "_unshallow_repository") as mock_unshallow_repository:
                 CIVisibilityGitClient._run_protocol(None, None, None)
 
@@ -909,11 +878,15 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
 
 def test_get_filtered_revisions():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._get_rev_list", return_value=["rev1", "rev2"]
+        "ddtrace.internal.ci_visibility.git_client._get_rev_list_with_details",
+        return_value=_GitSubprocessDetails("rev1\nrev2", "", 100, 0),
     ) as mock_get_rev_list:
-        assert CIVisibilityGitClient._get_filtered_revisions(
-            ["excluded1", "excluded2"], included_commits=["included1", "included2"], cwd="/path/to/repo"
-        ) == ["rev1", "rev2"]
+        assert (
+            CIVisibilityGitClient._get_filtered_revisions(
+                ["excluded1", "excluded2"], included_commits=["included1", "included2"], cwd="/path/to/repo"
+            )
+            == "rev1\nrev2"
+        )
         mock_get_rev_list.assert_called_once_with(
             ["excluded1", "excluded2"], ["included1", "included2"], cwd="/path/to/repo"
         )
@@ -921,44 +894,44 @@ def test_get_filtered_revisions():
 
 def test_is_shallow_repository_true():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=True
-    ) as mock_is_shallow_repository:
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository_with_details", return_value=(True, 10.0, 0)
+    ) as mock_is_shallow_repository_with_details:
         assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is True
-        mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
+        mock_is_shallow_repository_with_details.assert_called_once_with(cwd="/path/to/repo")
 
 
 def test_is_shallow_repository_false():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository", return_value=False
-    ) as mock_is_shallow_repository:
+        "ddtrace.internal.ci_visibility.git_client._is_shallow_repository_with_details", return_value=(False, 10.0, 128)
+    ) as mock_is_shallow_repository_with_details:
         assert CIVisibilityGitClient._is_shallow_repository(cwd="/path/to/repo") is False
-        mock_is_shallow_repository.assert_called_once_with(cwd="/path/to/repo")
+        mock_is_shallow_repository_with_details.assert_called_once_with(cwd="/path/to/repo")
 
 
 def test_unshallow_repository_local_head():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename_with_details",
+        return_value=_GitSubprocessDetails("origin", "", 100, 0),
     ):
         with mock.patch("ddtrace.internal.ci_visibility.git_client.extract_commit_sha", return_value="myfakesha"):
-            with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+            with mock.patch("ddtrace.ext.git._git_subprocess_cmd_with_details") as mock_git_subprocess_cmd_with_details:
                 CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
-                mock_git_subprocess_command.assert_called_once_with(
-                    [
-                        "fetch",
-                        '--shallow-since="1 month ago"',
-                        "--update-shallow",
-                        "--filter=blob:none",
-                        "--recurse-submodules=no",
-                        "origin",
-                        "myfakesha",
-                    ],
+                mock_git_subprocess_cmd_with_details.assert_called_once_with(
+                    "fetch",
+                    '--shallow-since="1 month ago"',
+                    "--update-shallow",
+                    "--filter=blob:none",
+                    "--recurse-submodules=no",
+                    "origin",
+                    "myfakesha",
                     cwd="/path/to/repo",
                 )
 
 
 def test_unshallow_repository_upstream():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename_with_details",
+        return_value=_GitSubprocessDetails("origin", "", 100, 0),
     ):
         with mock.patch(
             "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
@@ -967,25 +940,26 @@ def test_unshallow_repository_upstream():
             with mock.patch(
                 "ddtrace.internal.ci_visibility.git_client._extract_upstream_sha", return_value="myupstreamsha"
             ):
-                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                with mock.patch(
+                    "ddtrace.ext.git._git_subprocess_cmd_with_details"
+                ) as mock_git_subprocess_cmd_with_details:
                     CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
-                    mock_git_subprocess_command.assert_called_once_with(
-                        [
-                            "fetch",
-                            '--shallow-since="1 month ago"',
-                            "--update-shallow",
-                            "--filter=blob:none",
-                            "--recurse-submodules=no",
-                            "origin",
-                            "myupstreamsha",
-                        ],
+                    mock_git_subprocess_cmd_with_details.assert_called_once_with(
+                        "fetch",
+                        '--shallow-since="1 month ago"',
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        "origin",
+                        "myupstreamsha",
                         cwd="/path/to/repo",
                     )
 
 
 def test_unshallow_repository_full():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", return_value="origin"
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename_with_details",
+        return_value=_GitSubprocessDetails("origin", "", 100, 0),
     ):
         with mock.patch(
             "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_local_head",
@@ -995,24 +969,25 @@ def test_unshallow_repository_full():
                 "ddtrace.internal.ci_visibility.git_client.CIVisibilityGitClient._unshallow_repository_to_upstream",
                 side_effect=ValueError,
             ):
-                with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
+                with mock.patch(
+                    "ddtrace.ext.git._git_subprocess_cmd_with_details", return_value=_GitSubprocessDetails("", "", 0, 0)
+                ) as mock_git_subprocess_cmd_with_details:
                     CIVisibilityGitClient._unshallow_repository(cwd="/path/to/repo")
-                    mock_git_subprocess_command.assert_called_once_with(
-                        [
-                            "fetch",
-                            '--shallow-since="1 month ago"',
-                            "--update-shallow",
-                            "--filter=blob:none",
-                            "--recurse-submodules=no",
-                            "origin",
-                        ],
+                    mock_git_subprocess_cmd_with_details.assert_called_once_with(
+                        "fetch",
+                        '--shallow-since="1 month ago"',
+                        "--update-shallow",
+                        "--filter=blob:none",
+                        "--recurse-submodules=no",
+                        "origin",
                         cwd="/path/to/repo",
                     )
 
 
 def test_unshallow_respository_cant_get_remote():
     with mock.patch(
-        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename", side_effect=ValueError
+        "ddtrace.internal.ci_visibility.git_client._extract_clone_defaultremotename_with_details",
+        return_value=_GitSubprocessDetails("", "", 10, 125),
     ):
         with mock.patch("ddtrace.ext.git._git_subprocess_cmd") as mock_git_subprocess_command:
             CIVisibilityGitClient._unshallow_repository()
@@ -1023,23 +998,10 @@ def test_encoder_pack_payload():
     packed_payload = CIVisibilityEncoderV01._pack_payload(
         {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
     )
-    if PY2:
-        assert (
-            packed_payload == "\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
-            "\xadunicode_value\x81\xaastring_key\xadunicode_value"
-        )
-    else:
-        assert (
-            packed_payload == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
-            b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
-        )
-
-
-@pytest.mark.skipif(not PY2, reason="py2 payload encoder only tested in Python 2.x")
-def test_encoder_py2_payload_force_unicode_strings():
-    assert CIVisibilityEncoderV01._py2_payload_force_unicode_strings(
-        {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
-    ) == {"string_key": [1, {"unicode_key": "string_value"}, "unicode_value", {"string_key": "unicode_value"}]}
+    assert (
+        packed_payload == b"\x81\xaastring_key\x94\x01\x81\xabunicode_key\xacstring_value"
+        b"\xadunicode_value\x81\xaastring_key\xadunicode_value"
+    )
 
 
 class TestFetchTestsToSkip:
@@ -1306,13 +1268,12 @@ def test_fetch_tests_to_skip_custom_configurations():
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
     ), mock.patch.multiple(
         CIVisibilityGitClient,
-        _get_repository_url=mock.DEFAULT,
+        _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
         _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
         _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
         _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
-        _get_filtered_revisions=mock.DEFAULT,
-        _build_packfiles=mock.DEFAULT,
-        _upload_packfiles=mock.DEFAULT,
+        _get_filtered_revisions=classmethod(lambda *args, **kwargs: "revision1\nrevision2"),
+        _upload_packfiles=classmethod(lambda *args, **kwargs: None),
     ), mock.patch(
         "ddtrace.ext.ci._get_runtime_and_os_metadata",
         return_value={
@@ -1335,36 +1296,40 @@ def test_fetch_tests_to_skip_custom_configurations():
             body='{"data": []}',
         ),
     ) as mock_do_request:
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        CIVisibility.enable(service="test-service")
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            CIVisibility.enable(service="test-service")
 
-        expected_data_arg = json.dumps(
-            {
-                "data": {
-                    "type": "test_params",
-                    "attributes": {
-                        "service": "test-service",
-                        "env": "test-env",
-                        "repository_url": "git@github.com:TestDog/dd-test-py.git",
-                        "sha": "mytestcommitsha1234",
-                        "configurations": {
-                            "os.architecture": "testarch64",
-                            "os.platform": "Not Actually Linux",
-                            "os.version": "1.2.3-test",
-                            "runtime.name": "CPythonTest",
-                            "runtime.version": "1.2.3",
-                            "custom": {"disk": "slow", "memory": "low"},
+            expected_data_arg = json.dumps(
+                {
+                    "data": {
+                        "type": "test_params",
+                        "attributes": {
+                            "service": "test-service",
+                            "env": "test-env",
+                            "repository_url": "git@github.com:TestDog/dd-test-py.git",
+                            "sha": "mytestcommitsha1234",
+                            "configurations": {
+                                "os.architecture": "testarch64",
+                                "os.platform": "Not Actually Linux",
+                                "os.version": "1.2.3-test",
+                                "runtime.name": "CPythonTest",
+                                "runtime.version": "1.2.3",
+                                "custom": {"disk": "slow", "memory": "low"},
+                            },
+                            "test_level": "test",
                         },
-                        "test_level": "test",
-                    },
+                    }
                 }
-            }
-        )
+            )
 
-        mock_do_request.assert_called_once_with(
-            "POST",
-            "https://api.datadoghq.com/api/v2/ci/tests/skippable",
-            expected_data_arg,
-            {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
-        )
-        CIVisibility.disable()
+            mock_do_request.assert_called_once_with(
+                "POST",
+                "https://api.datadoghq.com/api/v2/ci/tests/skippable",
+                expected_data_arg,
+                {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
+            )
+            CIVisibility.disable()

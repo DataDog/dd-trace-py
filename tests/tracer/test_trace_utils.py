@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from ipaddress import ip_network
-import sys
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -490,18 +489,6 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
         assert not span_report
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 6, 0) or sys.version_info >= (3, 12),
-    reason="Python 3.6+ test, IAST not supported with Python 3.12",
-)
-def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=True, _asm_enabled=True)):
-        cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        assert span_report.vulnerabilities
-
-
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
@@ -747,7 +734,6 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
@@ -756,33 +742,7 @@ def test_ip_subnet_regression():
         (b"", ["runtime-id"], None),
     ],
 )
-def test_set_http_meta_headers_useragent_py3(
-    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
-):
-    assert int_config.myint.is_header_tracing_configured is False
-    trace_utils.set_http_meta(
-        span,
-        int_config.myint,
-        request_headers={"user-agent": user_agent_value},
-    )
-
-    result_keys = list(span.get_tags().keys())
-    result_keys.sort(reverse=True)
-    assert result_keys == expected_keys
-    assert span.get_tag(http.USER_AGENT) == expected
-    mock_store_headers.assert_not_called()
-
-
-@pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python2 tests")
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
-@pytest.mark.parametrize(
-    "user_agent_value, expected_keys ,expected",
-    [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "\u3132\u3134\u3137\u3138"),
-        ("", ["runtime-id"], None),
-    ],
-)
-def test_set_http_meta_headers_useragent_py2(
+def test_set_http_meta_headers_useragent(  # noqa:F811
     mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
 ):
     assert int_config.myint.is_header_tracing_configured is False

@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import subprocess
+import sys
+import time
 
 import flask
 from flask import abort
@@ -12,7 +15,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -23,11 +25,10 @@ from . import BaseFlaskTestCase
 
 
 REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
+SIGTERM_EXIT_CODE = -15
 
 
 base_exception_name = "builtins.Exception"
-if PY2:
-    base_exception_name = "exceptions.Exception"
 
 
 class FlaskRequestTestCase(BaseFlaskTestCase):
@@ -1093,7 +1094,6 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
 
     code = """
 import pytest
-from ddtrace.internal.compat import PY2
 from tests.contrib.flask import BaseFlaskTestCase
 
 class TestCase(BaseFlaskTestCase):
@@ -1138,7 +1138,6 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
 
     code = """
 import pytest
-from ddtrace.internal.compat import PY2
 from tests.contrib.flask import BaseFlaskTestCase
 
 class TestCase(BaseFlaskTestCase):
@@ -1166,3 +1165,30 @@ if __name__ == "__main__":
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (out, err)
     assert err == b"", (out, err)
+
+
+def test_sigint(tmpdir):
+    code = """
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(port=8082)
+    """
+    pyfile = tmpdir.join("test.py")
+    pyfile.write(code)
+    subp = subprocess.Popen(
+        ["ddtrace-run", sys.executable, str(pyfile)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=sys.platform != "win32",
+    )
+    time.sleep(0.5)
+    # send two terminate signals to forcibly kill the process
+    subp.terminate()
+    subp.terminate()
+    assert subp.wait() == SIGTERM_EXIT_CODE, "An instrumented Flask app should respond to SIGINT by exiting"

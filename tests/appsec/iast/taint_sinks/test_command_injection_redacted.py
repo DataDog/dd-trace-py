@@ -2,7 +2,7 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
@@ -15,11 +15,6 @@ from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
 
 
-if python_supported_by_iast():
-    from ddtrace.appsec._iast._taint_tracking import str_to_origin
-
-
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_CMDI)))
 def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
     tainted_object = _taint_pyobject_multiranges(
@@ -47,7 +42,6 @@ def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     [
@@ -100,7 +94,6 @@ def test_cmdi_redact_rel_paths(file_path):
         ]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     [
@@ -137,7 +130,6 @@ def test_cmdi_redact_options(file_path):
         ]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     [

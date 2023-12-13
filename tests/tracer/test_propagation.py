@@ -12,6 +12,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._utils import get_wsgi_header
+from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
@@ -26,6 +27,11 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.span import _get_64_lowest_order_bits_as_int
+from ddtrace.tracing._span_link import SpanLink
+from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
+from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
+from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
 
 from ..utils import override_global_config
 
@@ -33,7 +39,7 @@ from ..utils import override_global_config
 NOT_SET = object()
 
 
-def test_inject(tracer):
+def test_inject(tracer):  # noqa: F811
     meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
@@ -50,6 +56,17 @@ def test_inject(tracer):
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
 
+def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
+        ctx._set_baggage_item("key1", "val1")
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+            assert headers[_HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
+
+
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
@@ -59,7 +76,7 @@ def test_inject_128bit_trace_id_datadog():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
@@ -85,7 +102,7 @@ def test_inject_128bit_trace_id_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -107,7 +124,7 @@ def test_inject_128bit_trace_id_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -129,7 +146,7 @@ def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -143,7 +160,7 @@ def test_inject_128bit_trace_id_tracecontext():
             assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
 
 
-def test_inject_tags_unicode(tracer):
+def test_inject_tags_unicode(tracer):  # noqa: F811
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
     meta = {"_dd.p.test": "unicode"}
@@ -158,7 +175,7 @@ def test_inject_tags_unicode(tracer):
         assert tags == set(["_dd.p.test=unicode"])
 
 
-def test_inject_tags_bytes(tracer):
+def test_inject_tags_bytes(tracer):  # noqa: F811
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
     # FIXME: W3C does not support byte headers
@@ -179,7 +196,7 @@ def test_inject_tags_bytes(tracer):
             assert tags == set(["_dd.p.test=bytes"])
 
 
-def test_inject_tags_unicode_error(tracer):
+def test_inject_tags_unicode_error(tracer):  # noqa: F811
     """Unicode characters are not allowed"""
     meta = {"_dd.p.test": "unicode value ☺️"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -192,7 +209,7 @@ def test_inject_tags_unicode_error(tracer):
         assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
 
-def test_inject_tags_large(tracer):
+def test_inject_tags_large(tracer):  # noqa: F811
     """When we have a single large tag that won't fit"""
     # DEV: Limit is 512 for x-datadog-tags
     meta = {"_dd.p.dm": ("x" * 512)[len("_dd.p.dm") - 1 :]}
@@ -206,7 +223,7 @@ def test_inject_tags_large(tracer):
         assert ctx._meta["_dd.propagation_error"] == "inject_max_size"
 
 
-def test_inject_tags_invalid(tracer):
+def test_inject_tags_invalid(tracer):  # noqa: F811
     # DEV: "=" and "," are not allowed in keys or values
     meta = {"_dd.p.test": ",value="}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -219,7 +236,7 @@ def test_inject_tags_invalid(tracer):
         assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
 
-def test_inject_tags_disabled(tracer):
+def test_inject_tags_disabled(tracer):  # noqa: F811
     with override_global_config(dict(_x_datadog_tags_enabled=False)):
         meta = {"_dd.p.test": "value"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
@@ -232,7 +249,7 @@ def test_inject_tags_disabled(tracer):
             assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_inject_tags_previous_error(tracer):
+def test_inject_tags_previous_error(tracer):  # noqa: F811
     """When we have previously gotten an error, do not try to propagate tags"""
     # This value is valid
     meta = {"_dd.p.test": "value", "_dd.propagation_error": "some fake test value"}
@@ -245,13 +262,14 @@ def test_inject_tags_previous_error(tracer):
         assert _HTTP_HEADER_TAGS not in headers
 
 
-def test_extract(tracer):
+def test_extract(tracer):  # noqa: F811
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
+        "ot-baggage-key1": "value1",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -278,15 +296,34 @@ def test_extract(tracer):
             }
 
 
+def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span._get_baggage_item("key1") == "value1"
+            with tracer.trace("child_span") as child_span:
+                assert child_span._get_baggage_item("key1") == "value1"
+
+
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_extract_128bit_trace_ids_datadog():
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace import config
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -298,15 +335,19 @@ def test_extract_128bit_trace_ids_datadog():
             "x-datadog-parent-id": str(span_id),
             "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hex[:16]]),
         }
-
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
         with tracer.trace("local_root_span") as span:
-            assert span.trace_id == trace_id
+            # for venv tracer-128-bit-traceid-disabled
+            # check 64-bit configuration functions correctly with 128-bit headers
+            if not config._128_bit_trace_id_enabled:
+                expected_trace_id = trace_id_64bit
+            else:
+                expected_trace_id = trace_id
+            assert span.trace_id == expected_trace_id
             assert span.parent_id == span_id
-            assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
             with tracer.trace("child_span") as child_span:
-                assert child_span.trace_id == trace_id
+                assert child_span.trace_id == expected_trace_id
 
 
 @pytest.mark.subprocess(
@@ -316,7 +357,7 @@ def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -343,7 +384,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -369,7 +410,7 @@ def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
-    tracer = DummyTracer()
+    tracer = DummyTracer()  # noqa: F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -388,7 +429,7 @@ def test_extract_128bit_trace_ids_tracecontext():
                 assert child_span.trace_id == trace_id
 
 
-def test_extract_unicode(tracer):
+def test_extract_unicode(tracer):  # noqa: F811
     """
     When input data is unicode
       we decode everything to str for Python2
@@ -463,7 +504,7 @@ def test_extract_dm(x_datadog_tags, expected_trace_tags):
     assert context._meta == expected
 
 
-def test_WSGI_extract(tracer):
+def test_WSGI_extract(tracer):  # noqa: F811
     """Ensure we support the WSGI formatted headers as well."""
     headers = {
         "HTTP_X_DATADOG_TRACE_ID": "1234",
@@ -487,7 +528,7 @@ def test_WSGI_extract(tracer):
         }
 
 
-def test_extract_invalid_tags(tracer):
+def test_extract_invalid_tags(tracer):  # noqa: F811
     # Malformed tags do not fail to extract the rest of the context
     headers = {
         "x-datadog-trace-id": "1234",
@@ -511,7 +552,7 @@ def test_extract_invalid_tags(tracer):
         }
 
 
-def test_extract_tags_large(tracer):
+def test_extract_tags_large(tracer):  # noqa: F811
     """When we have a tagset larger than the extract limit"""
     # DEV: Limit is 512
     headers = {
@@ -579,7 +620,7 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
     assert context._meta == {}
 
 
-def test_get_wsgi_header(tracer):
+def test_get_wsgi_header(tracer):  # noqa: F811
     assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
@@ -594,6 +635,12 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 
 TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+}
+
+
+TRACECONTEXT_HEADERS_VALID_64_bit = {
+    _HTTP_HEADER_TRACEPARENT: "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
 
@@ -1006,6 +1053,12 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
 }
+DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
+    HTTP_HEADER_TRACE_ID: str(_get_64_lowest_order_bits_as_int(TRACE_ID)),
+    HTTP_HEADER_PARENT_ID: "5678",
+    HTTP_HEADER_SAMPLING_PRIORITY: "1",
+    HTTP_HEADER_ORIGIN: "synthetics",
+}
 DATADOG_HEADERS_INVALID = {
     HTTP_HEADER_TRACE_ID: "13088165645273925489",  # still valid
     HTTP_HEADER_PARENT_ID: "parent_id",
@@ -1021,6 +1074,11 @@ B3_HEADERS_INVALID = {
     _HTTP_HEADER_B3_SPAN_ID: "NON_HEX",
     _HTTP_HEADER_B3_SAMPLED: "3",  # unexpected sampling value
 }
+B3_HEADERS_VALID_W_OUT_SPAN_ID = {
+    _HTTP_HEADER_B3_TRACE_ID: "80f198ee56343ba864fe8b2a57d3eff7",
+    _HTTP_HEADER_B3_SAMPLED: "1",
+}
+
 B3_SINGLE_HEADERS_VALID = {
     _HTTP_HEADER_B3_SINGLE: "80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1",
 }
@@ -1033,6 +1091,26 @@ ALL_HEADERS = {}
 ALL_HEADERS.update(DATADOG_HEADERS_VALID)
 ALL_HEADERS.update(B3_HEADERS_VALID)
 ALL_HEADERS.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS.update(TRACECONTEXT_HEADERS_VALID)
+
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS = {}
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID)
+# we use 64-bit traceparent trace id value here so it can match for both 128-bit enabled and disabled
+DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS.update(TRACECONTEXT_HEADERS_VALID_64_bit)
+
+# edge case testing
+ALL_HEADERS_CHAOTIC_1 = {}
+ALL_HEADERS_CHAOTIC_1.update(DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID)
+ALL_HEADERS_CHAOTIC_1.update(TRACECONTEXT_HEADERS_VALID_64_bit)
+ALL_HEADERS_CHAOTIC_1.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS_CHAOTIC_1.update(B3_HEADERS_INVALID)
+
+# edge case testing
+ALL_HEADERS_CHAOTIC_2 = {}
+ALL_HEADERS_CHAOTIC_2.update(DATADOG_HEADERS_VALID)
+ALL_HEADERS_CHAOTIC_2.update(TRACECONTEXT_HEADERS_VALID_64_bit)
+ALL_HEADERS_CHAOTIC_2.update(B3_HEADERS_VALID_W_OUT_SPAN_ID)
+ALL_HEADERS_CHAOTIC_2.update(B3_SINGLE_HEADERS_INVALID)
 
 EXTRACT_FIXTURES = [
     # Datadog headers
@@ -1334,17 +1412,23 @@ EXTRACT_FIXTURES = [
         None,
         ALL_HEADERS,
         {
-            "trace_id": 13088165645273925489,
-            "span_id": 5678,
-            "sampling_priority": 1,
-            "dd_origin": "synthetics",
+            "trace_id": TRACE_ID,
+            "span_id": 67667974448284343,
+            "sampling_priority": 2,
+            "dd_origin": "rum",
+            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         },
     ),
     (
         # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI,
         #  PROPAGATION_STYLE_B3_SINGLE] we use it
         "valid_all_headers_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         ALL_HEADERS,
         {
             "trace_id": 13088165645273925489,
@@ -1355,7 +1439,12 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_all_styles_wsgi",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 13088165645273925489,
@@ -1468,7 +1557,12 @@ EXTRACT_FIXTURES = [
     ),
     (
         "order_matters_B3_first",
-        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE, PROPAGATION_STYLE_DATADOG],
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         B3_HEADERS_VALID,
         {
             "trace_id": TRACE_ID,
@@ -1499,6 +1593,37 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
+    # testing that tracestate is still added when tracecontext style comes later and matches first style's trace-id
+    (
+        # name, styles, headers, expected_context,
+        "additional_tracestate_support_when_present_and_matches_first_styles_trace_id",
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+        ],
+        DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
+        {
+            "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+        },
+    ),
+    # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
+    (
+        "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+    ),
     (
         "valid_all_headers_no_style",
         [],
@@ -1527,6 +1652,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
+            "tracestate": "dd=s:2;o:rum",
         },
     ),
 ]
@@ -1545,12 +1671,21 @@ context = HTTPPropagator.extract({!r})
 if context is None:
     print("null")
 else:
-    print(json.dumps({{
-      "trace_id": context.trace_id,
-      "span_id": context.span_id,
-      "sampling_priority": context.sampling_priority,
-      "dd_origin": context.dd_origin,
-    }}))
+    if context._meta.get("tracestate"):
+        print(json.dumps({{
+        "trace_id": context.trace_id,
+        "span_id": context.span_id,
+        "sampling_priority": context.sampling_priority,
+        "dd_origin": context.dd_origin,
+        "tracestate": context._meta.get("tracestate")
+        }}))
+    else:
+        print(json.dumps({{
+        "trace_id": context.trace_id,
+        "span_id": context.span_id,
+        "sampling_priority": context.sampling_priority,
+        "dd_origin": context.dd_origin,
+        }}))
     """.format(
         headers
     )
@@ -1573,7 +1708,11 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
-            assert context == Context(**expected_context)
+            if not expected_context.get("tracestate"):
+                assert context == Context(**expected_context)
+            else:
+                tracestate = expected_context.pop("tracestate")
+                assert context == Context(**expected_context, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [
@@ -1661,6 +1800,196 @@ else:
 
     result = json.loads(stdout.decode())
     assert result == expected_context
+
+
+FULL_CONTEXT_EXTRACT_FIXTURES = [
+    # tracecontext and b3multi have the same t_id
+    # therefore no span links are added
+    (
+        "all_headers_all_styles_tracecontext_t_id_match_no_span_link",
+        [
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=171395628812617415352188477958425669623,
+            span_id=67667974448284343,
+            meta={
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.origin": "rum",
+            },
+            metrics={"_sampling_priority_v1": 2},
+            span_links=[],
+        ),
+    ),
+    # The trace_id from Datadog context will not align with the tracecontext primary context
+    # therefore we get a span link. B3 single headers are invalid so we won't see a trace of them.
+    # The b3 multi headers are missing a span_id, so we will skip creating a span link for it.
+    (
+        "all_headers_all_styles_do_not_create_span_link_for_context_w_out_span_id",
+        [
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS_CHAOTIC_2,
+        Context(
+            trace_id=7277407061855694839,
+            span_id=67667974448284343,
+            meta={
+                "traceparent": "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
+                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.origin": "rum",
+            },
+            metrics={"_sampling_priority_v1": 2},
+            span_links=[
+                SpanLink(
+                    trace_id=13088165645273925489,
+                    span_id=5678,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                )
+            ],
+        ),
+    ),
+    # tracecontext, b3, and b3multi all have the same trace_id
+    # therefore only datadog SpanLink is added to context
+    (
+        "all_headers_all_styles_tracecontext_primary_only_datadog_t_id_diff",
+        [
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=171395628812617415352188477958425669623,
+            span_id=67667974448284343,
+            meta={
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.origin": "rum",
+            },
+            metrics={"_sampling_priority_v1": 2},
+            span_links=[
+                SpanLink(
+                    trace_id=13088165645273925489,
+                    span_id=5678,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                )
+            ],
+        ),
+    ),
+    # Datadog has different t_id and is extracted first
+    # therefore we get span links for tracecontext, b3, and b3multi
+    (
+        "all_headers_all_styles_datadog_primary_only_datadog_t_id_diff",
+        [
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+            PROPAGATION_STYLE_B3_MULTI,
+        ],
+        ALL_HEADERS,
+        Context(
+            trace_id=13088165645273925489,
+            span_id=5678,
+            meta={"_dd.origin": "synthetics"},
+            metrics={"_sampling_priority_v1": 1},
+            span_links=[
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=67667974448284343,
+                    tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+                ),
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                ),
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=11744061942159299346,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3multi"},
+                ),
+            ],
+        ),
+    ),
+    # We try to extract with b3multi but it's invalid,
+    # so we get Datadog as primary context, tracecontext matches,
+    # so we add on tracestate to context, b3 single does not, so we
+    # create a span link for it
+    (
+        "datadog_primary_match_tracecontext_diff_from_b3_b3multi_invalid",
+        [
+            PROPAGATION_STYLE_B3_MULTI,
+            PROPAGATION_STYLE_DATADOG,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_B3_SINGLE,
+        ],
+        ALL_HEADERS_CHAOTIC_1,
+        Context(
+            trace_id=7277407061855694839,
+            span_id=5678,
+            meta={"_dd.origin": "synthetics", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+            metrics={"_sampling_priority_v1": 1},
+            span_links=[
+                SpanLink(
+                    trace_id=171395628812617415352188477958425669623,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                )
+            ],
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
+def test_mutliple_context_interactions(name, styles, headers, expected_context):
+    with override_global_config(dict(_propagation_style_extract=styles)):
+        context = HTTPPropagator.extract(headers)
+        assert context == expected_context
+
+
+def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_test_spans):  # noqa: F811
+    response = fastapi_client.get("/", headers={"sleep": "False", **ALL_HEADERS})
+    assert response.status_code == 200
+    assert response.json() == {"Homepage Read": "Success"}
+
+    spans = fastapi_test_spans.pop_traces()
+    assert spans[0][0].name == "fastapi.request"
+    assert spans[0][0]._links == [
+        SpanLink(
+            trace_id=13088165645273925489,
+            span_id=5678,
+            tracestate=None,
+            flags=1,
+            attributes={"reason": "terminated_context", "context_headers": "datadog"},
+        )
+    ]
+    assert spans[0][1]._links == []
 
 
 VALID_DATADOG_CONTEXT = {
