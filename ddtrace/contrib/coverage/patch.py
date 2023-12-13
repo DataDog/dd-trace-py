@@ -1,4 +1,5 @@
 from copy import copy
+from typing import List
 import os
 import sys
 
@@ -64,7 +65,7 @@ def _is_coverage_patched():
     return hasattr(coverage, "_datadog_patch") and coverage._datadog_patch
 
 
-def _command_invokes_coverage_run(sys_argv_command: list[str]) -> bool:
+def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
     return "coverage run -m" in " ".join(sys_argv_command)
 
 
