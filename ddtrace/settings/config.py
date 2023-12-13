@@ -193,7 +193,7 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-_ConfigSource = Literal["default", "env", "code", "remote_config"]
+_ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
 
 
@@ -247,7 +247,7 @@ class _ConfigItem:
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
-            return "env"
+            return "env_var"
         return "default"
 
     def __repr__(self):
@@ -655,14 +655,15 @@ class Config(object):
 
     def _set_config_items(self, items):
         # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
+        item_names = []
         for key, value, origin in items:
+            item_names.append(key)
             self._config[key].set_value_source(value, origin)
 
         from ..internal.telemetry import telemetry_writer
 
-        cs = [{"name": k, "value": self._config[k].value(), "origin": self._get_source(k)} for k, _, _ in items]
-        telemetry_writer.add_event({"configuration": cs}, "app-client-configuration-change")
-        self._notify_subscribers([i[0] for i in items])
+        telemetry_writer.add_configs_changed(item_names)
+        self._notify_subscribers(item_names)
 
     def _reset(self):
         # type: () -> None
