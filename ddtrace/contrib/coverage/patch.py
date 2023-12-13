@@ -57,8 +57,11 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
 
 
 def run_coverage_report():
-    current_coverage_object = coverage.Coverage.current()
-    _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
+    try:
+        current_coverage_object = coverage.Coverage.current()
+        _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
+    except:
+        log.warning("An exception occurred when running a coverage report")
 
 
 def _is_coverage_patched():
