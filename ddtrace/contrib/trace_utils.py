@@ -520,9 +520,6 @@ def set_http_meta(
     if _is_iast_enabled():
         from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
-        if request_cookies:
-            asm_check_cookies(request_cookies)
-
         if response_cookies:
             asm_check_cookies(response_cookies)
 
