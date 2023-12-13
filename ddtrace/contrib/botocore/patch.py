@@ -6,6 +6,7 @@ import collections
 from datetime import datetime
 import json
 import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import List  # noqa:F401
@@ -20,6 +21,11 @@ import botocore.exceptions
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.contrib.botocore.bedrock import _BedrockIntegration
+from ddtrace.contrib.botocore.bedrock import handle_bedrock_request
+from ddtrace.contrib.botocore.bedrock import handle_bedrock_response
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
@@ -69,9 +75,21 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "llmobs_enabled": asbool(os.getenv("DD_BEDROCK_LLMOBS_ENABLED", False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
+        #  send LLMObs payloads. This is a placeholder for when we do.
+        "llmobs_prompt_completion_sample_rate": float(
+            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+        ),
+        "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
+        # FIXME: log_prompt_completion_sample_rate is a placeholder.
+        "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "_api_key": os.getenv("DD_API_KEY"),
+        "_app_key": os.getenv("DD_APP_KEY"),
     },
 )
 
@@ -434,7 +452,31 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
+    ddsite = os.getenv("DD_SITE", "datadoghq.com")
+
+    integration = _BedrockIntegration(
+        config=config.botocore,
+        stats_url=get_stats_url(),
+        site=ddsite,
+        api_key=config.botocore._api_key,
+        app_key=config.botocore._app_key,
+    )
+    botocore._datadog_integration = integration
+
+    if config.botocore.llmobs_enabled:
+        if not config.botocore._api_key:
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data from the Bedrock integration."
+                "To use the OpenAI integration without LLMObs, set `DD_BEDROCK_LLMOBS_ENABLED=false`."
+            )
+        if not config.botocore._app_key:
+            raise ValueError(
+                "DD_APP_KEY is required for sending LLMObs payloads from the Bedrock integration."
+                "To use the OpenAI integration without LLMObs, set `DD_BEDROCK_LLMOBS_ENABLED=false`."
+            )
+        integration.start_llm_writer()
+
+    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin(service="aws").onto(botocore.parsers.ResponseParser)
@@ -468,8 +510,8 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
 
-def patched_api_call(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
+@with_traced_module
+def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
@@ -660,6 +702,21 @@ def patched_api_call(original_func, instance, args, kwargs):
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
                 return result
+            # TODO: patch InvokeModelWithStream
+            elif endpoint_name == "bedrock-runtime" and operation == "InvokeModel" and config.llmobs_enabled:
+                integration = botocore._datadog_integration
+                bedrock_span = pin.tracer.start_span("bedrock.request", child_of=span, resource=operation, activate=False)
+                # This span will be finished separately as the user fully consumes the stream body, or on error.
+                try:
+                    handle_bedrock_request(bedrock_span, integration, params)
+                    result = original_func(*args, **kwargs)
+                    result = handle_bedrock_response(bedrock_span, integration, params, result)
+                    return result
+                except Exception:
+                    bedrock_span.set_exc_info(*sys.exc_info())
+                    bedrock_span.finish()
+                    # TODO: set error metric, duration
+                    raise
 
             else:
                 result = original_func(*args, **kwargs)
