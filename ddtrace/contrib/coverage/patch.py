@@ -1,7 +1,7 @@
 from copy import copy
-from typing import List
 import os
 import sys
+from typing import List
 
 import coverage
 
