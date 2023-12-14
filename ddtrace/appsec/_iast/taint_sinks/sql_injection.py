@@ -68,6 +68,7 @@ class SqlInjection(VulnerabilityBase):
             source = part.get("source")
             for token in _INSIDE_QUOTES_REGEXP.finditer(value):
                 # JJJ copy source if exists!
+                print("JJJ token: %s" % token)
                 new_valueparts.append(_maybe_with_source(source, value[prev:token.start(2)]))
                 new_valueparts.append(_maybe_with_source(source, value[token.start(2):token.end(2)]))
                 prev = token.end(2)
@@ -80,7 +81,7 @@ class SqlInjection(VulnerabilityBase):
             value = new_valueparts[idx].get("value")
             if value and _has_to_scrub(value) and idx < (len_parts - 1):
                 # Scrub the value, which is the next one
-                # JJJ check source and ranges?
+                # JJJ check source and ranges
                 new_valueparts[idx+1] = {"redacted": True}
                 idx += 2
                 continue
