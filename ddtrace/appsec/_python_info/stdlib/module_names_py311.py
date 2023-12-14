@@ -105,6 +105,7 @@ STDLIB_MODULE_NAMES = {
     "nntplib",
     "ntpath",
     "numbers",
+    "opcode",
     "operator",
     "optparse",
     "os",
