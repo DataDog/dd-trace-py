@@ -602,7 +602,10 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
         "key.serializer": json_serializer,
         "value.serializer": json_serializer,
     }
-    _producer = confluent_kafka.SerializingProducer(conf)
+    try:
+        _producer = confluent_kafka.SerializingProducer(conf)
+    except KafkaException:
+        pytest.xfail("No such configuration property: 'key.serializer'")
 
     def json_deserializer(as_bytes, ctx):
         try:
