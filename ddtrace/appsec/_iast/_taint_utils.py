@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from collections import abc
-import dataclasses
 from typing import Any
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -19,15 +17,26 @@ log = get_logger(__name__)
 # Non Lazy Tainting
 
 
-@dataclasses.dataclass
+# don't use dataclass that can create circular import problems here
+# @dataclasses.dataclass
 class _DeepTaintCommand:
-    pre: bool
-    source_key: str
-    obj: Any
-    store_struct: Union[list, dict]
-    key: Optional[List[str]] = None
-    struct: Optional[Union[list, dict]] = None
-    is_key: bool = False
+    def __init__(
+        self,
+        pre: bool,
+        source_key: str,
+        obj: Any,
+        store_struct: Union[list, dict],
+        key: Optional[list[str]] = None,
+        struct: Optional[Union[list, dict]] = None,
+        is_key: bool = False,
+    ):
+        self.pre = pre
+        self.source_key = source_key
+        self.obj = obj
+        self.store_struct = store_struct
+        self.key = key
+        self.struct = struct
+        self.is_key = is_key
 
     def store(self, value):
         if isinstance(self.store_struct, list):
