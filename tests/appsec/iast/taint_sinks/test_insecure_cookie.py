@@ -20,9 +20,9 @@ def test_insecure_cookies(iast_span_defaults):
     assert VULN_INSECURE_COOKIE in vulnerabilities_types
     assert VULN_NO_SAMESITE_COOKIE in vulnerabilities_types
 
-    assert vulnerabilities[0].evidence.value == "foo=bar"
-    assert vulnerabilities[1].evidence.value == "foo=bar"
-    assert vulnerabilities[2].evidence.value == "foo=bar"
+    assert vulnerabilities[0].evidence.value == "foo"
+    assert vulnerabilities[1].evidence.value == "foo"
+    assert vulnerabilities[2].evidence.value == "foo"
 
     assert vulnerabilities[0].location.line is None
     assert vulnerabilities[0].location.path is None
@@ -39,8 +39,8 @@ def test_nohttponly_cookies(iast_span_defaults):
     assert VULN_NO_HTTPONLY_COOKIE in vulnerabilities_types
     assert VULN_NO_SAMESITE_COOKIE in vulnerabilities_types
 
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure"
-    assert vulnerabilities[1].evidence.value == "foo=bar;secure"
+    assert vulnerabilities[0].evidence.value == "foo"
+    assert vulnerabilities[1].evidence.value == "foo"
 
     assert vulnerabilities[0].location.line is None
     assert vulnerabilities[0].location.path is None
@@ -61,7 +61,7 @@ def test_nosamesite_cookies_missing(iast_span_defaults):
 
     assert len(vulnerabilities) == 1
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_none(iast_span_defaults):
@@ -74,7 +74,7 @@ def test_nosamesite_cookies_none(iast_span_defaults):
     assert len(vulnerabilities) == 1
 
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_other(iast_span_defaults):
@@ -87,7 +87,7 @@ def test_nosamesite_cookies_other(iast_span_defaults):
     assert len(vulnerabilities) == 1
 
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_lax_no_error(iast_span_defaults):
