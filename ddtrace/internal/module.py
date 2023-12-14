@@ -375,7 +375,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
         self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
-        self._new_imported_modules = []
 
     @property
     def _origin_map(self) -> Dict[str, ModuleType]:
