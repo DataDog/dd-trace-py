@@ -28,3 +28,4 @@ def test_service_name(nb_service):
         thread.join()
     ddtrace.config._remote_config_enabled = default_remote_config_enabled
     assert len(ddtrace.config._get_extra_services()) == min(nb_service, MAX_NAMES)
+    ddtrace.config._extra_services = set()
