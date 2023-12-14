@@ -1,5 +1,7 @@
 STDLIB_MODULE_NAMES = {
+    "__future__",
     "_ast",
+    "_compression",
     "_thread",
     "abc",
     "aifc",
