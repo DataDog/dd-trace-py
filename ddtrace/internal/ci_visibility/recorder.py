@@ -229,30 +229,24 @@ class CIVisibility(Service):
         try:
             response = _do_request("POST", url, json.dumps(payload), headers)
         except TimeoutError:
-            log.warning("Request timeout while fetching enabled features")
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.TIMEOUT)
-            return _CIVisiblitySettings(False, False, False, False)
+            raise
         if response.status >= 400:
-            log.warning(
-                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
-            )
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
             record_settings(sw.elapsed() * 1000, error=error_code)
-            return _CIVisiblitySettings(False, False, False, False)
+            raise ValueError("API response status code: %d", response.status)
         try:
             if isinstance(response.body, bytes):
                 parsed = json.loads(response.body.decode())
             else:
                 parsed = json.loads(response.body)
         except JSONDecodeError:
-            log.warning("Settings request responded with invalid JSON '%s'", response.body)
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.BAD_JSON)
-            return _CIVisiblitySettings(False, False, False, False)
+            raise
 
         if "errors" in parsed and parsed["errors"][0] == "Not found":
-            log.warning("Settings request contained an error, disabling Intelligent Test Runner")
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
-            return _CIVisiblitySettings(False, False, False, False)
+            raise ValueError("Settings response contained an error, disabling Intelligent Test Runner")
 
         log.debug("Parsed API response: %s", parsed)
 
@@ -263,10 +257,8 @@ class CIVisibility(Service):
             require_git = attributes["require_git"]
             itr_enabled = attributes.get("itr_enabled", False)
         except KeyError:
-            log.warning("Unexpected response from settings API, disabling Intelligent Test Runner")
-            log.debug("Missing key in API response", exc_info=True)
             record_settings(sw.elapsed() * 1000, error=ERROR_TYPES.UNKNOWN)
-            return _CIVisiblitySettings(False, False, False, False)
+            raise
 
         record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled, require_git, itr_enabled)
 
@@ -297,26 +289,38 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to setting endpoint if mode is not agentless or evp proxy")
             return False, False
 
-        settings = self._check_settings_api(url, _headers)
+        try:
+            settings = self._check_settings_api(url, _headers)
+        except Exception:
+            log.warning(
+                "Error checking Intelligent Test Runner API, disabling coverage collection and test skipping",
+                exc_info=True,
+            )
+            return False, False
 
         if settings.require_git:
             log.info("Settings API requires git metadata, waiting for git metadata upload to complete")
             try:
                 try:
-                    self._git_client.wait_for_metadata_upload()
-                    if self._git_client.metadata_upload_status.value == METADATA_UPLOAD_STATUS.FAILED:  # type: ignore
+                    if self._git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED:
                         log.warning("Metadata upload failed, test skipping will be best effort")
                 except ValueError:
                     log.warning(
                         "Error waiting for git metadata upload, test skipping will be best effort", exc_info=True
                     )
-                    return False, False
             except TimeoutError:
                 log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
-                return False, False
 
             # The most recent API response overrides the first one
-            settings = self._check_settings_api(url, _headers)
+            try:
+                settings = self._check_settings_api(url, _headers)
+            except Exception:
+                log.warning(
+                    "Error checking Intelligent Test Runner API after git metadata upload,"
+                    " disabling coverage and test skipping",
+                    exc_info=True,
+                )
+                return False, False
             if settings.require_git:
                 log.warning("git metadata upload did not complete in time, test skipping will be best effort")
 
@@ -369,8 +373,8 @@ class CIVisibility(Service):
         # this will block the thread until that happens
         try:
             try:
-                self._git_client.wait_for_metadata_upload()
-                if self._git_client.metadata_upload_status.value != METADATA_UPLOAD_STATUS.SUCCESS:
+                metadata_upload_status = self._git_client.wait_for_metadata_upload_status()
+                if metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
                     log.warning("git metadata upload was not successful, some tests may not be skipped")
             except ValueError:
                 log.warning(
@@ -522,7 +526,7 @@ class CIVisibility(Service):
             log.debug("git metadata upload still in progress, waiting before shutting down")
             try:
                 try:
-                    self._git_client.wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
+                    self._git_client._wait_for_metadata_upload(timeout=self.tracer.SHUTDOWN_TIMEOUT)
                 except ValueError:
                     log.debug("Error waiting for metadata upload to complete during shutdown", exc_info=True)
             except TimeoutError:
