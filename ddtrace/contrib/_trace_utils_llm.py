@@ -1,5 +1,4 @@
 import abc
-import os
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -8,41 +7,87 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import Span
+from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.sampler import RateSampler
 
 
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config, stats_url, site, api_key, app_key=None):
+    def __init__(self, integration_config, stats_url):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
         self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
-        self._config = config
+        self._integration_config = integration_config
         self._log_writer = V2LogWriter(
-            site=site,
-            api_key=api_key,
-            interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-            timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            site=config._datadog_site,
+            api_key=config._datadog_api_key,
+            interval=config._llmobs_log_writer_interval,
+            timeout=config._llmobs_log_writer_timeout,
         )
         self._llmobs_writer = LLMObsWriter(
-            site=site,
-            api_key=api_key,
-            app_key=app_key,
-            interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-            timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            site=config._datadog_site,
+            api_key=config._datadog_api_key,
+            app_key=config._datadog_app_key,
+            interval=config._llmobs_llm_writer_interval,
+            timeout=config._llmobs_llm_writer_timeout,
         )
-        self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-        self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
-        self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
+        self._span_pc_sampler = RateSampler(sample_rate=config._llmobs_span_prompt_completion_sample_rate)
+        self._log_pc_sampler = RateSampler(sample_rate=config._llmobs_log_prompt_completion_sample_rate)
+        self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_record_sample_rate)
+
+        if self.logs_enabled:
+            if not config._datadog_api_key:
+                raise ValueError(
+                    f"DD_API_KEY is required for sending logs from the {self._integration_name} integration. "
+                    f"To use the {self._integration_name} integration without logs, "
+                    f"set `DD_{self._integration_name.upper()}_LOGS_ENABLED=false`."
+                )
+            self.start_log_writer()
+        if self.llmobs_enabled:
+            if not config._datadog_api_key:
+                raise ValueError(
+                    f"DD_API_KEY is required for sending LLMObs data from the {self._integration_name} integration. "
+                    f"To use the {self._integration_name} integration without LLMObs, "
+                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
+                )
+            if not config._datadog_app_key:
+                raise ValueError(
+                    f"DD_APP_KEY is required for sending LLMObs payloads from the {self._integration_name} integration."
+                    f" To use the {self._integration_name} integration without LLMObs, "
+                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
+                )
+            self.start_llm_writer()
+
+    @property
+    def metrics_enabled(self) -> bool:
+        """Return whether submitting metrics is enabled for this integration, or global config if not set."""
+        if self._integration_config.metrics_enabled is not None:
+            return asbool(self._integration_config.metrics_enabled)
+        return config._llmobs_metrics_enabled
+
+    @property
+    def logs_enabled(self) -> bool:
+        """Return whether submitting logs is enabled for this integration, or global config if not set."""
+        if self._integration_config.logs_enabled is not None:
+            return asbool(self._integration_config.logs_enabled)
+        return config._llmobs_logs_enabled
+
+    @property
+    def llmobs_enabled(self) -> bool:
+        """Return whether submitting llmobs payloads is enabled for this integration, or global config if not set."""
+        if self._integration_config.llmobs_enabled is not None:
+            return asbool(self._integration_config.llmobs_enabled)
+        return config._llmobs_enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
@@ -50,13 +95,13 @@ class BaseLLMIntegration:
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        if not self._config.logs_enabled or not span.sampled:
+        if not self.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
     def is_pc_sampled_llmobs(self, span: Span) -> bool:
         # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
-        if not self._config.llmobs_enabled:
+        if not self.llmobs_enabled:
             return False
         return self._llmobs_pc_sampler.sample(span)
 
@@ -80,7 +125,9 @@ class BaseLLMIntegration:
         Eventually those should also be internal service spans once peer.service is implemented.
         """
         span = pin.tracer.trace(
-            "%s.request" % self._integration_name, resource=operation_id, service=int_service(pin, self._config)
+            "%s.request" % self._integration_name,
+            resource=operation_id,
+            service=int_service(pin, self._integration_config),
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
@@ -96,7 +143,7 @@ class BaseLLMIntegration:
 
     def log(self, span, level, msg, attrs):
         # type: (Span, str, str, Dict[str, Any]) -> None
-        if not self._config.logs_enabled:
+        if not self.logs_enabled:
             return
         tags = self._logs_tags(span)
         log = {
@@ -124,7 +171,7 @@ class BaseLLMIntegration:
     def metric(self, span, kind, name, val, tags=None):
         # type: (Span, str, str, Any, Optional[List[str]]) -> None
         """Set a metric using the context from the given span."""
-        if not self._config.metrics_enabled:
+        if not self.metrics_enabled:
             return
         metric_tags = self._metrics_tags(span)
         if tags:
@@ -147,14 +194,14 @@ class BaseLLMIntegration:
         if not text:
             return text
         text = text.replace("\n", "\\n").replace("\t", "\\t")
-        if len(text) > self._config.span_char_limit:
-            text = text[: self._config.span_char_limit] + "..."
+        if len(text) > config._llmobs_span_char_limit:
+            text = text[: config._llmobs_span_char_limit] + "..."
         return text
 
     def llm_record(self, span, attrs):
         # type: (Span, Dict[str, Any]) -> None
         """Create a LLM record to send to the LLM Obs intake."""
-        if not self._config.llmobs_enabled:
+        if not self.llmobs_enabled:
             return
         llm_record = {}
         if span is not None:

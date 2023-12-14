@@ -29,7 +29,6 @@ from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -50,26 +49,15 @@ def get_version():
 config._add(
     "langchain",
     {
-        "logs_enabled": asbool(os.getenv("DD_LANGCHAIN_LOGS_ENABLED", False)),
-        "metrics_enabled": asbool(os.getenv("DD_LANGCHAIN_METRICS_ENABLED", True)),
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
-        #  send LLMObs payloads. This is a placeholder for when we do.
-        "llmobs_prompt_completion_sample_rate": float(
-            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
-        "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
-        "_api_key": os.getenv("DD_API_KEY"),
+        "logs_enabled": os.getenv("DD_LANGCHAIN_LOGS_ENABLED"),
+        "llmobs_enabled": os.getenv("DD_LANGCHAIN_LLMOBS_ENABLED"),
+        "metrics_enabled": os.getenv("DD_LANGCHAIN_METRICS_ENABLED"),
     },
 )
 
 
 class _LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
-
-    def __init__(self, config, stats_url, site, api_key):
-        super().__init__(config, stats_url, site, api_key)
 
     def _set_base_span_tags(self, span, interface_type="", provider=None, model=None, api_key=None):
         # type: (Span, str, Optional[str], Optional[str], Optional[str]) -> None
@@ -123,9 +111,8 @@ class _LangChainIntegration(BaseLLMIntegration):
             tags.append("%s:%s" % (ERROR_TYPE, err_type))
         return tags
 
-    def record_usage(self, span, usage):
-        # type: (Span, Dict[str, Any]) -> None
-        if not usage or self._config.metrics_enabled is False:
+    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
+        if not usage or self.metrics_enabled is False:
             return
         for token_type in ("prompt", "completion", "total"):
             num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
@@ -137,8 +124,7 @@ class _LangChainIntegration(BaseLLMIntegration):
             self.metric(span, "incr", "tokens.total_cost", total_cost)
 
 
-def _extract_model_name(instance):
-    # type: (langchain.llm.BaseLLM) -> Optional[str]
+def _extract_model_name(instance: langchain.llm.BaseLLM) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
@@ -743,27 +729,9 @@ def patch():
         return
     langchain._datadog_patch = True
 
-    #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
-    ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", config.langchain._api_key)
-
     Pin().onto(langchain)
-    integration = _LangChainIntegration(
-        config=config.langchain,
-        stats_url=get_stats_url(),
-        site=ddsite,
-        api_key=ddapikey,
-    )
+    integration = _LangChainIntegration(integration_config=config.langchain, stats_url=get_stats_url())
     langchain._datadog_integration = integration
-
-    if config.langchain.logs_enabled:
-        if not ddapikey:
-            raise ValueError(
-                "DD_API_KEY is required for sending logs from the LangChain integration."
-                " The LangChain integration can be disabled by setting the ``DD_TRACE_LANGCHAIN_ENABLED``"
-                " environment variable to False."
-            )
-        integration.start_log_writer()
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123

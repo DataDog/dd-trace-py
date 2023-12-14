@@ -512,6 +512,26 @@ class Config(object):
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
+        self._datadog_api_key = os.getenv("DD_API_KEY")
+        self._datadog_app_key = os.getenv("DD_APP_KEY")
+        self._datadog_site = os.getenv("DD_SITE", "datadoghq.com")
+
+        self._llmobs_logs_enabled = asbool(os.getenv("DD_LLMOBS_LOGS_ENABLED", False))
+        self._llmobs_metrics_enabled = asbool(os.getenv("DD_LLMOBS_METRICS_ENABLED", True))
+        self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
+        self._llmobs_span_char_limit = int(os.getenv("DD_LLMOBS_SPAN_CHAR_LIMIT", 128))
+        self._llmobs_span_prompt_completion_sample_rate = float(
+            os.getenv("DD_LLMOBS_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+        )
+        self._llmobs_log_prompt_completion_sample_rate = float(
+            os.getenv("DD_LLMOBS_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)
+        )
+        self._llmobs_record_sample_rate = float(os.getenv("DD_LLMOBS_RECORD_SAMPLE_RATE", 1.0))
+        self._llmobs_log_writer_interval = float(os.getenv("_DD_LLMOBS_LOG_WRITER_INTERVAL", 1.0))
+        self._llmobs_log_writer_timeout = float(os.getenv("_DD_LLMOBS_LOG_WRITER_TIMEOUT", 2.0))
+        self._llmobs_llm_writer_interval = float(os.getenv("_DD_LLMOBS_LLM_WRITER_INTERVAL", 1.0))
+        self._llmobs_llm_writer_timeout = float(os.getenv("_DD_LLMOBS_LLM_WRITER_TIMEOUT", 2.0))
+
     def __getattr__(self, name):
         if name in self._config:
             return self._config[name].value()

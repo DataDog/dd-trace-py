@@ -4,17 +4,18 @@ import time
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from openai import version
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
@@ -24,25 +25,15 @@ from . import _endpoint_hooks
 from .utils import _format_openai_api_key
 
 
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
-
-
 log = get_logger(__name__)
 
 
 config._add(
     "openai",
     {
-        "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
-        "llmobs_enabled": asbool(os.getenv("DD_OPENAI_LLMOBS_ENABLED", False)),
-        "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "llmobs_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
-        "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
-        "_api_key": os.getenv("DD_API_KEY"),
-        "_app_key": os.getenv("DD_APP_KEY"),
+        "logs_enabled": os.getenv("DD_OPENAI_LOGS_ENABLED"),
+        "llmobs_enabled": os.getenv("DD_OPENAI_LLMOBS_ENABLED"),
+        "metrics_enabled": os.getenv("DD_OPENAI_METRICS_ENABLED"),
     },
 )
 
@@ -154,12 +145,8 @@ else:
 class _OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
-    def __init__(self, config, openai, stats_url, site, api_key, app_key=None):
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
-        super().__init__(config, stats_url, site, api_key, app_key=app_key)
+    def __init__(self, integration_config, openai, stats_url):
+        super().__init__(integration_config, stats_url)
         self._openai = openai
         self._user_api_key = None
         self._client = None
@@ -167,19 +154,17 @@ class _OpenAIIntegration(BaseLLMIntegration):
             self.user_api_key = self._openai.api_key
 
     @property
-    def user_api_key(self):
-        # type: () -> Optional[str]
+    def user_api_key(self) -> Optional[str]:
         """Get a representation of the user API key for tagging."""
         return self._user_api_key
 
     @user_api_key.setter
-    def user_api_key(self, value):
+    def user_api_key(self, value: str) -> None:
         # Match the API key representation that OpenAI uses in their UI.
         self._user_api_key = "sk-...%s" % value[-4:]
 
-    def _set_base_span_tags(self, span, **kwargs):
-        # type: (Span, Dict[str, Any]) -> None
-        span.set_tag_str(COMPONENT, self._config.integration_name)
+    def _set_base_span_tags(self, span: Span, **kwargs: Dict[str, Any]) -> None:
+        span.set_tag_str(COMPONENT, self._integration_config.integration_name)
         if self._user_api_key is not None:
             span.set_tag_str("openai.user.api_key", self._user_api_key)
 
@@ -201,7 +186,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
                     span.set_tag_str("openai.%s" % attr, str(v))
 
     @classmethod
-    def _logs_tags(cls, span):
+    def _logs_tags(cls, span: Span) -> Dict[str, str]:
         tags = (
             "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s,"
             "openai.user.api_key:%s"
@@ -218,7 +203,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
         return tags
 
     @classmethod
-    def _metrics_tags(cls, span):
+    def _metrics_tags(cls, span: Span) -> Dict[str, Any]:
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
@@ -236,8 +221,8 @@ class _OpenAIIntegration(BaseLLMIntegration):
             tags.append("error_type:%s" % err_type)
         return tags
 
-    def record_usage(self, span, usage):
-        if not usage or not self._config.metrics_enabled:
+    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
+        if not usage or not self.metrics_enabled:
             return
         tags = self._metrics_tags(span)
         tags.append("openai.estimated:false")
@@ -251,7 +236,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
     def generate_completion_llm_records(self, resp, span, args, kwargs):
         # type: (Any, Span, List[Any], Dict[str, Any]) -> None
         """Generate payloads for the LLM Obs API from a completion."""
-        if not self._config.llmobs_enabled:
+        if not self.llmobs_enabled:
             return
         choices = resp.choices
         n = kwargs.get("n", 1)
@@ -284,7 +269,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
     def generate_chat_llm_records(self, resp, span, args, kwargs):
         # type: (Any, Span, List[Any], Dict[str, Any]) -> None
         """Generate payloads for the LLM Obs API from a chat completion."""
-        if not self._config.llmobs_enabled:
+        if not self.llmobs_enabled:
             return
         choices = resp.choices
         now = time.time()
@@ -332,39 +317,8 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", config.openai._api_key)
-    ddappkey = os.getenv("DD_APP_KEY", config.openai._app_key)
-
     Pin().onto(openai)
-    integration = _OpenAIIntegration(
-        config=config.openai,
-        openai=openai,
-        stats_url=get_stats_url(),
-        site=ddsite,
-        api_key=ddapikey,
-        app_key=ddappkey,
-    )
-
-    if config.openai.logs_enabled:
-        if not ddapikey:
-            raise ValueError(
-                "DD_API_KEY is required for sending logs from the OpenAI integration."
-                "To use the OpenAI integration without logs, set `DD_OPENAI_LOGS_ENABLED=false`."
-            )
-        integration.start_log_writer()
-    if config.openai.llmobs_enabled:
-        if not ddapikey:
-            raise ValueError(
-                "DD_API_KEY is required for sending LLMObs data from the OpenAI integration."
-                "To use the OpenAI integration without LLMObs, set `DD_OPENAI_LLMOBS_ENABLED=false`."
-            )
-        if not ddappkey:
-            raise ValueError(
-                "DD_APP_KEY is required for sending LLMObs payloads from the OpenAI integration."
-                "To use the OpenAI integration without LLMObs, set `DD_OPENAI_LLMOBS_ENABLED=false`."
-            )
-        integration.start_llm_writer()
+    integration = _OpenAIIntegration(integration_config=config.openai, openai=openai, stats_url=get_stats_url())
 
     if OPENAI_VERSION >= (1, 0, 0):
         wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
