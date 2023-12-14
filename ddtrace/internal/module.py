@@ -22,7 +22,6 @@ from typing import cast
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings import _config as config
 
@@ -37,6 +36,7 @@ log = get_logger(__name__)
 
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
+_new_imported_modules = set()  # type: Set[str]
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -375,6 +375,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
+        self._new_imported_modules = []
 
     @property
     def _origin_map(self) -> Dict[str, ModuleType]:
@@ -428,7 +429,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
             for hook in hooks:
                 hook(module)
         if config._telemetry_enabled and config._telemetry_dependency_collection:
-            telemetry_writer._new_dependencies.add(str(module_path))
+            _new_imported_modules.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):
