@@ -7,6 +7,7 @@ import django
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
 from django.db import close_old_connections
+from django.db import connections
 from django.test import modify_settings
 from django.test import override_settings
 from django.test.client import RequestFactory
@@ -43,6 +44,12 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+
+
+@pytest.fixture(autouse=True)
+def cleanup_connections():
+    yield
+    connections.close_all()
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -202,10 +209,12 @@ def test_disallowed_host(client, test_spans):
 
 
 def test_http_header_tracing_disabled(client, test_spans):
-    headers = {
-        get_wsgi_header("my-header"): "my_value",
-    }
-    resp = client.get("/", **headers)
+    with override_config("django", {}):
+        config.django.http._reset()
+        headers = {
+            get_wsgi_header("my-header"): "my_value",
+        }
+        resp = client.get("/", **headers)
 
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
