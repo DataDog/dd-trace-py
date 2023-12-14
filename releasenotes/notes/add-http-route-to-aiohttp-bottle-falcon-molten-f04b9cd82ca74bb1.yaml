@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    aiohttp: Adds http.route tag to ``aiohttp.request`` spans.
+  - |
+    bottle: Adds http.route tag to ``bottle.request`` spans.
+  - |
+    falcon: Adds http.route tag to ``falcon.request`` spans.
+  - |
+    molten: Adds http.route tag to ``molten.request`` spans.
