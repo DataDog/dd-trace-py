@@ -52,6 +52,7 @@ Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
+DEFAULT_BRANCH = "main"
 
 
 def _ensure_current_checkout():
@@ -73,22 +74,23 @@ def _decide_next_release_number(base: str, candidate: bool = False) -> int:
     return latest_version + 1
 
 
-def _get_rc_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress release candidate"""
+    name = "%s.%s" % (base, str(_decide_next_release_number(base)))
     new_rc_version = _decide_next_release_number(base, candidate=True)
-    release_branch = latest_branch if new_rc_version == 1 else base
+    release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
     rn = clean_release_notes(generate_release_notes(release_branch))
     return ReleaseParameters(release_branch, "%s.0rc%s" % (base, str(new_rc_version)), "v%s" % name, dd_repo, rn, True)
 
 
-def _get_patch_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress patch release"""
     name = "%s.%s" % (base, str(_decide_next_release_number(base)))
     release_notes = clean_release_notes(generate_release_notes(base))
     return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
 
 
-def _get_minor_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress minor release"""
     name = "%s.0" % base
 
@@ -112,9 +114,9 @@ def _get_minor_parameters(dd_repo, base: str, rc, patch, latest_branch) -> Relea
     return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
 
 
-def create_release_draft(dd_repo, base, rc, patch, latest_branch):
+def create_release_draft(dd_repo, base, rc, patch):
     _ensure_current_checkout()
-    args = (dd_repo, base, rc, patch, latest_branch)
+    args = (dd_repo, base, rc, patch)
     if rc:
         parameters = _get_rc_parameters(*args)
     elif patch:
@@ -230,7 +232,7 @@ def get_ddtrace_repo():
     return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
-def create_notebook(dd_repo, name, rn, base, latest_branch):
+def create_notebook(dd_repo, name, rn, base):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
     if not dd_api_key or not dd_app_key:
@@ -247,9 +249,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
         return
     commit_hashes = (
         subprocess.check_output(
-            'git log {last_version}..{latest_branch} --oneline | cut -d " " -f 1'.format(
-                last_version=last_version, latest_branch=latest_branch
-            ),
+            f"git log {last_version}..{DEFAULT_BRANCH} --oneline | cut -d " " -f 1",
             shell=True,
             cwd=os.pardir,
         )
@@ -348,7 +348,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
         % (rn)
     )
     # grab the latest commit id on the latest branch to mark the rc notebook with
-    main_branch = dd_repo.get_branch(branch=latest_branch)
+    main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)
     commit_id = main_branch.commit
 
     # pull the cells out to be transferred into a new notebook
@@ -422,7 +422,6 @@ if __name__ == "__main__":
     base = os.getenv("BASE")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
-    latest_branch = base[0] + ".x"
 
     if base is None:
         raise ValueError("Need to specify the base version with envar e.g. BASE=2.10")
@@ -430,12 +429,12 @@ if __name__ == "__main__":
         raise ValueError("Base branch must be a fully qualified semantic version.")
 
     dd_repo = get_ddtrace_repo()
-    name, rn = create_release_draft(dd_repo, base, rc, patch, latest_branch)
+    name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if rc:
         if os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
-            create_notebook(dd_repo, name, rn, base, latest_branch)
+            create_notebook(dd_repo, name, rn, base)
         else:
             print(
                 (
