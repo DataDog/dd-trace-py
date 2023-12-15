@@ -10,7 +10,8 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter, TelemetryWriterModuleWatchdog
+from ddtrace.internal.telemetry.writer import TelemetryWriter
+from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
