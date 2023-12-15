@@ -35,6 +35,8 @@ log = get_logger(__name__)
 
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
+
+_IMPORTED_MODULES_MAX_SIZE = 256
 _new_imported_modules = set()  # type: Set[str]
 
 
@@ -427,7 +429,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
             for hook in hooks:
                 hook(module)
 
-        _new_imported_modules.add(str(module_path))
+        if len(_new_imported_modules) <= _IMPORTED_MODULES_MAX_SIZE:
+            _new_imported_modules.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):
