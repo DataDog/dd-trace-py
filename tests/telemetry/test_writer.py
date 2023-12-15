@@ -15,7 +15,6 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-from tests.telemetry.test_telemetry import _assert_dependencies_sort_and_remove
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -29,7 +28,9 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     # send request to the agent
     telemetry_writer.periodic()
 
-    requests = [i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"]
+    requests = [
+        i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"
+    ]
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
@@ -61,7 +62,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     # force a flush
     telemetry_writer.periodic()
 
-    requests = [i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"]
+    requests = [
+        i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"
+    ]
     assert len(requests) == 1
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
 
