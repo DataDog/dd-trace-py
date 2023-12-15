@@ -22,6 +22,7 @@ from ddtrace.internal.wrapping import wrap
 from ...pin import Pin
 from . import _endpoint_hooks
 from .utils import _format_openai_api_key
+from .utils import _propagate_chain_session_ids
 
 
 if TYPE_CHECKING:
@@ -230,6 +231,26 @@ class _OpenAIIntegration(BaseLLMIntegration):
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
             "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
             "error:%d" % span.error,
+        ]
+        err_type = span.get_tag("error.type")
+        if err_type:
+            tags.append("error_type:%s" % err_type)
+        return tags
+
+    @classmethod
+    def _llmobs_tags(cls, span):
+        tags = [
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
+            "src:integration",
+            "dd.trace_id:%s" % (span.trace_id or ""),
+            "dd.span_id:%s" % (span.span_id or ""),
+            "ml_obs.chain_id:%s" % (span.get_tag("ml_obs.chain_id") or ""),
+            "ml_obs.session_id:%s" % (span.get_tag("ml_obs.session_id") or ""),
+            "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "ml_obs.request.model_provider:%s" % (span.get_tag("openai.organization.name") or ""),
+            "ml_obs.request.error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
         if err_type:
@@ -447,6 +468,7 @@ def _patched_make_session(func, args, kwargs):
 
 def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
     span = integration.trace(pin, endpoint_hook.OPERATION_ID)
+    _propagate_chain_session_ids(span)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
     if openai_api_key:

@@ -120,3 +120,18 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
             integration.trunc(str(tool_call.arguments)),
         )
         span.set_tag("openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(tool_call.name))
+
+
+def _propagate_chain_session_ids(span):
+    """Helper to propagate chain_id and session_id from parent spans to child spans."""
+    parent = span._parent
+    while parent is not None:
+        session_id = parent.get_tag("ml_obs.session_id")
+        chain_id = parent.get_tag("ml_obs.chain_id")
+        if chain_id is not None:
+            span.set_tag_str("ml_obs.chain_id", str(chain_id))
+        if session_id is not None:
+            span.set_tag_str("ml_obs.session_id", str(session_id))
+        if chain_id is not None and session_id is not None:
+            break
+        parent = parent._parent

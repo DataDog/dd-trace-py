@@ -90,26 +90,22 @@ class LLMObsWriter(PeriodicService):
             if not self._buffer:
                 return
             llm_records = [self._buffer.pop()]
-            # This is a workaround the fact that the record ingest API only accepts a single model/model_provider
-            #  for the whole payload, so we need to send all records with the same model/model_provider together
-            while self._buffer:
-                record = self._buffer[0]
-                if record["model"] != llm_records[0]["model"]:
-                    break
-                if record["model_provider"] != llm_records[0]["model_provider"]:
-                    break
-                llm_records.append(self._buffer.pop())
+            # Note: this is a workaround to send single records per payload because
+            #  the ingest API currently only accepts a single model/model_provider/tag_list per payload.
 
         model = llm_records[0]["model"]
         model_provider = llm_records[0]["model_provider"]
+        ddtags = llm_records[0].get("ddtags", [])
         for record in llm_records:
             record.pop("model", None)  # type: ignore[misc]
             record.pop("model_provider", None)  # type: ignore[misc]
+            record.pop("ddtags", None)  # type: ignore[misc]
+
         data = {
             "data": {
                 "type": "records",
                 "attributes": {
-                    "tags": ["src:integration"],
+                    "tags": ddtags,
                     "model": model,
                     "model_provider": model_provider,
                     "records": llm_records,

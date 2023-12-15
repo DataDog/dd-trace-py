@@ -151,14 +151,20 @@ class BaseLLMIntegration:
             text = text[: self._config.span_char_limit] + "..."
         return text
 
-    def llm_record(self, span, attrs):
-        # type: (Span, Dict[str, Any]) -> None
+    @classmethod
+    @abc.abstractmethod
+    def _llmobs_tags(cls, span):
+        return []
+
+    def llm_record(self, span, attrs, tags=None):
+        # type: (Span, Dict[str, Any], Optional[List[str]]) -> None
         """Create a LLM record to send to the LLM Obs intake."""
         if not self._config.llmobs_enabled:
             return
+        llmobs_tags = self._llmobs_tags(span)
+        if tags:
+            llmobs_tags += tags
+        attrs["ddtags"] = llmobs_tags
         llm_record = {}
-        if span is not None:
-            llm_record["dd.trace_id"] = str(span.trace_id)
-            llm_record["dd.span_id"] = str(span.span_id)
         llm_record.update(attrs)
         self._llmobs_writer.enqueue(llm_record)
