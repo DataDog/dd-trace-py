@@ -440,7 +440,6 @@ class UnittestSnapshotTestCase(TracerTestCase):
         ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_include_lines_pct(self):
         tools = """
@@ -510,9 +509,9 @@ class UnittestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with override_env(
-                dict(
-                    DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
-                )
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+            )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "unittest"])

@@ -3237,9 +3237,6 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[3].get_metric("test.source.start") == 5
         assert test_spans[3].get_metric("test.source.end") == 8
 
-
-
-
     def test_pytest_reports_code_coverage_with_cov_flag(self):
         with open("tools.py", "w+") as fd:
             fd.write(
@@ -3303,7 +3300,7 @@ class PytestTestCase(TracerTestCase):
             fd.write(
                 textwrap.dedent(
                     (
-                    """
+                        """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -3324,7 +3321,7 @@ class PytestTestCase(TracerTestCase):
             fd.write(
                 textwrap.dedent(
                     (
-                    """
+                        """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -3517,4 +3514,3 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_span.get_metric("test.code_coverage.lines_pct") is None
-

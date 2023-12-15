@@ -66,10 +66,10 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with override_env(
-                dict(
-                    DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
-                )
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+            )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
 
@@ -102,10 +102,10 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with override_env(
-                dict(
-                    DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
-                )
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+            )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
 
@@ -146,9 +146,9 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with override_env(
-                dict(
-                    DD_API_KEY="foobar.baz",
-                    DD_PATCH_MODULES="sqlite3:false",
-                )
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+            )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
