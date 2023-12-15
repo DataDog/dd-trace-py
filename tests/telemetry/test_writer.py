@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -11,7 +10,6 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.data import update_imported_dependencies
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -30,7 +28,9 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     # send request to the agent
     telemetry_writer.periodic()
 
-    requests = test_agent_session.get_requests()
+    requests = [
+        i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"
+    ]
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
@@ -62,7 +62,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     # force a flush
     telemetry_writer.periodic()
 
-    requests = test_agent_session.get_requests()
+    requests = [
+        i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"
+    ]
     assert len(requests) == 1
     assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
 
@@ -72,61 +74,65 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
 
     payload = {
-        "configuration": [
-            {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
-            {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
-            {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
-            {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": False},
-            {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
-            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
-            {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
-            {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
-            {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
-            {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
-            {
-                "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
-                "origin": "unknown",
-                "value": DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT,
-            },
-            {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
-            {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
-            {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
-            {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
-            {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
-            {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 1.0},
-            {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
-            {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
-            {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
-            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
-            {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
-            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
-            {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
-            {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
-            {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
-        ],
+        "configuration": sorted(
+            [
+                {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+                {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
+                {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+                {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
+                {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
+                {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
+                {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
+                {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
+                {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
+                {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
+                {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
+                {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+                {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
+                {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
+                {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
+                {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
+                {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
+                {
+                    "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
+                    "origin": "unknown",
+                    "value": DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT,
+                },
+                {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
+                {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
+                {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
+                {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext,datadog"},
+                {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
+                {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
+                {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
+                {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
+                {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
+                {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
+                {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
+                {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
+                {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
+                {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
+                {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+                {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
+                {"name": "trace_header_tags", "origin": "default", "value": ""},
+                {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
+            ],
+            key=lambda x: x["name"],
+        ),
         "error": {
             "code": 0,
             "message": "",
@@ -200,84 +206,65 @@ import ddtrace.auto
     assert len(app_started_events) == 1
 
     app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
-    assert app_started_events[0]["payload"]["configuration"] == [
-        {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
-        {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
-        {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
-        {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_LOGS_INJECTION", "origin": "unknown", "value": True},
-        {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
-        {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": "default_dd_service:remapped_dd_service"},
-        {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
-        {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
-        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-        {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
-        {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
-        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
-        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "unknown", "value": ".*"},
-        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": False},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 3},
-        {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": "default_service:remapped_service"},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
-        {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
-        {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "unknown", "value": 0.5},
-        {
-            "name": "DD_TRACE_SAMPLING_RULES",
-            "origin": "unknown",
-            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-        },
-        {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
-        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
-        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 1000},
-        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 30.0},
-        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 9999},
-        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": True},
-        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
-        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
-    ]
-
-
-def test_app_dependencies_loaded_event(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer._app_dependencies_loaded_event()
-    # force a flush
-    telemetry_writer.periodic()
-    events = test_agent_session.get_events()
-    assert len(events) == 1
-    already_imported = {}
-    sys_modules_paths = [str(origin(i)) for i in sys.modules.values()]
-    payload = {"dependencies": update_imported_dependencies(already_imported, sys_modules_paths)}
-    assert events[0] == _get_request_body(payload, "app-dependencies-loaded")
-
-
-def test_app_dependencies_loaded_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer._app_dependencies_loaded_event()
-        # force a flush
-        telemetry_writer.periodic()
-        events = test_agent_session.get_events()
-        assert len(events) <= 1  # could have a heartbeat
-        if events:
-            assert events[0]["request_type"] != "app-dependencies-loaded"
+    assert sorted(app_started_events[0]["payload"]["configuration"], key=lambda x: x["name"]) == sorted(
+        [
+            {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
+            {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
+            {"name": "DD_APPSEC_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DATA_STREAMS_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
+            {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
+            {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
+            {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": "default_dd_service:remapped_dd_service"},
+            {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
+            {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": str(file)},
+            {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
+            {"name": "DD_TRACE_AGENT_URL", "origin": "unknown", "value": "http://localhost:9126"},
+            {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": "v0.5"},
+            {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
+            {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "unknown", "value": ".*"},
+            {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 3},
+            {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": "default_service:remapped_service"},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "unknown", "value": "tracecontext"},
+            {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
+            {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
+            {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
+            {
+                "name": "DD_TRACE_SAMPLING_RULES",
+                "origin": "unknown",
+                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+            },
+            {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
+            {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
+            {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 1000},
+            {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 30.0},
+            {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 9999},
+            {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": True},
+            {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
+            {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+            {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
+            {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
+            {"name": "trace_header_tags", "origin": "default", "value": ""},
+        ],
+        key=lambda x: x["name"],
+    )
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
@@ -288,11 +275,11 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
-    assert len(events) == 1
-    assert "payload" in events[0]
-    assert "dependencies" in events[0]["payload"]
-    assert len(events[0]["payload"]["dependencies"]) == 1
-    assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
+    assert len(events) >= 1
+    assert "payload" in events[-1]
+    assert "dependencies" in events[-1]["payload"]
+    assert len(events[-1]["payload"]["dependencies"]) == 1
+    assert events[-1]["payload"]["dependencies"][0]["name"] == "xmltodict"
     assert "xmltodict" in telemetry_writer._imported_dependencies
     assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
     assert telemetry_writer._imported_dependencies["xmltodict"].version
