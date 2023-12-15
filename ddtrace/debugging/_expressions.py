@@ -54,6 +54,10 @@ def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
 
 
+IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
+NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
+
+
 class DDCompiler:
     @classmethod
     def __getmember__(cls, o, a):
@@ -94,16 +98,18 @@ class DDCompiler:
 
         _type, arg = next(iter(ast.items()))
 
-        if _type not in {"not", "isEmpty"}:
+        if _type not in {"not", "isEmpty", "isUndefined"}:
             return None
 
         value = self._compile_predicate(arg)
         if value is None:
             raise ValueError("Invalid argument: %r" % arg)
 
-        value.append(Instr("UNARY_NOT"))
-
-        # TODO: isUndefined will be implemented later
+        if _type == "isUndefined":
+            value.append(Instr("LOAD_FAST", "_locals"))
+            value.append(NOT_IN_OPERATOR_INSTR)
+        else:
+            value.append(Instr("UNARY_NOT"))
 
         return value
 
@@ -141,7 +147,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return cb + ca + [Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)]
+            return cb + ca + [IN_OPERATOR_INSTR]
 
         if _type in {"any", "all"}:
             a, b = args
