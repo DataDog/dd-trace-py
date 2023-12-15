@@ -188,7 +188,7 @@ class CIVisibilityGitClient(object):
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                             return
                     _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
-                    raise ValueError(packfiles_details.stderr)
+                    log.warning("Failed to upload git metaadata packfiles: %s", packfiles_details.stderr)
             else:
                 log.debug("Revision list empty, no packfiles to build and upload")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS

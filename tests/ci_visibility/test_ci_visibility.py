@@ -378,7 +378,8 @@ def test_git_client_get_filtered_revisions(git_repo):
     assert filtered_revisions == ""
 
 
-def test_git_client_upload_packfiles(git_repo):
+@pytest.mark.parametrize("requests_mode", [REQUESTS_MODE.AGENTLESS_EVENTS, REQUESTS_MODE.EVP_PROXY_EVENTS])
+def test_git_client_upload_packfiles(git_repo, requests_mode):
     serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with _build_git_packfiles_with_details("%s\n" % TEST_SHA_1, cwd=git_repo) as (packfiles_path, packfiles_details):
@@ -387,12 +388,12 @@ def test_git_client_upload_packfiles(git_repo):
                 status=200,
             )
             CIVisibilityGitClient._upload_packfiles(
-                REQUESTS_MODE.AGENTLESS_EVENTS, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
+                requests_mode, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
             )
             assert dr.call_count == 1
             call_args = dr.call_args_list[0][0]
             call_kwargs = dr.call_args.kwargs
-            assert call_args[0] == REQUESTS_MODE.AGENTLESS_EVENTS
+            assert call_args[0] == requests_mode
             assert call_args[1] == ""
             assert call_args[2] == "/packfile"
             assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
@@ -874,6 +875,105 @@ def test_run_protocol_does_not_unshallow_git_lt_227():
                 CIVisibilityGitClient._run_protocol(None, None, None, multiprocessing.Value(c_int, 0))
 
             mock_unshallow_repository.assert_not_called()
+
+
+class TestUploadGitMetadata:
+    """Exercises the multprocessed use of CIVisibilityGitClient.upload_git_metadata to make sure that the caller gets
+    the expected METADATA_UPLOAD_STATUS value
+
+    This uses CIVisibilityGitClient.wait_for_metadata_upload_status() since it returns the given status, and allows for
+    exercising the various exception/error scenarios.
+    """
+
+    api_key_requests_mode_parameters = [
+        ("myfakeapikey", REQUESTS_MODE.AGENTLESS_EVENTS),
+        ("", REQUESTS_MODE.EVP_PROXY_EVENTS),
+    ]
+
+    @pytest.fixture(scope="function", autouse=True)
+    def mock_git_client(self):
+        """NotImplementedError mocks should never be reached unless tests are set up improperly"""
+        with mock.patch.multiple(
+            CIVisibilityGitClient,
+            _is_shallow_repository=mock.Mock(return_value=True),
+            _get_latest_commits=mock.Mock(return_value=["latest1", "latest2"]),
+            _search_commits=mock.Mock(return_value=["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=mock.Mock(return_value="latest1"),
+            _upload_packfiles=mock.Mock(side_effec=NotImplementedError),
+            _do_request=mock.Mock(side_effect=NotImplementedError),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.git_client._build_git_packfiles_with_details"
+        ) as mock_build_packfiles:
+            mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
+            yield
+
+    @pytest.fixture(scope="function", autouse=True)
+    def _test_context_manager(self):
+        with mock.patch(
+            "ddtrace.ext.ci.tags",
+            return_value={
+                "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+                "git.commit.sha": "mytestcommitsha1234",
+            },
+        ):
+            yield
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_no_backend_commits_fails(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_search_commits", return_value=None):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_no_revisions_succeeds(self, api_key, requests_mode):
+        with mock.patch.object(
+            CIVisibilityGitClient, "_get_filtered_revisions", classmethod(lambda *args, **kwargs: "")
+        ):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.SUCCESS
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_packfiles_fails(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", return_value=False):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_packfiles_succeeds(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", return_value=True):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.SUCCESS
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_nonzero_return_code_fails(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", return_value=True):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.SUCCESS
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_value_error_fails(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", return_value=True):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client._worker = mock.MagicMock(spec=multiprocessing.Process)
+            git_client._worker.exitcode = 0
+            git_client.upload_git_metadata()
+            with pytest.raises(ValueError):
+                git_client.wait_for_metadata_upload_status()
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_timeout_raises_timeout(self, api_key, requests_mode):
+        with mock.patch.object(CIVisibilityGitClient, "upload_git_metadata", lambda *args, **kwargs: time.sleep(3)):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client._worker = mock.MagicMock(spec=multiprocessing.Process)
+            git_client._worker.exitcode = None
+            git_client.upload_git_metadata()
+            with pytest.raises(TimeoutError):
+                git_client._wait_for_metadata_upload(0)
 
 
 def test_get_filtered_revisions():
