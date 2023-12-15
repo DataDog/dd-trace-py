@@ -165,30 +165,31 @@ class _TelemetryClient:
 
 
 class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
-    def __init__(self) -> None:
-        self._new_imported: Set[str] = set()
-        self._initial = True
-        super().__init__()
+    _initial = True
+    _new_imported: Set[str] = set()
 
     def after_import(self, module: ModuleType) -> None:
         module_path = origin(module)
         self._new_imported.add(str(module_path))
 
-    def get_new_imports(self):
-        if self._initial:
+    @classmethod
+    def get_new_imports(cls):
+        if cls._initial:
             try:
                 # On the first call, use sys.modules to cover all imports before we started. This is not
                 # done on __init__ because we want to do this slow operation on the writer's periodic call
                 # and not on instantiation.
                 new_imports = [str(origin(i)) for i in sys.modules.values()]
+            except RuntimeError:
+                new_imports = []
             finally:
                 # If there is any problem with the above we don't want to repeat this slow process, instead we just
                 # switch to report new dependencies on further calls
-                self._initial = False
+                cls._initial = False
         else:
-            new_imports = list(self._new_imported)
+            new_imports = list(cls._new_imported)
 
-        self._new_imported.clear()
+        cls._new_imported.clear()
         return new_imports
 
 
@@ -235,7 +236,6 @@ class TelemetryWriter(PeriodicService):
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
         self._client = _TelemetryClient(self.ENDPOINT_V2)
-        self._module_watchdog = TelemetryWriterModuleWatchdog()
 
     def enable(self):
         # type: () -> bool
@@ -255,8 +255,8 @@ class TelemetryWriter(PeriodicService):
 
         self.status = ServiceStatus.RUNNING
         if config._telemetry_dependency_collection:
-            if not self._module_watchdog.is_installed():
-                self._module_watchdog.install()
+            if not TelemetryWriterModuleWatchdog.is_installed():
+                TelemetryWriterModuleWatchdog.install()
         return True
 
     def disable(self):
@@ -266,8 +266,8 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
-        if self._module_watchdog.is_installed():
-            self._module_watchdog.uninstall()
+        if TelemetryWriterModuleWatchdog.is_installed():
+            TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
             self.stop()
@@ -472,7 +472,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_new_imported_dependencies(self) -> List[str]:
         with self._lock:
-            new_deps = self._module_watchdog.get_new_imports()
+            new_deps = TelemetryWriterModuleWatchdog.get_new_imports()
         return new_deps
 
     def _flush_configuration_queue(self):

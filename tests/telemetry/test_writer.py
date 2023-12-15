@@ -10,7 +10,7 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter
+from ddtrace.internal.telemetry.writer import TelemetryWriter, TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
@@ -290,8 +290,8 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer._module_watchdog._initial = False
-        telemetry_writer._module_watchdog._new_imported.clear()
+        TelemetryWriterModuleWatchdog._initial = False
+        TelemetryWriterModuleWatchdog._new_imported.clear()
 
         import xmltodict
 
@@ -306,8 +306,8 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
 
 
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer._module_watchdog._initial = False
-    telemetry_writer._module_watchdog._new_imported.clear()
+    TelemetryWriterModuleWatchdog._initial = False
+    TelemetryWriterModuleWatchdog._new_imported.clear()
 
     import string
 
@@ -321,8 +321,8 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer._module_watchdog._initial = False
-    telemetry_writer._module_watchdog._new_imported.clear()
+    TelemetryWriterModuleWatchdog._initial = False
+    TelemetryWriterModuleWatchdog._new_imported.clear()
 
     import xmltodict
 
