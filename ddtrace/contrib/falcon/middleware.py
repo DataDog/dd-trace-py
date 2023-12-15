@@ -87,7 +87,15 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        trace_utils.set_http_meta(span, config.falcon, status_code=status, response_headers=resp._headers)
+        route = req.root_path or "" + req.uri_template
+
+        trace_utils.set_http_meta(
+            span,
+            config.falcon,
+            status_code=status,
+            response_headers=resp._headers,
+            route=route,
+        )
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
