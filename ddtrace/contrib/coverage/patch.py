@@ -60,7 +60,7 @@ def run_coverage_report():
     try:
         current_coverage_object = coverage.Coverage.current()
         _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
-    except:
+    except Exception:
         log.warning("An exception occurred when running a coverage report")
 
 

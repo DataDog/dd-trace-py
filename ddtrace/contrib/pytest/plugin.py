@@ -445,8 +445,10 @@ def pytest_sessionfinish(session, exitstatus):
             if _CIVisibility.test_skipping_enabled():
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
-            if _is_coverage_patched():
-                if _is_coverage_invoked_by_coverage_run() and not _is_pytest_cov_enabled(session.config):
+            pytest_cov_status = _is_pytest_cov_enabled(session.config)
+            invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
+            if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
+                if invoked_by_coverage_run_status and not pytest_cov_status:
                     run_coverage_report()
                 _add_pct_covered_to_span(_coverage_data, test_session_span)
                 unpatch_coverage()
