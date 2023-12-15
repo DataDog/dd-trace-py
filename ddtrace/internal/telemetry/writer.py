@@ -15,6 +15,7 @@ from typing import Union  # noqa:F401
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.module import _new_imported_modules
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
@@ -195,7 +196,6 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._new_dependencies = set()  # type: set[str]
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
         self.started = False
@@ -436,8 +436,8 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_new_imported_dependencies(self) -> List[str]:
         with self._lock:
-            new_deps = list(self._new_dependencies)
-            self._new_dependencies.clear()
+            new_deps = list(_new_imported_modules)
+            _new_imported_modules.clear()
         return new_deps
 
     def _flush_configuration_queue(self):
