@@ -3,6 +3,7 @@ import itertools
 import os
 import sys
 import time
+from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -15,6 +16,8 @@ from typing import Union  # noqa:F401
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.module import BaseModuleWatchdog
+from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
@@ -161,6 +164,35 @@ class _TelemetryClient:
         return headers
 
 
+class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
+    _initial = True
+    _new_imported: Set[str] = set()
+
+    def after_import(self, module: ModuleType) -> None:
+        module_path = origin(module)
+        self._new_imported.add(str(module_path))
+
+    @classmethod
+    def get_new_imports(cls):
+        if cls._initial:
+            try:
+                # On the first call, use sys.modules to cover all imports before we started. This is not
+                # done on __init__ because we want to do this slow operation on the writer's periodic call
+                # and not on instantiation.
+                new_imports = [str(origin(i)) for i in sys.modules.values()]
+            except RuntimeError:
+                new_imports = []
+            finally:
+                # If there is any problem with the above we don't want to repeat this slow process, instead we just
+                # switch to report new dependencies on further calls
+                cls._initial = False
+        else:
+            new_imports = list(cls._new_imported)
+
+        cls._new_imported.clear()
+        return new_imports
+
+
 class TelemetryWriter(PeriodicService):
     """
     Submits Instrumentation Telemetry events to the datadog agent.
@@ -195,7 +227,6 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
-        self._new_dependencies = set()  # type: set[str]
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
         self.started = False
@@ -223,6 +254,9 @@ class TelemetryWriter(PeriodicService):
             return True
 
         self.status = ServiceStatus.RUNNING
+        if config._telemetry_dependency_collection:
+            if not TelemetryWriterModuleWatchdog.is_installed():
+                TelemetryWriterModuleWatchdog.install()
         return True
 
     def disable(self):
@@ -232,6 +266,8 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        if TelemetryWriterModuleWatchdog.is_installed():
+            TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
             self.stop()
@@ -436,8 +472,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_new_imported_dependencies(self) -> List[str]:
         with self._lock:
-            new_deps = list(self._new_dependencies)
-            self._new_dependencies.clear()
+            new_deps = TelemetryWriterModuleWatchdog.get_new_imports()
         return new_deps
 
     def _flush_configuration_queue(self):
@@ -483,10 +518,10 @@ class TelemetryWriter(PeriodicService):
         # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
         """Creates and queues a list of configurations"""
         with self._lock:
-            for name, value, origin in configuration_list:
+            for name, value, _origin in configuration_list:
                 self._configuration_queue[name] = {
                     "name": name,
-                    "origin": origin,
+                    "origin": _origin,
                     "value": value,
                 }
 

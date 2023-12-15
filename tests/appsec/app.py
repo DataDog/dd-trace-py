@@ -9,10 +9,12 @@ from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
 
 
 app = Flask(__name__)
+app.register_blueprint(pkg_idna)
 app.register_blueprint(pkg_requests)
 
 
