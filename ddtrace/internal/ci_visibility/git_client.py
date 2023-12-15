@@ -66,6 +66,14 @@ class METADATA_UPLOAD_STATUS(IntEnum):
     IN_PROCESS = 1
     SUCCESS = 2
     FAILED = 3
+    UNNECESSARY = 4
+
+
+FINISHED_METADATA_UPLOAD_STATUSES = [
+    METADATA_UPLOAD_STATUS.FAILED,
+    METADATA_UPLOAD_STATUS.SUCCESS,
+    METADATA_UPLOAD_STATUS.UNNECESSARY,
+]
 
 
 class CIVisibilityGitClient(object):
@@ -101,10 +109,7 @@ class CIVisibilityGitClient(object):
             log.debug("git metadata upload worker already started: %s", self._worker)
 
     def metadata_upload_finished(self):
-        return self._metadata_upload_status.value in [
-            METADATA_UPLOAD_STATUS.FAILED,
-            METADATA_UPLOAD_STATUS.SUCCESS,
-        ]
+        return self._metadata_upload_status.value in FINISHED_METADATA_UPLOAD_STATUSES
 
     def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
         log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
@@ -154,6 +159,24 @@ class CIVisibilityGitClient(object):
                 _tags = {}
             repo_url = cls._get_repository_url(tags=_tags, cwd=cwd)
 
+            # If all latest commits are known to our gitdb backend, assume that unshallowing is unnecessary
+            latest_commits = cls._get_latest_commits(cwd=cwd)
+            backend_commits = cls._search_commits(
+                requests_mode, base_url, repo_url, latest_commits, serializer, _response
+            )
+
+            if backend_commits is None:
+                log.debug("No initial backend commits found, returning early.")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
+                return
+
+            commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+
+            if len(commits_not_in_backend) == 0:
+                log.debug("All latest commits found in backend, skipping metadata upload")
+                _metadata_upload_status.value = METADATA_UPLOAD_STATUS.UNNECESSARY
+                return
+
             if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 try:
@@ -188,7 +211,7 @@ class CIVisibilityGitClient(object):
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                             return
                     _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
-                    log.warning("Failed to upload git metaadata packfiles: %s", packfiles_details.stderr)
+                    log.warning("Failed to upload git metadata packfiles")
             else:
                 log.debug("Revision list empty, no packfiles to build and upload")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS

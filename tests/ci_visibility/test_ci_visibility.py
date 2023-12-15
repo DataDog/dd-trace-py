@@ -896,9 +896,12 @@ class TestUploadGitMetadata:
         with mock.patch.multiple(
             CIVisibilityGitClient,
             _is_shallow_repository=mock.Mock(return_value=True),
-            _get_latest_commits=mock.Mock(return_value=["latest1", "latest2"]),
-            _search_commits=mock.Mock(return_value=["latest1", "searched1", "searched2"]),
-            _get_filtered_revisions=mock.Mock(return_value="latest1"),
+            _get_latest_commits=mock.Mock(
+                side_effect=[["latest1", "latest2"], ["latest1", "latest2", "latest3", "latest4"]]
+            ),
+            _search_commits=mock.Mock(side_effect=[["latest1"], ["latest1", "latest2"]]),
+            _unshallow_repository=mock.Mock(),
+            _get_filtered_revisions=mock.Mock(return_value="latest3\nlatest4"),
             _upload_packfiles=mock.Mock(side_effec=NotImplementedError),
             _do_request=mock.Mock(side_effect=NotImplementedError),
         ), mock.patch(
@@ -974,6 +977,15 @@ class TestUploadGitMetadata:
             git_client.upload_git_metadata()
             with pytest.raises(TimeoutError):
                 git_client._wait_for_metadata_upload(0)
+
+    @pytest.mark.parametrize("api_key, requests_mode", api_key_requests_mode_parameters)
+    def test_upload_git_metadata_upload_unnecessary(self, api_key, requests_mode):
+        with mock.patch.object(
+            CIVisibilityGitClient, "_get_latest_commits", mock.Mock(side_effect=[["latest1", "latest2"]])
+        ), mock.patch.object(CIVisibilityGitClient, "_search_commits", mock.Mock(side_effect=[["latest1", "latest2"]])):
+            git_client = CIVisibilityGitClient(api_key, requests_mode)
+            git_client.upload_git_metadata()
+            assert git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.UNNECESSARY
 
 
 def test_get_filtered_revisions():
