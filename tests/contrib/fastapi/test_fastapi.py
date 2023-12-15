@@ -566,7 +566,7 @@ def test_w_patch_starlette(client, tracer, test_spans):
 
 @snapshot()
 def test_subapp_snapshot(snapshot_client):
-    response = snapshot_client.get("/sub-app/hello/name")
+    response = snapshot_client.get("/sub-app/hello/foo")
     assert response.status_code == 200
 
 
@@ -575,7 +575,7 @@ def test_subapp_w_starlette_patch_snapshot(snapshot_client):
     # Test that patching starlette doesn't affect the spans generated
     patch_starlette()
     try:
-        response = snapshot_client.get("/sub-app/hello/name")
+        response = snapshot_client.get("/sub-app/hello/foo")
         assert response.status_code == 200
     finally:
         unpatch_starlette()
