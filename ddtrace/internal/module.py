@@ -430,6 +430,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 hook(module)
 
         if len(_new_imported_modules) <= _IMPORTED_MODULES_MAX_SIZE:
+            # Avoid _new_imported_modules to increase too much if nobody is emptying it
             _new_imported_modules.add(str(module_path))
 
     @classmethod
