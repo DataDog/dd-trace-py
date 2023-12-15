@@ -58,10 +58,8 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
 
     # Submit a trace to the agent in a subprocess
     code = """
-from ddtrace.settings import _config
 from ddtrace import tracer
 
-_config._telemetry_dependency_collection = False
 span = tracer.trace("test-telemetry")
 span.finish()
     """
@@ -70,7 +68,9 @@ span.finish()
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = test_agent_session.get_events()
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), is_request=False, must_have_deps=False
+    )
 
     assert len(events) == 4
     assert events[0]["request_type"] == "app-closing"
