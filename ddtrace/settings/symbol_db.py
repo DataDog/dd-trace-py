@@ -2,9 +2,11 @@ from envier import En
 
 
 class SymbolDatabaseConfig(En):
+    __prefix__ = "dd.symbol_database"
+
     enabled = En.v(
         bool,
-        "dd.symbol_database.upload_enabled",
+        "upload_enabled",
         default=False,
         help_type="Boolean",
         help="Whether to upload source code symbols to the Datadog backend",
@@ -12,16 +14,19 @@ class SymbolDatabaseConfig(En):
 
     includes = En.v(
         set,
-        "dd.symbol_database.includes",
+        "includes",
         default=set(),
         help_type="List",
         help="List of modules/packages to include in the symbol uploads",
     )
 
+    # ---- Private settings ----
+
     _force = En.v(
         bool,
-        "_dd.symbol_database.force_upload",
+        "force_upload",
         default=False,
+        private=True,
         help_type="Boolean",
         help="Whether to force symbol uploads, regardless of RC signals",
     )
