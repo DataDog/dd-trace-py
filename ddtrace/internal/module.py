@@ -36,9 +36,6 @@ log = get_logger(__name__)
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
 
-_IMPORTED_MODULES_MAX_SIZE = 256
-_new_imported_modules = set()  # type: Set[str]
-
 
 def _wrapped_run_code(*args, **kwargs):
     # type: (*Any, **Any) -> Dict[str, Any]
@@ -428,10 +425,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
             for hook in hooks:
                 hook(module)
-
-        if len(_new_imported_modules) <= _IMPORTED_MODULES_MAX_SIZE:
-            # Avoid _new_imported_modules to increase too much if nobody is emptying it
-            _new_imported_modules.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):

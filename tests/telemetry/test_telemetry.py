@@ -57,15 +57,20 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     """assert telemetry events are generated after the first trace is flushed to the agent"""
 
     # Submit a trace to the agent in a subprocess
-    code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
+    code = """
+from ddtrace.settings import _config
+from ddtrace import tracer
+
+_config._telemetry_dependency_collection = False
+span = tracer.trace("test-telemetry")
+span.finish()
+    """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
+    events = test_agent_session.get_events()
 
     assert len(events) == 4
     assert events[0]["request_type"] == "app-closing"
@@ -86,8 +91,10 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.settings import _config
 
 # We have to start before forking since fork hooks are not enabled until after enabling
+_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
@@ -130,7 +137,9 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.settings import _config
 
+_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
 # Reset queue to avoid sending app-started event
 telemetry_writer.reset_queues()
@@ -214,6 +223,9 @@ logging.basicConfig()
 
 from ddtrace import tracer
 from ddtrace.filters import TraceFilter
+from ddtrace.settings import _config
+
+_config._telemetry_dependency_collection = False
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):
@@ -232,9 +244,7 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
+    events = test_agent_session.get_events()
 
     assert len(events) == 3
 
@@ -262,8 +272,9 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = test_agent_session.get_events()
-
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), is_request=False, must_have_deps=False
+    )
     assert len(events) == 2
 
     # Same runtime id is used
