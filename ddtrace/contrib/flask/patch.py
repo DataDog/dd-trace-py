@@ -108,9 +108,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
-            results, exceptions = core.dispatch_with_results("flask.start_response", ("Flask",))
-            if not any(exceptions) and results and results[0]:
-                headers_from_context = results[0]
+            result = core.dispatch_with_results("flask.start_response", ("Flask",)).waf
+            if result:
+                headers_from_context = result.value
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 block_config = core.get_item(HTTP_REQUEST_BLOCKED)
@@ -139,7 +139,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        results, exceptions = core.dispatch_with_results(
+        result = core.dispatch_with_results(
             "flask.request_call_modifier",
             (
                 ctx,
@@ -151,12 +151,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 flask_version_str,
                 BadRequest,
             ),
-        )
-        if not any(exceptions) and results and any(results):
-            for result in results:
-                if result is not None:
-                    req_body = result
-                    break
+        ).request_body
+        if result:
+            req_body = result.value
         core.dispatch("flask.request_call_modifier.post", (ctx, config.flask, request, req_body))
 
 

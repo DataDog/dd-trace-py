@@ -121,6 +121,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
         _add_rules_to_list(features, "exclusions", "exclusion filters", ruleset)
         _add_rules_to_list(features, "rules_override", "rules override", ruleset)
         _add_rules_to_list(features, "scanners", "scanners", ruleset)
+        _add_rules_to_list(features, "processors", "processors", ruleset)
         if ruleset:
             return tracer._appsec_processor._update_rules({k: v for k, v in ruleset.items() if v is not None})
 
