@@ -249,7 +249,9 @@ def create_notebook(dd_repo, name, rn, base):
         return
     commit_hashes = (
         subprocess.check_output(
-            f"git log {last_version}..{DEFAULT_BRANCH} --oneline | cut -d " " -f 1",
+            'git log {last_version}..{latest_branch} --oneline | cut -d " " -f 1'.format(
+                last_version=last_version, latest_branch=DEFAULT_BRANCH
+            ),
             shell=True,
             cwd=os.pardir,
         )
@@ -266,8 +268,6 @@ def create_notebook(dd_repo, name, rn, base):
         except Exception:
             print("Couldn't get commit hash %s for notebook, please add this manually" % commit_hash)
 
-    # get list of authors for when we make the slack announcement
-    author_slack_handles = []
     prs_details = []
     # from each commit:
     # 1. get release note text
@@ -280,12 +280,7 @@ def create_notebook(dd_repo, name, rn, base):
             if filename.startswith("releasenotes/notes/"):
                 try:
                     # we need to make another api call to get ContentFile object so we can see what's in there
-                    rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                    # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                    # this is a bit hacky, will only attach to one section if you have multiple sections
-                    # in a release note
-                    # (e.g. a features and a fix section):
-                    # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
+                    rn_piece = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                 except Exception:
                     print(
                         """File contents were not obtained for {file} in commit {commit}."""
@@ -293,40 +288,30 @@ def create_notebook(dd_repo, name, rn, base):
                     )
                     continue
                 try:
-                    rn_piece = re.findall(
-                        r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
-                        rn_file_content,
-                    )[0][0].strip()
-                    rn_piece = re.sub("\n    ", " ", rn_piece)
-                    # if you use the pattern  \s\n\s\s\s\s (which you shouldn't)
-                    # then the sub above will leave a double space
-                    rn_piece = re.sub("  ", " ", rn_piece)
-                    rn_piece = re.sub("``", "`", rn_piece)
+                    # removes unwanted new lines, whitespace and characters from rn_file_content
+                    rn_piece = re.sub("[-|]", "", rn_piece)
+                    rn_piece = re.sub(r"\s+", " ", rn_piece.strip())
                 except Exception:
-                    continue
+                    print(f"Failed to format release note: {rn_piece}")
+
                 author = commit.author.name
                 if author:
                     author = author.split(" ")
                     author_slack = "@" + author[0] + "." + author[-1]
-                    author_slack_handles.append(author_slack)
                     author_dd = author_slack + "@datadoghq.com"
                 pr_num = re.findall(r"\(#(\d{4})\)", commit.commit.message)[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
-                prs_details.append({"author_dd": author_dd, "url": url, "rn_piece": rn_piece})
+                prs_details.append(
+                    {"author_slack": author_slack, "author_dd": author_dd, "url": url, "rn_piece": rn_piece}
+                )
 
-    # edit release notes to be put inside notebook
-    rn = rn.replace("\n-", "\n- [ ]")
-    for pr_details in prs_details:
-        rn_piece = pr_details["rn_piece"]
-        i = rn.rfind(rn_piece)
-        if i != -1:
-            e = i + len(rn_piece)
-            # check to make sure there was a match
-            rn = (
-                rn[:e]
-                + "\nPR:{pr}\nTester: {author_dd}".format(pr=pr_details["url"], author_dd=pr_details["author_dd"])
-                + rn[e:]
-            )
+    # Group PRs by release note scope (feature, fix, deprecation, etc)
+    # This is not necessary it just makes the notebook easier to read
+    prs_details = sorted(prs_details, key=lambda prd: prd["rn_piece"])
+    notebook_rns = ""
+    for pr_detail in prs_details:
+        notebook_rns += f"\n- [ ] {pr_detail['rn_piece']}\n  - PR:{pr_detail['url']},"
+        "Tester: {pr_detail['author_dd']}\n  - Findings: "
 
     # create the review notebook and add the release notes formatted for testing
     # get notebook template
@@ -343,10 +328,10 @@ def create_notebook(dd_repo, name, rn, base):
     data = template_notebook.decode("utf8")
     data = json.loads(data)
     # change the text inside of our template to include release notes
-    data["data"]["attributes"]["cells"][1]["attributes"]["definition"]["text"] = (
-        "#  Release notes to test\n-[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
-        % (rn)
-    )
+    data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
+        "text"
+    ] = f"# Relenv \n -[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
+
     # grab the latest commit id on the latest branch to mark the rc notebook with
     main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)
     commit_id = main_branch.commit
@@ -389,8 +374,7 @@ def create_notebook(dd_repo, name, rn, base):
     print("\nNotebook created at %s\n" % nb_url)
 
     # eliminate duplicates of handles for the slack messages
-    author_slack_handles = " ".join(set(author_slack_handles))
-
+    author_slack_handles = " ".join({pr_detail["author_slack"] for pr_detail in prs_details})
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
         """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}.
