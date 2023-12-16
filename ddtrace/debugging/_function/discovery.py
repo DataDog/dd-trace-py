@@ -184,7 +184,7 @@ class FunctionDiscovery(defaultdict):
     """
 
     def __init__(self, module: ModuleType) -> None:
-        super(FunctionDiscovery, self).__init__(list)
+        super().__init__(list)
         self._module = module
         self._fullname_index = {}
 
