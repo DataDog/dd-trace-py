@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-import typing
+import typing  # noqa:F401
 
 import ddtrace
 
@@ -142,3 +142,7 @@ def main():
         raise
 
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

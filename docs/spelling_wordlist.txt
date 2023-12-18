@@ -128,6 +128,7 @@ LLM
 langchain
 lifecycle
 linters
+lockfiles
 logbook
 loguru
 lookups
@@ -161,6 +162,7 @@ opentracer
 opentracing
 otel
 ObjectProxy
+packfile
 packfiles
 parameterized
 parsers
@@ -229,6 +231,7 @@ submodules
 substring
 testagent
 TestCase
+testrunner
 timestamp
 tokenizer
 tracecontext

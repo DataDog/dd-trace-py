@@ -440,8 +440,8 @@ def test_get_tags_override(monkeypatch):
 @pytest.mark.skip(reason="Needs investigation about the segfaulting")
 @pytest.mark.subprocess(env=dict(DD_PROFILING_TAGS="mytag:baz"))
 def test_get_tags_legacy():
-    from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-    from ddtrace.profiling.exporter import http  # noqa
+    from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+    from ddtrace.profiling.exporter import http  # noqa:F401
 
     # REVERTME: Investigating segfaults on CI
     # tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))

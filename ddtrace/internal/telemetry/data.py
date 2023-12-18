@@ -1,16 +1,18 @@
 import platform
 import sys
-from typing import Dict
-from typing import List
-from typing import Tuple
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.packages import Distribution
+from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
 
-from ...settings import _config as config
+from ...settings import _config as config  # noqa:F401
 from ...settings.asm import config as asm_config
 from ..hostname import get_hostname
 
@@ -70,11 +72,24 @@ def _get_application(key):
     }
 
 
-def get_dependencies():
-    # type: () -> List[Dict[str, str]]
-    """Returns a unique list of the names and versions of all installed packages"""
-    dependencies = {(dist.name, dist.version) for dist in get_distributions()}
-    return [{"name": name, "version": version} for name, version in dependencies]
+def update_imported_dependencies(
+    already_imported: Dict[str, Distribution], new_modules: List[str]
+) -> List[Dict[str, str]]:
+    deps = []
+
+    for module_path in new_modules:
+        if not module_path:
+            continue
+        try:
+            package = filename_to_package(module_path)
+            if not package or (package.name in already_imported) or package.name == "ddtrace":
+                continue  # not third party or already imported
+        except AttributeError:
+            continue
+        already_imported[package.name] = package
+        deps.append({"name": package.name, "version": package.version})
+
+    return deps
 
 
 def get_application(service, version, env):

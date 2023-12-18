@@ -1,7 +1,7 @@
 import importlib
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -13,10 +13,10 @@ from .settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import List
-    from typing import Union
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Union  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -75,7 +75,6 @@ PATCH_MODULES = {
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": True,
-    "pylons": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logbook": config.logs_injection,

@@ -10,7 +10,6 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -413,14 +412,14 @@ def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        request.cookies = LazyTaintDict(
+        request.cookies = taint_structure(
             request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
             override_pyobject_tainted=True,
         )
 
@@ -448,12 +447,12 @@ def _set_headers_and_response(response, headers, *_):
 
 def _call_waf_first(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
-    call_waf_callback()
+    return call_waf_callback()
 
 
 def _call_waf(integration, *_):
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    call_waf_callback()
+    return call_waf_callback()
 
 
 def _on_block_decided(callback):
@@ -467,15 +466,15 @@ def _get_headers_if_appsec():
 
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
+    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _call_waf)
+    core.on("flask.start_response", _call_waf, "waf")
 
     core.on("django.start_response.post", _call_waf)
     core.on("django.finalize_response", _call_waf)
-    core.on("django.after_request_headers", _get_headers_if_appsec)
-    core.on("django.extract_body", _get_headers_if_appsec)
+    core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
+    core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
 

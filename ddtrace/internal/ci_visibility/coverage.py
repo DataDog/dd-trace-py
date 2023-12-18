@@ -1,19 +1,19 @@
 from itertools import groupby
 import json
-import os
-from typing import TYPE_CHECKING
+from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
+import ddtrace
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.logger import get_logger
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
-
 log = get_logger(__name__)
+_global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
 
 try:
     from coverage import Coverage
@@ -39,11 +39,59 @@ def _initialize_coverage(root_dir):
             "*/site-packages/*",
         ],
     }
-    return Coverage(**coverage_kwargs)
+    cov_object = Coverage(**coverage_kwargs)
+    cov_object.set_option("run:parallel", True)
+    return cov_object
 
 
-def segments(lines):
-    # type: (Iterable[int]) -> List[Tuple[int, int, int, int, int]]
+def _start_coverage(root_dir: str):
+    coverage = _initialize_coverage(root_dir)
+    coverage.start()
+    return coverage
+
+
+def _stop_coverage(module):
+    if _module_has_dd_coverage_enabled(module):
+        module._dd_coverage.stop()
+        module._dd_coverage.erase()
+        del module._dd_coverage
+
+
+def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
+    if not hasattr(module, "_dd_coverage"):
+        if not silent_mode:
+            log.warning("Datadog Coverage has not been initiated")
+        return False
+    return True
+
+
+def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False) -> bool:
+    if not coverage_data._collector or len(coverage_data._collector.data) == 0:
+        if not silent_mode:
+            log.warning("No coverage collector or data found for item")
+        return False
+    return True
+
+
+def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
+    if not _coverage_has_valid_data(coverage_data, silent_mode=True):
+        return
+    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    coverage_data.switch_context(unique_test_name)
+
+
+def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
+    span_id = str(span.trace_id)
+    if not _coverage_has_valid_data(coverage_data):
+        return
+    span.set_tag_str(
+        COVERAGE_TAG_NAME,
+        build_payload(coverage_data, root_dir, span_id),
+    )
+    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+
+
+def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
     """Extract the relevant report data for a single file."""
     _segments = []
     for _key, g in groupby(enumerate(sorted(lines)), lambda x: x[1] - x[0]):
@@ -55,19 +103,17 @@ def segments(lines):
     return _segments
 
 
-def _lines(coverage, context):
-    # type: (Coverage, Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]
+def _lines(coverage: Coverage, context: Optional[str]) -> Dict[str, List[Tuple[int, int, int, int, int]]]:
     if not coverage._collector or not coverage._collector.data:
         return {}
 
     return {
         k: segments(v.keys()) if isinstance(v, dict) else segments(v)  # type: ignore
-        for k, v in coverage._collector.data.items()
+        for k, v in list(coverage._collector.data.items())
     }
 
 
-def build_payload(coverage, root_dir, test_id=None):
-    # type: (Coverage, str, Optional[str]) -> str
+def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = None) -> str:
     """
     Generate a CI Visibility coverage payload, formatted as follows:
 
@@ -75,7 +121,7 @@ def build_payload(coverage, root_dir, test_id=None):
         {
             "filename": <String>,
             "segments": [
-                [Int, Int, Int, Int, Int],  # noqa
+                [Int, Int, Int, Int, Int],  # noqa:F401
             ]
         },
         ...
@@ -96,18 +142,19 @@ def build_payload(coverage, root_dir, test_id=None):
     :param test_id: a unique identifier for the current test run
     """
     root_dir_str = str(root_dir)
-    return json.dumps(
-        {
-            "files": [
-                {
-                    "filename": os.path.relpath(filename, root_dir_str),
-                    "segments": lines,
-                }
-                if lines
-                else {
-                    "filename": os.path.relpath(filename, root_dir_str),
-                }
-                for filename, lines in _lines(coverage, test_id).items()
-            ]
-        }
-    )
+    if root_dir_str not in _global_relative_file_paths_for_cov:
+        _global_relative_file_paths_for_cov[root_dir_str] = {}
+    files_data = []
+    for filename, lines in _lines(coverage, test_id).items():
+        if filename not in _global_relative_file_paths_for_cov[root_dir_str]:
+            _global_relative_file_paths_for_cov[root_dir_str][filename] = get_relative_or_absolute_path_for_path(
+                filename, root_dir_str
+            )
+        if lines:
+            files_data.append(
+                {"filename": _global_relative_file_paths_for_cov[root_dir_str][filename], "segments": lines}
+            )
+        else:
+            files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
+
+    return json.dumps({"files": files_data})

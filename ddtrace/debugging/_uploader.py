@@ -28,7 +28,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
     RETRY_ATTEMPTS = 3
 
     def __init__(self, encoder: BufferedEncoder, interval: Optional[float] = None) -> None:
-        super(LogsIntakeUploaderV1, self).__init__(interval or di_config.upload_flush_interval)
+        super().__init__(interval or di_config.upload_flush_interval)
         self._encoder = encoder
         self._headers = {
             "Content-type": "application/json; charset=utf-8",

@@ -7,6 +7,7 @@ from ddtrace.vendor import wrapt
 
 from ... import Pin
 from ...ext import SpanKind
+from ...ext import http
 from ...internal.utils.importlib import func_name
 from .. import trace_utils
 
@@ -112,8 +113,11 @@ class WrapperRouter(wrapt.ObjectProxy):
 
             # if no root route set make sure we record it based on this resolved
             # route
-            if root_span and not root_span.get_tag(MOLTEN_ROUTE):
-                root_span.set_tag(MOLTEN_ROUTE, route.name)
+            if root_span:
+                if not root_span.get_tag(MOLTEN_ROUTE):
+                    root_span.set_tag(MOLTEN_ROUTE, route.name)
+                if not root_span.get_tag(http.ROUTE):
+                    root_span.set_tag_str(http.ROUTE, route.template)
 
             return route, params
 

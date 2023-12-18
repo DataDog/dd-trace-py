@@ -1,11 +1,11 @@
 import re
-from typing import Dict
-from typing import FrozenSet
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import cast
+from typing import Dict  # noqa:F401
+from typing import FrozenSet  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import config
 from ddtrace.tracing._span_link import SpanLink
@@ -44,6 +44,7 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
+_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
@@ -103,6 +104,13 @@ def _extract_header_value(possible_header_names, headers, default=None):
             return ensure_str(headers[header], errors="backslashreplace")
 
     return default
+
+
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+    if context is not None:
+        for key, value in headers.items():
+            if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
+                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -891,6 +899,10 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+            for key in span_context._baggage:
+                headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
@@ -935,14 +947,18 @@ class HTTPPropagator(object):
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
-                    if context is not None:
-                        return context
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
-                    return HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)

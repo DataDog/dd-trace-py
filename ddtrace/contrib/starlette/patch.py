@@ -1,9 +1,10 @@
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import starlette
+from starlette import requests as starlette_requests
 from starlette.middleware import Middleware
 
 from ddtrace import config
@@ -14,7 +15,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -131,9 +132,19 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans,
             resource_paths,
         )
+    request_cookies = ""
+    for name, value in scope.get("headers"):
+        if name == b"cookie":
+            request_cookies = value.decode("utf-8", errors="ignore")
+            break
     if request_spans:
-        trace_utils.set_http_meta(request_spans[0], "starlette", request_path_params=scope.get("path_params"))
-    core.dispatch("asgi.start_request", "starlette")
+        trace_utils.set_http_meta(
+            request_spans[0],
+            "starlette",
+            request_path_params=scope.get("path_params"),
+            request_cookies=starlette_requests.cookie_parser(request_cookies),
+        )
+    core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
 

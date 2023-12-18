@@ -1,7 +1,7 @@
 from collections import defaultdict
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -11,6 +11,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
@@ -24,6 +25,7 @@ from ddtrace.internal.writer.writer import Response
 from ddtrace.provider import CIContextProvider
 
 from .. import agent
+from ..utils.time import StopWatch
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
@@ -37,18 +39,20 @@ from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
 from .git_client import CIVisibilityGitClient
+from .telemetry.constants import ERROR_TYPES
+from .telemetry.git import record_settings
 from .writer import CIVisibilityWriter
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import DefaultDict  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -103,6 +107,8 @@ class CIVisibility(Service):
     def __init__(self, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[IntegrationConfig], Optional[str]) -> None
         super(CIVisibility, self).__init__()
+
+        telemetry.telemetry_writer.enable()
 
         if tracer:
             self.tracer = tracer
@@ -218,10 +224,21 @@ class CIVisibility(Service):
                 },
             }
         }
+
+        sw = StopWatch()
+        sw.start()
         try:
             response = _do_request("POST", url, json.dumps(payload), _headers)
         except TimeoutError:
             log.warning("Request timeout while fetching enabled features")
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.TIMEOUT)
+            return False, False
+        if response.status >= 400:
+            log.warning(
+                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
+            )
+            error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+            record_settings(sw.elapsed() * 1000, False, False, error_code)
             return False, False
         try:
             if isinstance(response.body, bytes):
@@ -230,15 +247,20 @@ class CIVisibility(Service):
                 parsed = json.loads(response.body)
         except JSONDecodeError:
             log.warning("Settings request responded with invalid JSON '%s'", response.body)
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.BAD_JSON)
             return False, False
-        if response.status >= 400 or ("errors" in parsed and parsed["errors"][0] == "Not found"):
-            log.warning(
-                "Feature enablement check returned status %d - disabling Intelligent Test Runner", response.status
-            )
+
+        if "errors" in parsed and parsed["errors"][0] == "Not found":
+            log.warning("Settings request contained an error, disabling Intelligent Test Runner")
+            record_settings(sw.elapsed() * 1000, False, False, ERROR_TYPES.UNKNOWN)
             return False, False
 
         attributes = parsed["data"]["attributes"]
-        return attributes["code_coverage"], attributes["tests_skipping"]
+        coverage_enabled = attributes["code_coverage"]
+        skipping_enabled = attributes["tests_skipping"]
+        record_settings(sw.elapsed() * 1000, coverage_enabled, skipping_enabled)
+
+        return coverage_enabled, skipping_enabled
 
     def _configure_writer(self, coverage_enabled=False, requests_mode=None):
         writer = None
@@ -414,6 +436,8 @@ class CIVisibility(Service):
         cls._instance.stop()
         cls._instance = None
         cls.enabled = False
+
+        telemetry.telemetry_writer.periodic(force_flush=True)
 
         log.debug("%s disabled", cls.__name__)
 

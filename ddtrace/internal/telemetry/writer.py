@@ -3,21 +3,26 @@ import itertools
 import os
 import sys
 import time
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
-from typing import Union
+from types import ModuleType
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ...internal import atexit
 from ...internal import forksafe
 from ...internal.compat import parse
+from ...internal.module import BaseModuleWatchdog
+from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
 from ...settings.asm import config as asm_config
+from ...settings.config import _ConfigSource
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
@@ -28,6 +33,7 @@ from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
+from ..packages import Distribution
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
@@ -48,7 +54,6 @@ from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
-from .constants import TELEMETRY_LOGS_INJECTION_ENABLED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -73,7 +78,6 @@ from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
 from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
 from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
 from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SAMPLING_RATE
 from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
 from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
@@ -85,15 +89,15 @@ from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
-from .data import get_dependencies
 from .data import get_host_info
+from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
-from .metrics import MetricTagType
+from .metrics import MetricTagType  # noqa:F401
 from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType
+from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -128,8 +132,7 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._agent_url, self._endpoint)
 
-    def send_event(self, request):
-        # type: (Dict) -> Optional[httplib.HTTPResponse]
+    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -159,6 +162,35 @@ class _TelemetryClient:
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
         return headers
+
+
+class TelemetryWriterModuleWatchdog(BaseModuleWatchdog):
+    _initial = True
+    _new_imported: Set[str] = set()
+
+    def after_import(self, module: ModuleType) -> None:
+        module_path = origin(module)
+        self._new_imported.add(str(module_path))
+
+    @classmethod
+    def get_new_imports(cls):
+        if cls._initial:
+            try:
+                # On the first call, use sys.modules to cover all imports before we started. This is not
+                # done on __init__ because we want to do this slow operation on the writer's periodic call
+                # and not on instantiation.
+                new_imports = [str(origin(i)) for i in sys.modules.values()]
+            except RuntimeError:
+                new_imports = []
+            finally:
+                # If there is any problem with the above we don't want to repeat this slow process, instead we just
+                # switch to report new dependencies on further calls
+                cls._initial = False
+        else:
+            new_imports = list(cls._new_imported)
+
+        cls._new_imported.clear()
+        return new_imports
 
 
 class TelemetryWriter(PeriodicService):
@@ -195,6 +227,8 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self._imported_dependencies: Dict[str, Distribution] = dict()
+
         self.started = False
         forksafe.register(self._fork_writer)
 
@@ -220,6 +254,9 @@ class TelemetryWriter(PeriodicService):
             return True
 
         self.status = ServiceStatus.RUNNING
+        if config._telemetry_dependency_collection:
+            if not TelemetryWriterModuleWatchdog.is_installed():
+                TelemetryWriterModuleWatchdog.install()
         return True
 
     def disable(self):
@@ -229,6 +266,8 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        if TelemetryWriterModuleWatchdog.is_installed():
+            TelemetryWriterModuleWatchdog.uninstall()
         self.reset_queues()
         if self._is_periodic and self.status is ServiceStatus.RUNNING:
             self.stop()
@@ -290,6 +329,25 @@ class TelemetryWriter(PeriodicService):
             msg = "%s:%s: %s" % (filename, line_number, msg)
         self._error = (code, msg)
 
+    def add_configs_changed(self, cfg_names):
+        cs = [{"name": n, "value": v, "origin": o} for n, v, o in [self._telemetry_entry(n) for n in cfg_names]]
+        self._app_client_configuration_changed_event(cs)
+
+    def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
+        item = config._config[cfg_name]
+        if cfg_name == "_trace_sample_rate":
+            name = "trace_sample_rate"
+            value = str(item.value())
+        elif cfg_name == "logs_injection":
+            name = "logs_injection_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "trace_http_header_tags":
+            name = "trace_header_tags"
+            value = ",".join(":".join(x) for x in item.value().items())
+        else:
+            raise ValueError("Unknown configuration item: %s" % cfg_name)
+        return name, value, item.source()
+
     def _app_started_event(self, register_app_shutdown=True):
         # type: (bool) -> None
         """Sent when TelemetryWriter is enabled or forks"""
@@ -304,6 +362,9 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
+                self._telemetry_entry("_trace_sample_rate"),
+                self._telemetry_entry("logs_injection"),
+                self._telemetry_entry("trace_http_header_tags"),
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
@@ -320,7 +381,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_ENABLED, config._telemetry_enabled, "unknown"),
                 (TELEMETRY_ANALYTICS_ENABLED, config.analytics_enabled, "unknown"),
                 (TELEMETRY_CLIENT_IP_ENABLED, config.client_ip_header, "unknown"),
-                (TELEMETRY_LOGS_INJECTION_ENABLED, config.logs_injection, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED, config._128_bit_trace_id_enabled, "unknown"),
                 (TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED, config._128_bit_trace_id_logging_enabled, "unknown"),
                 (TELEMETRY_TRACE_COMPUTE_STATS, config._trace_compute_stats, "unknown"),
@@ -336,7 +396,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_RUNTIMEMETRICS_ENABLED, config._runtime_metrics_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_ENABLED, config._remote_config_enabled, "unknown"),
                 (TELEMETRY_REMOTE_CONFIGURATION_INTERVAL, config._remote_config_poll_interval, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_RATE, config._trace_sample_rate, "unknown"),
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
@@ -411,6 +470,11 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
+    def _flush_new_imported_dependencies(self) -> List[str]:
+        with self._lock:
+            new_deps = TelemetryWriterModuleWatchdog.get_new_imports()
+        return new_deps
+
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
@@ -427,6 +491,19 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
+    def _update_dependencies_event(self, newly_imported_deps: List[str]):
+        """Adds events to report imports done since the last periodic run"""
+
+        if not config._telemetry_dependency_collection or not self._enabled:
+            return
+
+        with self._lock:
+            packages = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+
+        if packages:
+            payload = {"dependencies": packages}
+            self.add_event(payload, "app-dependencies-loaded")
+
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
         """Creates and queues the name, origin, value of a configuration"""
@@ -441,18 +518,12 @@ class TelemetryWriter(PeriodicService):
         # type: (List[Tuple[str, Union[bool, float, str], str]]) -> None
         """Creates and queues a list of configurations"""
         with self._lock:
-            for name, value, origin in configuration_list:
+            for name, value, _origin in configuration_list:
                 self._configuration_queue[name] = {
                     "name": name,
-                    "origin": origin,
+                    "origin": _origin,
                     "value": value,
                 }
-
-    def _app_dependencies_loaded_event(self):
-        # type: () -> None
-        """Adds a Telemetry event which sends a list of installed python packages to the agent"""
-        payload = {"dependencies": get_dependencies()}
-        self.add_event(payload, "app-dependencies-loaded")
 
     def add_log(self, level, message, stack_trace="", tags=None):
         # type: (str, str, str, Optional[Dict]) -> None
@@ -588,6 +659,11 @@ class TelemetryWriter(PeriodicService):
         configurations = self._flush_configuration_queue()
         if configurations:
             self._app_client_configuration_changed_event(configurations)
+
+        if config._telemetry_dependency_collection:
+            newly_imported_deps = self._flush_new_imported_dependencies()
+            if newly_imported_deps:
+                self._update_dependencies_event(newly_imported_deps)
 
         if not self._events_queue:
             # Optimization: only queue heartbeat if no other events are queued
