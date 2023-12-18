@@ -670,14 +670,15 @@ def test_data_streams_default_context_propagation(dummy_tracer, consumer, produc
 
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
-def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kafka_topic):
+def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
-    test_string = "context test"
+    test_string = "context test no propagation"
+    test_key = "context test key no propagation"
     PAYLOAD = bytes(test_string, encoding="utf-8")
 
-    producer.produce(kafka_topic, PAYLOAD, key="test_key")
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
     message = None
@@ -685,12 +686,16 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
         message = consumer.poll(1.0)
 
     # message comes back with expected test string
-    assert message.value() == b"context test"
+    assert message.value() == b"context test no propagation"
 
+    consume_span = None
     traces = dummy_tracer.pop_traces()
     produce_span = traces[0][0]
-    consume_span1 = traces[1][0]
-    consume_span2 = traces[2][0]
+    for trace in traces:
+        for span in trace:
+            if span.get_tag("kafka.received_message") == "True":
+                if span.get_tag("kafka.message_key") == test_key:
+                    consume_span = span
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
@@ -698,14 +703,81 @@ def test_tracing_context_is_not_propagated(dummy_tracer, consumer, producer, kaf
     assert produce_span.get_tag("pathway.hash") is not None
 
     # None of the kafka.consume spans have parents
-    assert consume_span1.name == "kafka.consume"
-    assert consume_span1.parent_id is None
-    assert consume_span2.name == "kafka.consume"
-    assert consume_span2.parent_id is None
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id is None
 
     # None of these spans are part of the same trace
-    assert produce_span.trace_id != consume_span1.trace_id
-    assert consume_span1.trace_id != consume_span2.trace_id
+    assert produce_span.trace_id != consume_span.trace_id
+
+
+# Propagation should work when enabled
+def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
+    code = """
+import pytest
+import random
+import six
+import sys
+
+from ddtrace import Pin
+from ddtrace.contrib.kafka.patch import patch
+
+from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import kafka_topic
+from tests.contrib.kafka.test_kafka import producer
+from tests.contrib.kafka.test_kafka import tracer
+from tests.utils import DummyTracer
+
+def test(consumer, producer, kafka_topic):
+    patch()
+    dummy_tracer = DummyTracer()
+    dummy_tracer.flush()
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    # use a random int in this string to prevent reading a message produced by a previous test run
+    test_string = "context propagation enabled test " + str(random.randint(0, 1000))
+    test_key = "context propagation key " + str(random.randint(0, 1000))
+    PAYLOAD = bytes(test_string, encoding="utf-8") if six.PY3 else bytes(test_string)
+
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    consume_span = None
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    for trace in traces:
+        for span in trace:
+            if span.get_tag('kafka.received_message') == 'True':
+                if span.get_tag('kafka.message_key') == test_key:
+                    consume_span = span
+                    break
+
+    assert str(message.value()) == str(PAYLOAD)
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+
+    # kafka.consume span has a parent
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id == produce_span.span_id
+
+    # Two of these spans are part of the same trace
+    assert produce_span.trace_id == consume_span.trace_id
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+
+    env = os.environ.copy()
+    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode() + err.decode()
+    assert err == b"", err.decode()
 
 
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
@@ -793,3 +865,105 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     # consumer span will not have tag set since we can't serialize the deserialized key from the original type to
     # a string
     assert consume_span.get_tag("kafka.message_key") is None
+
+
+def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    message = "hello"
+    while message is not None:
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "False"
+                empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert empty_poll_span_created is True
+
+
+# Poll should not be traced when disabled
+def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess):
+    code = """
+import pytest
+import random
+import six
+import sys
+
+from ddtrace import Pin
+from ddtrace.contrib.kafka.patch import patch
+from ddtrace import config
+
+from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import kafka_topic
+from tests.contrib.kafka.test_kafka import producer
+from tests.contrib.kafka.test_kafka import tracer
+from tests.utils import DummyTracer
+
+def test(consumer, producer, kafka_topic):
+    patch()
+    dummy_tracer = DummyTracer()
+    dummy_tracer.flush()
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    assert config.kafka.trace_empty_poll_enabled is False
+
+    message = "hello"
+    while message is not None:
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "False"
+                empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert empty_poll_span_created is False
+
+    # produce a message now and ensure tracing for the consume works
+    test_string = "empty poll disabled test"
+    PAYLOAD = bytes(test_string, encoding="utf-8")
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_empty_poll_disabled")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    non_empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "True"
+                non_empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert non_empty_poll_span_created is True
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode() + err.decode()
+    assert err == b"", err.decode()
