@@ -17,9 +17,6 @@ Note: Coverage.py instrumentation is only enabled if `pytest` or `unittest` inst
 """
 from ...internal.logger import get_logger
 from ...internal.utils.importlib import require_modules
-from .patch import get_version
-from .patch import patch
-from .patch import unpatch
 
 
 required_modules = ["coverage"]
@@ -28,4 +25,8 @@ log = get_logger(__name__)
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import get_version
+        from .patch import patch
+        from .patch import unpatch
+
         __all__ = ["patch", "unpatch", "get_version"]
