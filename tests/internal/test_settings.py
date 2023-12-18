@@ -32,6 +32,13 @@ def _base_rc_config(cfg):
     }
 
 
+def _deleted_rc_config():
+    return {
+        "metadata": [],
+        "config": [False],
+    }
+
+
 @pytest.mark.parametrize(
     "testcase",
     [
@@ -125,7 +132,7 @@ def test_remoteconfig_sampling_rate_user(run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 from ddtrace.sampler import DatadogSampler
-from tests.internal.test_settings import _base_rc_config
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
     pass
@@ -153,6 +160,16 @@ with tracer.trace("test") as span:
 assert span.get_metric("_dd.rule_psr") == 0.4
 
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": None}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.4}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.4
+
+config._handle_remoteconfig(_deleted_rc_config())
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
