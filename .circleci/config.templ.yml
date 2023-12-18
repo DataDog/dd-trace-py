@@ -902,9 +902,6 @@ jobs:
 
   pytest:
     <<: *machine_executor
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
     steps:
       - run_test:
           pattern: 'pytest'
