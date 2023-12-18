@@ -1112,6 +1112,26 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
 
     @mock_kinesis
+    def test_kinesis_distributed_tracing_on(self):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
+            # dict -> json string
+            data = json.dumps({"json": "string"})
+
+            self._test_kinesis_put_record_trace_injection("json_string", data)
+
+            spans = self.get_spans()
+            assert spans
+
+            for span in spans:
+                if span.get_tag("aws.operation") == "PutRecord":
+                    produce_span = span
+                elif span.get_tag("aws.operation") == "GetRecords":
+                    consume_span = span
+
+            assert consume_span.parent_id == produce_span.span_id
+            assert consume_span.trace_id == produce_span.trace_id
+
+    @mock_kinesis
     def test_unpatch(self):
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(kinesis)
