@@ -40,7 +40,7 @@ def _initialize_coverage(root_dir):
             "*/site-packages/*",
         ],
     }
-    current_coverage_object = coverage.Coverage.current()
+    current_coverage_object = Coverage.current()
     if current_coverage_object:
         return current_coverage_object
     cov_object = Coverage(**coverage_kwargs)
