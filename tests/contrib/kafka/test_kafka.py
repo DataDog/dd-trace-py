@@ -899,6 +899,7 @@ import sys
 
 from ddtrace import Pin
 from ddtrace.contrib.kafka.patch import patch
+from ddtrace import config
 
 from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
@@ -912,6 +913,8 @@ def test(consumer, producer, kafka_topic):
     dummy_tracer.flush()
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
+
+    assert config.kafka.trace_empty_poll_enabled is False
 
     message = "hello"
     while message is not None:
@@ -960,7 +963,7 @@ if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
     env = os.environ.copy()
-    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "false"
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
     assert err == b"", err.decode()
