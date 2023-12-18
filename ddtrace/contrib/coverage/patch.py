@@ -1,11 +1,7 @@
-import os
-from typing import List
-
 import coverage
 
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
-from ddtrace.contrib.coverage.data import _original_sys_argv_command
 from ddtrace.contrib.coverage.utils import is_coverage_imported
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -58,17 +54,3 @@ def run_coverage_report():
         _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
     except Exception:
         log.warning("An exception occurred when running a coverage report")
-
-
-def _is_coverage_patched():
-    return hasattr(coverage, "_datadog_patch") and coverage._datadog_patch
-
-
-def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
-    return "coverage run -m" in " ".join(sys_argv_command)
-
-
-def _is_coverage_invoked_by_coverage_run() -> bool:
-    if os.environ.get("COVERAGE_RUN", False):
-        return True
-    return _command_invokes_coverage_run(_original_sys_argv_command)
