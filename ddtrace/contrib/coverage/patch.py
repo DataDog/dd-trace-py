@@ -1,6 +1,6 @@
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
-from ddtrace.contrib.coverage.utils import is_coverage_imported
+from ddtrace.contrib.coverage.utils import is_coverage_loaded
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
@@ -24,7 +24,7 @@ def patch():
     """
     Patch the instrumented methods from Coverage.py
     """
-    if getattr(coverage, "_datadog_patch", False) or not is_coverage_imported():
+    if getattr(coverage, "_datadog_patch", False) or not is_coverage_loaded():
         return
 
     coverage._datadog_patch = True
@@ -38,7 +38,7 @@ def unpatch():
     """
     Undo patched instrumented methods from Coverage.py
     """
-    if not getattr(coverage, "_datadog_patch", False) or not is_coverage_imported():
+    if not getattr(coverage, "_datadog_patch", False) or not is_coverage_loaded():
         return
 
     _u(coverage.Coverage, "report")
@@ -53,7 +53,7 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
 
 
 def run_coverage_report():
-    if not is_coverage_imported():
+    if not is_coverage_loaded():
         return
     try:
         current_coverage_object = coverage.Coverage.current()
