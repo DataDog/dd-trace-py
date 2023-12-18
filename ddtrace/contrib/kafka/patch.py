@@ -42,7 +42,8 @@ config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_DISTRIBUTED_TRACING_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 
@@ -210,49 +211,55 @@ def traced_poll(func, instance, args, kwargs):
     ctx = None
     if message and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
-    with pin.tracer.start_span(
-        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        service=trace_utils.ext_service(pin, config.kafka),
-        span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
-        activate=True,
-    ) as span:
-        # reset span start time to before function call
-        span.start_ns = start_ns
+    if message or config.trace_empty_poll_enabled:
+        with pin.tracer.start_span(
+            name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+            service=trace_utils.ext_service(pin, config.kafka),
+            span_type=SpanTypes.WORKER,
+            child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+            activate=True,
+        ) as span:
+            # reset span start time to before function call
+            span.start_ns = start_ns
 
-        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-        span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
-        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
-        if message is not None:
-            core.set_item("kafka_topic", message.topic())
-            core.dispatch("kafka.consume.start", (instance, message, span))
+            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+            span.set_tag_str(COMPONENT, config.kafka.integration_name)
+            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+            span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
+            span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+            if message is not None:
+                core.set_item("kafka_topic", message.topic())
+                core.dispatch("kafka.consume.start", (instance, message, span))
 
-            message_key = message.key() or ""
-            message_offset = message.offset() or -1
-            span.set_tag_str(kafkax.TOPIC, message.topic())
+                message_key = message.key() or ""
+                message_offset = message.offset() or -1
+                span.set_tag_str(kafkax.TOPIC, message.topic())
 
-            # If this is a deserializing consumer, do not set the key as a tag since we
-            # do not have the serialization function
-            if (
-                (_DeserializingConsumer is not None and not isinstance(instance, _DeserializingConsumer))
-                or isinstance(message_key, str)
-                or isinstance(message_key, bytes)
-            ):
-                span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
-            span.set_tag(kafkax.PARTITION, message.partition())
-            span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
-            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span.set_tag(SPAN_MEASURED_KEY)
-        rate = config.kafka.get_analytics_sample_rate()
-        if rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+                # If this is a deserializing consumer, do not set the key as a tag since we
+                # do not have the serialization function
+                if (
+                    (_DeserializingConsumer is not None and not isinstance(instance, _DeserializingConsumer))
+                    or isinstance(message_key, str)
+                    or isinstance(message_key, bytes)
+                ):
+                    span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+                span.set_tag(kafkax.PARTITION, message.partition())
+                span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
+                span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+            span.set_tag(SPAN_MEASURED_KEY)
+            rate = config.kafka.get_analytics_sample_rate()
+            if rate is not None:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-        # raise exception if one was encountered
+            # raise exception if one was encountered
+            if err is not None:
+                raise err
+            return message
+    else:
         if err is not None:
             raise err
-        return message
+        else:
+            return message
 
 
 def traced_commit(func, instance, args, kwargs):

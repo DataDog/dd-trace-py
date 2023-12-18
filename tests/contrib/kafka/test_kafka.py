@@ -774,7 +774,7 @@ if __name__ == "__main__":
     """
 
     env = os.environ.copy()
-    env["DD_KAFKA_DISTRIBUTED_TRACING_ENABLED"] = "true"
+    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
     assert err == b"", err.decode()
@@ -865,3 +865,102 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     # consumer span will not have tag set since we can't serialize the deserialized key from the original type to
     # a string
     assert consume_span.get_tag("kafka.message_key") is None
+
+
+def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    message = "hello"
+    while message is not None:
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "False"
+                empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert empty_poll_span_created is True
+
+
+# Poll should not be traced when disabled
+def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess):
+    code = """
+import pytest
+import random
+import six
+import sys
+
+from ddtrace import Pin
+from ddtrace.contrib.kafka.patch import patch
+
+from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import kafka_topic
+from tests.contrib.kafka.test_kafka import producer
+from tests.contrib.kafka.test_kafka import tracer
+from tests.utils import DummyTracer
+
+def test(consumer, producer, kafka_topic):
+    patch()
+    dummy_tracer = DummyTracer()
+    dummy_tracer.flush()
+    Pin.override(producer, tracer=dummy_tracer)
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    message = "hello"
+    while message is not None:
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "False"
+                empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert empty_poll_span_created is False
+
+    # produce a message now and ensure tracing for the consume works
+    test_string = "empty poll disabled test"
+    PAYLOAD = bytes(test_string, encoding="utf-8")
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_empty_poll_disabled")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll(1.0)
+
+    traces = dummy_tracer.pop_traces()
+
+    non_empty_poll_span_created = False
+    for trace in traces:
+        for span in trace:
+            try:
+                assert span.name == "kafka.consume"
+                assert span.get_tag("kafka.received_message") == "True"
+                non_empty_poll_span_created = True
+            except AssertionError:
+                pass
+
+    assert non_empty_poll_span_created is True
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+    env = os.environ.copy()
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode() + err.decode()
+    assert err == b"", err.decode()
