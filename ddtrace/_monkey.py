@@ -75,7 +75,6 @@ PATCH_MODULES = {
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": True,
-    "pylons": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logbook": config.logs_injection,

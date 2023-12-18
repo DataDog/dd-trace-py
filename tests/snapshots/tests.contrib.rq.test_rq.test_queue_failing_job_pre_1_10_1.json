@@ -39,6 +39,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
        "error": 1,
        "meta": {
          "_dd.base_service": "",
