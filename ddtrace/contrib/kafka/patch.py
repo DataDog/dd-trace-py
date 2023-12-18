@@ -156,7 +156,7 @@ def traced_produce(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        core.dispatch("kafka.produce.start", [instance, args, kwargs, isinstance(instance, _SerializingProducer), span])
+        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -198,7 +198,7 @@ def traced_poll(func, instance, args, kwargs):
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
         if message is not None:
             core.set_item("kafka_topic", message.topic())
-            core.dispatch("kafka.consume.start", [instance, message, span])
+            core.dispatch("kafka.consume.start", (instance, message, span))
 
             message_key = message.key() or ""
             message_offset = message.offset() or -1
@@ -227,7 +227,7 @@ def traced_commit(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    core.dispatch("kafka.commit.start", [instance, args, kwargs])
+    core.dispatch("kafka.commit.start", (instance, args, kwargs))
 
     return func(*args, **kwargs)
 

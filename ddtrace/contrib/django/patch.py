@@ -204,7 +204,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
                     rowcount = 1
             except (AttributeError, NotImplementedError, ValueError):
                 pass
-        core.dispatch("django.cache", ctx, rowcount)
+        core.dispatch("django.cache", (ctx, rowcount))
         return result
 
 
@@ -288,11 +288,13 @@ def traced_func(django, name, resource=None, ignored_excs=None):
         ) as ctx, ctx["call"]:
             core.dispatch(
                 "django.func.wrapped",
-                args,
-                kwargs,
-                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
-                ctx,
-                ignored_excs,
+                (
+                    args,
+                    kwargs,
+                    django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                    ctx,
+                    ignored_excs,
+                ),
             )
             return func(*args, **kwargs)
 
@@ -307,7 +309,7 @@ def traced_process_exception(django, name, resource=None):
         ) as ctx, ctx["call"]:
             resp = func(*args, **kwargs)
             core.dispatch(
-                "django.process_exception", ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600
+                "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
             )
             return resp
 
@@ -401,7 +403,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
         log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
-    core.dispatch("django.block_request_callback", ctx, metadata, config.django, url, query)
+    core.dispatch("django.block_request_callback", (ctx, metadata, config.django, url, query))
 
 
 def _block_request_callable(request, request_headers, ctx: core.ExecutionContext):
@@ -449,10 +451,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     ) as ctx, ctx.get_item("call"):
         core.dispatch(
             "django.traced_get_response.pre",
-            functools.partial(_block_request_callable, request, request_headers, ctx),
-            ctx,
-            request,
-            utils._before_request_tags,
+            (
+                functools.partial(_block_request_callable, request, request_headers, ctx),
+                ctx,
+                request,
+                utils._before_request_tags,
+            ),
         )
 
         response = None
@@ -496,8 +500,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 except Exception:
                     path = None
 
-            core.dispatch("django.start_response", ctx, request, utils._extract_body, query, uri, path)
-            core.dispatch("django.start_response.post", "Django")
+            core.dispatch("django.start_response", (ctx, request, utils._extract_body, query, uri, path))
+            core.dispatch("django.start_response.post", ("Django",))
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -511,9 +515,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             return response
         finally:
-            core.dispatch("django.finalize_response.pre", ctx, utils._after_request_tags, request, response)
+            core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not core.get_item(HTTP_REQUEST_BLOCKED):
-                core.dispatch("django.finalize_response", "Django")
+                core.dispatch("django.finalize_response", ("Django",))
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     response = blocked_response()
                     return response  # noqa: B012
@@ -691,11 +695,13 @@ def traced_login(django, pin, func, instance, args, kwargs):
 
         core.dispatch(
             "django.login",
-            pin,
-            request,
-            user,
-            mode,
-            _DjangoUserInfoRetriever(user),
+            (
+                pin,
+                request,
+                user,
+                mode,
+                _DjangoUserInfoRetriever(user),
+            ),
         )
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
@@ -709,16 +715,18 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         if mode == "disabled":
             return result_user
 
-        result = core.dispatch(
+        result = core.dispatch_with_results(
             "django.auth",
-            result_user,
-            mode,
-            kwargs,
-            pin,
-            _DjangoUserInfoRetriever(result_user),
-        )[0]
-        if result and result[0][0]:
-            return result[0][1]
+            (
+                result_user,
+                mode,
+                kwargs,
+                pin,
+                _DjangoUserInfoRetriever(result_user),
+            ),
+        ).user
+        if result and result.value[0]:
+            return result.value[1]
 
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
@@ -760,7 +768,7 @@ def _patch(django):
         )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
-    core.dispatch("django.patch", [])
+    core.dispatch("django.patch", ())
 
     @when_imported("django.core.handlers.base")
     def _(m):
@@ -814,7 +822,7 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    return core.dispatch("django.wsgi_environ", wrapped, _instance, args, kwargs)[0][0]
+    return core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result.value
 
 
 def patch():
