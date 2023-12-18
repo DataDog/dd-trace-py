@@ -317,7 +317,7 @@ class DDExpressionEvaluationError(Exception):
     """Thrown when an error occurs while evaluating a dsl expression."""
 
     def __init__(self, dsl, e):
-        super(DDExpressionEvaluationError, self).__init__('Failed to evaluate expression "%s": %s' % (dsl, str(e)))
+        super().__init__('Failed to evaluate expression "%s": %s' % (dsl, str(e)))
         self.dsl = dsl
         self.error = str(e)
 
