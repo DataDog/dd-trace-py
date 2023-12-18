@@ -6,8 +6,6 @@ import collections
 from datetime import datetime
 import json
 import os
-from typing import Any
-from typing import Dict
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
@@ -18,7 +16,7 @@ from botocore import __version__
 import botocore.client
 import botocore.exceptions
 
-from ddtrace import Span
+from ddtrace import Span  # noqa:F401
 from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
