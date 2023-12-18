@@ -6,6 +6,8 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+import coverage
+
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
@@ -14,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
+_own_coverage = False
 
 try:
     from coverage import Coverage
@@ -39,19 +42,24 @@ def _initialize_coverage(root_dir):
             "*/site-packages/*",
         ],
     }
+    current_coverage_object = coverage.Coverage.current()
+    if current_coverage_object:
+        return current_coverage_object
     cov_object = Coverage(**coverage_kwargs)
     cov_object.set_option("run:parallel", True)
+    _own_coverage = True
     return cov_object
 
 
 def _start_coverage(root_dir: str):
     coverage = _initialize_coverage(root_dir)
-    coverage.start()
+    if _own_coverage:
+        coverage.start()
     return coverage
 
 
 def _stop_coverage(module):
-    if _module_has_dd_coverage_enabled(module):
+    if _module_has_dd_coverage_enabled(module) and _own_coverage:
         module._dd_coverage.stop()
         module._dd_coverage.erase()
         del module._dd_coverage
@@ -76,7 +84,8 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
-    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    if _own_coverage:
+        coverage_data._collector.data.clear()  # type: ignore[union-attr]
     coverage_data.switch_context(unique_test_name)
 
 
@@ -88,7 +97,8 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )
-    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    if _own_coverage:
+        coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
 def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
