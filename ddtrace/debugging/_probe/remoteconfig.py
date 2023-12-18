@@ -262,7 +262,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     """
 
     def __init__(self, data_connector, callback, name, status_logger):
-        super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
+        super().__init__(data_connector, callback, name)
         self._configs: Dict[str, Dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(
             time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval

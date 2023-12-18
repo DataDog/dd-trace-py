@@ -1,29 +1,38 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "6567512a00000000",
       "component": "openai",
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/completions",
+      "openai.request.max_tokens": "10",
       "openai.request.method": "POST",
       "openai.request.model": "ada",
-      "openai.request.prompt": "hello world",
+      "openai.request.n": "2",
+      "openai.request.prompt.0": "Hello world",
+      "openai.request.stop": ".",
+      "openai.request.temperature": "0.8",
+      "openai.request.user": "ddtrace-test",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.text": ", relax!\u201d I said to my laptop",
       "openai.response.choices.1.finish_reason": "stop",
       "openai.response.choices.1.text": " (1",
+      "openai.response.created": "1681852797",
       "openai.response.id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
       "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "6f03f0bc95ac448090f8c53ad6839f51"
+      "runtime-id": "0df8b1821db8449bb0331476cea74166"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -33,10 +42,8 @@
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.remaining": 249979,
-      "openai.response.choices_count": 2,
-      "openai.response.created": 1681852797,
-      "process_id": 7659
+      "process_id": 24448
     },
-    "duration": 4815329,
-    "start": 1694032218130832219
+    "duration": 17466000,
+    "start": 1701269802293573000
   }]]

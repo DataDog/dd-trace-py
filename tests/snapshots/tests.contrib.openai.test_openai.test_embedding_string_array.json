@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createEmbedding",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -33,8 +35,7 @@
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.remaining": 999994,
-      "openai.response.embeddings.0.embedding-length": 1536,
-      "openai.response.embeddings.1.embedding-length": 1536,
+      "openai.response.embedding-length": 1536,
       "openai.response.embeddings_count": 2,
       "openai.response.usage.prompt_tokens": 4,
       "openai.response.usage.total_tokens": 4,

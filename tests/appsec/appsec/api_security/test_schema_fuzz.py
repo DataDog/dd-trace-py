@@ -1,5 +1,4 @@
 import json
-import sys
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -11,7 +10,7 @@ import ddtrace.appsec._ddwaf as ddwaf
 
 def build_schema(obj):
     rules = {}
-    with open(constants.DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
+    with open(constants.DEFAULT.RULES, "r") as f_apisec:
         rules.update(json.load(f_apisec))
     waf = ddwaf.DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()
@@ -81,7 +80,6 @@ def deep_build_schema(n, mini=0):
     return [{str(n): deep_build_schema(n - 1, mini)}]
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
 @pytest.mark.parametrize(
     "obj, res",
     [
@@ -114,7 +112,6 @@ def test_limits(obj, res):
     assert equal_with_meta(schema, res)  # max_depth=18, max_girth=255, max_types_in_array=10
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="dict iteration order is different in python <= 3.5")
 @pytest.mark.parametrize(
     "obj, res",
     [

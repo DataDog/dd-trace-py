@@ -2,7 +2,6 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -340,4 +339,4 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
 
 core.on("django.login", _on_django_login)
-core.on("django.auth", _on_django_auth)
+core.on("django.auth", _on_django_auth, "user")

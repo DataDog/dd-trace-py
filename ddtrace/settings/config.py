@@ -3,12 +3,13 @@ import multiprocessing
 import os
 import re
 import sys
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
@@ -28,6 +29,7 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -36,7 +38,7 @@ from .integration import IntegrationConfig
 
 
 if sys.version_info >= (3, 8):
-    from typing import Literal
+    from typing import Literal  # noqa:F401
 else:
     from typing_extensions import Literal
 
@@ -191,27 +193,47 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-ConfigSource = Literal["default", "env", "code"]
+_ConfigSource = Literal["default", "env_var", "code", "remote_config"]
+_JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
+        # type: (str, _JSONType, List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
         self._default_value = default
-        self._env_value = None
-        self._code_value = None
+        self._env_value: _JSONType = None
+        self._code_value: _JSONType = None
+        self._rc_value: _JSONType = None
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
                 self._env_value = parser(os.environ[env_var])
                 break
 
+    def set_value_source(self, value, source):
+        # type: (Any, _ConfigSource) -> None
+        if source == "code":
+            self._code_value = value
+        elif source == "remote_config":
+            self._rc_value = value
+        else:
+            raise ValueError("Invalid source: {}".format(source))
+
     def set_code(self, value):
+        # type: (_JSONType) -> None
         self._code_value = value
 
+    def unset_rc(self):
+        # type: () -> None
+        self._rc_value = None
+
     def value(self):
+        # type: () -> _JSONType
+        if self._rc_value is not None:
+            return self._rc_value
         if self._code_value is not None:
             return self._code_value
         if self._env_value is not None:
@@ -219,20 +241,23 @@ class _ConfigItem:
         return self._default_value
 
     def source(self):
-        # type: () -> ConfigSource
+        # type: () -> _ConfigSource
+        if self._rc_value is not None:
+            return "remote_config"
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
-            return "env"
+            return "env_var"
         return "default"
 
     def __repr__(self):
-        return "<{} name={} default={} env_value={} user_value={}>".format(
+        return "<{} name={} default={} env_value={} user_value={} remote_config_value={}>".format(
             self.__class__.__name__,
             self._name,
             self._default_value,
             self._env_value,
             self._code_value,
+            self._rc_value,
         )
 
 
@@ -264,9 +289,11 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
-        512
-    )  # type: multiprocessing.Queue
+    _extra_services_queue = (
+        None
+        if in_aws_lambda()
+        else multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)
+    )  # type: multiprocessing.Queue | None
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -369,6 +396,10 @@ class Config(object):
         # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
         self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
+        self.propagation_http_baggage_enabled = asbool(
+            os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
+        )
+
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
 
@@ -399,6 +430,7 @@ class Config(object):
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
         self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+        self._telemetry_dependency_collection = asbool(os.getenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True))
 
         self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
@@ -490,6 +522,8 @@ class Config(object):
         return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
+        if self._extra_services_queue is None:
+            return
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
@@ -498,7 +532,8 @@ class Config(object):
 
     def _get_extra_services(self):
         # type: () -> set[str]
-
+        if self._extra_services_queue is None:
+            return set()
         try:
             while True:
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
@@ -611,11 +646,22 @@ class Config(object):
         if key == "_config":
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._config[key].set_code(value)
-            self._notify_subscribers([key])
+            self._set_config_items([(key, value, "code")])
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
+
+    def _set_config_items(self, items):
+        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
+        item_names = []
+        for key, value, origin in items:
+            item_names.append(key)
+            self._config[key].set_value_source(value, origin)
+
+        from ..internal.telemetry import telemetry_writer
+
+        telemetry_writer.add_configs_changed(item_names)
+        self._notify_subscribers(item_names)
 
     def _reset(self):
         # type: () -> None
@@ -624,3 +670,50 @@ class Config(object):
     def _get_source(self, item):
         # type: (str) -> str
         return self._config[item].source()
+
+    def _remoteconfigPubSub(self):
+        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+        from ddtrace.internal.remoteconfig._pubsub import PubSub
+        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
+
+        class _GlobalConfigPubSub(PubSub):
+            __publisher_class__ = RemoteConfigPublisher
+            __subscriber_class__ = RemoteConfigSubscriber
+            __shared_data__ = PublisherSubscriberConnector()
+
+            def __init__(self, callback):
+                self._publisher = self.__publisher_class__(self.__shared_data__, None)
+                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "GlobalConfig")
+
+        return _GlobalConfigPubSub
+
+    def _handle_remoteconfig(self, data, test_tracer=None):
+        # type: (Any, Any) -> None
+        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
+            log.warning("unexpected RC payload %r", data)
+            return
+        if len(data["config"]) == 0:
+            log.warning("unexpected number of RC payloads %r", data)
+            return
+
+        # If no data is submitted then the RC config has been deleted. Revert the settings.
+        config = data["config"][0]
+        updated_items = []  # type: List[Tuple[str, Any]]
+
+        if not config:
+            for item in self._config:
+                updated_items.append((item, None))
+        else:
+            lib_config = config["lib_config"]
+            if "tracing_sampling_rate" in lib_config:
+                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+
+        self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
+
+    def enable_remote_configuration(self):
+        # type: () -> None
+        """Enable fetching configuration from Datadog."""
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))

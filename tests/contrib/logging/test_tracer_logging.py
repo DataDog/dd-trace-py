@@ -3,8 +3,6 @@ import re
 
 import pytest
 
-from ddtrace.internal.compat import PY2
-
 
 # example: '2022-06-10 21:49:26,010 CRITICAL [ddtrace] [test.py:15] - ddtrace critical log\n'
 LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
@@ -36,15 +34,9 @@ def assert_file_logging(expected_log, out, err, dd_trace_debug, dd_log_path):
     if dd_log_path is not None:
         assert out == b""
 
-        if PY2 and dd_trace_debug == "true":
-            assert 'No handlers could be found for logger "ddtrace' in err
-
         assert_file_contains_log(dd_log_path)
     else:
-        if PY2:
-            assert 'No handlers could be found for logger "ddtrace' in err
-        else:
-            assert expected_log in err
+        assert expected_log in err
         assert out == b""
 
 
@@ -180,12 +172,9 @@ ddtrace_logger.warning('ddtrace warning log')
         assert out == b""
 
     else:
-        if PY2:
-            assert 'No handlers could be found for logger "ddtrace' in err
-        else:
-            assert b"ddtrace warning log" in err
-            if dd_trace_debug == "true":
-                assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
+        assert b"ddtrace warning log" in err
+        if dd_trace_debug == "true":
+            assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
 
 
 def test_logs_with_basicConfig(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
@@ -362,9 +351,6 @@ for attempt in range(100):
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
 
-    if PY2:
-        assert 'No handlers could be found for logger "ddtrace' in err
-
     assert out == b""
 
     assert_log_files(tmpdir.strpath, "testlog.log", 2)
@@ -391,10 +377,7 @@ for attempt in range(100):
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err.decode()
 
-    if PY2:
-        assert 'No handlers could be found for logger "ddtrace' in err
-    else:
-        assert "program executable" in str(err)  # comes from ddtrace-run debug logging
+    assert "program executable" in str(err)  # comes from ddtrace-run debug logging
 
     assert out == b""
 

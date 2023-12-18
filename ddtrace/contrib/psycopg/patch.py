@@ -1,7 +1,7 @@
 from importlib import import_module
 import inspect
 import os
-from typing import List
+from typing import List  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
@@ -39,7 +39,8 @@ try:
     # using unwrap
     _original_connect = psycopg_import.Connection.__dict__["connect"]
     _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-except ImportError:
+# AttributeError can happen due to circular imports under certain integration methods
+except (ImportError, AttributeError):
     pass
 
 

@@ -6,7 +6,6 @@ from unittest.case import SkipTest
 
 import mock
 import pytest
-import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -23,7 +22,6 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -95,6 +93,23 @@ class SpanTestCase(TracerTestCase):
 
         assert s.get_tags() == dict(true="True", false="False")
         assert len(s.get_metrics()) == 0
+
+    def test_set_baggage_item(self):
+        s = Span(name="test.span")
+        s._set_baggage_item("custom.key", "123")
+        assert s._get_baggage_item("custom.key") == "123"
+
+    def test_baggage_propagation(self):
+        span1 = Span(name="test.span1")
+        span1._set_baggage_item("item1", "123")
+
+        span2 = Span(name="test.span2", context=span1.context)
+        span2._set_baggage_item("item2", "456")
+
+        assert span2._get_baggage_item("item1") == "123"
+        assert span2._get_baggage_item("item2") == "456"
+        assert span1._get_baggage_item("item1") == "123"
+        assert span1._get_baggage_item("item2") is None
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
@@ -365,6 +380,15 @@ class SpanTestCase(TracerTestCase):
             )
         ]
 
+    # span links cannot have a span_id or trace_id value of 0 or less
+    def test_span_links_error_with_id_0(self):
+        with pytest.raises(ValueError) as exc_trace:
+            SpanLink(span_id=1, trace_id=0)
+        with pytest.raises(ValueError) as exc_span:
+            SpanLink(span_id=0, trace_id=1)
+        assert str(exc_span.value) == "span_id must be > 0. Value is 0"
+        assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
+
 
 @pytest.mark.parametrize(
     "value,assertion",
@@ -611,7 +635,7 @@ def test_span_pprint():
     assert "resource='r'" in actual
     assert "type='web'" in actual
     assert "error=0" in actual
-    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
+    assert "tags={'t': 'v'}" in actual
     assert "metrics={'m': 1.0}" in actual
     assert re.search("id=[0-9]+", actual) is not None
     assert re.search("trace_id=[0-9]+", actual) is not None
@@ -633,7 +657,7 @@ def test_span_pprint():
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag("😌", "😌")
     actual = root._pprint()
-    assert ("tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+    assert "tags={'😌': '😌'}" in actual
 
     root = Span("test.span", service=object())
     actual = root._pprint()
@@ -678,7 +702,3 @@ def test_set_exc_info_with_unicode():
 
     exception_span = get_exception_span(Exception("DataDog/水"))
     assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
-
-    if six.PY3:
-        exception_span = get_exception_span(Exception("DataDog/水"))
-        assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)

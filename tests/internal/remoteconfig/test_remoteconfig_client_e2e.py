@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import sys
 
 import mock
 from mock.mock import ANY
-import pytest
 
 from ddtrace.appsec._remoteconfiguration import AppSecRC
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
@@ -20,6 +18,7 @@ from tests.utils import override_global_config
 
 def _expected_payload(
     rc_client,
+    capabilities="EAA=",
     has_errors=False,
     targets_version=0,
     backend_client_state=None,
@@ -52,7 +51,7 @@ def _expected_payload(
                 "config_states": config_states,
                 "has_error": has_errors,
             },
-            "capabilities": "Ag==",
+            "capabilities": capabilities,
         },
         "cached_target_files": cached_target_files,
     }
@@ -80,9 +79,8 @@ def _assert_response(mock_send_request, expected_response):
     assert response == expected_response
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
 def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request):
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -793,7 +791,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.internal.remoteconfig.client._appsec_rc_capabilities")
+@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
 def test_remote_config_client_callback_error(
     mock_appsec_rc_capabilities,
     mock_send_request,

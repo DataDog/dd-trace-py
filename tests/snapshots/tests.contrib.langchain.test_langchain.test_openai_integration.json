@@ -1,14 +1,16 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.llms.openai.OpenAI",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "656758d100000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "text-davinci-003",
       "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -26,7 +28,7 @@
       "langchain.response.completions.0.logprobs": "None",
       "langchain.response.completions.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
       "language": "python",
-      "runtime-id": "dd1ab4555d30455fb57e18d939d0a323"
+      "runtime-id": "6c46774a35e24435b83c273cfa16ce82"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -38,20 +40,21 @@
       "langchain.tokens.prompt_tokens": 17,
       "langchain.tokens.total_cost": 0.0022400000000000002,
       "langchain.tokens.total_tokens": 112,
-      "process_id": 13667
+      "process_id": 52422
     },
-    "duration": 4751563,
-    "start": 1694032720314675533
+    "duration": 20264000,
+    "start": 1701271761974560000
   },
      {
        "name": "openai.request",
-       "service": null,
+       "service": "",
        "resource": "createCompletion",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
-         "_dd.p.tid": "654a694400000000",
          "component": "openai",
          "openai.api_base": "https://api.openai.com/v1",
          "openai.api_type": "open_ai",
@@ -68,6 +71,7 @@
          "openai.request.top_p": "1",
          "openai.response.choices.0.finish_reason": "stop",
          "openai.response.choices.0.text": "\\n\\nDescartes' famous phrase \"I think, therefore I am\" is a fundamental statement of his philosophical approach, known as Cartes...",
+         "openai.response.created": "1687283761",
          "openai.response.id": "cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP",
          "openai.response.model": "text-davinci-003",
          "openai.user.api_key": "sk-...key>"
@@ -76,24 +80,22 @@
          "_dd.measured": 1,
          "_sample_rate": 1.0,
          "openai.organization.ratelimit.requests.remaining": 2999,
-         "openai.organization.ratelimit.tokens.remaining": 249744,
-         "openai.response.choices_count": 1,
-         "openai.response.created": 1687283761
+         "openai.organization.ratelimit.tokens.remaining": 249744
        },
-       "duration": 4302935,
-       "start": 1694032720314960560
+       "duration": 19788000,
+       "start": 1701271761974762000
      },
         {
           "name": "requests.request",
           "service": "openai",
-          "resource": "requests.request",
+          "resource": "POST /v1/completions",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
           "type": "http",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
             "component": "requests",
             "http.method": "POST",
             "http.status_code": "200",
@@ -106,6 +108,6 @@
             "_dd.measured": 1,
             "_dd.top_level": 1
           },
-          "duration": 1947594,
-          "start": 1694032720316658602
+          "duration": 2468000,
+          "start": 1701271761990731000
         }]]

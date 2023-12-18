@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createFineTune",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -27,6 +29,7 @@
       "openai.request.suffix": "dummy-fine-tune-model",
       "openai.request.training_file": "file-llDq0Q9la7EBTScAowIotxxc",
       "openai.request.validation_file": "NOT_GIVEN",
+      "openai.response.created_at": "1685662822",
       "openai.response.fine_tuned_model": "None",
       "openai.response.hyperparams.batch_size": "5",
       "openai.response.hyperparams.learning_rate_multiplier": "0.05",
@@ -35,6 +38,7 @@
       "openai.response.id": "ft-vDSkQPyS15HrnjmJ2Xwwb0wi",
       "openai.response.model": "babbage",
       "openai.response.status": "pending",
+      "openai.response.updated_at": "1685662822",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "e3412e4f1afe4767a615b30fc1c0f91d"
     },
@@ -44,11 +48,9 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.request.classification_betas_count": 0,
-      "openai.response.created_at": 1685662822,
       "openai.response.events_count": 1,
       "openai.response.result_files_count": 0,
       "openai.response.training_files_count": 1,
-      "openai.response.updated_at": 1685662822,
       "openai.response.validation_files_count": 0,
       "process_id": 7557
     },

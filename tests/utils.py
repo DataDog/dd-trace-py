@@ -7,7 +7,8 @@ import os
 import subprocess
 import sys
 import time
-from typing import List
+from typing import List  # noqa:F401
+import urllib.parse
 
 import attr
 import pkg_resources
@@ -21,7 +22,6 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
@@ -124,9 +124,9 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
-        "_trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
+        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -134,6 +134,9 @@ def override_global_config(values):
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
         "_span_traceback_max_size",
+        "propagation_http_baggage_enabled",
+        "_telemetry_enabled",
+        "_telemetry_dependency_collection",
     ]
 
     asm_config_keys = [
@@ -148,6 +151,8 @@ def override_global_config(values):
         "_user_model_name_field",
     ]
 
+    subscriptions = ddtrace.config._subscriptions
+    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
@@ -167,6 +172,7 @@ def override_global_config(values):
         for key, value in asm_originals.items():
             setattr(ddtrace.settings.asm.config, key, value)
         ddtrace.config._reset()
+        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
@@ -960,7 +966,15 @@ class SnapshotTest(object):
 
 
 @contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
+def snapshot_context(
+    token,
+    agent_sample_rate_by_service=None,
+    ignores=None,
+    tracer=None,
+    async_mode=True,
+    variants=None,
+    wait_for_num_traces=None,
+):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -993,9 +1007,14 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
-
         try:
-            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+            query = urllib.parse.urlencode(
+                {
+                    "test_session_token": token,
+                    "agent_sample_rate_by_service": json.dumps(agent_sample_rate_by_service or {}),
+                }
+            )
+            conn.request("GET", "/test/session/start?" + query)
         except Exception as e:
             pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
@@ -1133,11 +1152,7 @@ def call_program(*args, **kwargs):
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
-        if PY2:
-            # Python 2 doesn't support timeout
-            stdout, stderr = subp.communicate()
-        else:
-            stdout, stderr = subp.communicate(timeout=timeout)
+        stdout, stderr = subp.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)

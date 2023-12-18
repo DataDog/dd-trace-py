@@ -141,7 +141,6 @@ def test_configure_service_name_env():
             We use the value from DD_HTTPX_SERVICE
     """
     import asyncio
-    import sys
 
     import httpx
 
@@ -160,10 +159,7 @@ def test_configure_service_name_env():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
@@ -174,7 +170,6 @@ def test_configure_global_service_name_env():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -193,10 +188,7 @@ def test_configure_global_service_name_env():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
@@ -207,7 +199,6 @@ def test_schematized_configure_global_service_name_env_default():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -226,10 +217,7 @@ def test_schematized_configure_global_service_name_env_default():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -240,7 +228,6 @@ def test_schematized_configure_global_service_name_env_v0():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -259,10 +246,7 @@ def test_schematized_configure_global_service_name_env_v0():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -273,7 +257,6 @@ def test_schematized_configure_global_service_name_env_v1():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -292,10 +275,7 @@ def test_schematized_configure_global_service_name_env_v1():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess()
@@ -305,7 +285,6 @@ def test_schematized_unspecified_service_name_env_default():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -324,10 +303,7 @@ def test_schematized_unspecified_service_name_env_default():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -337,7 +313,6 @@ def test_schematized_unspecified_service_name_env_v0():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -356,10 +331,7 @@ def test_schematized_unspecified_service_name_env_v0():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -369,7 +341,6 @@ def test_schematized_unspecified_service_name_env_v1():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -388,10 +359,7 @@ def test_schematized_unspecified_service_name_env_v1():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -401,7 +369,6 @@ def test_schematized_operation_name_env_v0():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -420,10 +387,7 @@ def test_schematized_operation_name_env_v0():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -433,7 +397,6 @@ def test_schematized_operation_name_env_v1():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -452,10 +415,7 @@ def test_schematized_operation_name_env_v1():
             }
             await httpx.get(url, headers=DEFAULT_HEADERS)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.asyncio
@@ -574,7 +534,6 @@ def test_distributed_tracing_disabled_env():
     """
 
     import asyncio
-    import sys
 
     import httpx
 
@@ -597,7 +556,4 @@ def test_distributed_tracing_disabled_env():
         resp = await httpx.get(url, headers=DEFAULT_HEADERS)
         assert_request_headers(resp)
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
