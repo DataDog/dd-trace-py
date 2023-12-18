@@ -209,7 +209,7 @@ def traced_poll(func, instance, args, kwargs):
     except Exception as e:
         err = e
     ctx = None
-    if message is not None and config.kafka.distributed_tracing_enabled and message.headers() is not None:
+    if message and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
