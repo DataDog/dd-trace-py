@@ -6,8 +6,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-import coverage
-
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
