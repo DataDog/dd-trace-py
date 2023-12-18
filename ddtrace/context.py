@@ -1,12 +1,12 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING
-from typing import Any
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import Optional
-from typing import Text
+from typing import Text  # noqa:F401
 
-from ddtrace.tracing._span_link import SpanLink
+from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -19,9 +19,10 @@ from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_memb
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Tuple
+    from typing import Tuple  # noqa:F401,I001
 
-    from .span import Span
+    from .span import Span  # noqa:F401
+
     from .span import _MetaDictType
     from .span import _MetricDictType
 
@@ -43,7 +44,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage"]
 
     def __init__(
         self,
@@ -55,9 +56,11 @@ class Context(object):
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
         span_links=None,  # type: Optional[list[SpanLink]]
+        baggage=None,  # type: Optional[dict[str, Any]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
+        self._baggage = baggage if baggage is not None else {}  # type: dict[str, Any]
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
@@ -99,7 +102,12 @@ class Context(object):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
-            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
+            trace_id=span.trace_id,
+            span_id=span.span_id,
+            meta=self._meta,
+            metrics=self._metrics,
+            lock=self._lock,
+            baggage=self._baggage,
         )
 
     def _update_tags(self, span):
@@ -111,14 +119,12 @@ class Context(object):
                 span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
-    def sampling_priority(self):
-        # type: () -> Optional[NumericType]
+    def sampling_priority(self) -> Optional[NumericType]:
         """Return the context sampling priority for the trace."""
         return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
-    def sampling_priority(self, value):
-        # type: (Optional[NumericType]) -> None
+    def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:
             if value is None:
                 if SAMPLING_PRIORITY_KEY in self._metrics:
@@ -204,6 +210,32 @@ class Context(object):
                     del self._meta[USER_ID_KEY]
                 return
             self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
+
+    def _set_baggage_item(self, key, value):
+        # type: (str, Any) -> None
+        """Sets a baggage item in this span context.
+        Note that this operation mutates the baggage of this span context
+        """
+        self._baggage[key] = value
+
+    def _with_baggage_item(self, key, value):
+        # type: (str, Any) -> Context
+        """Returns a copy of this span with a new baggage item.
+        Useful for instantiating new child span contexts.
+        """
+        new_baggage = dict(self._baggage)
+        new_baggage[key] = value
+
+        ctx = self.__class__(trace_id=self.trace_id, span_id=self.span_id)
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        ctx._baggage = new_baggage
+        return ctx
+
+    def _get_baggage_item(self, key):
+        # type: (str) -> Optional[Any]
+        """Gets a baggage item in this span context."""
+        return self._baggage.get(key, None)
 
     def __eq__(self, other):
         # type: (Any) -> bool

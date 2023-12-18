@@ -6,9 +6,6 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
-from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
-from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -18,7 +15,7 @@ from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
@@ -438,12 +435,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
                     assert vulnerability["hash"] == hash_value
 
-            assert {
-                VULN_SQL_INJECTION,
-                VULN_INSECURE_COOKIE,
-                VULN_NO_HTTPONLY_COOKIE,
-                VULN_NO_SAMESITE_COOKIE,
-            } == vulnerabilities
+            assert {VULN_SQL_INJECTION} == vulnerabilities
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter(self):

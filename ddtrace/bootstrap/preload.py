@@ -2,19 +2,19 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import os  # noqa
+import os  # noqa:I001
 
-from ddtrace import config  # noqa
-from ddtrace.debugging._config import di_config  # noqa
-from ddtrace.debugging._config import ed_config  # noqa
-from ddtrace.settings.profiling import config as profiling_config  # noqa
-from ddtrace.internal.logger import get_logger  # noqa
-from ddtrace.internal.module import ModuleWatchdog  # noqa
-from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
-from ddtrace.internal.tracemethods import _install_trace_methods  # noqa
-from ddtrace.internal.utils.formats import asbool  # noqa
-from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-from ddtrace.settings.asm import config as asm_config  # noqa
+from ddtrace import config  # noqa:F401
+from ddtrace.debugging._config import di_config  # noqa:F401
+from ddtrace.debugging._config import ed_config  # noqa:F401
+from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal.logger import get_logger  # noqa:F401
+from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
+from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
+from ddtrace.internal.utils.formats import asbool  # noqa:F401
+from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+from ddtrace.settings.asm import config as asm_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -66,6 +66,7 @@ if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.enable()
+    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc

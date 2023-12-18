@@ -63,7 +63,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
         assert s.get_tag("component") == "bottle"
-        assert s.get_tag("span.kind"), "server"
+        assert s.get_tag("span.kind") == "server"
         # check distributed headers
         assert 123 == s.trace_id
         assert 456 == s.parent_id

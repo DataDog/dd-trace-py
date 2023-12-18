@@ -1,4 +1,5 @@
 from aiohttp import web
+from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -113,6 +114,16 @@ def finish_request_span(request, response):
     if trace_query_string:
         request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
+    # The match info object provided by aiohttp's default (and only) router
+    # has a `route` attribute, but routers are susceptible to being replaced/hand-rolled
+    # so we can only support this case.
+    route = None
+    if hasattr(request.match_info, "route"):
+        aiohttp_route = request.match_info.route
+        if not isinstance(aiohttp_route, SystemRoute):
+            # SystemRoute objects exist to throw HTTP errors and have no path
+            route = aiohttp_route.resource.canonical
+
     trace_utils.set_http_meta(
         request_span,
         config.aiohttp,
@@ -121,6 +132,7 @@ def finish_request_span(request, response):
         status_code=response.status,
         request_headers=request.headers,
         response_headers=response.headers,
+        route=route,
     )
 
     request_span.finish()

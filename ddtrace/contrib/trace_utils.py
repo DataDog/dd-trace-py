@@ -4,18 +4,18 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import Iterator
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
-from typing import cast
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
@@ -39,9 +39,9 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace import Span  # noqa:F401
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -522,9 +522,6 @@ def set_http_meta(
 
     if _is_iast_enabled():
         from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
-
-        if request_cookies:
-            asm_check_cookies(request_cookies)
 
         if response_cookies:
             asm_check_cookies(response_cookies)

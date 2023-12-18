@@ -2,13 +2,13 @@ import math
 import pprint
 import sys
 import traceback
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import six
 
@@ -446,6 +446,19 @@ class Span(object):
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
+    def _set_baggage_item(self, key, value):
+        # type: (str, Any) -> Span
+        """Sets a baggage item in the span context of this span.
+        Baggage is used to propagate state between spans (in-process, http/https).
+        """
+        self._context = self.context._with_baggage_item(key, value)
+        return self
+
+    def _get_baggage_item(self, key):
+        # type: (str) -> Optional[Any]
+        """Gets a baggage item from the span context of this span."""
+        return self.context._get_baggage_item(key)
+
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
         return self._metrics.copy()
@@ -475,7 +488,7 @@ class Span(object):
         if issubclass(exc_type, SystemExit) and exc_val.code == 0:
             return
 
-        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa:F401
             return
 
         self.error = 1

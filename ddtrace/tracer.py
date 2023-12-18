@@ -4,8 +4,8 @@ import logging
 import os
 from os import environ
 from os import getpid
-import sys
 from threading import RLock
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -42,7 +42,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import BaseServiceProcessor
 from .internal.processor.trace import PeerServiceProcessor
@@ -64,10 +63,17 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
 from .span import Span
+
+
+if TYPE_CHECKING:
+    from ddtrace.settings import Config  # noqa: F401
+
+    from .internal.writer import AgentResponse  # noqa: F401
 
 
 log = get_logger(__name__)
@@ -219,6 +225,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
+        self._user_sampler: Optional[BaseSampler] = None
         self._sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -230,11 +237,11 @@ class Tracer(object):
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
+                response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
         self._writer: TraceWriter = writer
@@ -272,6 +279,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+        config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -403,6 +411,7 @@ class Tracer(object):
 
         if sampler is not None:
             self._sampler = sampler
+            self._user_sampler = self._sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -443,12 +452,12 @@ class Tracer(object):
         elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
             self._writer = AgentWriter(
                 self._agent_url,
-                sampler=self._sampler,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
+                response_callback=self._agent_response_callback,
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -495,6 +504,20 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
+
+    def _agent_response_callback(self, resp):
+        # type: (AgentResponse) -> None
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            if isinstance(self._sampler, BasePrioritySampler):
+                self._sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
+        except ValueError:
+            log.error("sample_rate is negative, cannot update the rate samplers")
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -1030,3 +1053,18 @@ class Tracer(object):
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+    def _on_global_config_update(self, cfg, items):
+        # type: (Config, List) -> None
+        if "_trace_sample_rate" in items:
+            # Reset the user sampler if one exists
+            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
+                self._sampler = self._user_sampler
+                return
+
+            if cfg._get_source("_trace_sample_rate") != "default":
+                sample_rate = cfg._trace_sample_rate
+            else:
+                sample_rate = None
+            sampler = DatadogSampler(default_sample_rate=sample_rate)
+            self._sampler = sampler

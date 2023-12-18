@@ -1,11 +1,13 @@
 [[
   {
     "name": "internal",
-    "service": null,
+    "service": "",
     "resource": "test-otel-distributed-trace",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655535dc00000000",
@@ -23,11 +25,13 @@
   },
      {
        "name": "server",
-       "service": null,
+       "service": "",
        "resource": "/otel",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "655535dc00000000",
          "http.flavor": "1.1",
@@ -58,11 +62,13 @@
      },
         {
           "name": "internal",
-          "service": null,
+          "service": "",
           "resource": "otel-flask-manual-span",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "duration": 18250,
           "start": 1700083164081867259
         }]]

@@ -1,9 +1,9 @@
 import functools
 import sys
-from typing import Callable
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -517,7 +517,6 @@ def _on_django_after_request_headers_post(
     span: Span,
     django_config,
     request,
-    body,
     url,
     raw_uri,
     status,
@@ -536,7 +535,6 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        request_body=body,
         peer_ip=core.get_item("http.request.remote_ip", span=span),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
@@ -544,13 +542,13 @@ def _on_django_after_request_headers_post(
 
 
 def listen():
-    core.on("wsgi.block.started", _wsgi_make_block_content)
-    core.on("asgi.block.started", _asgi_make_block_content)
+    core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
+    core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
     core.on("wsgi.app.exception", _on_app_exception)
-    core.on("wsgi.request.complete", _on_request_complete)
+    core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
@@ -580,7 +578,7 @@ def listen():
         "django.process_exception",
         "django.func.wrapped",
     ):
-        core.on(f"context.started.{context_name}", _start_span)
+        core.on(f"context.started.start_span.{context_name}", _start_span)
 
 
 listen()

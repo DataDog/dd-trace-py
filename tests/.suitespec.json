@@ -68,7 +68,6 @@
         "redis": [
             "ddtrace/contrib/rediscluster/*",
             "ddtrace/contrib/redis/*",
-            "ddtrace/contrib/aioredis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -416,6 +415,15 @@
             "tests/appsec/iast/*",
             "tests/appsec/iast_memcheck/*"
         ],
+        "appsec_iast_packages": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*",
+            "tests/appsec/iast_packages/*"
+        ],
         "appsec_integrations": [
             "@bootstrap",
             "@core",
@@ -470,6 +478,7 @@
             "@tracing",
             "@contrib",
             "@openai",
+            "@requests",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -1039,15 +1048,6 @@
             "@pg",
             "tests/contrib/aiopg/*"
         ],
-        "aioredis": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@redis",
-            "tests/contrib/aioredis/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
-        ],
         "aredis": [
             "@bootstrap",
             "@core",
@@ -1167,6 +1167,7 @@
             "@tracing",
             "@contrib",
             "@langchain",
+            "@requests",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]

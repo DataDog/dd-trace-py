@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createChatCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -26,7 +28,8 @@
       "openai.response.choices.0.message.content": "",
       "openai.response.choices.0.message.role": "assistant",
       "openai.response.choices.0.message.tool_calls.0.arguments": "{\\n  \"name\": \"David Nguyen\",\\n  \"major\": \"computer science\",\\n  \"school\": \"Stanford University\",\\n  \"grades\": 3.8,\\n  \"clubs\": [...",
-      "openai.response.choices.0.message.tool_calls.0.function": "extract_student_info",
+      "openai.response.choices.0.message.tool_calls.0.name": "extract_student_info",
+      "openai.response.created": "1695747601",
       "openai.response.id": "chatcmpl-835hhNkhB9OBwmSNkrCXncoUudsEU",
       "openai.response.model": "gpt-3.5-turbo-0613",
       "openai.user.api_key": "sk-...key>",
@@ -40,8 +43,6 @@
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 9999,
       "openai.organization.ratelimit.tokens.remaining": 999910,
-      "openai.response.choices_count": 1,
-      "openai.response.created": 1695747601,
       "openai.response.usage.completion_tokens": 57,
       "openai.response.usage.prompt_tokens": 157,
       "openai.response.usage.total_tokens": 214,
