@@ -18,6 +18,7 @@ License: BSD 2-Clause "Simplified" License
 
 Notes:
   `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
+  replaced pkg_resources.iter_entry_points with importlib_metadata.entry_points
 
 
 dogstatsd
