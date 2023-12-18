@@ -158,7 +158,7 @@ venv = Venv(
                 "requests": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
-                "pytest-memray": latest,
+                "pytest-memray": "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
