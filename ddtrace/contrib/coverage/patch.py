@@ -1,11 +1,15 @@
-import coverage
-
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.coverage.data import _coverage_data
 from ddtrace.contrib.coverage.utils import is_coverage_imported
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
+
+
+try:
+    import coverage
+except ImportError:
+    coverage = None  # type: ignore[misc,assignment]
 
 
 log = get_logger(__name__)
@@ -49,6 +53,8 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
 
 
 def run_coverage_report():
+    if not is_coverage_imported():
+        return
     try:
         current_coverage_object = coverage.Coverage.current()
         _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
