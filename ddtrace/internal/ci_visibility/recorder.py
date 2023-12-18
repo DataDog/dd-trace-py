@@ -374,7 +374,7 @@ class CIVisibility(Service):
         try:
             try:
                 metadata_upload_status = self._git_client.wait_for_metadata_upload_status()
-                if metadata_upload_status != METADATA_UPLOAD_STATUS.SUCCESS:
+                if metadata_upload_status not in [METADATA_UPLOAD_STATUS.SUCCESS, METADATA_UPLOAD_STATUS.UNNECESSARY]:
                     log.warning("git metadata upload was not successful, some tests may not be skipped")
             except ValueError:
                 log.warning(
