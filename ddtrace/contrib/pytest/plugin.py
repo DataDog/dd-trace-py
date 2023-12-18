@@ -85,7 +85,7 @@ def _is_pytest_cov_enabled(config) -> bool:
     if not config.pluginmanager.get_plugin("pytest_cov"):
         return False
     cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
     if type(cov_option) == list and cov_option == [True] and not nocov_option:
         return True
     return cov_option
