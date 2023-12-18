@@ -101,7 +101,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
         cls._locations.add(str(origin))
 
-        super(DebuggerModuleWatchdog, cls).register_origin_hook(origin, hook)
+        super().register_origin_hook(origin, hook)
 
     @classmethod
     def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
@@ -111,7 +111,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
             # Nothing to unregister.
             return
 
-        return super(DebuggerModuleWatchdog, cls).unregister_origin_hook(origin, hook)
+        return super().unregister_origin_hook(origin, hook)
 
     @classmethod
     def register_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
@@ -126,7 +126,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
         cls._locations.add(module_name)
 
-        super(DebuggerModuleWatchdog, cls).register_module_hook(module_name, hook)
+        super().register_module_hook(module_name, hook)
 
     @classmethod
     def unregister_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
@@ -136,7 +136,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
             # Nothing to unregister.
             return
 
-        return super(DebuggerModuleWatchdog, cls).unregister_module_hook(module_name, hook)
+        return super().unregister_module_hook(module_name, hook)
 
     @classmethod
     def on_run_module(cls, module: ModuleType) -> None:
@@ -221,7 +221,7 @@ class Debugger(Service):
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self, tracer: Optional[Tracer] = None) -> None:
-        super(Debugger, self).__init__()
+        super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
         service_name = di_config.service_name
