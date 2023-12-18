@@ -1,11 +1,11 @@
-from copy import copy
 import os
-import sys
 from typing import List
 
 import coverage
 
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.coverage.data import _coverage_data
+from ddtrace.contrib.coverage.data import _original_sys_argv_command
 from ddtrace.contrib.coverage.utils import is_coverage_imported
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -13,10 +13,6 @@ from ddtrace.vendor import wrapt
 
 
 log = get_logger(__name__)
-
-_coverage_data = {}
-
-_original_sys_argv_command = copy(sys.argv)
 
 
 def get_version():

@@ -6,7 +6,7 @@ import unittest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.coverage.patch import _coverage_data
+from ddtrace.contrib.coverage.data import _coverage_data
 from ddtrace.contrib.coverage.patch import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.coverage.patch import _is_coverage_patched
 from ddtrace.contrib.coverage.patch import patch as patch_coverage
@@ -808,7 +808,6 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     """
     Creates session span and discovers test suites and tests for the current `unittest` CLI execution
     """
-    test_session_span = None
     if _is_invoked_by_cli(instance):
         _enable_unittest_if_not_started()
         for parent_module in instance.test._tests:
