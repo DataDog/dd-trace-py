@@ -39,7 +39,7 @@ def get_runtime_id():
 def get_ancestor_runtime_id() -> t.Optional[str]:
     """Return the runtime ID of the common ancestor of this process.
 
-    Once this values is set (this will happen after a fork) it will not change
+    Once this value is set (this will happen after a fork) it will not change
     for the lifetime of the process. This function returns ``None`` for the
     ancestor process.
     """
