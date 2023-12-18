@@ -13,7 +13,7 @@ def _is_coverage_patched():
     if not is_coverage_loaded():
         return False
 
-    return getattr(sys.modules['coverage'], '_datadog_patch', False)
+    return getattr(sys.modules["coverage"], "_datadog_patch", False)
 
 
 def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
