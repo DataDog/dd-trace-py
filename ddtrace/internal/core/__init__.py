@@ -110,8 +110,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ddtrace.span import Span  # noqa:F401
-
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -119,6 +117,10 @@ from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+
+
+if TYPE_CHECKING:
+    from ddtrace.span import Span  # noqa:F401
 
 
 try:
