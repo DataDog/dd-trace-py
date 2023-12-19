@@ -5,9 +5,6 @@ from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
-from .._taint_utils import LazyTaintDict
-from .._taint_utils import LazyTaintList
-from .._taint_utils import taint_structure
 
 
 log = get_logger(__name__)
@@ -42,6 +39,8 @@ def patch():
 
 
 def wrapped_loads(wrapped, instance, args, kwargs):
+    from .._taint_utils import taint_structure
+
     obj = wrapped(*args, **kwargs)
     if asm_config._iast_enabled:
         try:
@@ -70,6 +69,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
 
 
 def patched_json_encoder_default(original_func, instance, args, kwargs):
+    from .._taint_utils import LazyTaintDict
+    from .._taint_utils import LazyTaintList
+
     if isinstance(args[0], (LazyTaintList, LazyTaintDict)):
         return args[0]._obj
 

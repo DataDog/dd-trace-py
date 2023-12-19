@@ -442,6 +442,13 @@ jobs:
           pattern: 'appsec_iast_memcheck'
           snapshot: true
 
+  appsec_iast_packages:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_packages'
+          snapshot: true
+
   appsec_integrations:
     <<: *machine_executor
     steps:
@@ -901,13 +908,11 @@ jobs:
           pattern: 'pylibmc'
 
   pytest:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'pytest'
+          snapshot: true
 
   unittest:
     <<: *machine_executor

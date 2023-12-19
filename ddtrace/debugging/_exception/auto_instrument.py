@@ -105,7 +105,7 @@ class SpanExceptionSnapshot(Snapshot):
 
     @property
     def data(self) -> t.Dict[str, t.Any]:
-        data = super(SpanExceptionSnapshot, self).data
+        data = super().data
 
         data.update({"exception-id": str(self.exc_id)})
 

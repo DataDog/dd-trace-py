@@ -1,12 +1,13 @@
 [[
   {
     "name": "asgi.request",
-    "service": null,
+    "service": "",
     "resource": "GET /traced-simple-asgi-app/",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
