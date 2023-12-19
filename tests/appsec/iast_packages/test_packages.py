@@ -68,7 +68,11 @@ PACKAGES = [
         "And the Easter of that year is: 2004-04-11",
     ),
     PackageForTesting(
-        "PyYAML", "6.0.1", "a: 1\nb:\n  c: 3\n  d: 4\n", {"a": 1, "b": {"c": 3, "d": 4}}, "a: 1\nb:\n  c: 3\n  d: 4\n"
+        "PyYAML",
+        "6.0.1",
+        '{"a": 1, "b": {"c": 3, "d": 4}}',
+        {"a": 1, "b": {"c": 3, "d": 4}},
+        "a: 1\nb:\n  c: 3\n  d: 4\n",
     ),
     PackageForTesting("requests", "2.31.0", "", "", ""),
     PackageForTesting(
@@ -83,10 +87,12 @@ PACKAGES = [
 
 def setup():
     for package in PACKAGES:
+        package.install()
+
+    for package in PACKAGES:
         with flask_server(
             iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None
         ) as context:
-            package.install()
             _, client, pid = context
 
             response = client.get(package.url)

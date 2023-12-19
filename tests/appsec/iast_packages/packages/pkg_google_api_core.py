@@ -6,9 +6,6 @@ https://pypi.org/project/google-api-core/
 
 from flask import Blueprint
 from flask import request
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 from .utils import ResultResponse
 
@@ -24,6 +21,10 @@ pkg_google_api_core = Blueprint("package_google_api_core", __name__)
 
 @pkg_google_api_core.route("/google-api-python-client")
 def pkg_idna_view():
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+
     response = ResultResponse(request.args.get("package_param"))
     """Shows basic usage of the Docs API.
     Prints the title of a sample document.
