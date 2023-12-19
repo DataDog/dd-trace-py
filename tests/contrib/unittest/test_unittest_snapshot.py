@@ -477,3 +477,81 @@ class UnittestSnapshotTestCase(TracerTestCase):
             )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    def test_unittest_will_include_lines_pct_if_itr_normal_import(self):
+        tools = """
+        def add_two_number_list(list_1, list_2):
+            output_list = []
+            for number_a, number_b in zip(list_1, list_2):
+                output_list.append(number_a + number_b)
+            return output_list
+
+        def multiply_two_number_list(list_1, list_2):
+            output_list = []
+            for number_a, number_b in zip(list_1, list_2):
+                output_list.append(number_a * number_b)
+            return output_list
+        """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+        import unittest
+        from tools import add_two_number_list
+
+        class CodeCoverageTestCase(unittest.TestCase):
+            def test_add_two_number_list(self):
+                a_list = [1,2,3,4,5,6,7,8]
+                b_list = [2,3,4,5,6,7,8,9]
+                actual_output = add_two_number_list(a_list, b_list)
+
+                assert actual_output == [3,5,7,9,11,13,15,17]
+        """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
+            )
+        ):
+            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    def test_unittest_will_include_lines_pct_if_itr_test_import(self):
+        tools = """
+            def add_two_number_list(list_1, list_2):
+                output_list = []
+                for number_a, number_b in zip(list_1, list_2):
+                    output_list.append(number_a + number_b)
+                return output_list
+
+            def multiply_two_number_list(list_1, list_2):
+                output_list = []
+                for number_a, number_b in zip(list_1, list_2):
+                    output_list.append(number_a * number_b)
+                return output_list
+            """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+            import unittest
+
+            class CodeCoverageTestCase(unittest.TestCase):
+                def test_add_two_number_list(self):
+                    from tools import add_two_number_list
+                    a_list = [1,2,3,4,5,6,7,8]
+                    b_list = [2,3,4,5,6,7,8,9]
+                    actual_output = add_two_number_list(a_list, b_list)
+
+                    assert actual_output == [3,5,7,9,11,13,15,17]
+            """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
+            )
+        ):
+            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
