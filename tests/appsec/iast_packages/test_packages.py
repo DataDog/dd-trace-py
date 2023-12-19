@@ -60,7 +60,7 @@ PACKAGES = [
         extras=[("google-auth-oauthlib", "1.2.0"), ("google-auth-httplib2", "0.2.0")],
     ),
     PackageForTesting("idna", "3.6", "xn--eckwd4c7c.xn--zckzah", "ドメイン.テスト", "xn--eckwd4c7c.xn--zckzah"),
-    PackageForTesting("numpy", "1.26.2", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5),
+    PackageForTesting("numpy", "1.24.4", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5),
     PackageForTesting(
         "python-dateutil",
         "2.8.2",
