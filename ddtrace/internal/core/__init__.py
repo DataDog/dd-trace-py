@@ -110,6 +110,9 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.vendor.debtcollector import deprecate
+
+from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -134,12 +137,24 @@ log = logging.getLogger(__name__)
 
 _CURRENT_CONTEXT = None
 ROOT_CONTEXT_ID = "__root"
+SPAN_DEPRECATION_MESSAGE = (
+    "The 'span' keyword argument on ExecutionContext methods is deprecated and will be removed in a future version."
+)
+SPAN_DEPRECATION_SUGGESTION = (
+    "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
+)
 
 
 class ExecutionContext:
     __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
+        if span is not None:
+            deprecate(
+                SPAN_DEPRECATION_MESSAGE,
+                message=SPAN_DEPRECATION_SUGGESTION,
+                category=DDTraceDeprecationWarning,
+            )
         self.identifier = identifier
         self._data = {}
         self._parents = []
@@ -255,6 +270,12 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 def get_item(data_key, span=None):
     # type: (str, Optional[Span]) -> Optional[Any]
+    if span is not None:
+        deprecate(
+            SPAN_DEPRECATION_MESSAGE,
+            message=SPAN_DEPRECATION_SUGGESTION,
+            category=DDTraceDeprecationWarning,
+        )
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
@@ -263,6 +284,12 @@ def get_item(data_key, span=None):
 
 def get_items(data_keys, span=None):
     # type: (List[str], Optional[Span]) -> Optional[Any]
+    if span is not None:
+        deprecate(
+            SPAN_DEPRECATION_MESSAGE,
+            message=SPAN_DEPRECATION_SUGGESTION,
+            category=DDTraceDeprecationWarning,
+        )
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
     else:
@@ -277,6 +304,12 @@ def set_safe(data_key, data_value):
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
+    if span is not None:
+        deprecate(
+            SPAN_DEPRECATION_MESSAGE,
+            message=SPAN_DEPRECATION_SUGGESTION,
+            category=DDTraceDeprecationWarning,
+        )
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
@@ -285,6 +318,12 @@ def set_item(data_key, data_value, span=None):
 
 def set_items(keys_values, span=None):
     # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
+    if span is not None:
+        deprecate(
+            SPAN_DEPRECATION_MESSAGE,
+            message=SPAN_DEPRECATION_SUGGESTION,
+            category=DDTraceDeprecationWarning,
+        )
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
     else:
