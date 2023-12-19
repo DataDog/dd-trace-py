@@ -144,7 +144,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             instance=instance,
             args=args,
             kwargs=kwargs,
-            vars=function_vars,
+            function_vars=function_vars,
         )
     elif endpoint_name == "sqs":
         return patched_sqs_api_call(
@@ -152,7 +152,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             instance=instance,
             args=args,
             kwargs=kwargs,
-            vars=function_vars,
+            function_vars=function_vars,
         )
     else:
         with pin.tracer.trace(

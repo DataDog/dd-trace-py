@@ -143,6 +143,9 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     message_received = False
     func_run = False
     func_run_err = None
+    ctx = None
+    start_ns = None
+    result = None
 
     if config.botocore["distributed_tracing"]:
         if endpoint_name == "kinesis" and operation == "GetRecords":

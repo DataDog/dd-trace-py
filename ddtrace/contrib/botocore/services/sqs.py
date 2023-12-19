@@ -144,6 +144,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     message_received = False
     func_run = False
     func_run_err = None
+    ctx = None
+    start_ns = None
+    result = None
 
     if config.botocore["distributed_tracing"]:
         if endpoint_name == "sqs" and operation == "ReceiveMessage":
@@ -266,7 +269,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     # raise error if it was encountered before the span was started
                     if func_run_err:
                         raise func_run_err
+                    return result
+                else:
+                    if not func_run:
+                        result = original_func(*args, **kwargs)
 
+                    set_response_metadata_tags(span, result)
                     return result
             except botocore.exceptions.ClientError as e:
                 # `ClientError.response` contains the result, so we can still grab response metadata
