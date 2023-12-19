@@ -27,7 +27,7 @@ SNAPSHOT_IGNORES = [
     "start",
 ]
 
-SNAPSHOT_IGNORES_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
+SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
 
 class UnittestSnapshotTestCase(TracerTestCase):
@@ -70,7 +70,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_generates_coverage_correctly(self):
         ret_false = """
         def ret_false():
@@ -104,7 +104,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_generates_coverage_correctly_with_skipped(self):
         ret_false = """
         def ret_false():
@@ -137,7 +137,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped(self):
         ret_false = """
         def ret_false():
@@ -175,7 +175,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped_multiple(self):
         ret_false = """
         def ret_false():
@@ -213,7 +213,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_force_run_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -252,7 +252,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_force_run_multiple_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -295,7 +295,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_skip_invalid_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -343,7 +343,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_skip_unskippable_test_if_skip_decorator(self):
         ret_false = """
             def ret_false():
@@ -395,7 +395,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
     def test_unittest_will_include_custom_tests(self):
         ret_false = """
         def ret_false():
@@ -439,3 +439,41 @@ class UnittestSnapshotTestCase(TracerTestCase):
             )
         ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    def test_unittest_will_include_lines_pct(self):
+        tools = """
+        def add_two_number_list(list_1, list_2):
+            output_list = []
+            for number_a, number_b in zip(list_1, list_2):
+                output_list.append(number_a + number_b)
+            return output_list
+
+        def multiply_two_number_list(list_1, list_2):
+            output_list = []
+            for number_a, number_b in zip(list_1, list_2):
+                output_list.append(number_a * number_b)
+            return output_list
+        """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+        import unittest
+        from tools import add_two_number_list
+
+        class CodeCoverageTestCase(unittest.TestCase):
+            def test_add_two_number_list(self):
+                a_list = [1,2,3,4,5,6,7,8]
+                b_list = [2,3,4,5,6,7,8,9]
+                actual_output = add_two_number_list(a_list, b_list)
+
+                assert actual_output == [3,5,7,9,11,13,15,17]
+        """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+            )
+        ):
+            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
