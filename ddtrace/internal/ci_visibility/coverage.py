@@ -45,6 +45,7 @@ def _initialize_coverage(root_dir):
         return current_coverage_object
     cov_object = Coverage(**coverage_kwargs)
     cov_object.set_option("run:parallel", True)
+    global _own_coverage
     _own_coverage = True
     return cov_object
 
