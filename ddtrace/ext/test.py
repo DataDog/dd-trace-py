@@ -60,6 +60,9 @@ SOURCE_START = TEST_SOURCE_START = "test.source.start"
 # Test Source End
 SOURCE_END = TEST_SOURCE_END = "test.source.end"
 
+# Test Code Coverage Total Lines Percentage
+LINES_PCT = TEST_LINES_PCT = "test.code_coverage.lines_pct"
+
 # Test Class Hierarchy
 CLASS_HIERARCHY = "test.class_hierarchy"
 

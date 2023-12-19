@@ -93,6 +93,7 @@ PATCH_MODULES = {
     "langchain": True,
     "subprocess": True,
     "unittest": True,
+    "coverage": False,
 }
 
 
