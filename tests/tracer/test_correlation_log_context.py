@@ -104,6 +104,7 @@ class TestCorrelationLogsContext(object):
 
     def test_get_log_correlation_context_no_active_span(self):
         """Ensure empty DDLogRecord generated if no active span."""
+        tracer = Tracer()
         dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": "0",
