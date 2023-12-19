@@ -6,8 +6,8 @@ from typing import Optional  # noqa:F401
 import botocore.client
 import botocore.exceptions
 
-from ddtrace import config
 from ddtrace import Span  # noqa:F401
+from ddtrace import config
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
