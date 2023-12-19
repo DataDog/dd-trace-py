@@ -1,4 +1,5 @@
 import json
+import sys
 
 import pip
 import pytest
@@ -105,8 +106,9 @@ def setup():
             assert content["params_are_tainted"] is False
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 12, 0), reason="Package not yet compatible with Python 3.12")
 @pytest.mark.parametrize("package", PACKAGES)
-def test_patched(package):
+def test_packages_patched(package):
     if package.xfail:
         pytest.xfail("Initial test failed for package: {}".format(package))
 
