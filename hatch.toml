@@ -1,3 +1,8 @@
+[env]
+requires = [
+    "hatch-containers==0.7.0",
+]
+
 [envs.lint]
 detached = true
 python = "3.10"
