@@ -1,11 +1,13 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.chains.sequential.SequentialChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -33,11 +35,13 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
@@ -58,11 +62,13 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
@@ -95,11 +101,13 @@
         },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
@@ -121,11 +129,13 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",

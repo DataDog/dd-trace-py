@@ -287,7 +287,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.4``
+         ``v0.5``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
@@ -296,6 +296,7 @@ The following environment variables for the tracer are supported:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
        v1.19.1: default reverted to ``v0.4``.
+       v2.4.0: default changed to ``v0.5``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
