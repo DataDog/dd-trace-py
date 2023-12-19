@@ -12,8 +12,8 @@ import sys
 import threading
 import time
 from unittest.case import SkipTest
-import weakref
 import uuid
+import weakref
 
 import mock
 import pytest
