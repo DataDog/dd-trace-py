@@ -3,7 +3,6 @@ import os
 import subprocess
 import sys
 
-import pip
 import pytest
 
 from tests.appsec.appsec_utils import flask_server
@@ -43,12 +42,10 @@ class PackageForTesting:
         cmd = ["python", "-m", "pip", "install", package_fullversion]
         env = {}
         env.update(os.environ)
+        # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
+        # doesn't work correctly with riot environment and python packages path
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env)
         proc.wait()
-        if hasattr(pip, "main"):
-            pip.main(["install", package_fullversion])
-        else:
-            pip._internal.main(["install", package_fullversion])
 
     def install(self):
         self._install(self.package_name, self.package_version)
