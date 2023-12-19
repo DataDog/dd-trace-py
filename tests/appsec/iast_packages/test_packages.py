@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import sys
 
 import pip
@@ -38,6 +40,11 @@ class PackageForTesting:
 
     def _install(self, package_name, package_version):
         package_fullversion = package_name + "==" + package_version
+        cmd = ["python", "-m", "pip", "install", package_fullversion]
+        env = {}
+        env.update(os.environ)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env)
+        proc.wait()
         if hasattr(pip, "main"):
             pip.main(["install", package_fullversion])
         else:
