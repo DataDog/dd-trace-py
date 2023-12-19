@@ -3,10 +3,6 @@ python-dateutil==2.8.2
 
 https://pypi.org/project/python-dateutil/
 """
-from dateutil.easter import *  # noqa
-from dateutil.parser import *  # noqa
-from dateutil.relativedelta import *  # noqa
-from dateutil.rrule import *  # noqa
 from flask import Blueprint
 from flask import request
 
@@ -18,6 +14,11 @@ pkg_python_dateutil = Blueprint("package_python-dateutil", __name__)
 
 @pkg_python_dateutil.route("/python-dateutil")
 def pkg_idna_view():
+    from dateutil.easter import *  # noqa
+    from dateutil.parser import *  # noqa
+    from dateutil.relativedelta import *  # noqa
+    from dateutil.rrule import *  # noqa
+
     response = ResultResponse(request.args.get("package_param"))  # noqa
     response.result1 = parse(response.package_param)  # noqa
     today = response.result1.date()

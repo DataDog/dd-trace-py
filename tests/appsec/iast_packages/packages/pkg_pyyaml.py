@@ -7,7 +7,6 @@ import json
 
 from flask import Blueprint
 from flask import request
-import yaml
 
 from .utils import ResultResponse
 
@@ -17,6 +16,8 @@ pkg_pyyaml = Blueprint("package_pyyaml", __name__)
 
 @pkg_pyyaml.route("/PyYAML")
 def pkg_idna_view():
+    import yaml
+
     response = ResultResponse(request.args.get("package_param"))
     rs = json.loads(response.package_param)
     yaml_string = yaml.dump(rs)

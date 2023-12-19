@@ -29,7 +29,6 @@ def pkg_idna_view():
     """Shows basic usage of the Docs API.
     Prints the title of a sample document.
     """
-    creds = None
     try:
         flow = InstalledAppFlow.from_client_secrets_file("not-exists-credentials.json", SCOPES)
         creds = flow.run_local_server(port=0)
