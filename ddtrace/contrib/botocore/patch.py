@@ -3,9 +3,10 @@ Trace queries and data streams monitoring to aws api done via botocore client
 """
 import base64
 import collections
-from datetime import datetime
 import json
 import os
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
@@ -30,9 +31,7 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.compat import parse
-from ...internal.compat import time_ns
 from ...internal.constants import COMPONENT
-from ...internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_cloud_faas_operation
@@ -44,6 +43,11 @@ from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
+from .services.kinesis import get_kinesis_data_object
+from .services.kinesis import patched_kinesis_api_call
+from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
+from .services.sqs import inject_trace_to_sqs_or_sns_message
+from .services.sqs import patched_sqs_api_call
 
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]
@@ -54,7 +58,6 @@ _Botocore_client = botocore.client.BaseClient
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
 
-MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
 MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
 LINE_BREAK = "\n"
@@ -81,60 +84,8 @@ def get_version():
     return __version__
 
 
-class TraceInjectionSizeExceed(Exception):
-    pass
-
-
 class TraceInjectionDecodingError(Exception):
     pass
-
-
-def _encode_data(trace_data):
-    """
-    This method exists solely to enable us to patch the value in tests, since
-    moto doesn't support auto-encoded SNS -> SQS as binary with RawDelivery enabled
-    """
-    return json.dumps(trace_data)
-
-
-def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
-    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
-    """
-    :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
-    :entry: an SQS or SNS record
-    :endpoint_service: endpoint of message, "sqs" or "sns"
-
-    Inject trace headers and DSM info into the SQS or SNS record's MessageAttributes
-    """
-    if "MessageAttributes" not in entry:
-        entry["MessageAttributes"] = {}
-    # Max of 10 message attributes.
-    if len(entry["MessageAttributes"]) < 10:
-        if endpoint_service == "sqs":
-            # Use String since changing this to Binary would be a breaking
-            # change as other tracers expect this to be a String.
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": _encode_data(trace_data)}
-        elif endpoint_service == "sns":
-            # Use Binary since SNS subscription filter policies fail silently
-            # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
-            # AWS will encode our value if it sees "Binary"
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": _encode_data(trace_data)}
-        else:
-            log.warning("skipping trace injection, endpoint is not SNS or SQS")
-    else:
-        # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
-        log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
-
-
-def get_topic_arn(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-
-    Return the name of the topic given the params
-    """
-    sns_arn = params["TopicArn"]
-    return sns_arn
 
 
 def get_queue_name(params):
@@ -147,17 +98,6 @@ def get_queue_name(params):
     queue_url = params["QueueUrl"]
     url = parse.urlparse(queue_url)
     return url.path.rsplit("/", 1)[-1]
-
-
-def get_stream_arn(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-
-    Return the name of the stream given the params
-    """
-    stream_arn = params.get("StreamARN", "")
-    return stream_arn
 
 
 def get_pathway(pin, endpoint_service, dsm_identifier, span=None):
@@ -177,62 +117,6 @@ def get_pathway(pin, endpoint_service, dsm_identifier, span=None):
         ["direction:out", "topic:{}".format(dsm_identifier), path_type], span=span
     )
     return pathway.encode_b64()
-
-
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :endpoint_service: endpoint of message, "sqs" or "sns"
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
-    Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
-    """
-
-    trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data)
-
-    # An entry here is an SNS or SQS record, and depending on how it was published,
-    # it could either show up under Entries (in case of PutRecords),
-    # or PublishBatchRequestEntries (in case of PublishBatch).
-    entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
-    for entry in entries:
-        if data_streams_enabled:
-            dsm_identifier = None
-            if endpoint_service == "sqs":
-                dsm_identifier = get_queue_name(params)
-            elif endpoint_service == "sns":
-                dsm_identifier = get_topic_arn(params)
-            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
-        inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
-
-
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :endpoint_service: endpoint of message, "sqs" or "sns"
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
-    Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
-    """
-    trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data)
-
-    if data_streams_enabled:
-        dsm_identifier = None
-        if endpoint_service == "sqs":
-            dsm_identifier = get_queue_name(params)
-        elif endpoint_service == "sns":
-            dsm_identifier = get_topic_arn(params)
-
-        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
-
-    inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -277,127 +161,6 @@ def get_json_from_str(data_str):
     if data_str.endswith(LINE_BREAK):
         return LINE_BREAK, data_obj
     return None, data_obj
-
-
-def get_kinesis_data_object(data):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
-    """
-    :data: the data from a kinesis stream
-
-    The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
-    We support injecting our trace context in the following three cases:
-    - json string
-    - byte encoded json string
-    - base64 encoded json string
-    If it's none of these, then we leave the message as it is.
-    """
-
-    # check if data is a json string
-    try:
-        return get_json_from_str(data)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
-
-    # check if data is an encoded json string
-    try:
-        data_str = data.decode("ascii")
-        return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
-
-    # check if data is a base64 encoded json string
-    try:
-        data_str = base64.b64decode(data).decode("ascii")
-        return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Unable to parse payload, unable to inject trace context.")
-
-    return None, None
-
-
-def inject_trace_to_kinesis_stream_data(record, span):
-    # type: (Dict[str, Any], Span) -> None
-    """
-    :record: contains args for the current botocore action, Kinesis record is at index 1
-    :span: the span which provides the trace context to be propagated
-
-    Inject trace headers into the Kinesis record's Data field in addition to the existing
-    data. Only possible if the existing data is JSON string or base64 encoded JSON string
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-    """
-    if "Data" not in record:
-        log.warning("Unable to inject context. The kinesis stream has no data")
-        return
-
-    data = record["Data"]
-    line_break, data_obj = get_kinesis_data_object(data)
-    if data_obj is not None:
-        data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"])
-        data_json = json.dumps(data_obj)
-
-        # if original string had a line break, add it back
-        if line_break is not None:
-            data_json += line_break
-
-        # check if data size will exceed max size with headers
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
-            raise TraceInjectionSizeExceed(
-                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-            )
-
-        record["Data"] = data_json
-
-
-def record_data_streams_path_for_kinesis_stream(pin, params, results, span):
-    stream_arn = params.get("StreamARN")
-
-    if not stream_arn:
-        log.debug("Unable to determine StreamARN for request with params: ", params)
-        return
-
-    processor = pin.tracer.data_streams_processor
-    pathway = processor.new_pathway()
-    for record in results.get("Records", []):
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        pathway.set_checkpoint(
-            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-            span=span,
-        )
-
-
-def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
-    # type: (List[Any], Span, Optional[Pin], Optional[bool]) -> None
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-
-    """
-    if data_streams_enabled:
-        stream_arn = get_stream_arn(params)
-        if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-            # put_records has a "Records" entry but put_record does not, so we fake a record to
-            # collapse the logic for the two cases
-            for _ in params.get("Records", ["fake_record"]):
-                # In other DSM code, you'll see the pathway + context injection but not here.
-                # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
-                get_pathway(pin, "kinesis", stream_arn, span)
-
-    if "Records" in params:
-        records = params["Records"]
-
-        if records:
-            record = records[0]
-            inject_trace_to_kinesis_stream_data(record, span)
-    elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(params, span)
 
 
 def modify_client_context(client_context_object, trace_headers):
@@ -483,75 +246,45 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
 
-    func_run = False
-    message_received = False
-    result = None
-    ctx = None
     operation = None
-    start_ns = None
-    func_run_err = None
+    params = None
     if args:
         operation = get_argument_value(args, kwargs, 0, "operation_name")
         params = get_argument_value(args, kwargs, 1, "api_params")
 
-    if config.botocore["distributed_tracing"]:
-        if endpoint_name == "sqs" and operation == "ReceiveMessage":
-            # Ensure we have Datadog MessageAttribute enabled
-            if "MessageAttributeNames" not in params:
-                params.update({"MessageAttributeNames": ["_datadog"]})
-            elif "_datadog" not in params["MessageAttributeNames"]:
-                params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+    function_vars = {
+        "endpoint_name": endpoint_name,
+        "operation": operation,
+        "params": params,
+        "pin": pin,
+        "trace_operation": trace_operation,
+    }
 
-            # Ensure we have AWS attribute enabled for interoperability with dd-trace-java aws propagation
-            if "AttributeNames" not in params:
-                params.update({"AttributeNames": ["AWSTraceHeader"]})
-            elif "AWSTraceHeader" not in params["AttributeNames"]:
-                params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
-
-            try:
-                start_ns = time_ns()
-                func_run = True
-                result = original_func(*args, **kwargs)
-            except Exception as e:
-                func_run_err = e
-            if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
-                message_received = True
-                ctx = extract_DD_context(result["Messages"])
-        elif endpoint_name == "kinesis" and operation == "GetRecords":
-            try:
-                start_ns = time_ns()
-                func_run = True
-                result = original_func(*args, **kwargs)
-            except Exception as e:
-                func_run_err = e
-            if result is not None and "Records" in result and len(result["Records"]) >= 1:
-                message_received = True
-                ctx = extract_DD_context(result["Records"])
-
-    # we don't want to create a span for empty poll consumer operations
-    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
-        with pin.tracer.start_span(
+    if endpoint_name == "kinesis":
+        return patched_kinesis_api_call(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            vars=function_vars,
+        )
+    elif endpoint_name == "sqs":
+        return patched_sqs_api_call(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            vars=function_vars,
+        )
+    else:
+        with pin.tracer.trace(
             trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
-            child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
-            activate=True,
         ) as span:
-            span.set_tag_str(COMPONENT, config.botocore.integration_name)
+            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
-            if start_ns is not None:
-                span.start_ns = start_ns
-
-            # set span.kind to the type of request being performed
-            span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-            span.set_tag(SPAN_MEASURED_KEY)
             if args:
-                # DEV: join is the fastest way of concatenating strings that is compatible
-                # across Python versions (see
-                # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
-                span.resource = ".".join((endpoint_name, operation.lower()))
-                span.set_tag("aws_service", endpoint_name)
                 if config.botocore["distributed_tracing"]:
                     try:
                         if endpoint_name == "lambda" and operation == "Invoke":
@@ -559,57 +292,12 @@ def patched_api_call(original_func, instance, args, kwargs):
                             span.name = schematize_cloud_faas_operation(
                                 trace_operation, cloud_provider="aws", cloud_service="lambda"
                             )
-                        if endpoint_name == "sqs" and operation == "SendMessage":
-                            inject_trace_to_sqs_or_sns_message(
-                                params,
-                                span,
-                                endpoint_service=endpoint_name,
-                                pin=pin,
-                                data_streams_enabled=config._data_streams_enabled,
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="sqs",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                        if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                            inject_trace_to_sqs_or_sns_batch_message(
-                                params,
-                                span,
-                                endpoint_service=endpoint_name,
-                                pin=pin,
-                                data_streams_enabled=config._data_streams_enabled,
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="sqs",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                        if endpoint_name == "sqs" and operation == "ReceiveMessage":
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="sqs",
-                                direction=SpanDirection.INBOUND,
-                            )
                         if endpoint_name == "events" and operation == "PutEvents":
                             inject_trace_to_eventbridge_detail(params, span)
                             span.name = schematize_cloud_messaging_operation(
                                 trace_operation,
                                 cloud_provider="aws",
                                 cloud_service="events",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                        if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                            inject_trace_to_kinesis_stream(
-                                params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="kinesis",
                                 direction=SpanDirection.OUTBOUND,
                             )
                         if endpoint_name == "sns" and operation == "Publish":
@@ -643,87 +331,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                     except Exception:
                         log.warning("Unable to inject trace context", exc_info=True)
 
-                if params and not config.botocore["tag_no_params"]:
-                    aws._add_api_param_span_tags(span, endpoint_name, params)
-
-            else:
-                span.resource = endpoint_name
-
-            region_name = deep_getattr(instance, "meta.region_name")
-
-            span.set_tag_str("aws.agent", "botocore")
-            if operation is not None:
-                span.set_tag_str("aws.operation", operation)
-            if region_name is not None:
-                span.set_tag_str("aws.region", region_name)
-                span.set_tag_str("region", region_name)
-
-            # set analytics sample rate
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
-
             try:
-                if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
-                    queue_name = get_queue_name(params)
-
-                    if "MessageAttributeNames" not in params:
-                        params.update({"MessageAttributeNames": ["_datadog"]})
-                    elif "_datadog" not in params["MessageAttributeNames"]:
-                        params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
-
-                    if not func_run:
-                        result = original_func(*args, **kwargs)
-                    _set_response_metadata_tags(span, result)
-
-                    try:
-                        if "Messages" in result:
-                            for message in result["Messages"]:
-                                message_body = None
-                                context_json = None
-
-                                if "Body" in message:
-                                    try:
-                                        message_body = json.loads(message["Body"])
-                                    except ValueError:
-                                        log.debug("Unable to parse message body, treat as non-json")
-
-                                # try to extract trace context from the request
-                                context_json = extract_trace_context_json(message_body)
-                                if context_json is None:
-                                    log.debug("DataStreams did not handle message: %r", message)
-
-                                pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-                                ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                                ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], span=span)
-
-                    except Exception:
-                        log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
-
-                    # raise error if it was encountered before the span was started
-                    if func_run_err:
-                        raise func_run_err
-
-                    return result
-
-                else:
-                    if not func_run:
-                        result = original_func(*args, **kwargs)
-
-                    if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
-                        try:
-                            record_data_streams_path_for_kinesis_stream(pin, params, result, span)
-                        except Exception:
-                            log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
-
-                    # raise error if it was encountered before the span was started
-                    if func_run_err:
-                        raise func_run_err
-
-                    _set_response_metadata_tags(span, result)
-                    return result
+                result = original_func(*args, **kwargs)
+                set_response_metadata_tags(span, result)
+                return result
 
             except botocore.exceptions.ClientError as e:
                 # `ClientError.response` contains the result, so we can still grab response metadata
-                _set_response_metadata_tags(span, e.response)
+                set_response_metadata_tags(span, e.response)
 
                 # If we have a status code, and the status code is not an error,
                 #   then ignore the exception being raised
@@ -733,7 +348,39 @@ def patched_api_call(original_func, instance, args, kwargs):
                 raise
 
 
-def _set_response_metadata_tags(span, result):
+def set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation):
+    span.set_tag_str(COMPONENT, config.botocore.integration_name)
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span.set_tag(SPAN_MEASURED_KEY)
+
+    if args:
+        # DEV: join is the fastest way of concatenating strings that is compatible
+        # across Python versions (see
+        # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
+        span.resource = ".".join((endpoint_name, operation.lower()))
+        span.set_tag("aws_service", endpoint_name)
+
+        if params and not config.botocore["tag_no_params"]:
+            aws._add_api_param_span_tags(span, endpoint_name, params)
+
+    else:
+        span.resource = endpoint_name
+
+    region_name = deep_getattr(instance, "meta.region_name")
+
+    span.set_tag_str("aws.agent", "botocore")
+    if operation is not None:
+        span.set_tag_str("aws.operation", operation)
+    if region_name is not None:
+        span.set_tag_str("aws.region", region_name)
+        span.set_tag_str("region", region_name)
+
+    # set analytics sample rate
+    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
+
+
+def set_response_metadata_tags(span, result):
     # type: (Span, Dict[str, Any]) -> None
     if not result or not result.get("ResponseMetadata"):
         return
