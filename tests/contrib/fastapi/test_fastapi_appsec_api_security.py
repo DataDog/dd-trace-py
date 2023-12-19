@@ -11,7 +11,6 @@ import ddtrace
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
-from ddtrace.settings.asm import config as asm_config
 from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -64,6 +63,13 @@ def get_root_span(spans):
     return spans.pop_traces()[0][0]
 
 
+def get_schema(root_span, name):
+    value = root_span.get_tag(name)
+    if value:
+        return json.loads(gzip.decompress(base64.b64decode(value)).decode())
+    return None
+
+
 @pytest.mark.parametrize(
     ("name", "expected_value"),
     [
@@ -114,11 +120,62 @@ def test_api_security(app, client, tracer, test_spans, name, expected_value):
             headers={"content-type": "application/json"},
             cookies={"secret": "a1b2c3d4e5f6"},  # cookies needs to be set there for compatibility with fastapi==0.86
         )
+        root_span = get_root_span(test_spans)
+        assert resp.status_code == 200
+        api = get_schema(root_span, name)
+        assert equal_with_meta(api, expected_value), name
+
+
+def test_api_security_scanners(app, client, tracer, test_spans):
+    @app.post("/response-header-apisec/{str_param}")
+    async def specific_reponse(str_param, request: Request, response: Response):
+        data = await request.json()
+        query_params = request.query_params
+        data["validate"] = True
+        data["value"] = str_param
+        response.headers.update(query_params)
+        return data
+
+    payload = {"key": "secret", "ids": [0, 1, 2, 3]}
+
+    with override_global_config(
+        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+    ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/response-header-apisec/posting?x=2&extended=345&x=3",
+            data=json.dumps(payload),
+            cookies={
+                "mastercard": "5123456789123456",
+                "authorization": "digest a0b1c2",
+                "SSN": "123-45-6789",
+            },
+            headers={
+                "authorization": "digest a0b1c2",
+            },
+        )
+
+        EXPECTED_COOKIES = {
+            "SSN": [8, {"category": "pii", "type": "us_ssn"}],
+            "authorization": [8],
+            "mastercard": [
+                8,
+                {"card_type": "mastercard", "type": "card", "category": "payment"},
+            ],
+        }
+        EXPECTED_HEADERS = {"authorization": [8, {"category": "credentials", "type": "digest_auth"}]}
         assert resp.status_code == 200
         root_span = get_root_span(test_spans)
-        assert asm_config._api_security_enabled
 
-        value = root_span.get_tag(name)
-        assert value
-        api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-        assert equal_with_meta(api, expected_value), name
+        schema_cookies = get_schema(root_span, API_SECURITY.REQUEST_COOKIES)
+        schema_headers = get_schema(root_span, API_SECURITY.REQUEST_HEADERS_NO_COOKIES)
+        for schema, expected in [
+            (schema_cookies[0], EXPECTED_COOKIES),
+            (schema_headers[0], EXPECTED_HEADERS),
+        ]:
+            for key in expected:
+                assert key in schema
+                assert isinstance(schema[key], list)
+                assert len(schema[key]) == len(expected[key])
+                if len(schema[key]) == 2:
+                    assert schema[key][1] == expected[key][1]
