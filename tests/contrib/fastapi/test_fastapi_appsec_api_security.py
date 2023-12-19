@@ -106,11 +106,11 @@ def test_api_security(app, client, tracer, test_spans, name, expected_value):
         dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
     ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
         _aux_appsec_prepare_tracer(tracer)
-        client.cookies = {"secret": "a1b2c3d4e5f6"}
         resp = client.post(
             "/response-header-apisec/posting?x=2&extended=345&x=3",
             data=json.dumps(payload),
             headers={"content-type": "application/json"},
+            cookies={"secret": "a1b2c3d4e5f6"},  # cookies needs to be set there for compatibility with fastapi==0.86
         )
         assert resp.status_code == 200
         root_span = get_root_span(test_spans)
