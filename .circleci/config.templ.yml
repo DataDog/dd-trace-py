@@ -908,13 +908,11 @@ jobs:
           pattern: 'pylibmc'
 
   pytest:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'pytest'
+          snapshot: true
 
   unittest:
     <<: *machine_executor
