@@ -78,7 +78,7 @@ PACKAGES = [
     PackageForTesting("requests", "2.31.0", "", "", ""),
     PackageForTesting(
         "urllib3",
-        "2.31.0",
+        "2.1.0",
         "https://www.datadoghq.com/",
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
