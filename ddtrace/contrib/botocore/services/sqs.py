@@ -15,16 +15,16 @@ from ....ext import http
 from ....internal.compat import time_ns
 from ....internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ....internal.logger import get_logger
+from ....internal.schema import schematize_cloud_messaging_operation
+from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
-from ..patch import extract_DD_context
-from ..patch import extract_trace_context_json
-from ..patch import get_pathway
-from ..patch import get_queue_name
-from ..patch import schematize_cloud_messaging_operation
-from ..patch import schematize_service_name
-from ..patch import set_patched_api_call_span_tags
-from ..patch import set_response_metadata_tags
+from ..utils import extract_DD_context
+from ..utils import extract_trace_context_json
+from ..utils import get_pathway
+from ..utils import get_queue_name
+from ..utils import set_patched_api_call_span_tags
+from ..utils import set_response_metadata_tags
 
 
 log = get_logger(__name__)

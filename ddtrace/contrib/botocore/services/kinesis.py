@@ -1,11 +1,9 @@
-import base64
 from datetime import datetime
 import json
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 import botocore.client
 import botocore.exceptions
@@ -18,15 +16,15 @@ from ....ext import SpanTypes
 from ....ext import http
 from ....internal.compat import time_ns
 from ....internal.logger import get_logger
+from ....internal.schema import schematize_cloud_messaging_operation
+from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
-from ..patch import extract_DD_context
-from ..patch import get_json_from_str
-from ..patch import get_pathway
-from ..patch import schematize_cloud_messaging_operation
-from ..patch import schematize_service_name
-from ..patch import set_patched_api_call_span_tags
-from ..patch import set_response_metadata_tags
+from ..utils import extract_DD_context
+from ..utils import get_kinesis_data_object
+from ..utils import get_pathway
+from ..utils import set_patched_api_call_span_tags
+from ..utils import set_response_metadata_tags
 
 
 log = get_logger(__name__)
@@ -48,42 +46,6 @@ def get_stream_arn(params):
     """
     stream_arn = params.get("StreamARN", "")
     return stream_arn
-
-
-def get_kinesis_data_object(data):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
-    """
-    :data: the data from a kinesis stream
-
-    The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
-    We support injecting our trace context in the following three cases:
-    - json string
-    - byte encoded json string
-    - base64 encoded json string
-    If it's none of these, then we leave the message as it is.
-    """
-
-    # check if data is a json string
-    try:
-        return get_json_from_str(data)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
-
-    # check if data is an encoded json string
-    try:
-        data_str = data.decode("ascii")
-        return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
-
-    # check if data is a base64 encoded json string
-    try:
-        data_str = base64.b64decode(data).decode("ascii")
-        return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Unable to parse payload, unable to inject trace context.")
-
-    return None, None
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
