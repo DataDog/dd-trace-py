@@ -13,9 +13,10 @@ class PackageForTesting:
     expected_param = "test1234"
     expected_result1 = ""
     expected_result2 = ""
+    extra_packages = []
     xfail = False
 
-    def __init__(self, name, version, expected_param, expected_result1, expected_result2):
+    def __init__(self, name, version, expected_param, expected_result1, expected_result2, extras=[]):
         self.package_name = name
         self.package_version = version
         if expected_param:
@@ -24,6 +25,8 @@ class PackageForTesting:
             self.expected_result1 = expected_result1
         if expected_result2:
             self.expected_result2 = expected_result2
+        if extras:
+            self.extra_packages = extras
 
     @property
     def url(self):
@@ -32,17 +35,49 @@ class PackageForTesting:
     def __repr__(self):
         return f"{self.package_name}: {self.url_to_test}"
 
-    def install(self):
-        package_version = self.package_name + "==" + self.package_version
+    def _install(self, package_name, package_version):
+        package_fullversion = package_name + "==" + package_version
         if hasattr(pip, "main"):
-            pip.main(["install", package_version])
+            pip.main(["install", package_fullversion])
         else:
-            pip._internal.main(["install", package_version])
+            pip._internal.main(["install", package_fullversion])
+
+    def install(self):
+        self._install(self.package_name, self.package_version)
+        for package_name, package_version in self.extra_packages:
+            self._install(package_name, package_version)
 
 
 PACKAGES = [
-    PackageForTesting("requests", "2.31.0", "", "", ""),
+    PackageForTesting("charset-normalizer", "3.3.2", "my-bytes-string", "my-bytes-string", ""),
+    PackageForTesting(
+        "google-api-python-client",
+        "2.111.0",
+        "",
+        "",
+        "",
+        extras=[("google-auth-oauthlib", "1.2.0"), ("google-auth-httplib2", "0.2.0")],
+    ),
     PackageForTesting("idna", "3.6", "xn--eckwd4c7c.xn--zckzah", "ドメイン.テスト", "xn--eckwd4c7c.xn--zckzah"),
+    PackageForTesting("numpy", "1.26.2", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5),
+    PackageForTesting(
+        "python-dateutil",
+        "2.8.2",
+        "Sat Oct 11 17:13:46 UTC 2003",
+        "Sat, 11 Oct 2003 17:13:46 GMT",
+        "And the Easter of that year is: 2004-04-11",
+    ),
+    PackageForTesting(
+        "PyYAML", "6.0.1", "a: 1\nb:\n  c: 3\n  d: 4\n", {"a": 1, "b": {"c": 3, "d": 4}}, "a: 1\nb:\n  c: 3\n  d: 4\n"
+    ),
+    PackageForTesting("requests", "2.31.0", "", "", ""),
+    PackageForTesting(
+        "urllib3",
+        "2.31.0",
+        "https://www.datadoghq.com/",
+        ["https", None, "www.datadoghq.com", None, "/", None, None],
+        "www.datadoghq.com",
+    ),
 ]
 
 
@@ -54,18 +89,14 @@ def setup():
             package.install()
             _, client, pid = context
 
-            try:
-                response = client.get(package.url)
+            response = client.get(package.url)
 
-                assert response.status_code == 200
-                content = json.loads(response.content)
-                assert content["param"] == package.expected_param
-                assert content["result1"] == package.expected_result1
-                assert content["result2"] == package.expected_result2
-                assert content["params_are_tainted"] is False
-            except Exception as e:
-                package.xfail = True
-                print(e)
+            assert response.status_code == 200
+            content = json.loads(response.content)
+            assert content["param"] == package.expected_param
+            assert content["result1"] == package.expected_result1
+            assert content["result2"] == package.expected_result2
+            assert content["params_are_tainted"] is False
 
 
 @pytest.mark.parametrize("package", PACKAGES)
@@ -81,4 +112,6 @@ def test_patched(package):
         assert response.status_code == 200
         content = json.loads(response.content)
         assert content["param"] == package.expected_param
+        assert content["result1"] == package.expected_result1
+        assert content["result2"] == package.expected_result2
         assert content["params_are_tainted"] is True
