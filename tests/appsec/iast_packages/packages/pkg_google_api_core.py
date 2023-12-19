@@ -21,7 +21,6 @@ pkg_google_api_core = Blueprint("package_google_api_core", __name__)
 
 @pkg_google_api_core.route("/google-api-python-client")
 def pkg_idna_view():
-    from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
 
@@ -29,26 +28,22 @@ def pkg_idna_view():
     """Shows basic usage of the Docs API.
     Prints the title of a sample document.
     """
-    try:
-        flow = InstalledAppFlow.from_client_secrets_file("not-exists-credentials.json", SCOPES)
-        creds = flow.run_local_server(port=0)
-    except FileNotFoundError:
 
-        class FakeResponse:
-            status = 200
+    class FakeResponse:
+        status = 200
 
-        class FakeHttp:
-            def request(self, *args, **kwargs):
-                return FakeResponse(), '{"a": "1"}'
+    class FakeHttp:
+        def request(self, *args, **kwargs):
+            return FakeResponse(), '{"a": "1"}'
 
-        class FakeCredentials:
-            def to_json(self):
-                return "{}"
+    class FakeCredentials:
+        def to_json(self):
+            return "{}"
 
-            def authorize(self, *args, **kwargs):
-                return FakeHttp()
+        def authorize(self, *args, **kwargs):
+            return FakeHttp()
 
-        creds = FakeCredentials()
+    creds = FakeCredentials()
     try:
         service = build("docs", "v1", credentials=creds)
         # Retrieve the documents contents from the Docs service.
