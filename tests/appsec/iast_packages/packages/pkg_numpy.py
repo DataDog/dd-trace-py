@@ -5,7 +5,6 @@ https://pypi.org/project/numpy/
 """
 from flask import Blueprint
 from flask import request
-import numpy as np
 
 from .utils import ResultResponse
 
@@ -19,6 +18,8 @@ def np_float(x):
 
 @pkg_numpy.route("/numpy")
 def pkg_idna_view():
+    import numpy as np
+
     response = ResultResponse(request.args.get("package_param"))
     res = np.array(response.package_param.split(" "))
     vfunc = np.vectorize(np_float)
