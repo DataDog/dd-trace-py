@@ -3,6 +3,7 @@ import gzip
 import json
 
 from fastapi import Request
+from fastapi import Response
 from fastapi.testclient import TestClient
 import pytest
 
@@ -86,19 +87,20 @@ def get_root_span(spans):
         (API_SECURITY.REQUEST_PATH_PARAMS, [{"str_param": [8]}]),
         (
             API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
-            [{"content-type": [8], "content-length": [8]}],
+            [{"extended": [8], "x": [8], "content-type": [8], "content-length": [8]}],
         ),
-        # (API_SECURITY.RESPONSE_BODY, [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
+        (API_SECURITY.RESPONSE_BODY, [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
     ],
 )
 def test_api_security(app, client, tracer, test_spans, name, expected_value):
     @app.post("/response-header-apisec/{str_param}")
-    async def specific_reponse(str_param, request: Request):
+    async def specific_reponse(str_param, request: Request, response: Response):
         data = await request.json()
         query_params = request.query_params
         data["validate"] = True
         data["value"] = str_param
-        return data, query_params
+        response.headers.update(query_params)
+        return data
 
     payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
@@ -119,5 +121,4 @@ def test_api_security(app, client, tracer, test_spans, name, expected_value):
         value = root_span.get_tag(name)
         assert value
         api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-        print(">>>>", api)
         assert equal_with_meta(api, expected_value), name
