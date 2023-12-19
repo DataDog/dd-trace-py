@@ -245,17 +245,8 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     try:
                         if "Messages" in result:
                             for message in result["Messages"]:
-                                message_body = None
-                                context_json = None
-
-                                if "Body" in message:
-                                    try:
-                                        message_body = json.loads(message["Body"])
-                                    except ValueError:
-                                        log.debug("Unable to parse message body, treat as non-json")
-
                                 # try to extract trace context from the request
-                                context_json = extract_trace_context_json(message_body)
+                                context_json = extract_trace_context_json(message)
                                 if context_json is None:
                                     log.debug("DataStreams did not handle message: %r", message)
 

@@ -259,44 +259,47 @@ def get_aws_trace_headers(headers_string):
 
 def extract_trace_context_json(message):
     context_json = None
-    if message and message.get("Type") == "Notification":
-        # This is potentially a DSM SNS notification
-        if (
+    try:
+        if message and message.get("Type") == "Notification":
+            # This is potentially a DSM SNS notification
+            if (
+                "MessageAttributes" in message
+                and "_datadog" in message["MessageAttributes"]
+                and message["MessageAttributes"]["_datadog"]["Type"] == "Binary"
+            ):
+                context_json = json.loads(base64.b64decode(message["MessageAttributes"]["_datadog"]["Value"]).decode())
+        elif (
             "MessageAttributes" in message
             and "_datadog" in message["MessageAttributes"]
-            and message["MessageAttributes"]["_datadog"]["Type"] == "Binary"
+            and "StringValue" in message["MessageAttributes"]["_datadog"]
         ):
-            context_json = json.loads(base64.b64decode(message["MessageAttributes"]["_datadog"]["Value"]).decode())
-    elif (
-        "MessageAttributes" in message
-        and "_datadog" in message["MessageAttributes"]
-        and "StringValue" in message["MessageAttributes"]["_datadog"]
-    ):
-        # The message originated from SQS
-        context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
-    elif (
-        "MessageAttributes" in message
-        and "_datadog" in message["MessageAttributes"]
-        and "BinaryValue" in message["MessageAttributes"]["_datadog"]
-    ):
-        # Raw message delivery
-        context_json = json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode())
-    # this is a kinesis message
-    elif "Data" in message:
-        # Raw message delivery
-        _, data = get_kinesis_data_object(message["Data"])
-        if "_datadog" in data:
-            context_json = data["_datadog"]
-    elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
-        # this message contains AWS tracing propagation
-        context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
+            # The message originated from SQS
+            context_json = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+        elif (
+            "MessageAttributes" in message
+            and "_datadog" in message["MessageAttributes"]
+            and "BinaryValue" in message["MessageAttributes"]["_datadog"]
+        ):
+            # Raw message delivery
+            context_json = json.loads(message["MessageAttributes"]["_datadog"]["BinaryValue"].decode())
+        # this is a kinesis message
+        elif "Data" in message:
+            # Raw message delivery
+            _, data = get_kinesis_data_object(message["Data"])
+            if "_datadog" in data:
+                context_json = data["_datadog"]
+        elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
+            # this message contains AWS tracing propagation
+            context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
 
-    if context_json is None:
-        # AWS SNS holds attributes within message body
-        if "Body" in message:
-            try:
-                body = json.loads(message["Body"])
-                return extract_trace_context_json(body)
-            except ValueError:
-                log.debug("Unable to parse AWS message body.")
+        if context_json is None:
+            # AWS SNS holds attributes within message body
+            if "Body" in message:
+                try:
+                    body = json.loads(message["Body"])
+                    return extract_trace_context_json(body)
+                except ValueError:
+                    log.debug("Unable to parse AWS message body.")
+    except Exception:
+        log.debug("Unable to parse AWS message attributes for Datadog Context.")
     return context_json
