@@ -58,6 +58,7 @@ from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
+from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -389,6 +390,7 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+    take_over_logger_stream_handler()
     if is_enabled(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
     if _is_pytest_cov_enabled(config):
