@@ -19,9 +19,9 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/provider.py', 'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/settings/__init__.py',
     'ddtrace/settings/config.py', 'ddtrace/settings/dynamic_instrumentation.py',
     'ddtrace/settings/exception_debugging.py', 'ddtrace/settings/http.py', 'ddtrace/settings/integration.py',
-    'ddtrace/span.py', 'ddtrace/tracer.py', 'ddtrace/tracing/*', 'ddtrace/version.py', 'hatch.toml', 'pyproject.toml',
-    'riotfile.py', 'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json',
-    'tests/__init__.py', 'tests/conftest.py', 'tests/debugging/*']
+    'ddtrace/span.py', 'ddtrace/tracer.py', 'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml',
+    'pyproject.toml', 'riotfile.py', 'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py',
+    'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py', 'tests/debugging/*']
     >>> get_patterns("foobar")
     set()
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
@@ -34,10 +34,10 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/propagation/*', 'ddtrace/provider.py', 'ddtrace/py.typed', 'ddtrace/sampler.py',
     'ddtrace/settings/__init__.py', 'ddtrace/settings/_database_monitoring.py', 'ddtrace/settings/config.py',
     'ddtrace/settings/http.py', 'ddtrace/settings/integration.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
-    'ddtrace/tracing/*', 'ddtrace/version.py', 'hatch.toml', 'pyproject.toml', 'riotfile.py', 'scripts/ddtest',
-    'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py',
-    'tests/conftest.py', 'tests/contrib/__init__.py', 'tests/contrib/patch.py', 'tests/contrib/urllib3/*',
-    'tests/snapshots/tests.contrib.urllib3.*']
+    'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml', 'pyproject.toml', 'riotfile.py',
+    'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json',
+    'tests/__init__.py', 'tests/conftest.py', 'tests/contrib/__init__.py', 'tests/contrib/patch.py',
+    'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*']
     """
     compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:

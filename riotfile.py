@@ -159,7 +159,22 @@ venv = Venv(
                 "requests": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
-                "pytest-memray": latest,
+                # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
+                # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
+                "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
+            name="appsec_iast_packages",
+            pys=select_pys(min_version="3.8"),
+            command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pkgs={
+                "requests": latest,
+                "flask": "~=3.0",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -230,6 +245,9 @@ venv = Venv(
                 "wheel": latest,
                 "fastapi": latest,
                 "httpx": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
             },
             venvs=[
                 Venv(pys=select_pys()),
