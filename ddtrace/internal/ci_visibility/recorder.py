@@ -180,7 +180,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled)
 
-        log.info("Service: %s", self._service)
+        log.info("Service: %s (env: %s)", self._service, ddconfig.env)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
