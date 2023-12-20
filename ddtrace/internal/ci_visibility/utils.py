@@ -3,6 +3,7 @@ import os
 import typing
 
 import ddtrace
+from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
 
@@ -67,6 +68,17 @@ def _add_start_end_source_file_path_data_to_span(
         span.set_tag(test.SOURCE_START, start_line)
     if end_line:
         span.set_tag(test.SOURCE_END, end_line)
+
+
+def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
+    if not coverage_data or PCT_COVERED_KEY not in coverage_data:
+        log.warning("Tried to add total covered percentage to session span but no data was found")
+        return
+    lines_pct_value = coverage_data[PCT_COVERED_KEY]
+    if type(lines_pct_value) != float:
+        log.warning("Tried to add total covered percentage to session span but the format was unexpected")
+        return
+    span.set_tag(test.TEST_LINES_PCT, lines_pct_value)
 
 
 def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:
