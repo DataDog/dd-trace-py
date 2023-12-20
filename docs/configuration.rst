@@ -553,8 +553,7 @@ The following environment variables for the tracer are supported:
          only displays messages related to the ``CIVisibility`` service, at a level of or higher than the given log
          level. The Datadog logger's file handler is unaffected. Valid, case-insensitive, values are ``critical``,
          ``error``, ``warning``, ``info``, or ``debug``. A value of ``none`` silently disables the logger. Note:
-         setting the ``DD_TRACE_DEBUG`` environment variable to a truthy value overrides this behavior and leaves the
-         debug-level logging enabled.
+         enabling debug logging with the ``DD_TRACE_DEBUG`` environment variable overrides this behavior.
       version_added:
          v2.5.0:
 
