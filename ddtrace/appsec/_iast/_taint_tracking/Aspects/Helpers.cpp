@@ -154,7 +154,7 @@ ApiAsFormattedEvidence(StrType& text,
     if (!text_ranges) {
         _ranges = api_get_ranges(text);
     } else {
-        _ranges = text_ranges.value();
+        _ranges = *text_ranges;
     }
     return AsFormattedEvidence<StrType>(text, _ranges, tag_mapping_mode, new_ranges);
 }
