@@ -2364,92 +2364,93 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
-        region = "us-east-1"
-        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            region = "us-east-1"
+            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
-        topic = sns.create_topic(Name="testTopic")
+            topic = sns.create_topic(Name="testTopic")
 
-        topic_arn = topic["TopicArn"]
-        sqs_url = self.sqs_test_queue["QueueUrl"]
-        url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            topic_arn = topic["TopicArn"]
+            sqs_url = self.sqs_test_queue["QueueUrl"]
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
-        Pin.get_from(sns).clone(tracer=self.tracer).onto(self.sqs_client)
-        entries = [
-            {
-                "Id": "1",
-                "Message": "ironmaiden",
-            },
-            {
-                "Id": "2",
-                "Message": "megadeth",
-            },
-        ]
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+            Pin.get_from(sns).clone(tracer=self.tracer).onto(self.sqs_client)
+            entries = [
+                {
+                    "Id": "1",
+                    "Message": "ironmaiden",
+                },
+                {
+                    "Id": "2",
+                    "Message": "megadeth",
+                },
+            ]
 
-        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
+            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
 
-        # get SNS messages via SQS
-        response = self.sqs_client.receive_message(
-            QueueUrl=self.sqs_test_queue["QueueUrl"],
-            MessageAttributeNames=["_datadog"],
-            WaitTimeSeconds=2,
-            MaxNumberOfMessages=2,
-        )
+            # get SNS messages via SQS
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+                MaxNumberOfMessages=2,
+            )
 
-        spans = self.get_spans()
+            spans = self.get_spans()
 
-        # check if the appropriate span was generated
-        assert spans
-        span = spans[0]
-        assert len(spans) == 2
-        assert span.get_tag("aws.region") == region
-        assert span.get_tag("region") == region
-        assert span.get_tag("aws.operation") == "PublishBatch"
-        assert span.get_tag("params.MessageBody") is None
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
-        assert span.resource == "sns.publishbatch"
+            # check if the appropriate span was generated
+            assert spans
+            span = spans[0]
+            assert len(spans) == 2
+            assert span.get_tag("aws.region") == region
+            assert span.get_tag("region") == region
+            assert span.get_tag("aws.operation") == "PublishBatch"
+            assert span.get_tag("params.MessageBody") is None
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.sns"
+            assert span.resource == "sns.publishbatch"
 
-        # receive messages using SQS and ensure headers are present
-        assert len(response["Messages"]) == 2
-        msg_1 = response["Messages"][0]
-        assert msg_1 is not None
+            # receive messages using SQS and ensure headers are present
+            assert len(response["Messages"]) == 2
+            msg_1 = response["Messages"][0]
+            assert msg_1 is not None
 
-        msg_body = json.loads(msg_1["Body"])
-        msg_str = msg_body["Message"]
-        assert msg_str == "ironmaiden"
-        msg_attr = msg_body["MessageAttributes"]
-        assert msg_attr.get("_datadog") is not None
-        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
-        assert headers is not None
-        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+            msg_body = json.loads(msg_1["Body"])
+            msg_str = msg_body["Message"]
+            assert msg_str == "ironmaiden"
+            msg_attr = msg_body["MessageAttributes"]
+            assert msg_attr.get("_datadog") is not None
+            headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+            assert headers is not None
+            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-        msg_2 = response["Messages"][1]
-        assert msg_2 is not None
+            msg_2 = response["Messages"][1]
+            assert msg_2 is not None
 
-        msg_body = json.loads(msg_2["Body"])
-        msg_str = msg_body["Message"]
-        assert msg_str == "megadeth"
-        msg_attr = msg_body["MessageAttributes"]
-        assert msg_attr.get("_datadog") is not None
-        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
-        assert headers is not None
-        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+            msg_body = json.loads(msg_2["Body"])
+            msg_str = msg_body["Message"]
+            assert msg_str == "megadeth"
+            msg_attr = msg_body["MessageAttributes"]
+            assert msg_attr.get("_datadog") is not None
+            headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+            assert headers is not None
+            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-        consume_span = spans[1]
+            consume_span = spans[1]
 
-        assert consume_span.get_tag("aws.operation") == "ReceiveMessage"
+            assert consume_span.get_tag("aws.operation") == "ReceiveMessage"
 
-        assert consume_span.parent_id == span.span_id
-        assert consume_span.trace_id == span.trace_id
+            assert consume_span.parent_id == span.span_id
+            assert consume_span.trace_id == span.trace_id
 
-        # clean up resources
-        sns.delete_topic(TopicArn=topic_arn)
+            # clean up resources
+            sns.delete_topic(TopicArn=topic_arn)
 
     @pytest.mark.skipif(
         PYTHON_VERSION_INFO < (3, 6),
