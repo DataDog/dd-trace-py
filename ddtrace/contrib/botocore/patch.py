@@ -155,72 +155,90 @@ def patched_api_call(original_func, instance, args, kwargs):
             function_vars=function_vars,
         )
     else:
-        with pin.tracer.trace(
-            trace_operation,
-            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-            span_type=SpanTypes.HTTP,
-        ) as span:
-            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+        # this is the default patched api call
+        return patched_api_call_fallback(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            function_vars=function_vars,
+        )
 
-            if args:
-                if config.botocore["distributed_tracing"]:
-                    try:
-                        if endpoint_name == "lambda" and operation == "Invoke":
-                            inject_trace_to_client_context(params, span)
-                            span.name = schematize_cloud_faas_operation(
-                                trace_operation, cloud_provider="aws", cloud_service="lambda"
-                            )
-                        if endpoint_name == "events" and operation == "PutEvents":
-                            inject_trace_to_eventbridge_detail(params, span)
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="events",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                        if endpoint_name == "sns" and operation == "Publish":
-                            inject_trace_to_sqs_or_sns_message(
-                                params,
-                                span,
-                                endpoint_service=endpoint_name,
-                                pin=pin,
-                                data_streams_enabled=config._data_streams_enabled,
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="sns",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                        if endpoint_name == "sns" and operation == "PublishBatch":
-                            inject_trace_to_sqs_or_sns_batch_message(
-                                params,
-                                span,
-                                endpoint_service=endpoint_name,
-                                pin=pin,
-                                data_streams_enabled=config._data_streams_enabled,
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="sns",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                    except Exception:
-                        log.warning("Unable to inject trace context", exc_info=True)
 
-            try:
-                result = original_func(*args, **kwargs)
-                set_response_metadata_tags(span, result)
-                return result
+def patched_api_call_fallback(original_func, instance, args, kwargs, function_vars):
+    # default patched api call that is used generally for several services / operations
+    params = function_vars.get("params")
+    trace_operation = function_vars.get("trace_operation")
+    pin = function_vars.get("pin")
+    endpoint_name = function_vars.get("endpoint_name")
+    operation = function_vars.get("operation")
 
-            except botocore.exceptions.ClientError as e:
-                # `ClientError.response` contains the result, so we can still grab response metadata
-                set_response_metadata_tags(span, e.response)
+    with pin.tracer.trace(
+        trace_operation,
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        span_type=SpanTypes.HTTP,
+    ) as span:
+        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
-                # If we have a status code, and the status code is not an error,
-                #   then ignore the exception being raised
-                status_code = span.get_tag(http.STATUS_CODE)
-                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                    span._ignore_exception(botocore.exceptions.ClientError)
-                raise
+        if args:
+            if config.botocore["distributed_tracing"]:
+                try:
+                    if endpoint_name == "lambda" and operation == "Invoke":
+                        inject_trace_to_client_context(params, span)
+                        span.name = schematize_cloud_faas_operation(
+                            trace_operation, cloud_provider="aws", cloud_service="lambda"
+                        )
+                    if endpoint_name == "events" and operation == "PutEvents":
+                        inject_trace_to_eventbridge_detail(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="events",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "sns" and operation == "Publish":
+                        inject_trace_to_sqs_or_sns_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="sns",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "sns" and operation == "PublishBatch":
+                        inject_trace_to_sqs_or_sns_batch_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="sns",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                except Exception:
+                    log.warning("Unable to inject trace context", exc_info=True)
+
+        try:
+            result = original_func(*args, **kwargs)
+            set_response_metadata_tags(span, result)
+            return result
+
+        except botocore.exceptions.ClientError as e:
+            # `ClientError.response` contains the result, so we can still grab response metadata
+            set_response_metadata_tags(span, e.response)
+
+            # If we have a status code, and the status code is not an error,
+            #   then ignore the exception being raised
+            status_code = span.get_tag(http.STATUS_CODE)
+            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+                span._ignore_exception(botocore.exceptions.ClientError)
+            raise
