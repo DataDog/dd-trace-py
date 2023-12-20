@@ -1222,7 +1222,7 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            env=dict(DD_CIVISIBILITY_ITR_ENABLED="1"),
+            env=dict(DD_CIVISIBILITY_ITR_ENABLED="0"),
             pys=select_pys(min_version="3.7"),
             pkgs={"moto[all]": latest, "botocore": latest},
         ),
