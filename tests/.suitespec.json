@@ -6,6 +6,7 @@
             "pyproject.toml"
         ],
         "$harness": [
+            "docker/*",
             "riotfile.py",
             "scripts/ddtest",
             "scripts/run-test-suite",

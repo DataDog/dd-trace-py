@@ -440,7 +440,11 @@ def _set_headers_and_response(response, headers, *_):
     if _appsec_apisec_features_is_active():
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier
-            set_headers_response(list(headers))
+            if isinstance(headers, dict):
+                list_headers = list(headers.items())
+            else:
+                list_headers = list(headers)
+            set_headers_response(list_headers)
         if response:
             set_body_response(response)
 
@@ -480,3 +484,4 @@ def listen_context_handlers():
 
     core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)
+    core.on("asgi.finalize_response", _set_headers_and_response)
