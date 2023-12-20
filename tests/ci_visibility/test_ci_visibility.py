@@ -74,8 +74,8 @@ def test_ci_visibility_service_enable():
             assert CIVisibility.enabled
             assert ci_visibility_instance.tracer == dummy_tracer
             assert ci_visibility_instance._service == "test-service"
-            assert ci_visibility_instance._code_coverage_enabled_by_api is False
-            assert ci_visibility_instance._test_skipping_enabled_by_api is False
+            assert ci_visibility_instance._api_settings.coverage_enabled is False
+            assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
             CIVisibility.disable()
 
@@ -98,8 +98,8 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             )
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-            assert CIVisibility._instance._code_coverage_enabled_by_api is False
-            assert CIVisibility._instance._test_skipping_enabled_by_api is False
+            assert CIVisibility._instance._api_settings.coverage_enabled is False
+            assert CIVisibility._instance._api_settings.skipping_enabled is False
             CIVisibility.disable()
 
 
@@ -115,8 +115,8 @@ def test_ci_visibility_service_settings_timeout(_do_request):
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        assert CIVisibility._instance._api_settings.coverage_enabled is False
+        assert CIVisibility._instance._api_settings.skipping_enabled is False
         CIVisibility.disable()
 
 
@@ -153,8 +153,8 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
             '{"code_coverage":true,"tests_skipping":true, "require_git": false}}}',
         )
         CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._code_coverage_enabled_by_api is True
-        assert CIVisibility._instance._test_skipping_enabled_by_api is True
+        assert CIVisibility._instance._api_settings.coverage_enabled is True
+        assert CIVisibility._instance._api_settings.skipping_enabled is True
         CIVisibility.disable()
 
 
@@ -172,8 +172,8 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
             body='{"errors": ["Not found"]}',
         )
         CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        assert CIVisibility._instance._api_settings.coverage_enabled is False
+        assert CIVisibility._instance._api_settings.skipping_enabled is False
         CIVisibility.disable()
 
 
@@ -831,8 +831,8 @@ def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do
         CIVisibility.enable()
 
         _do_request.assert_not_called()
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        assert CIVisibility._instance._api_settings.coverage_enabled is False
+        assert CIVisibility._instance._api_settings.skipping_enabled is False
 
         CIVisibility.disable()
 
