@@ -227,6 +227,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
+                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -254,9 +255,11 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
                     message["more_body"] = False
+                    core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
                 finally:
