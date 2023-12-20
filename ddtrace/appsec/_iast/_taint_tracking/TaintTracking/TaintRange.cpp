@@ -210,7 +210,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     // TODO: Replace this loop with a efficient function, vector.find() is O(n)
     // too.
     TaintRangePtr null_range = nullptr;
-    for (const auto& range : *taint_ranges) {
+    for (const auto& range : taint_ranges.value()) {
         if (range_hash == range->get_hash()) {
             return range;
         }
