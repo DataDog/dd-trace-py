@@ -390,8 +390,8 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-    take_over_logger_stream_handler()
     if is_enabled(config):
+        take_over_logger_stream_handler()
         _CIVisibility.enable(config=ddtrace.config.pytest)
     if _is_pytest_cov_enabled(config):
         patch_coverage()
