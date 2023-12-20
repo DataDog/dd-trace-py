@@ -19,12 +19,12 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-latest
-           archs: x86_64 i686
-         - os: ubuntu-latest
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
+         # - os: ubuntu-latest
+         #   archs: x86_64 i686
+         # - os: ubuntu-latest
+         #   archs: aarch64
+         # - os: windows-latest
+         #   archs: AMD64 x86
          - os: macos-13
            archs: x86_64 universal2
     steps:
