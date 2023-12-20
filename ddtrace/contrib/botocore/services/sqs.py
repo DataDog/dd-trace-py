@@ -148,7 +148,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     start_ns = None
     result = None
 
-    if config.botocore["distributed_tracing"]:
+    if config.botocore.propagation_enabled:
         if endpoint_name == "sqs" and operation == "ReceiveMessage":
             # Ensure we have Datadog MessageAttribute enabled
             if "MessageAttributeNames" not in params:

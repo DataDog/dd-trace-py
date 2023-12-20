@@ -579,7 +579,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_on(self):
-        with self.override_config("botocore", dict(distributed_tracing=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
             self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
@@ -644,7 +644,7 @@ class BotocoreTest(TracerTestCase):
                     },
                 )
         # Turn distributed tracing on after message is sent so automatic context injection isn't added
-        with self.override_config("botocore", dict(distributed_tracing=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
 
             response = self.sqs_client.receive_message(
@@ -687,63 +687,64 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def _test_distributed_tracing_sns_to_sqs(self, raw_message_delivery):
-        with mock.patch("time.time") as mt:
-            mt.return_value = 1642544540
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            with mock.patch("time.time") as mt:
+                mt.return_value = 1642544540
 
-            sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+                sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopic")
+                topic = sns.create_topic(Name="testTopic")
 
-            topic_arn = topic["TopicArn"]
-            sqs_url = self.sqs_test_queue["QueueUrl"]
-            url_parts = sqs_url.split("/")
-            sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
-            subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+                topic_arn = topic["TopicArn"]
+                sqs_url = self.sqs_test_queue["QueueUrl"]
+                url_parts = sqs_url.split("/")
+                sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+                subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-            if raw_message_delivery:
-                sns.set_subscription_attributes(
-                    SubscriptionArn=subscription["SubscriptionArn"],
-                    AttributeName="RawMessageDelivery",
-                    AttributeValue="true",
-                )
+                if raw_message_delivery:
+                    sns.set_subscription_attributes(
+                        SubscriptionArn=subscription["SubscriptionArn"],
+                        AttributeName="RawMessageDelivery",
+                        AttributeValue="true",
+                    )
 
-            Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
-            Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+                Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
+                Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
 
-            sns.publish(TopicArn=topic_arn, Message="test")
+                sns.publish(TopicArn=topic_arn, Message="test")
 
-            # get SNS messages via SQS
-            response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+                # get SNS messages via SQS
+                response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
 
-            # clean up resources
-            sns.delete_topic(TopicArn=topic_arn)
+                # clean up resources
+                sns.delete_topic(TopicArn=topic_arn)
 
-            spans = self.get_spans()
-            assert spans
-            publish_span = spans[0]
-            assert len(spans) == 3
-            assert publish_span.get_tag("aws.region") == "us-east-1"
-            assert publish_span.get_tag("region") == "us-east-1"
-            assert publish_span.get_tag("aws.operation") == "Publish"
-            assert publish_span.get_tag("params.MessageBody") is None
-            assert publish_span.get_tag("component") == "botocore"
-            assert publish_span.get_tag("span.kind"), "client"
-            assert_is_measured(publish_span)
-            assert_span_http_status_code(publish_span, 200)
-            assert publish_span.service == "aws.sns"
-            assert publish_span.resource == "sns.publish"
+                spans = self.get_spans()
+                assert spans
+                publish_span = spans[0]
+                assert len(spans) == 3
+                assert publish_span.get_tag("aws.region") == "us-east-1"
+                assert publish_span.get_tag("region") == "us-east-1"
+                assert publish_span.get_tag("aws.operation") == "Publish"
+                assert publish_span.get_tag("params.MessageBody") is None
+                assert publish_span.get_tag("component") == "botocore"
+                assert publish_span.get_tag("span.kind"), "client"
+                assert_is_measured(publish_span)
+                assert_span_http_status_code(publish_span, 200)
+                assert publish_span.service == "aws.sns"
+                assert publish_span.resource == "sns.publish"
 
-            assert len(response["Messages"]) == 1
-            if raw_message_delivery:
-                trace_in_message = "MessageAttributes" in response["Messages"][0]
-            else:
-                trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
-            assert trace_in_message is True
+                assert len(response["Messages"]) == 1
+                if raw_message_delivery:
+                    trace_in_message = "MessageAttributes" in response["Messages"][0]
+                else:
+                    trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
+                assert trace_in_message is True
 
-            consume_span = spans[1]
+                consume_span = spans[1]
 
-            assert consume_span.parent_id == publish_span.span_id
-            assert consume_span.trace_id == publish_span.trace_id
+                assert consume_span.parent_id == publish_span.span_id
+                assert consume_span.trace_id == publish_span.trace_id
 
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
@@ -1113,7 +1114,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_kinesis
     def test_kinesis_distributed_tracing_on(self):
-        with self.override_config("botocore", dict(distributed_tracing=True)):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
             # dict -> json string
             data = json.dumps({"json": "string"})
 
@@ -2049,6 +2050,14 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
+    def test_propagation_enabled_env_override(self):
+        assert config.botocore.propagation_enabled is True
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
+    def test_propagation_enabled_env_override_false(self):
+        assert config.botocore.propagation_enabled is False
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
     def test_invoke_legacy_context_env_override(self):

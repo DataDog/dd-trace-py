@@ -147,7 +147,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     start_ns = None
     result = None
 
-    if config.botocore["distributed_tracing"]:
+    if config.botocore.propagation_enabled:
         if endpoint_name == "kinesis" and operation == "GetRecords":
             try:
                 start_ns = time_ns()
