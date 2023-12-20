@@ -563,8 +563,6 @@ def pytest_collection_modifyitems(session, config, items):
             for item_to_skip in items_to_skip:
                 item_to_skip.add_marker(skip)
 
-        log.info("Intelligent Test Runner ")
-
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
