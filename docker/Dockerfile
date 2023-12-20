@@ -3,6 +3,9 @@
 #      have to be built from source all the time (grpcio takes forever to install)
 FROM debian:buster-20221219-slim
 
+ARG TARGETARCH
+ARG HATCH_VERSION=1.8.1
+
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG C.UTF-8
@@ -70,5 +73,13 @@ RUN git clone --depth 1 --branch v2.3.33 https://github.com/pyenv/pyenv "${PYENV
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
+
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION} hatch-${HATCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
+    else curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-aarch64-unknown-linux-gnu.tar.gz | tar zx; \
+    fi \
+  && mv hatch-${HATCH_VERSION}-* hatch \
+  && install -t /usr/local/bin hatch \
+  && hatch -q
 
 CMD ["/bin/bash"]
