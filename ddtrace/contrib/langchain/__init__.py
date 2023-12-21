@@ -133,8 +133,11 @@ Global Configuration
    Enable collection of prompts and completions as logs. You can adjust the rate of prompts and completions collected
    using the sample rate configuration described below.
 
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_LOGS_ENABLED`` environment
-   variable.
+   Alternatively, you can set this option with one of the following environment variables:
+
+   - ``DD_LLMOBS_LOGS_ENABLED``
+   - ``DD_LANGCHAIN_LOGS_ENABLED``, which takes precedence over ``DD_LLMOBS_LOGS_ENABLED``. 
+
 
    Note that you must set the ``DD_API_KEY`` environment variable to enable sending logs.
 
@@ -148,13 +151,15 @@ Global Configuration
    If the Datadog Agent is configured to use a non-default Statsd hostname
    or port, use ``DD_DOGSTATSD_URL`` to configure ``ddtrace`` to use it.
 
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_METRICS_ENABLED`` environment
-   variable.
+   Alternatively, you can set this option with one of the following environment variables:
 
+   - ``DD_LLMOBS_METRICS_ENABLED``
+   - ``DD_LANGCHAIN_METRICS_ENABLED``, which takes precedence over ``DD_LLMOBS_METRICS_ENABLED``. 
+   
    Default: ``True``
 
 
-.. py:data:: (beta) ddtrace.config.langchain["span_char_limit"]
+.. py:data:: (beta) ddtrace.config._llmobs_span_char_limit
 
    Configure the maximum number of characters for the following data within span tags:
 
@@ -165,27 +170,27 @@ Global Configuration
    Text exceeding the maximum number of characters is truncated to the character limit
    and has ``...`` appended to the end.
 
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_SPAN_CHAR_LIMIT`` environment
+   Alternatively, you can set this option with the ``DD_LLMOBS_SPAN_CHAR_LIMIT`` environment
    variable.
 
    Default: ``128``
 
 
-.. py:data:: (beta) ddtrace.config.langchain["span_prompt_completion_sample_rate"]
+.. py:data:: (beta) ddtrace.config._llmobs_span_prompt_completion_sample_rate
 
    Configure the sample rate for the collection of prompts and completions as span tags.
 
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   Alternatively, you can set this option with the ``DD_LLMOBS_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
    variable.
 
    Default: ``1.0``
 
 
-.. py:data:: (beta) ddtrace.config.langchain["log_prompt_completion_sample_rate"]
+.. py:data:: (beta) ddtrace.config._llmobs_log_prompt_completion_sample_rate
 
    Configure the sample rate for the collection of prompts and completions as logs.
 
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   Alternatively, you can set this option with the ``DD_LLMOBS_LOG_PROMPT_COMPLETION_SAMPLE_RATE`` environment
    variable.
 
    Default: ``0.1``

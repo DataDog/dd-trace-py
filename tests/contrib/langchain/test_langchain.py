@@ -6,6 +6,7 @@ import mock
 import pytest
 import vcr
 
+import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
@@ -125,10 +126,61 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
+    "ddtrace_global_config",
+    [
+        dict(_llmobs_enabled=True, _llmobs_logs_enabled=True, _llmobs_metrics_enabled=True),
+        dict(_llmobs_enabled=False, _llmobs_logs_enabled=False, _llmobs_metrics_enabled=False),
+    ],
 )
-def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
+def test_global_config(ddtrace_global_config, mock_tracer, langchain):
+    assert ddtrace.config._llmobs_enabled is ddtrace_global_config["_llmobs_enabled"]
+    assert ddtrace.config._llmobs_logs_enabled is ddtrace_global_config["_llmobs_logs_enabled"]
+    assert ddtrace.config._llmobs_metrics_enabled is ddtrace_global_config["_llmobs_metrics_enabled"]
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_langchain",
+    [
+        dict(metrics_enabled=True, logs_enabled=True, llmobs_enabled=True),
+        dict(metrics_enabled=False, logs_enabled=False, llmobs_enabled=False),
+    ],
+)
+def test_integration_config(ddtrace_config_langchain, mock_tracer, langchain):
+    # Ensure that the module state is reloaded for each test run
+    assert not hasattr(langchain, "_test")
+    langchain._test = 1
+
+    # Ensure overriding the config works
+    assert ddtrace.config.langchain.metrics_enabled is ddtrace_config_langchain["metrics_enabled"]
+    assert ddtrace.config.langchain.logs_enabled is ddtrace_config_langchain["logs_enabled"]
+    assert ddtrace.config.langchain.llmobs_enabled is ddtrace_config_langchain["llmobs_enabled"]
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config,ddtrace_config_langchain",
+    [
+        (dict(_llmobs_logs_enabled=True), dict(logs_enabled=False)),
+        (dict(_llmobs_logs_enabled=False), dict(logs_enabled=True)),
+    ],
+)
+def test_logs_integration_config_overrides_global_config(
+    ddtrace_global_config, ddtrace_config_langchain, langchain, request_vcr, mock_logs
+):
+    llm = langchain.llms.OpenAI()
+    if sys.version_info >= (3, 10, 0):
+        cassette_name = "openai_completion_sync.yaml"
+    else:
+        cassette_name = "openai_completion_sync_39.yaml"
+    with request_vcr.use_cassette(cassette_name):
+        llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    assert mock_logs.enqueue.call_count == int(ddtrace_config_langchain.get("logs_enabled") is True)
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(logs_enabled=True, service="test-svc", env="staging", version="1234")],
+)
+def test_global_tags(ddtrace_global_config, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -136,13 +188,12 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         The version should be used for all data
     """
     llm = langchain.llms.OpenAI()
-    with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        if sys.version_info >= (3, 10, 0):
-            cassette_name = "openai_completion_sync.yaml"
-        else:
-            cassette_name = "openai_completion_sync_39.yaml"
-        with request_vcr.use_cassette(cassette_name):
-            llm("What does Nietzsche mean by 'God is dead'?")
+    if sys.version_info >= (3, 10, 0):
+        cassette_name = "openai_completion_sync.yaml"
+    else:
+        cassette_name = "openai_completion_sync_39.yaml"
+    with request_vcr.use_cassette(cassette_name):
+        llm("What does Nietzsche mean by 'God is dead'?")
 
     span = mock_tracer.pop_traces()[0][0]
     assert span.resource == "langchain.llms.openai.OpenAI"
@@ -348,18 +399,10 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_llm_logs(langchain, ddtrace_global_config, request_vcr, mock_logs, mock_metrics, mock_tracer):
     llm = langchain.llms.OpenAI()
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
@@ -562,18 +605,10 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_chat_model_logs(langchain, ddtrace_global_config, request_vcr, mock_logs, mock_metrics, mock_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_chat_completion_sync_call.yaml"
@@ -691,18 +726,10 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_embedding_logs(langchain, ddtrace_global_config, request_vcr, mock_logs, mock_metrics, mock_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_embedding_query.yaml"
@@ -969,18 +996,10 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_chain_logs(langchain, ddtrace_global_config, request_vcr, mock_logs, mock_metrics, mock_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
@@ -1199,18 +1218,10 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_vectorstore_logs(langchain, ddtrace_global_config, request_vcr, mock_logs, mock_metrics, mock_tracer):
     import pinecone
 
     if sys.version_info >= (3, 10, 0):
@@ -1344,20 +1355,10 @@ with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_llm_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
-):
+def test_llm_logs_when_response_not_completed(langchain, ddtrace_global_config, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
@@ -1391,19 +1392,11 @@ def test_llm_logs_when_response_not_completed(
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
 def test_chat_model_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain, ddtrace_global_config, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
@@ -1445,19 +1438,11 @@ def test_chat_model_logs_when_response_not_completed(
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
 def test_embedding_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain, ddtrace_global_config, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
@@ -1493,20 +1478,10 @@ def test_embedding_logs_when_response_not_completed(
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_chain_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
-):
+def test_chain_logs_when_response_not_completed(langchain, ddtrace_global_config, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
@@ -1541,18 +1516,10 @@ def test_chain_logs_when_response_not_completed(
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            metrics_enabled=False,
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_metrics_enabled=False, _llmobs_logs_enabled=True)],
 )
-def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
+def test_vectorstore_logs_error(langchain, ddtrace_global_config, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
         "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
