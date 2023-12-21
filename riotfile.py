@@ -412,7 +412,15 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "pytest-randomly": latest,
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
@@ -2018,7 +2026,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.7", max_version="3.11"),
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.21.1",
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
                 "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
@@ -2066,7 +2075,7 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": latest},
+            pkgs={"opentracing": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -2075,7 +2084,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": "==0.21.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
@@ -2335,7 +2344,8 @@ venv = Venv(
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
             },
             venvs=[
                 # Python 3.7
