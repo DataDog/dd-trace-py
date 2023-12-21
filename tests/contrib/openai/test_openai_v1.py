@@ -1301,7 +1301,6 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         prompt_expected_tags = expected_tags[:-1]
     else:
         prompt_expected_tags = expected_tags
-    breakpoint()
     assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls

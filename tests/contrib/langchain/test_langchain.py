@@ -50,18 +50,34 @@ def ddtrace_config_langchain():
 
 
 @pytest.fixture
-def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
-    with override_config("langchain", ddtrace_config_langchain):
-        # ensure that mock OpenAI API key is passed in
-        os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
-        os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
-        os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
-        patch()
-        import langchain
+def ddtrace_global_config():
+    return {}
 
-        yield langchain
-        unpatch()
+
+def default_global_config():
+    return {
+        "_datadog_api_key": "<not-a-real-api_key>",
+        "_datadog_app_key": "<not-a-real-app-key",
+        "_llmobs_log_prompt_completion_sample_rate": 1.0,
+    }
+
+
+@pytest.fixture
+def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("langchain", ddtrace_config_langchain):
+            # ensure that mock OpenAI API key is passed in
+            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
+            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
+            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
+            patch()
+            import langchain
+
+            yield langchain
+            unpatch()
 
 
 @pytest.fixture(scope="session")
