@@ -541,7 +541,9 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to enable the Datadog Intelligent Test Runner.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
+        Intelligent Test Runner. Setting the variable to ``false`` will skip querying the API and disable code coverage
+        collection and test skipping.
      version_added:
         v1.13.0:
 
