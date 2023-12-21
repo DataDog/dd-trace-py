@@ -1,10 +1,14 @@
 import inspect
+import logging
 import os
+import re
 import typing
 
 import ddtrace
+from ddtrace import config as ddconfig
 from ddtrace.contrib.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
+from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.logger import get_logger
 
 
@@ -87,3 +91,51 @@ def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: 
 
 def _generate_fully_qualified_module_name(test_module_path: str, test_suite_name: str) -> str:
     return "{}.{}".format(test_module_path, test_suite_name)
+
+
+def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
+    """Creates a handler with a filter for CIVisibility-specific messages. The also removes the existing
+    handlers on the DDTrace logger, to prevent double-logging.
+
+    This is useful for testrunners (currently pytest) that have their own logger.
+
+    NOTE: This should **only** be called from testrunner-level integrations (eg: pytest, unittest).
+    """
+    if ddconfig._debug_mode:
+        log.debug("CIVisibility not taking over ddtrace logger handler because debug mode is enabled")
+        return
+
+    level = ddconfig.ci_visibility_log_level
+
+    if level.upper() == "NONE":
+        log.debug("CIVisibility not taking over ddtrace logger because level is set to: %s", level)
+        return
+
+    root_logger = logging.getLogger()
+
+    if remove_ddtrace_stream_handlers:
+        log.debug("CIVisibility removing DDTrace logger handler")
+        ddtrace_logger = logging.getLogger("ddtrace")
+        for handler in ddtrace_logger.handlers:
+            ddtrace_logger.removeHandler(handler)
+    else:
+        log.warning("Keeping DDTrace logger handler, double logging is likely")
+
+    logger_name_re = re.compile(CIVISIBILITY_LOG_FILTER_RE)
+
+    ci_visibility_handler = logging.StreamHandler()
+    ci_visibility_handler.addFilter(lambda record: bool(logger_name_re.match(record.name)))
+    ci_visibility_handler.setFormatter(
+        logging.Formatter("[Datadog CI Visibility] %(levelname)-8s %(name)s:%(filename)s:%(lineno)d %(message)s")
+    )
+
+    try:
+        ci_visibility_handler.setLevel(level.upper())
+    except ValueError:
+        log.warning("Invalid log level: %s", level)
+        return
+
+    root_logger.addHandler(ci_visibility_handler)
+    root_logger.setLevel(min(root_logger.level, ci_visibility_handler.level))
+
+    log.info("logger setup complete")
