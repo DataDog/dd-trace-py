@@ -144,6 +144,9 @@ def override_global_config(values):
         "_llmobs_span_prompt_completion_sample_rate",
         "_llmobs_log_prompt_completion_sample_rate",
         "_llmobs_record_sample_rate",
+        "_install_id",
+        "_install_type",
+        "_install_time",
     ]
 
     asm_config_keys = [

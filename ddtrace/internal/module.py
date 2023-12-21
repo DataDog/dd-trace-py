@@ -22,9 +22,7 @@ from typing import cast
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.settings import _config as config
 
 
 ModuleHookType = Callable[[ModuleType], None]
@@ -150,15 +148,6 @@ class _ImportHookChainedLoader:
             self.create_module = self._create_module
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
-
-    def __getattribute__(self, name):
-        if name == "__class__":
-            # Make isinstance believe that self is also an instance of
-            # type(self.loader). This is required, e.g. by some tools, like
-            # slotscheck, that can handle known loaders only.
-            return self.loader.__class__
-
-        return super(_ImportHookChainedLoader, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # Proxy any other attribute access to the underlying loader.
@@ -427,8 +416,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
             for hook in hooks:
                 hook(module)
-        if config._telemetry_enabled and config._telemetry_dependency_collection:
-            telemetry_writer._new_dependencies.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):

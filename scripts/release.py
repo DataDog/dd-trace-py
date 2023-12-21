@@ -52,6 +52,7 @@ Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
+DEFAULT_BRANCH = "main"
 
 
 def _ensure_current_checkout():
@@ -73,22 +74,23 @@ def _decide_next_release_number(base: str, candidate: bool = False) -> int:
     return latest_version + 1
 
 
-def _get_rc_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress release candidate"""
+    name = "%s.%s" % (base, str(_decide_next_release_number(base)))
     new_rc_version = _decide_next_release_number(base, candidate=True)
-    release_branch = latest_branch if new_rc_version == 1 else base
+    release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
     rn = clean_release_notes(generate_release_notes(release_branch))
     return ReleaseParameters(release_branch, "%s.0rc%s" % (base, str(new_rc_version)), "v%s" % name, dd_repo, rn, True)
 
 
-def _get_patch_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress patch release"""
     name = "%s.%s" % (base, str(_decide_next_release_number(base)))
     release_notes = clean_release_notes(generate_release_notes(base))
     return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
 
 
-def _get_minor_parameters(dd_repo, base: str, rc, patch, latest_branch) -> ReleaseParameters:
+def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress minor release"""
     name = "%s.0" % base
 
@@ -112,9 +114,9 @@ def _get_minor_parameters(dd_repo, base: str, rc, patch, latest_branch) -> Relea
     return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
 
 
-def create_release_draft(dd_repo, base, rc, patch, latest_branch):
+def create_release_draft(dd_repo, base, rc, patch):
     _ensure_current_checkout()
-    args = (dd_repo, base, rc, patch, latest_branch)
+    args = (dd_repo, base, rc, patch)
     if rc:
         parameters = _get_rc_parameters(*args)
     elif patch:
@@ -230,7 +232,7 @@ def get_ddtrace_repo():
     return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
-def create_notebook(dd_repo, name, rn, base, latest_branch):
+def create_notebook(dd_repo, name, rn, base):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
     if not dd_api_key or not dd_app_key:
@@ -248,7 +250,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     commit_hashes = (
         subprocess.check_output(
             'git log {last_version}..{latest_branch} --oneline | cut -d " " -f 1'.format(
-                last_version=last_version, latest_branch=latest_branch
+                last_version=last_version, latest_branch=DEFAULT_BRANCH
             ),
             shell=True,
             cwd=os.pardir,
@@ -266,8 +268,6 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
         except Exception:
             print("Couldn't get commit hash %s for notebook, please add this manually" % commit_hash)
 
-    # get list of authors for when we make the slack announcement
-    author_slack_handles = []
     prs_details = []
     # from each commit:
     # 1. get release note text
@@ -280,12 +280,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
             if filename.startswith("releasenotes/notes/"):
                 try:
                     # we need to make another api call to get ContentFile object so we can see what's in there
-                    rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                    # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                    # this is a bit hacky, will only attach to one section if you have multiple sections
-                    # in a release note
-                    # (e.g. a features and a fix section):
-                    # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
+                    rn_piece = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                 except Exception:
                     print(
                         """File contents were not obtained for {file} in commit {commit}."""
@@ -293,40 +288,30 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
                     )
                     continue
                 try:
-                    rn_piece = re.findall(
-                        r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
-                        rn_file_content,
-                    )[0][0].strip()
-                    rn_piece = re.sub("\n    ", " ", rn_piece)
-                    # if you use the pattern  \s\n\s\s\s\s (which you shouldn't)
-                    # then the sub above will leave a double space
-                    rn_piece = re.sub("  ", " ", rn_piece)
-                    rn_piece = re.sub("``", "`", rn_piece)
+                    # removes unwanted new lines, whitespace and characters from rn_file_content
+                    rn_piece = re.sub("[-|]", "", rn_piece)
+                    rn_piece = re.sub(r"\s+", " ", rn_piece.strip())
                 except Exception:
-                    continue
+                    print(f"Failed to format release note: {rn_piece}")
+
                 author = commit.author.name
                 if author:
                     author = author.split(" ")
                     author_slack = "@" + author[0] + "." + author[-1]
-                    author_slack_handles.append(author_slack)
                     author_dd = author_slack + "@datadoghq.com"
                 pr_num = re.findall(r"\(#(\d{4})\)", commit.commit.message)[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
-                prs_details.append({"author_dd": author_dd, "url": url, "rn_piece": rn_piece})
+                prs_details.append(
+                    {"author_slack": author_slack, "author_dd": author_dd, "url": url, "rn_piece": rn_piece}
+                )
 
-    # edit release notes to be put inside notebook
-    rn = rn.replace("\n-", "\n- [ ]")
-    for pr_details in prs_details:
-        rn_piece = pr_details["rn_piece"]
-        i = rn.rfind(rn_piece)
-        if i != -1:
-            e = i + len(rn_piece)
-            # check to make sure there was a match
-            rn = (
-                rn[:e]
-                + "\nPR:{pr}\nTester: {author_dd}".format(pr=pr_details["url"], author_dd=pr_details["author_dd"])
-                + rn[e:]
-            )
+    # Group PRs by release note scope (feature, fix, deprecation, etc)
+    # This is not necessary it just makes the notebook easier to read
+    prs_details = sorted(prs_details, key=lambda prd: prd["rn_piece"])
+    notebook_rns = ""
+    for pr_detail in prs_details:
+        notebook_rns += f"\n- [ ] {pr_detail['rn_piece']}\n  - PR:{pr_detail['url']},"
+        "Tester: {pr_detail['author_dd']}\n  - Findings: "
 
     # create the review notebook and add the release notes formatted for testing
     # get notebook template
@@ -343,12 +328,12 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     data = template_notebook.decode("utf8")
     data = json.loads(data)
     # change the text inside of our template to include release notes
-    data["data"]["attributes"]["cells"][1]["attributes"]["definition"]["text"] = (
-        "#  Release notes to test\n-[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
-        % (rn)
-    )
+    data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
+        "text"
+    ] = f"# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
+
     # grab the latest commit id on the latest branch to mark the rc notebook with
-    main_branch = dd_repo.get_branch(branch=latest_branch)
+    main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)
     commit_id = main_branch.commit
 
     # pull the cells out to be transferred into a new notebook
@@ -389,8 +374,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     print("\nNotebook created at %s\n" % nb_url)
 
     # eliminate duplicates of handles for the slack messages
-    author_slack_handles = " ".join(set(author_slack_handles))
-
+    author_slack_handles = " ".join({pr_detail["author_slack"] for pr_detail in prs_details})
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
         """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}.
@@ -422,7 +406,6 @@ if __name__ == "__main__":
     base = os.getenv("BASE")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
-    latest_branch = base[0] + ".x"
 
     if base is None:
         raise ValueError("Need to specify the base version with envar e.g. BASE=2.10")
@@ -430,12 +413,12 @@ if __name__ == "__main__":
         raise ValueError("Base branch must be a fully qualified semantic version.")
 
     dd_repo = get_ddtrace_repo()
-    name, rn = create_release_draft(dd_repo, base, rc, patch, latest_branch)
+    name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if rc:
         if os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
-            create_notebook(dd_repo, name, rn, base, latest_branch)
+            create_notebook(dd_repo, name, rn, base)
         else:
             print(
                 (

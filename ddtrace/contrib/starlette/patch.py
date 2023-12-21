@@ -143,6 +143,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             "starlette",
             request_path_params=scope.get("path_params"),
             request_cookies=starlette_requests.cookie_parser(request_cookies),
+            route=request_spans[0].get_tag(http.ROUTE),
         )
     core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
