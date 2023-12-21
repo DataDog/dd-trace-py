@@ -87,6 +87,14 @@ def test_sync_worker(queue):
 
 
 @snapshot(ignores=snapshot_ignores)
+def test_sync_worker_ttl(queue):
+    job = queue.enqueue(job_add1, 1, result_ttl=0)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+    assert job.result == 2
+
+
+@snapshot(ignores=snapshot_ignores)
 def test_sync_worker_multiple_jobs(queue):
     jobs = []
     for i in range(3):
