@@ -137,6 +137,13 @@ def override_global_config(values):
         "propagation_http_baggage_enabled",
         "_telemetry_enabled",
         "_telemetry_dependency_collection",
+        "_llmobs_logs_enabled",
+        "_llmobs_metrics_enabled",
+        "_llmobs_enabled",
+        "_llmobs_span_char_limit",
+        "_llmobs_span_prompt_completion_sample_rate",
+        "_llmobs_log_prompt_completion_sample_rate",
+        "_llmobs_record_sample_rate",
     ]
 
     asm_config_keys = [

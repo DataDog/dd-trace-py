@@ -527,10 +527,6 @@ class Config(object):
             os.getenv("DD_LLMOBS_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)
         )
         self._llmobs_record_sample_rate = float(os.getenv("DD_LLMOBS_RECORD_SAMPLE_RATE", 1.0))
-        self._llmobs_log_writer_interval = float(os.getenv("_DD_LLMOBS_LOG_WRITER_INTERVAL", 1.0))
-        self._llmobs_log_writer_timeout = float(os.getenv("_DD_LLMOBS_LOG_WRITER_TIMEOUT", 2.0))
-        self._llmobs_llm_writer_interval = float(os.getenv("_DD_LLMOBS_LLM_WRITER_INTERVAL", 1.0))
-        self._llmobs_llm_writer_timeout = float(os.getenv("_DD_LLMOBS_LLM_WRITER_TIMEOUT", 2.0))
 
     def __getattr__(self, name):
         if name in self._config:

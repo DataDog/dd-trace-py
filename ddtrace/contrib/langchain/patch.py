@@ -10,6 +10,7 @@ import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
 from pydantic import SecretStr
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
@@ -32,10 +33,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)

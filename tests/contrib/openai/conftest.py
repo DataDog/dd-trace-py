@@ -14,6 +14,7 @@ from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
+from tests.utils import override_global_config
 
 
 if TYPE_CHECKING:
@@ -139,14 +140,31 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
-    with override_config("openai", ddtrace_config_openai):
-        if api_key_in_env:
-            openai.api_key = openai_api_key
-        openai.organization = openai_organization
-        patch(openai=True)
-        yield
-        unpatch()
+def ddtrace_global_config():
+    config = {}
+    return config
+
+
+def default_global_config():
+    return {
+        "_datadog_api_key": "<not-a-real-api_key>",
+        "_datadog_app_key": "<not-a-real-app-key",
+        "_llmobs_log_prompt_completion_sample_rate": 1.0,
+    }
+
+
+@pytest.fixture
+def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("openai", ddtrace_config_openai):
+            if api_key_in_env:
+                openai.api_key = openai_api_key
+            openai.organization = openai_organization
+            patch(openai=True)
+            yield
+            unpatch()
 
 
 @pytest.fixture

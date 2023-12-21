@@ -1,4 +1,5 @@
 import abc
+import os
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -31,15 +32,15 @@ class BaseLLMIntegration:
         self._log_writer = V2LogWriter(
             site=config._datadog_site,
             api_key=config._datadog_api_key,
-            interval=config._llmobs_log_writer_interval,
-            timeout=config._llmobs_log_writer_timeout,
+            interval=float(os.getenv("_DD_LLMOBS_LOG_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_LOG_WRITER_TIMEOUT", 2.0)),
         )
         self._llmobs_writer = LLMObsWriter(
             site=config._datadog_site,
             api_key=config._datadog_api_key,
             app_key=config._datadog_app_key,
-            interval=config._llmobs_llm_writer_interval,
-            timeout=config._llmobs_llm_writer_timeout,
+            interval=float(os.getenv("_DD_LLMOBS_LLM_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_LLM_WRITER_TIMEOUT", 2.0)),
         )
         self._span_pc_sampler = RateSampler(sample_rate=config._llmobs_span_prompt_completion_sample_rate)
         self._log_pc_sampler = RateSampler(sample_rate=config._llmobs_log_prompt_completion_sample_rate)

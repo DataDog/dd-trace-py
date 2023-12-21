@@ -53,14 +53,35 @@ def openai_vcr():
     yield get_openai_vcr(subdirectory_name="v1")
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True), dict(metrics_enabled=False)])
-def test_config(ddtrace_config_openai, mock_tracer, openai):
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [
+        dict(_llmobs_enabled=True, _llmobs_logs_enabled=True, _llmobs_metrics_enabled=True),
+        dict(_llmobs_enabled=False, _llmobs_logs_enabled=False, _llmobs_metrics_enabled=False),
+    ],
+)
+def test_global_config(ddtrace_global_config, mock_tracer, openai):
+    assert ddtrace.config._llmobs_enabled is ddtrace_global_config["_llmobs_enabled"]
+    assert ddtrace.config._llmobs_logs_enabled is ddtrace_global_config["_llmobs_logs_enabled"]
+    assert ddtrace.config._llmobs_metrics_enabled is ddtrace_global_config["_llmobs_metrics_enabled"]
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        dict(metrics_enabled=True, logs_enabled=True, llmobs_enabled=True),
+        dict(metrics_enabled=False, logs_enabled=False, llmobs_enabled=False),
+    ],
+)
+def test_integration_config(ddtrace_config_openai, mock_tracer, openai):
     # Ensure that the module state is reloaded for each test run
     assert not hasattr(openai, "_test")
     openai._test = 1
 
     # Ensure overriding the config works
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
+    assert ddtrace.config.openai.logs_enabled is ddtrace_config_openai["logs_enabled"]
+    assert ddtrace.config.openai.llmobs_enabled is ddtrace_config_openai["llmobs_enabled"]
 
 
 def test_patching(openai):
@@ -303,23 +324,75 @@ async def test_acompletion(
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(_api_key="", logs_enabled=True)])
-def test_logs_no_api_key(openai, ddtrace_config_openai, mock_tracer):
+@pytest.mark.parametrize(
+    "ddtrace_global_config,ddtrace_config_openai",
+    [
+        (dict(_datadog_api_key="", _llmobs_logs_enabled=True), dict()),
+        (dict(_datadog_api_key=""), dict(logs_enabled=True)),
+        (dict(_datadog_api_key="", _llmobs_logs_enabled=False), dict(logs_enabled=True)),
+    ],
+)
+def test_logs_no_api_key(ddtrace_global_config, ddtrace_config_openai, openai, mock_tracer):
     """When no DD_API_KEY is set, the patching fails"""
     pass
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai",
+    "ddtrace_global_config",
     [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
+        dict(_llmobs_logs_enabled=True),
+        dict(_llmobs_logs_enabled=False),
+        dict(_llmobs_logs_enabled=None),
     ],
 )
+def test_logs_global_config(openai_vcr, openai, ddtrace_global_config, mock_logs, mock_tracer):
+    """Test that logs are emitted when configured with global config."""
+    with openai_vcr.use_cassette("completion.yaml"):
+        client = openai.OpenAI()
+        client.completions.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
+    assert mock_logs.enqueue.call_count == int(ddtrace_global_config.get("_llmobs_logs_enabled") is True)
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        dict(logs_enabled=True),
+        dict(logs_enabled=False),
+        dict(),
+    ],
+)
+def test_logs_integration_config(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+    """Test that logs are emitted when configured with global config."""
+    with openai_vcr.use_cassette("completion.yaml"):
+        client = openai.OpenAI()
+        client.completions.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
+    assert mock_logs.enqueue.call_count == int(ddtrace_config_openai.get("logs_enabled") is True)
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config,ddtrace_config_openai",
+    [
+        (dict(_llmobs_logs_enabled=True), dict(logs_enabled=False)),
+        (dict(_llmobs_logs_enabled=False), dict(logs_enabled=True)),
+    ],
+)
+def test_logs_integration_config_overrides_global_config(
+    openai_vcr, openai, ddtrace_global_config, ddtrace_config_openai, mock_logs, mock_tracer
+):
+    """Test that logs are emitted when configured with global config."""
+    with openai_vcr.use_cassette("completion.yaml"):
+        client = openai.OpenAI()
+        client.completions.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
+    assert mock_logs.enqueue.call_count == int(ddtrace_config_openai.get("logs_enabled") is True)
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_logs_enabled=True)])
 def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for completion endpoints when configured.
 
@@ -358,8 +431,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
+    "ddtrace_global_config", [dict(service="test-svc", env="staging", version="1234", _llmobs_logs_enabled=True)]
 )
 def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mock_logs, mock_tracer):
     """
@@ -538,7 +610,7 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=b) for b in [True, False]])
-def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
+def test_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
     """Ensure the metrics_enabled configuration works."""
     with openai_vcr.use_cassette("completion.yaml"):
         client = openai.OpenAI()
@@ -609,18 +681,8 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_logs_enabled=True)])
+def test_logs_edit(openai_vcr, openai, ddtrace_global_config, mock_logs, mock_tracer):
     """Ensure logs are emitted for edit endpoint when configured.
 
     Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
@@ -696,18 +758,8 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_logs_enabled=True)])
+def test_logs_image_create(openai_vcr, openai, ddtrace_global_config, mock_logs, mock_tracer):
     """Ensure logs are emitted for image endpoints when configured.
 
     Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
@@ -1249,6 +1301,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         prompt_expected_tags = expected_tags[:-1]
     else:
         prompt_expected_tags = expected_tags
+    breakpoint()
     assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
     assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
@@ -1492,11 +1545,11 @@ asyncio.run(task())
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
+    "ddtrace_global_config",
+    [dict(_llmobs_span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
 )
-def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
+def test_completion_span_sample(openai, openai_vcr, ddtrace_global_config, mock_tracer):
+    """Test functionality for DD_LLMOBS_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
     num_completions = 200
 
     client = openai.OpenAI()
@@ -1506,27 +1559,28 @@ def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_trace
 
     traces = mock_tracer.pop_traces()
     sampled = 0
+    sample_rate = ddtrace_global_config["_llmobs_span_prompt_completion_sample_rate"]
     assert len(traces) == num_completions, len(traces)
     for trace in traces:
         for span in trace:
             if span.get_tag("openai.response.choices.0.text"):
                 sampled += 1
-    if ddtrace.config.openai.span_prompt_completion_sample_rate == 0:
+    if sample_rate == 0:
         assert sampled == 0
-    elif ddtrace.config.openai.span_prompt_completion_sample_rate == 1:
+    elif sample_rate == 1:
         assert sampled == num_completions
     else:
         # this should be good enough for our purposes
-        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
+        rate = sample_rate * num_completions
         assert (rate - 30) < sampled < (rate + 30)
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
+    "ddtrace_global_config",
+    [dict(_llmobs_span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
 )
-def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
+def test_chat_completion_sample(openai, openai_vcr, ddtrace_global_config, mock_tracer):
+    """Test functionality for DD_LLMOBS_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
     num_completions = 200
 
     client = openai.OpenAI()
@@ -1547,24 +1601,25 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
 
     traces = mock_tracer.pop_traces()
     sampled = 0
+    sample_rate = ddtrace_global_config["_llmobs_span_prompt_completion_sample_rate"]
     assert len(traces) == num_completions
     for trace in traces:
         for span in trace:
             if span.get_tag("openai.response.choices.0.message.content"):
                 sampled += 1
-    if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
+    if sample_rate == 0:
         assert sampled == 0
-    elif ddtrace.config.openai["span_prompt_completion_sample_rate"] == 1:
+    elif sample_rate == 1:
         assert sampled == num_completions
     else:
         # this should be good enough for our purposes
-        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
+        rate = sample_rate * num_completions
         assert (rate - 30) < sampled < (rate + 30)
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(truncation_threshold=t) for t in [0, 10, 10000]])
-def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_openai):
-    """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for completions"""
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_span_char_limit=t) for t in [0, 10, 10000]])
+def test_completion_truncation(ddtrace_global_config, openai, openai_vcr, mock_tracer):
+    """Test functionality of DD_LLMOBS_SPAN_CHAR_LIMIT for completions"""
     prompt = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
 
     with openai_vcr.use_cassette("completion_truncation.yaml"):
@@ -1601,7 +1656,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2
 
-    limit = ddtrace.config.openai["span_char_limit"]
+    limit = ddtrace.config._llmobs_span_char_limit
     for trace in traces:
         for span in trace:
             if span.get_tag("openai.request.endpoint").endswith("/chat/completions"):
@@ -1625,16 +1680,8 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
                     assert len(completion.replace("...", "")) == limit
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            span_prompt_completion_sample_rate=0,
-        )
-    ],
-)
-def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_span_prompt_completion_sample_rate=0)])
+def test_embedding_unsampled_prompt_completion(ddtrace_global_config, openai, openai_vcr, mock_logs, mock_tracer):
     with openai_vcr.use_cassette("embedding.yaml"):
         client = openai.OpenAI()
         client.embeddings.create(input="hello world", model="text-embedding-ada-002")
@@ -1646,17 +1693,10 @@ def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_confi
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=r,
-        )
-        for r in [0, 0.25, 0.75, 1]
-    ],
+    "ddtrace_global_config",
+    [dict(_llmobs_log_prompt_completion_sample_rate=r, _llmobs_logs_enabled=True) for r in [0, 0.25, 0.75, 1]],
 )
-def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
+def test_logs_sample_rate(ddtrace_global_config, openai, openai_vcr, mock_logs, mock_tracer):
     total_calls = 200
     for _ in range(total_calls):
         with openai_vcr.use_cassette("completion.yaml"):
@@ -1664,12 +1704,12 @@ def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, 
             client.completions.create(model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10)
 
     logs = mock_logs.enqueue.call_count
-    if ddtrace.config.openai["log_prompt_completion_sample_rate"] == 0:
+    if ddtrace_global_config["_llmobs_log_prompt_completion_sample_rate"] == 0:
         assert logs == 0
-    elif ddtrace.config.openai["log_prompt_completion_sample_rate"] == 1:
+    elif ddtrace_global_config["_llmobs_log_prompt_completion_sample_rate"] == 1:
         assert logs == total_calls
     else:
-        rate = ddtrace.config.openai["log_prompt_completion_sample_rate"] * total_calls
+        rate = ddtrace_global_config["_llmobs_log_prompt_completion_sample_rate"] * total_calls
         assert (rate - 30) < logs < (rate + 30)
 
 
@@ -1978,19 +2018,8 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True)])
+def test_llmobs_chat_completion(ddtrace_global_config, openai_vcr, openai, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2055,20 +2084,9 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True)])
 def test_llmobs_chat_completion_function_call(
-    openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer
+    ddtrace_global_config, openai_vcr, openai, mock_llmobs_writer, mock_tracer
 ):
     """Test that function call chat completion calls are recorded as LLMObs events correctly."""
     with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
