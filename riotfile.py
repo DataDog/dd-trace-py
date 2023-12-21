@@ -288,6 +288,8 @@ venv = Venv(
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
                 "httpretty": "<1.1",
+                "werkzeug": "<2.0",
+                "pytest-randomly": latest,
             },
         ),
         Venv(
@@ -295,7 +297,11 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={"msgpack": [latest], "coverage": latest},
+            pkgs={
+                "msgpack": [latest],
+                "coverage": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -329,7 +335,10 @@ venv = Venv(
         Venv(
             name="datastreams",
             command="pytest --no-cov {cmdargs} tests/datastreams/",
-            pkgs={"msgpack": [latest]},
+            pkgs={
+                "msgpack": [latest],
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -412,7 +421,15 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "pytest-randomly": latest,
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
