@@ -257,7 +257,7 @@ class Context(object):
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s _baggage=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
