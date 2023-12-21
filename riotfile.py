@@ -244,6 +244,7 @@ venv = Venv(
                 "wheel": latest,
                 "fastapi": latest,
                 "httpx": latest,
+                "pytest-randomly": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
