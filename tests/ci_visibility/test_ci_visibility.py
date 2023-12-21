@@ -22,6 +22,7 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.utils.http import Response
 from ddtrace.span import Span
@@ -120,7 +121,10 @@ def test_ci_visibility_service_settings_timeout(_do_request):
         CIVisibility.disable()
 
 
-@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True))
+@mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=_CIVisibilitySettings(True, True, False, True),
+)
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
 def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_features):
     with override_env(
@@ -602,27 +606,30 @@ class TestCheckEnabledFeatures:
             "X-Datadog-EVP-Subdomain": "api",
         },
     }
-    expected_do_request_payload = {
-        "data": {
-            "id": "checkoutmyuuid4",
-            "type": "ci_app_test_service_libraries_settings",
-            "attributes": {
-                "test_level": "test",
-                "service": "service",
-                "env": None,
-                "repository_url": "my_repo_url",
-                "sha": "mycommitshaaaaaaalalala",
-                "branch": "notmain",
-                "configurations": {
-                    "os.architecture": "arm64",
-                    "os.platform": "PlatForm",
-                    "os.version": "9.8.a.b",
-                    "runtime.name": "RPython",
-                    "runtime.version": "11.5.2",
+
+    @staticmethod
+    def _get_expected_do_request_payload(suite_skipping_mode=False):
+        return {
+            "data": {
+                "id": "checkoutmyuuid4",
+                "type": "ci_app_test_service_libraries_settings",
+                "attributes": {
+                    "test_level": "suite" if suite_skipping_mode else "test",
+                    "service": "service",
+                    "env": None,
+                    "repository_url": "my_repo_url",
+                    "sha": "mycommitshaaaaaaalalala",
+                    "branch": "notmain",
+                    "configurations": {
+                        "os.architecture": "arm64",
+                        "os.platform": "PlatForm",
+                        "os.version": "9.8.a.b",
+                        "runtime.name": "RPython",
+                        "runtime.version": "11.5.2",
+                    },
                 },
-            },
+            }
         }
-    }
 
     @staticmethod
     def _get_mock_civisibility(requests_mode, suite_skipping_mode):
@@ -655,7 +662,7 @@ class TestCheckEnabledFeatures:
         return mock_civisibility
 
     @staticmethod
-    def _get_settings_api_response(status_code, code_coverage, tests_skipping, require_git):
+    def _get_settings_api_response(status_code, code_coverage, tests_skipping, require_git, itr_enabled):
         return Response(
             status=status_code,
             body=json.dumps(
@@ -667,13 +674,14 @@ class TestCheckEnabledFeatures:
                             "code_coverage": code_coverage,
                             "tests_skipping": tests_skipping,
                             "require_git": require_git,
+                            "itr_enabled": itr_enabled,
                         },
                     }
                 }
             ),
         )
 
-    def _check_mock_do_request_calls(self, mock_do_request, count, requests_mode):
+    def _check_mock_do_request_calls(self, mock_do_request, count, requests_mode, suite_skipping_mode):
         assert mock_do_request.call_count == count
 
         for c in range(count):
@@ -683,7 +691,7 @@ class TestCheckEnabledFeatures:
             assert call_args[3] == self.expected_do_request_headers[requests_mode]
 
             payload = json.loads(call_args[2])
-            assert payload == self.expected_do_request_payload
+            assert payload == self._get_expected_do_request_payload(suite_skipping_mode)
 
     @pytest.fixture(scope="function", autouse=True)
     def _test_context_manager(self):
@@ -694,25 +702,32 @@ class TestCheckEnabledFeatures:
     @pytest.mark.parametrize(
         "setting_response, expected_result",
         [
-            ((True, True), (True, True)),
-            ((True, False), (True, False)),
-            ((False, True), (False, True)),
-            ((False, False), (False, False)),
+            ((True, True, None, True), (True, True, None, True)),
+            ((True, False, None, True), (True, False, None, True)),
+            ((False, True, None, True), (False, True, None, True)),
+            ((False, False, None, False), (False, False, None, False)),
         ],
     )
+    @pytest.mark.parametrize("suite_skipping_mode", [True, False])
     def test_civisibility_check_enabled_features_require_git_false(
-        self, requests_mode, setting_response, expected_result
+        self, requests_mode, setting_response, expected_result, suite_skipping_mode
     ):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
-            side_effect=[self._get_settings_api_response(200, setting_response[0], setting_response[1], False)],
+            side_effect=[
+                self._get_settings_api_response(
+                    200, setting_response[0], setting_response[1], False, setting_response[3]
+                )
+            ],
         ) as mock_do_request:
-            mock_civisibility = self._get_mock_civisibility(requests_mode, False)
+            mock_civisibility = self._get_mock_civisibility(requests_mode, suite_skipping_mode)
             enabled_features = mock_civisibility._check_enabled_features()
 
-            self._check_mock_do_request_calls(mock_do_request, 1, requests_mode)
+            self._check_mock_do_request_calls(mock_do_request, 1, requests_mode, suite_skipping_mode)
 
-            assert enabled_features == (expected_result[0], expected_result[1])
+            assert enabled_features == _CIVisibilitySettings(
+                expected_result[0], expected_result[1], False, expected_result[3]
+            )
 
     @pytest.mark.parametrize("requests_mode", requests_mode_parameters)
     @pytest.mark.parametrize(
@@ -722,15 +737,22 @@ class TestCheckEnabledFeatures:
     @pytest.mark.parametrize(
         "setting_response, expected_result",
         [
-            ([(True, True), (True, True)], (True, True)),
-            ([(True, False), (True, False)], (True, False)),
-            ([(True, False), (False, False)], (False, False)),
-            ([(False, False), (False, False)], (False, False)),
+            ([(True, True, None, True), (True, True, None, True)], (True, True, None, True)),
+            ([(True, False, None, True), (True, False, None, True)], (True, False, None, True)),
+            ([(True, False, None, True), (False, False, None, True)], (False, False, None, True)),
+            ([(False, False, None, False), (False, False, None, False)], (False, False, None, False)),
         ],
     )
     @pytest.mark.parametrize("second_setting_require_git", [False, True])
+    @pytest.mark.parametrize("suite_skipping_mode", [True, False])
     def test_civisibility_check_enabled_features_require_git_true(
-        self, requests_mode, wait_for_upload_side_effect, setting_response, expected_result, second_setting_require_git
+        self,
+        requests_mode,
+        wait_for_upload_side_effect,
+        setting_response,
+        expected_result,
+        second_setting_require_git,
+        suite_skipping_mode,
     ):
         """Simulates the scenario where we would run coverage because we don't have git metadata, but after the upload
         finishes, we see we don't need to run coverage.
@@ -742,25 +764,36 @@ class TestCheckEnabledFeatures:
 
         Finally, require_git on the second attempt is tested both as True and False, but the response should not affect
         the final settings
+
+        Note: the None values in the setting_response parameters is because the git_require parameter is set explicitly
+        in the test body
         """
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder._do_request",
             side_effect=[
-                self._get_settings_api_response(200, setting_response[0][0], setting_response[0][1], True),
                 self._get_settings_api_response(
-                    200, setting_response[1][0], setting_response[1][1], second_setting_require_git
+                    200, setting_response[0][0], setting_response[0][1], True, setting_response[0][3]
+                ),
+                self._get_settings_api_response(
+                    200,
+                    setting_response[1][0],
+                    setting_response[1][1],
+                    second_setting_require_git,
+                    setting_response[1][3],
                 ),
             ],
         ) as mock_do_request:
-            mock_civisibility = self._get_mock_civisibility(requests_mode, False)
+            mock_civisibility = self._get_mock_civisibility(requests_mode, suite_skipping_mode)
             mock_civisibility._git_client.wait_for_metadata_upload_status.side_effect = wait_for_upload_side_effect
             enabled_features = mock_civisibility._check_enabled_features()
 
             mock_civisibility._git_client.wait_for_metadata_upload_status.assert_called_once()
 
-            self._check_mock_do_request_calls(mock_do_request, 2, requests_mode)
+            self._check_mock_do_request_calls(mock_do_request, 2, requests_mode, suite_skipping_mode)
 
-            assert enabled_features == (expected_result[0], expected_result[1])
+            assert enabled_features == _CIVisibilitySettings(
+                expected_result[0], expected_result[1], second_setting_require_git, expected_result[3]
+            )
 
     @pytest.mark.parametrize("requests_mode", requests_mode_parameters)
     @pytest.mark.parametrize(
@@ -774,9 +807,9 @@ class TestCheckEnabledFeatures:
                 status=200,
                 body='{"errors":["Not found"]}',
             ),
-            (200, True, True, True),
-            (200, True, False, True),
-            (200, False, False, True),
+            (200, True, True, True, True),
+            (200, True, False, True, True),
+            (200, False, False, True, True),
         ],
     )
     @pytest.mark.parametrize(
@@ -813,7 +846,7 @@ class TestCheckEnabledFeatures:
             enabled_features = mock_civisibility._check_enabled_features()
 
             assert mock_do_request.call_count == expected_call_count
-            assert enabled_features == (False, False)
+            assert enabled_features == _CIVisibilitySettings(False, False, False, False)
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
@@ -1386,7 +1419,8 @@ def test_fetch_tests_to_skip_custom_configurations():
             DD_ENV="test-env",
         )
     ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+        return_value=_CIVisibilitySettings(True, True, False, True),
     ), mock.patch.multiple(
         CIVisibilityGitClient,
         _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
