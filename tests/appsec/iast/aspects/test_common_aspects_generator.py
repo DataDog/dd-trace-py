@@ -9,7 +9,7 @@ import pytest
 
 try:
     # Disable unused import warning pylint: disable=W0611
-    from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
+    from ddtrace.appsec.iast._taint_tracking import TagMappingMode  # noqa: F401
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 

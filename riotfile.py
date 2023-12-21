@@ -136,7 +136,7 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
                 "simplejson": latest,
-                "psycopg2": latest,
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -188,7 +188,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "attrs": ["==20.1.0", latest],
+                "attrs": latest,
                 "structlog": latest,
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
@@ -215,6 +215,12 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                ),
+                Venv(
+                    name="tracer-legacy-atrrs",
+                    pkgs={"cattrs": "<23.2.0", "attrs": "==20.1.0"},
+                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
+                    pys=MIN_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -2486,7 +2492,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
-                "opentelemetry-instrumentation-flask": latest,
+                "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
                 "markupsafe": "==2.0.1",
                 "flask": latest,
@@ -2794,7 +2800,8 @@ venv = Venv(
                         # confluent-kafka dropped official wheels for Python 2.7 in 1.8.2
                         Venv(pys="2.7", pkgs={"confluent-kafka": "~=1.7.0"}),
                         # confluent-kafka>=1.7 has issues building on linux with Python 3.5
-                        Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
+                        # TODO: skip 3.5
+                        # Venv(pys="3.5", pkgs={"confluent-kafka": "~=1.5.0"}),
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.10"),
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},

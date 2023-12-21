@@ -1,19 +1,16 @@
 # -*- encoding: utf-8 -*-
 import math
-from typing import Any
-from typing import List
-from typing import Text
+from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Text  # noqa:F401
 
 import pytest
 
+from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec.iast._taint_tracking import get_ranges
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-try:
-    from ddtrace.appsec.iast._taint_tracking import as_formatted_evidence
-    from ddtrace.appsec.iast._taint_tracking import get_ranges
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
@@ -129,18 +126,18 @@ class TestOperatorModuloReplacement(BaseReplacement):
 
     def test_modulo_when_tainted_str_emoji_strings_then_tainted_result(self):  # type: () -> None
         self._assert_modulo_result(
-            taint_escaped_template=u":+-<input1>template⚠️<input1>-+: %s",
-            taint_escaped_parameter=u":+-<input2>parameter⚠️<input2>-+:",
-            expected_result=u"template⚠️ parameter⚠️",
-            escaped_expected_result=u":+-<input1>template⚠️<input1>-+: " u":+-<input2>parameter⚠️<input2>-+:",
+            taint_escaped_template=":+-<input1>template⚠️<input1>-+: %s",
+            taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
+            expected_result="template⚠️ parameter⚠️",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_modulo_when_tainted_unicode_emoji_strings_then_tainted_result(self):  # type: () -> None
         self._assert_modulo_result(
-            taint_escaped_template=u":+-<input1>template⚠️<input1>-+: %s",
-            taint_escaped_parameter=u":+-<input2>parameter⚠️<input2>-+:",
-            expected_result=u"template⚠️ parameter⚠️",
-            escaped_expected_result=u":+-<input1>template⚠️<input1>-+: " u":+-<input2>parameter⚠️<input2>-+:",
+            taint_escaped_template=":+-<input1>template⚠️<input1>-+: %s",
+            taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
+            expected_result="template⚠️ parameter⚠️",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_modulo_when_tainted_template_range_no_percent_and_param_not_str_then_tainted(self):  # type: () -> None
