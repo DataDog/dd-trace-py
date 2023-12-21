@@ -1364,13 +1364,17 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.21.1",
                 "aiomysql": ["~=0.1.0", latest],
             },
         ),
         Venv(
             name="pytest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1415,7 +1419,10 @@ venv = Venv(
         Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
-            pkgs={"msgpack": latest},
+            pkgs={
+                "msgpack": latest,
+                "pytest-randomly": latest,
+            },
             env={
                 "DD_PATCH_MODULES": "unittest:true",
                 "DD_AGENT_PORT": "9126",
@@ -1425,6 +1432,9 @@ venv = Venv(
         Venv(
             name="asynctest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -1443,6 +1453,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -1470,7 +1481,10 @@ venv = Venv(
         Venv(
             name="pytest-benchmark",
             command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
-            pkgs={"msgpack": latest},
+            pkgs={
+                "msgpack": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     venvs=[
