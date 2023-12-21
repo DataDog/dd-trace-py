@@ -246,6 +246,8 @@ class Context(object):
                     and self.span_id == other.span_id
                     and self._meta == other._meta
                     and self._metrics == other._metrics
+                    and self._span_links == other._span_links
+                    and self._baggage == other._baggage
                 )
         return False
 
