@@ -8,9 +8,15 @@ from typing import Union
 
 import langchain
 from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+from langchain_core.agents import AgentAction
+from langchain_core.agents import AgentFinish
 from pydantic import SecretStr
 
 from ddtrace import config
+from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.contrib.langchain.constants import API_KEY
@@ -20,6 +26,7 @@ from ddtrace.contrib.langchain.constants import PROMPT_TOKENS
 from ddtrace.contrib.langchain.constants import PROVIDER
 from ddtrace.contrib.langchain.constants import TOTAL_COST
 from ddtrace.contrib.langchain.constants import TYPE
+from ddtrace.contrib.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
@@ -37,7 +44,6 @@ from ddtrace.vendor import wrapt
 
 if TYPE_CHECKING:
     from ddtrace import Span  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -596,6 +602,8 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
+        if _is_iast_enabled():
+            taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -642,6 +650,8 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
+        if _is_iast_enabled():
+            taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -804,6 +814,15 @@ def patch():
                     "langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
                 )
 
+    if _is_iast_enabled():
+
+        def wrap_output_parser(module, parser):
+            # Ensure not double patched
+            if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
+                wrap(module, "%s.parse" % parser, taint_paser_output)
+
+        with_agent_output_parser(wrap_output_parser)
+
 
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
@@ -833,4 +852,60 @@ def unpatch():
             ):
                 unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
+    if _is_iast_enabled():
+
+        def unwrap_output_parser(module, parser):
+            # Ensure not double patched
+            if isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
+                unwrap(getattr(module, parser), "parse")
+
+        with_agent_output_parser(unwrap_output_parser)
+
     delattr(langchain, "_datadog_integration")
+
+
+def taint_outputs(instance, inputs, outputs):
+    try:
+        ranges = None
+        for key in filter(lambda x: x in inputs, instance.input_keys):
+            ranges = get_tainted_ranges(inputs[key]) if key in inputs else None
+            if ranges:
+                break
+
+        if ranges:
+            source = ranges[0].source
+            for key in filter(lambda x: x in outputs, instance.output_keys):
+                output_value = outputs[key]
+                outputs[key] = taint_pyobject(output_value, source.name, source.value, source.origin)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
+
+
+def taint_paser_output(func, instance, args, kwargs):
+    result = func(*args, **kwargs)
+    try:
+        ranges = get_tainted_ranges(args[0])
+        if ranges:
+            source = ranges[0].source
+            if isinstance(result, AgentAction):
+                result.tool_input = taint_pyobject(result.tool_input, source.name, source.value, source.origin)
+            elif isinstance(result, AgentFinish) and "output" in result.return_values:
+                values = result.return_values
+                values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. langchain taint_paser_output. {}".format(e))
+
+    return result
+
+
+def with_agent_output_parser(f):
+    queue = [(langchain.agents, agent_output_parser_classes)]
+    while len(queue) > 0:
+        module, current = queue.pop(0)
+        if isinstance(current, str):
+            if hasattr(module, current):
+                f(module, current)
+        elif isinstance(current, dict):
+            for name, value in current.items():
+                if hasattr(module, name):
+                    queue.append((getattr(module, name), value))
