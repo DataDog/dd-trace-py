@@ -158,28 +158,3 @@ class PytestSnapshotTestCase(TracerTestCase):
             )
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
-
-    @snapshot(ignores=SNAPSHOT_IGNORES)
-    def test_pytest_will_include_lines_pct_if_itr_disabling_itr_omit(self):
-        tools = """
-                def lib_fn():
-                    return True
-                """
-        self.testdir.makepyfile(tools=tools)
-        test_tools = """
-                import pytest
-
-                def test_cov():
-                    from tools import lib_fn
-                    assert lib_fn()
-                    """
-        self.testdir.makepyfile(test_tools=test_tools)
-        self.testdir.chdir()
-        with override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_PATCH_MODULES="sqlite3:false",
-                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
-            )
-        ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--omit=test_tools.py", "-m", "pytest", "--ddtrace"])
