@@ -40,6 +40,7 @@ config._add(
     dict(
         distributed_tracing=asbool(os.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
+        split_by_domain=asbool(os.getenv("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
     ),
 )
 
@@ -83,6 +84,9 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
         span_type=SpanTypes.HTTP,
         service=ext_service(pin, config.aiohttp_client),
     ) as span:
+        if config.aiohttp_client.split_by_domain:
+            span.service = url.host
+
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
