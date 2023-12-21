@@ -25,7 +25,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-latest
+         - os: macos-12
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
@@ -54,7 +54,8 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
-
+          # DEV: Uncomment to debug MacOS
+          # CIBW_BUILD_VERBOSITY_MACOS: 3
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
