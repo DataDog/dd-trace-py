@@ -545,6 +545,18 @@ The following environment variables for the tracer are supported:
      version_added:
         v1.13.0:
 
+   DD_CIVISIBILITY_LOG_LEVEL:
+      type: String
+      default: "info"
+      description: |
+         Configures the ``CIVisibility`` service to replace the default Datadog logger's stream handler with one that
+         only displays messages related to the ``CIVisibility`` service, at a level of or higher than the given log
+         level. The Datadog logger's file handler is unaffected. Valid, case-insensitive, values are ``critical``,
+         ``error``, ``warning``, ``info``, or ``debug``. A value of ``none`` silently disables the logger. Note:
+         enabling debug logging with the ``DD_TRACE_DEBUG`` environment variable overrides this behavior.
+      version_added:
+         v2.5.0:
+
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
       default: "safe"
