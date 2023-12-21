@@ -512,9 +512,6 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
-        self._install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", "")
-        self._install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", "")
-        self._install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", "")
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
