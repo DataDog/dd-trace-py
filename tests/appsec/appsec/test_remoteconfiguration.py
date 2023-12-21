@@ -30,6 +30,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.appsec.test_processor import ROOT_DIR
 from tests.appsec.appsec.test_processor import Config
+from tests.appsec.utils import Mock_Alternative
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -448,7 +449,9 @@ def test_load_multiple_targets_file_same_product(
         remoteconfig_poller._poll_data()
         mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
 
-        mock_appsec_1click_activation.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
+        mock_appsec_1click_activation.assert_called_with(
+            {"asm": {"enabled": Mock_Alternative(True, None)}, "data": [{"a": 1}, {"b": 2}]}, None
+        )
     disable_appsec_rc()
 
 
