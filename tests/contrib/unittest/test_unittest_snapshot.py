@@ -27,7 +27,8 @@ SNAPSHOT_IGNORES = [
     "start",
 ]
 
-SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
+SNAPSHOT_IGNORES_TEST_SOURCE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
+SNAPSHOT_IGNORES_COVERAGE = ["meta.test.coverage"]
 
 
 class UnittestSnapshotTestCase(TracerTestCase):
@@ -70,7 +71,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_generates_coverage_correctly(self):
         ret_false = """
         def ret_false():
@@ -104,7 +105,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 ["ddtrace-run", "python", "-m", "unittest"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_generates_coverage_correctly_with_skipped(self):
         ret_false = """
         def ret_false():
@@ -137,7 +138,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped(self):
         ret_false = """
         def ret_false():
@@ -175,7 +176,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_report_coverage_by_test_with_itr_skipped_multiple(self):
         ret_false = """
         def ret_false():
@@ -213,7 +214,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_force_run_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -252,7 +253,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_force_run_multiple_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -295,7 +296,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_skip_invalid_unskippable_tests(self):
         ret_false = """
         def ret_false():
@@ -343,7 +344,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_skip_unskippable_test_if_skip_decorator(self):
         ret_false = """
             def ret_false():
@@ -395,7 +396,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1")):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_include_custom_tests(self):
         ret_false = """
         def ret_false():
@@ -440,7 +441,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         ):
             subprocess.run(["ddtrace-run", "python", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE)
     def test_unittest_will_include_lines_pct(self):
         tools = """
         def add_two_number_list(list_1, list_2):
@@ -478,7 +479,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
         ):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE + SNAPSHOT_IGNORES_COVERAGE)
     def test_unittest_will_include_lines_pct_if_itr_normal_import(self):
         tools = """
         def add_two_number_list(list_1, list_2):
@@ -515,9 +516,9 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
             )
         ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+            subprocess.run(["ddtrace-run", "coverage", "run", "-m", "unittest"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE)
+    @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_TEST_SOURCE + SNAPSHOT_IGNORES_COVERAGE)
     def test_unittest_will_include_lines_pct_if_itr_test_import(self):
         tools = """
             def add_two_number_list(list_1, list_2):
@@ -554,4 +555,4 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
             )
         ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "unittest"])
+            subprocess.run(["ddtrace-run", "coverage", "run", "-m", "unittest"])

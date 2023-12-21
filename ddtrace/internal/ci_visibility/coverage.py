@@ -30,6 +30,25 @@ except ImportError:
 def is_coverage_available():
     return Coverage is not None
 
+def can_initiate_coverage(ci_visibility_instance) -> bool:
+    if not is_coverage_available() or _check_if_modified_coverage_exists():
+        if not is_coverage_available():
+            log.warning("Datadog ITR Coverage could not enabled because Coverage.py is not installed")
+        elif _check_if_modified_coverage_exists():
+            log.warning("Datadog ITR Coverage could not be enabled due to a customized run of Coverage.py, it is recommended to run Coverage.py with no arguments.")
+        ci_visibility_instance._collect_coverage_enabled = False
+        log.warning("Disabling ITR")
+        return False
+    return True
+
+def _check_if_modified_coverage_exists() -> bool:
+    current_coverage_object = Coverage.current()
+    if not current_coverage_object or _own_coverage:
+        return False
+    current_coverage_object_config = current_coverage_object.config
+    if current_coverage_object_config.source or current_coverage_object_config.source_pkgs or current_coverage_object_config.run_omit or current_coverage_object_config.run_include:
+        return True
+    return False
 
 def _initialize_coverage(root_dir):
     coverage_kwargs = {
@@ -58,7 +77,7 @@ def _start_coverage(root_dir: str):
 
 
 def _stop_coverage(module):
-    if _module_has_dd_coverage_enabled(module) and _own_coverage:
+    if _own_coverage and _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
         module._dd_coverage.erase()
         del module._dd_coverage

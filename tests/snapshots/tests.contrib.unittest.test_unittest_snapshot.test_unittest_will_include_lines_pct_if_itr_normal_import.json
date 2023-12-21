@@ -13,14 +13,14 @@
         "_dd.base_service": "",
         "_dd.origin": "ciapp-test",
         "_dd.p.dm": "-0",
-        "_dd.p.tid": "6581c86300000000",
+        "_dd.p.tid": "65845ea700000000",
         "component": "unittest",
         "language": "python",
         "library_version": "2.5.0.dev22+g93e162dd2",
         "os.architecture": "arm64",
         "os.platform": "Darwin",
         "os.version": "23.1.0",
-        "runtime-id": "e4ada22ec04940a58b3ef821963a2190",
+        "runtime-id": "00e07fa546f14780957d917f4c3fe501",
         "runtime.name": "CPython",
         "runtime.version": "3.10.11",
         "span.kind": "test",
@@ -31,18 +31,18 @@
         "test.itr.tests_skipping.enabled": "false",
         "test.status": "pass",
         "test.type": "test",
-        "test_session_id": "999715714735638269",
+        "test_session_id": "16686442336048890341",
         "type": "test_session_end"
       },
       "metrics": {
         "_dd.top_level": 1,
         "_dd.tracer_kr": 1.0,
         "_sampling_priority_v1": 1,
-        "process_id": 55585,
-        "test.code_coverage.lines_pct": 60.0
+        "process_id": 55421,
+        "test.code_coverage.lines_pct": 23.655787743601785
       },
-      "duration": 8603000,
-      "start": 1703004259451605000
+      "duration": 442875000,
+      "start": 1703173799373954000
     },
     {
       "name": "unittest.test_module",
@@ -73,12 +73,12 @@
         "test.module_path": "test_tools.py",
         "test.status": "pass",
         "test.type": "test",
-        "test_module_id": "6737678638448828586",
-        "test_session_id": "999715714735638269",
+        "test_module_id": "14833292766901270124",
+        "test_session_id": "16686442336048890341",
         "type": "test_module_end"
       },
-      "duration": 5834000,
-      "start": 1703004259452008000
+      "duration": 11855000,
+      "start": 1703173799374485000
     },
     {
       "name": "unittest.test_suite",
@@ -108,13 +108,13 @@
         "test.status": "pass",
         "test.suite": "CodeCoverageTestCase",
         "test.type": "test",
-        "test_module_id": "6737678638448828586",
-        "test_session_id": "999715714735638269",
-        "test_suite_id": "8926794847842960692",
+        "test_module_id": "14833292766901270124",
+        "test_session_id": "16686442336048890341",
+        "test_suite_id": "11378648611794507905",
         "type": "test_suite_end"
       },
-      "duration": 5712000,
-      "start": 1703004259452120000
+      "duration": 11667000,
+      "start": 1703173799374661000
     },
     {
       "name": "unittest.test",
@@ -138,7 +138,6 @@
         "span.kind": "test",
         "test.class_hierarchy": "CodeCoverageTestCase",
         "test.command": "python3 -m unittest",
-        "test.coverage": "{\"files\": [{\"filename\": \"tools.py\", \"segments\": [[2, 0, 5, 0, -1]]}]}",
         "test.framework": "unittest",
         "test.framework_version": "3.10.11",
         "test.module": "test_tools",
@@ -148,17 +147,17 @@
         "test.status": "pass",
         "test.suite": "CodeCoverageTestCase",
         "test.type": "test",
-        "test_module_id": "6737678638448828586",
-        "test_session_id": "999715714735638269",
-        "test_suite_id": "8926794847842960692",
+        "test_module_id": "14833292766901270124",
+        "test_session_id": "16686442336048890341",
+        "test_suite_id": "11378648611794507905",
         "type": "test"
       },
       "metrics": {
         "test.source.end": 11,
         "test.source.start": 5
       },
-      "duration": 5661000,
-      "start": 1703004259452146000
+      "duration": 11589000,
+      "start": 1703173799374701000
     }
   ]
 ]

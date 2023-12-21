@@ -110,28 +110,44 @@ class PytestSnapshotTestCase(TracerTestCase):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
-    def test_pytest_will_include_lines_pct_if_itr_normal_import(self):
+    def test_pytest_will_include_lines_pct_if_itr_disabling_itr_cov(self):
         tools = """
-                        def add_two_number_list(list_1, list_2):
-                            output_list = []
-                            for number_a, number_b in zip(list_1, list_2):
-                                output_list.append(number_a + number_b)
-                            return output_list
-                        def multiply_two_number_list(list_1, list_2):
-                            output_list = []
-                            for number_a, number_b in zip(list_1, list_2):
-                                output_list.append(number_a * number_b)
-                            return output_list
-                        """
+                def lib_fn():
+                    return True
+                """
         self.testdir.makepyfile(tools=tools)
         test_tools = """
-                        from tools import add_two_number_list
-                        def test_add_two_number_list():
-                            a_list = [1,2,3,4,5,6,7,8]
-                            b_list = [2,3,4,5,6,7,8,9]
-                            actual_output = add_two_number_list(a_list, b_list)
-                            assert actual_output == [3,5,7,9,11,13,15,17]
-                        """
+                import pytest
+
+                def test_cov():
+                    from tools import lib_fn
+                    assert lib_fn()
+                    """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
+            )
+        ):
+            subprocess.run(["pytest", "--cov=tools", "--ddtrace"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_pytest_will_include_lines_pct_if_itr_disabling_itr_include(self):
+        tools = """
+                def lib_fn():
+                    return True
+                """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+                import pytest
+
+                def test_cov():
+                    from tools import lib_fn
+                    assert lib_fn()
+                    """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
         with override_env(
@@ -144,27 +160,18 @@ class PytestSnapshotTestCase(TracerTestCase):
             subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
-    def test_pytest_will_include_lines_pct_if_itr_test_import(self):
-        tools_1 = """
-                def ret_false():
-                    return False
-                """
-        self.testdir.makepyfile(tools_1=tools_1)
-        tools_2 = """
+    def test_pytest_will_include_lines_pct_if_itr_disabling_itr_omit(self):
+        tools = """
                 def lib_fn():
                     return True
                 """
-        self.testdir.makepyfile(tools_2=tools_2)
+        self.testdir.makepyfile(tools=tools)
         test_tools = """
                 import pytest
 
                 def test_cov():
-                    from tools_2 import lib_fn
+                    from tools import lib_fn
                     assert lib_fn()
-
-                def test_second():
-                    from tools_1 import ret_false
-                    assert not ret_false()
                     """
         self.testdir.makepyfile(test_tools=test_tools)
         self.testdir.chdir()
@@ -175,4 +182,4 @@ class PytestSnapshotTestCase(TracerTestCase):
                 _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
             )
         ):
-            subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools_*.py", "-m", "pytest", "--ddtrace"])
+            subprocess.run(["ddtrace-run", "coverage", "run", "--omit=test_tools.py", "-m", "pytest", "--ddtrace"])
