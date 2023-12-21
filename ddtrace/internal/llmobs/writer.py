@@ -109,7 +109,7 @@ class LLMObsWriter(PeriodicService):
             "data": {
                 "type": "records",
                 "attributes": {
-                    "tags": ["src:integration"],
+                    "tags": record["ddtags"],
                     "model": model,
                     "model_provider": model_provider,
                     "records": llm_records,

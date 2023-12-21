@@ -4,6 +4,7 @@ import time
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from openai import version
@@ -230,6 +231,24 @@ class _OpenAIIntegration(BaseLLMIntegration):
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
             "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
             "error:%d" % span.error,
+        ]
+        err_type = span.get_tag("error.type")
+        if err_type:
+            tags.append("error_type:%s" % err_type)
+        return tags
+
+    @classmethod
+    def _llmobs_tags(cls, span: Span) -> List[str]:
+        tags = [
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
+            "src:integration",
+            "dd.trace_id:%s" % (span.trace_id or ""),
+            "dd.span_id:%s" % (span.span_id or ""),
+            "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "ml_obs.request.model_provider:%s" % (span.get_tag("openai.organization.name") or ""),
+            "ml_obs.request.error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
         if err_type:

@@ -63,13 +63,11 @@ class BaseLLMIntegration:
     def start_log_writer(self) -> None:
         self._log_writer.start()
 
-    def start_llm_writer(self):
-        # type: (...) -> None
+    def start_llm_writer(self) -> None:
         self._llmobs_writer.start()
 
     @abc.abstractmethod
-    def _set_base_span_tags(self, span, **kwargs):
-        # type: (Span, Dict[str, Any]) -> None
+    def _set_base_span_tags(self, span: Span, **kwargs: Dict[str, Any]) -> None:
         """Set default LLM span attributes when possible."""
         pass
 
@@ -89,13 +87,11 @@ class BaseLLMIntegration:
 
     @classmethod
     @abc.abstractmethod
-    def _logs_tags(cls, span):
-        # type: (Span) -> str
+    def _logs_tags(cls, span: Span) -> str:
         """Generate ddtags from the corresponding span."""
         pass
 
-    def log(self, span, level, msg, attrs):
-        # type: (Span, str, str, Dict[str, Any]) -> None
+    def log(self, span: Span, level: str, msg: str, attrs: Dict[str, Any]) -> None:
         if not self._config.logs_enabled:
             return
         tags = self._logs_tags(span)
@@ -116,13 +112,11 @@ class BaseLLMIntegration:
 
     @classmethod
     @abc.abstractmethod
-    def _metrics_tags(cls, span):
-        # type: (Span) -> list
+    def _metrics_tags(cls, span: Span) -> List[str]:
         """Generate a list of metrics tags from a given span."""
         return []
 
-    def metric(self, span, kind, name, val, tags=None):
-        # type: (Span, str, str, Any, Optional[List[str]]) -> None
+    def metric(self, span: Span, kind: str, name: str, val: Any, tags: Optional[List[str]] = None) -> None:
         """Set a metric using the context from the given span."""
         if not self._config.metrics_enabled:
             return
@@ -138,8 +132,7 @@ class BaseLLMIntegration:
         else:
             raise ValueError("Unexpected metric type %r" % kind)
 
-    def trunc(self, text):
-        # type: (str) -> str
+    def trunc(self, text: str) -> str:
         """Truncate the given text.
 
         Use to avoid attaching too much data to spans.
@@ -151,14 +144,18 @@ class BaseLLMIntegration:
             text = text[: self._config.span_char_limit] + "..."
         return text
 
-    def llm_record(self, span, attrs):
-        # type: (Span, Dict[str, Any]) -> None
+    @classmethod
+    @abc.abstractmethod
+    def _llmobs_tags(cls, span: Span) -> List[str]:
+        """Generate a list of llmobs tags from a given span."""
+        return []
+
+    def llm_record(self, span: Span, attrs: Dict[str, Any], tags: Optional[List[str]] = None) -> None:
         """Create a LLM record to send to the LLM Obs intake."""
         if not self._config.llmobs_enabled:
             return
-        llm_record = {}
-        if span is not None:
-            llm_record["dd.trace_id"] = str(span.trace_id)
-            llm_record["dd.span_id"] = str(span.span_id)
-        llm_record.update(attrs)
-        self._llmobs_writer.enqueue(llm_record)
+        llmobs_tags = self._llmobs_tags(span)
+        if tags:
+            llmobs_tags += tags
+        attrs["ddtags"] = llmobs_tags
+        self._llmobs_writer.enqueue(attrs)
