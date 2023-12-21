@@ -144,6 +144,8 @@ def override_global_config(values):
         "_llmobs_span_prompt_completion_sample_rate",
         "_llmobs_log_prompt_completion_sample_rate",
         "_llmobs_record_sample_rate",
+        "_datadog_api_key",
+        "_datadog_app_key",
         "_install_id",
         "_install_type",
         "_install_time",

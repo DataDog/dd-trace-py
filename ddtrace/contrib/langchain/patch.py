@@ -121,7 +121,7 @@ class _LangChainIntegration(BaseLLMIntegration):
             self.metric(span, "incr", "tokens.total_cost", total_cost)
 
 
-def _extract_model_name(instance: langchain.llm.BaseLLM) -> Optional[str]:
+def _extract_model_name(instance: langchain.llms.BaseLLM) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
