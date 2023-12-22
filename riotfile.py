@@ -144,6 +144,7 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
                 "simplejson": latest,
+                "SQLAlchemy": "==2.0.22",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -158,6 +159,7 @@ venv = Venv(
                 "requests": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
+                "SQLAlchemy": "==2.0.22",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
                 "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
