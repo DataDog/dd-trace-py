@@ -223,7 +223,6 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
-@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
@@ -239,7 +238,6 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         _unblock_ip(token)
 
 
-@flaky(until=1704067200)
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
@@ -257,7 +255,6 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
         _request_200(gunicorn_client)
 
 
-@flaky(until=1704067200)
 @pytest.mark.skipif(list(sys.version_info[:2]) != [3, 10], reason="Run this tests in python 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
@@ -279,7 +276,6 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
-@flaky(until=1704067200, reason="_request_403 is flaky, figure out the error")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
