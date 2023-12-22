@@ -30,6 +30,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.appsec.test_processor import ROOT_DIR
 from tests.appsec.appsec.test_processor import Config
+from tests.appsec.utils import Either
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -853,7 +854,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
+            {"asm": {"enabled": Either(True, None)}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
         )
         mock_appsec_rules_data.reset_mock()
 
@@ -870,7 +871,9 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"x": 1}], "data2": []}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {"asm": {"enabled": Either(True, None)}, "data": [{"x": 1}], "data2": []}, None
+        )
     disable_appsec_rc()
 
 

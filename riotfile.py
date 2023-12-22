@@ -245,6 +245,9 @@ venv = Venv(
                 "fastapi": latest,
                 "httpx": latest,
             },
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
+            },
             venvs=[
                 Venv(pys=select_pys()),
                 # This test variant ensures tracer tests are compatible with both 64bit and 128bit trace ids.
