@@ -43,6 +43,17 @@ def mock_logs():
 
 def _completion_record():
     return {
+        "ddtags": [
+            "version:",
+            "env:",
+            "service:",
+            "src:integration",
+            "dd.trace_id:1234567890",
+            "dd.span_id:1234567890",
+            "ml_obs.request.model:ada",
+            "ml_obs.request.model_provider:openai",
+            "ml_obs.request.error:0",
+        ],
         "type": "completion",
         "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
         "timestamp": 1681852797000,
@@ -67,6 +78,17 @@ def _completion_record():
 
 def _chat_completion_record():
     return {
+        "ddtags": [
+            "version:",
+            "env:",
+            "service:",
+            "src:integration",
+            "dd.trace_id:1234567890",
+            "dd.span_id:1234567890",
+            "ml_obs.request.model:gpt-3.5-turbo",
+            "ml_obs.request.model_provider:openai",
+            "ml_obs.request.error:0",
+        ],
         "type": "chat",
         "id": "chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu",
         "timestamp": 1681853029000,

@@ -9,6 +9,7 @@ from typing import Optional  # noqa:F401
 
 from openai import version
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
@@ -23,10 +24,6 @@ from ddtrace.internal.wrapping import wrap
 from ...pin import Pin
 from . import _endpoint_hooks
 from .utils import _format_openai_api_key
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)

@@ -32,6 +32,7 @@ class LLMObsEvent(TypedDict):
     input: Dict[str, Union[float, int, List[str]]]
     model: str
     model_provider: str
+    ddtags: List[str]
     output: Dict[str, List[Dict[str, str]]]
     # Additional attributes can be specified on the event
     # including dd.trace_id and dd.span_id to correlate a trace
@@ -101,9 +102,9 @@ class LLMObsWriter(PeriodicService):
             "data": {
                 "type": "records",
                 "attributes": {
-                    "tags": llm_record.pop("ddtags", []),
-                    "model": model,
-                    "model_provider": model_provider,
+                    "tags": llm_record.pop("ddtags") or [],  # type: ignore[misc]
+                    "model": model or "",
+                    "model_provider": model_provider or "",
                     "records": [llm_record],
                 },
             }
