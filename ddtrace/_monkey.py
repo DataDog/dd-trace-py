@@ -11,9 +11,6 @@ from .settings import _config as config
 from .settings.asm import config as asm_config
 
 
-if config._telemetry_enabled:
-    from .internal import telemetry
-
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
@@ -165,6 +162,9 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
         try:
             imported_module = importlib.import_module(path)
         except Exception as e:
+            if config._telemetry_enabled:
+                from .internal import telemetry
+
             if raise_errors:
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
