@@ -157,14 +157,13 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
+        if config._telemetry_enabled:
+            from .internal import telemetry
         # Import and patch module
         path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
         except Exception as e:
-            if config._telemetry_enabled:
-                from .internal import telemetry
-
             if raise_errors:
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
