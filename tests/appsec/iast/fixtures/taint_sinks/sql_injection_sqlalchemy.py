@@ -10,7 +10,7 @@ def sqli_simple(table):
     engine = create_engine("postgresql://postgres:postgres@127.0.0.1/postgres")
     with engine.connect() as connection:
         try:
-            connection.execute("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)")
+            connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
         except ProgrammingError:
             pass
         query = text(f"SELECT 1 FROM {table}")
