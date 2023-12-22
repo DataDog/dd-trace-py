@@ -247,7 +247,7 @@ class _OpenAIIntegration(BaseLLMIntegration):
             "dd.trace_id:%s" % (span.trace_id or ""),
             "dd.span_id:%s" % (span.span_id or ""),
             "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
-            "ml_obs.request.model_provider:%s" % (span.get_tag("openai.organization.name") or ""),
+            "ml_obs.request.model_provider:openai",
             "ml_obs.request.error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
