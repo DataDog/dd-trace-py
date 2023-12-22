@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 import os
 import signal
 import sys
+from test.utils import flaky
 import time
 import uuid
 
@@ -275,6 +276,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
+@flaky
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())

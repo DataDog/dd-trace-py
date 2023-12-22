@@ -316,7 +316,9 @@ def test_ip_update_rules_expired_no_block(tracer):
 def test_appsec_span_tags_snapshot(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        with _asm_request_context.asm_request_context_manager(), tracer.trace(
+            "test", service="test", span_type=SpanTypes.WEB
+        ) as span:
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
@@ -336,7 +338,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
             _enable_appsec(tracer)
             with _asm_request_context.asm_request_context_manager(), tracer.trace(
-                "test", span_type=SpanTypes.WEB
+                "test", service="test", span_type=SpanTypes.WEB
             ) as span:
                 span.set_tag("http.url", "http://example.com/.git")
                 set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
