@@ -3514,3 +3514,131 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
         assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_will_not_disable_itr_if_cov_flag(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
+            )
+        ):
+            self.inline_run("--ddtrace", "--cov")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        assert test_session_span.get_metric("test.code_coverage.lines_pct") is not None
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+        assert test_span.get_tag("test.coverage") is not None
+
+    def test_pytest_will_disable_itr_if_custom_cov_flag(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_PATCH_MODULES="sqlite3:false",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="1",
+            )
+        ):
+            self.inline_run("--ddtrace", "--cov=tools")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        assert test_session_span.get_metric("test.code_coverage.lines_pct") == 60.0
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+        assert test_span.get_tag("test.coverage") is None
