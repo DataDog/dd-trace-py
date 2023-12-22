@@ -697,21 +697,13 @@ venv = Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "django": ["~=4.0", latest],
+                        "django": ["~=4.0"],
                         "channels": latest,
                     },
                 ),
                 Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "django": ["~=4.2", latest],
-                        "psycopg": latest,
-                        "channels": latest,
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "django": ["~=4.2"],
                         "psycopg": latest,
