@@ -15,7 +15,6 @@ from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.utils import flaky
 
 
 def _get_agent_client():

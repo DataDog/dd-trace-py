@@ -18,7 +18,6 @@ from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
-from tests.utils import flaky
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
