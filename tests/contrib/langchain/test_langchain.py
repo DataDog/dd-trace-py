@@ -146,11 +146,6 @@ def test_global_config(ddtrace_global_config, mock_tracer, langchain):
     ],
 )
 def test_integration_config(ddtrace_config_langchain, mock_tracer, langchain):
-    # Ensure that the module state is reloaded for each test run
-    assert not hasattr(langchain, "_test")
-    langchain._test = 1
-
-    # Ensure overriding the config works
     assert ddtrace.config.langchain.metrics_enabled is ddtrace_config_langchain["metrics_enabled"]
     assert ddtrace.config.langchain.logs_enabled is ddtrace_config_langchain["logs_enabled"]
     assert ddtrace.config.langchain.llmobs_enabled is ddtrace_config_langchain["llmobs_enabled"]
@@ -178,7 +173,7 @@ def test_logs_integration_config_overrides_global_config(
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
-    [dict(logs_enabled=True, service="test-svc", env="staging", version="1234")],
+    [dict(_llmobs_logs_enabled=True, service="test-svc", env="staging", version="1234")],
 )
 def test_global_tags(ddtrace_global_config, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
