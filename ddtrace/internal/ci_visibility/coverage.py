@@ -194,7 +194,5 @@ def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = No
             files_data.append(
                 {"filename": _global_relative_file_paths_for_cov[root_dir_str][filename], "segments": lines}
             )
-        else:
-            files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
 
     return json.dumps({"files": files_data})

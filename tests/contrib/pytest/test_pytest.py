@@ -3564,6 +3564,10 @@ class PytestTestCase(TracerTestCase):
             )
         ):
             self.inline_run("--ddtrace", "--cov")
+            if hasattr(pytest, "_dd_coverage"):
+                pytest._dd_coverage.stop()
+                pytest._dd_coverage.erase()
+                del pytest._dd_coverage
 
         spans = self.pop_spans()
         assert len(spans) == 4
