@@ -1611,6 +1611,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
@@ -1618,6 +1619,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/rq",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
