@@ -159,7 +159,7 @@ def test_integration_config(ddtrace_config_langchain, mock_tracer, langchain):
     ],
 )
 def test_logs_integration_config_overrides_global_config(
-    ddtrace_global_config, ddtrace_config_langchain, langchain, request_vcr, mock_logs
+    ddtrace_global_config, ddtrace_config_langchain, langchain, request_vcr, mock_logs, mock_tracer
 ):
     llm = langchain.llms.OpenAI()
     if sys.version_info >= (3, 10, 0):
