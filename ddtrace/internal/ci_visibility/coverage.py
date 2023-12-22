@@ -115,7 +115,8 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
         return
     if _own_coverage:
         coverage_data._collector.data.clear()  # type: ignore[union-attr]
-    coverage_data.switch_context(unique_test_name)
+    if coverage_data._started:
+        coverage_data.switch_context(unique_test_name)
 
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
