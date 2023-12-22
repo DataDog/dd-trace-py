@@ -136,7 +136,7 @@ Global Configuration
    Alternatively, you can set this option with one of the following environment variables:
 
    - ``DD_LLMOBS_LOGS_ENABLED``
-   - ``DD_LANGCHAIN_LOGS_ENABLED``, which takes precedence over ``DD_LLMOBS_LOGS_ENABLED``. 
+   - ``DD_LANGCHAIN_LOGS_ENABLED``, which takes precedence over ``DD_LLMOBS_LOGS_ENABLED``.
 
 
    Note that you must set the ``DD_API_KEY`` environment variable to enable sending logs.
@@ -154,8 +154,8 @@ Global Configuration
    Alternatively, you can set this option with one of the following environment variables:
 
    - ``DD_LLMOBS_METRICS_ENABLED``
-   - ``DD_LANGCHAIN_METRICS_ENABLED``, which takes precedence over ``DD_LLMOBS_METRICS_ENABLED``. 
-   
+   - ``DD_LANGCHAIN_METRICS_ENABLED``, which takes precedence over ``DD_LLMOBS_METRICS_ENABLED``.
+
    Default: ``True``
 
 
