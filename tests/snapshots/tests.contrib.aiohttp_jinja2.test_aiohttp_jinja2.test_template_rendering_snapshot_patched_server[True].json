@@ -14,6 +14,7 @@
       "_dd.p.tid": "654a694400000000",
       "component": "aiohttp",
       "http.method": "GET",
+      "http.route": "/template/",
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:45601/template/",
       "http.useragent": "Python/3.9 aiohttp/3.8.4",

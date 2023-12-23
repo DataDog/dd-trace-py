@@ -6,7 +6,6 @@ from libc.string cimport strlen
 from json import dumps as json_dumps
 import threading
 from json import dumps as json_dumps
-from numbers import Number
 
 from ._utils cimport PyBytesLike_Check
 
@@ -585,7 +584,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
                 # pack the value of a span link field (values can be number, string or dict)
-                if isinstance(v, Number):
+                if isinstance(v, (int, float)):
                     ret = pack_number(&self.pk, v)
                 elif isinstance(v, str):
                     ret = pack_text(&self.pk, v)

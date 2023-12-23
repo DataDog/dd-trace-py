@@ -7,6 +7,7 @@ from ddtrace import Pin
 from ddtrace.contrib.aiohttp import patch
 from ddtrace.contrib.aiohttp import unpatch
 from ddtrace.contrib.aiohttp.patch import extract_netloc_and_query_info_from_url
+from tests.utils import override_config
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -197,6 +198,19 @@ asyncio.run(test())
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, err
     assert err == b""
+
+
+@pytest.mark.asyncio
+async def test_configure_service_name_split_by_domain(snapshot_context):
+    """
+    When split_by_domain is configured
+        We set the service name to the url host
+    """
+    with override_config("aiohttp_client", {"split_by_domain": True}):
+        with snapshot_context():
+            async with aiohttp.ClientSession() as session:
+                async with session.get(URL_200) as resp:
+                    assert resp.status == 200
 
 
 @pytest.mark.asyncio

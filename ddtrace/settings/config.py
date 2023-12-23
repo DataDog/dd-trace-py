@@ -193,7 +193,7 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-_ConfigSource = Literal["default", "env", "code", "remote_config"]
+_ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
 
 
@@ -247,7 +247,7 @@ class _ConfigItem:
         if self._code_value is not None:
             return "code"
         if self._env_value is not None:
-            return "env"
+            return "env_var"
         return "default"
 
     def __repr__(self):
@@ -501,6 +501,7 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
+        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -653,14 +654,15 @@ class Config(object):
 
     def _set_config_items(self, items):
         # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
+        item_names = []
         for key, value, origin in items:
+            item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        cs = [{"name": k, "value": self._config[k].value(), "origin": self._get_source(k)} for k, _, _ in items]
-        telemetry_writer.add_event({"configuration": cs}, "app-client-configuration-change")
-        self._notify_subscribers([i[0] for i in items])
+            telemetry_writer.add_configs_changed(item_names)
+        self._notify_subscribers(item_names)
 
     def _reset(self):
         # type: () -> None
@@ -689,27 +691,24 @@ class Config(object):
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        if not data:
-            for item in self._config.values():
-                item.unset_rc()
+        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
+            log.warning("unexpected RC payload %r", data)
             return
-
         if len(data["config"]) == 0:
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        if "lib_config" not in config:
-            log.warning("unexpected RC payload %r", config)
-            return
-
-        lib_config = config["lib_config"]
         updated_items = []  # type: List[Tuple[str, Any]]
 
-        if "tracing_sampling_rate" in lib_config:
-            updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+        if not config:
+            for item in self._config:
+                updated_items.append((item, None))
+        else:
+            lib_config = config["lib_config"]
+            if "tracing_sampling_rate" in lib_config:
+                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 
