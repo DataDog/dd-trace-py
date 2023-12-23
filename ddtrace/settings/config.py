@@ -658,10 +658,10 @@ class Config(object):
         for key, value, origin in items:
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):
