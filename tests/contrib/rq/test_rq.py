@@ -88,10 +88,12 @@ def test_sync_worker(queue):
 
 @snapshot(ignores=snapshot_ignores)
 def test_sync_worker_ttl(queue):
+    # queue a job where the result expires immediately
     job = queue.enqueue(job_add1, 1, result_ttl=0)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
-    assert job.result == 2
+    assert job.get_status() is None
+    assert job.result is None
 
 
 @snapshot(ignores=snapshot_ignores)
