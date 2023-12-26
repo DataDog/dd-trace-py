@@ -36,9 +36,14 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
 
 @contextmanager
 def flask_server(
-    appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", tracer_enabled="true", token=None
+    appsec_enabled="true",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    token=None,
+    app="tests/appsec/app.py",
 ):
-    cmd = ["python", "tests/appsec/app.py", "--no-reload"]
+    cmd = ["python", app, "--no-reload"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -75,6 +80,7 @@ def appsec_application_server(
     server_process = subprocess.Popen(
         cmd,
         env=env,
+        # shell=False,
         stdout=sys.stdout,
         stderr=sys.stderr,
         preexec_fn=os.setsid,

@@ -181,6 +181,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_tdd_propagation",
+            pys=select_pys(min_version="3.8"),
+            command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "sqlalchemy": "~=2.0.23",
+                "flask": "~=3.0",
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_integrations",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
