@@ -22,7 +22,6 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal import telemetry
-from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from .. import compat
@@ -519,9 +518,6 @@ class AgentWriter(HTTPWriter):
             )
 
         _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
         super(AgentWriter, self).__init__(
             intake_url=agent_url,

@@ -26,11 +26,9 @@ def daphne_client(django_asgi, additional_env=None):
     at the end of the testcase.
     """
 
-    # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
     env = os.environ.copy()
     env.update(additional_env or {})
-    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",

@@ -29,7 +29,6 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.vendor import wrapt
@@ -997,16 +996,6 @@ def snapshot_context(
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
-        if async_mode:
-            # Patch the tracer writer to include the test token header for all requests.
-            tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
-
-            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-            existing_headers.update({"X-Datadog-Test-Session-Token": token})
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
-                ["%s:%s" % (k, v) for k, v in existing_headers.items()]
-            )
         try:
             query = urllib.parse.urlencode(
                 {
@@ -1031,9 +1020,6 @@ def snapshot_context(
         finally:
             # Force a flush so all traces are submitted.
             tracer._writer.flush_queue()
-            if async_mode:
-                del tracer._writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 

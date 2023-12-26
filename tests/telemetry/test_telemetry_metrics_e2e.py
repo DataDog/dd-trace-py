@@ -22,10 +22,9 @@ def _build_env():
 
 
 @contextmanager
-def gunicorn_server(telemetry_metrics_enabled="true", token=None):
+def gunicorn_server():
     cmd = ["ddtrace-run", "gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "tests.telemetry.app:app"]
     env = _build_env()
-    env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["DD_TRACE_DEBUG"] = "true"
     # do not patch flask because we will end up with confusing metrics
@@ -72,9 +71,8 @@ def parse_payload(data):
 
 
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
-    token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
     assert len(test_agent_session.get_events()) == 0
-    with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
+    with gunicorn_server() as context:
         _, gunicorn_client = context
 
         gunicorn_client.get("/count_metric")
