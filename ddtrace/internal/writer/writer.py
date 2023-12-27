@@ -277,7 +277,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _get_finalized_headers(self, count, client):
         # type: (int, WriterClientBase) -> dict
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers["X-Datadog-Trace-Count"] = str(count)
+        headers["Content-Type"] = client.encoder.content_type
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -516,8 +517,6 @@ class AgentWriter(HTTPWriter):
                     "Datadog-Container-Id": self._container_info.container_id,
                 }
             )
-
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         self._response_cb = response_callback
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
@@ -616,9 +615,3 @@ class AgentWriter(HTTPWriter):
                 enable_appsec_rc()
         except service.ServiceStatusError:
             pass
-
-    def _get_finalized_headers(self, count, client):
-        # type: (int, WriterClientBase) -> dict
-        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
-        headers["X-Datadog-Trace-Count"] = str(count)
-        return headers
