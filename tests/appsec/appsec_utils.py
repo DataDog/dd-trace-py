@@ -4,6 +4,8 @@ import signal
 import subprocess
 import sys
 
+from requests.exceptions import ConnectionError
+
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.webclient import Client
@@ -89,7 +91,7 @@ def appsec_application_server(
 
         try:
             print("Waiting for server to start")
-            client.wait(max_tries=120, delay=0.1 * 300, initial_wait=4.0)
+            client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
             print("Server started")
         except RetryError:
             raise AssertionError(
@@ -112,6 +114,8 @@ def appsec_application_server(
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
         try:
             client.get_ignored("/shutdown")
+        except ConnectionError:
+            pass
         except Exception:
             raise AssertionError(
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="

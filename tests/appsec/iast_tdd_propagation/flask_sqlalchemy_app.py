@@ -3,6 +3,7 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
 
+import sys
 
 from flask import Flask
 from flask import request
@@ -12,11 +13,13 @@ from sqlalchemy import String
 from sqlalchemy import create_engine
 from sqlalchemy import text
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from ddtrace.appsec import _asm_request_context
 
+from ddtrace import tracer
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.internal import core
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
@@ -36,8 +39,8 @@ class User(Base):
 
 class ResultResponse:
     param = ""
-    result1 = ""
-    result2 = ""
+    sources = ""
+    vulnerabilities = ""
 
     def __init__(self, param):
         self.param = param
@@ -45,27 +48,35 @@ class ResultResponse:
     def json(self):
         return {
             "param": self.param,
-            "result1": self.result1,
-            "result2": self.result2,
-            "params_are_tainted": is_pyobject_tainted(self.result1),
+            "sources": self.sources,
+            "vulnerabilities": self.vulnerabilities,
+            "params_are_tainted": is_pyobject_tainted(self.param),
         }
+
+
+@app.route("/shutdown")
+def shutdown():
+    tracer.shutdown()
+    sys.exit(0)
 
 
 @app.route("/")
 def pkg_requests_view():
     param = request.args.get("param", "param")
-    response = ResultResponse(param)
-    session = sessionmaker(bind=engine)()
 
     with engine.connect() as connection:
-        result = connection.execute("select * from user_account where name = '" + param + "'")
+        result = connection.execute(text("select * from user_account where name = '" + param + "'"))  # noqa: F841
 
-    response.result1 = param
-    response.result2 = ""
+    response = ResultResponse(param)
+    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+    if report and report[0]:
+        response.sources = report[0].sources[0].value
+        response.vulnerabilities = list(report[0].vulnerabilities)[0].type
 
     return response.json()
 
 
 if __name__ == "__main__":
-    User.metadata.create_all(engine, checkfirst=False)
+    ddtrace_iast_flask_patch()
+    User.metadata.create_all(engine)
     app.run(debug=False, port=8000)
