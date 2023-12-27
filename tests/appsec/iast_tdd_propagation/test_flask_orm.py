@@ -15,7 +15,7 @@ from tests.appsec.appsec_utils import flask_server
         ("sqlite", False),
         ("sqlalchemy", False),
         ("pony", False),
-        # ("sqliteframe", False),  # WIP
+        ("peewee", False),
     ],
 )
 def test_iast_flask_orm(orm, xfail):

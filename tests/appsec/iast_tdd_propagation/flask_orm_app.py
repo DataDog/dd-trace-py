@@ -4,6 +4,7 @@
 """
 
 
+import importlib
 import os
 import sys
 
@@ -21,24 +22,7 @@ import ddtrace.auto  # noqa: F401  # isort: skip
 
 orm = os.getenv("FLASK_ORM", "sqlite")
 
-if orm == "sqlalchemy":
-    from sqlalchemy_impl import execute_query
-    from sqlalchemy_impl import execute_untainted_query
-elif orm == "pony":
-    from pony_impl import execute_query
-    from pony_impl import execute_untainted_query
-elif orm == "sqliteframe":
-    from sqliteframe_impl import execute_query
-    from sqliteframe_impl import execute_untainted_query
-elif orm == "tortoise":
-    from tortoise_impl import execute_query
-    from tortoise_impl import execute_untainted_query
-elif orm == "sqlite":
-    from sqlite_impl import execute_query
-    from sqlite_impl import execute_untainted_query
-else:
-    from sqlite_impl import execute_query
-    from sqlite_impl import execute_untainted_query
+orm_impl = importlib.import_module(f"{orm}_impl")
 
 
 app = Flask(__name__)
@@ -75,7 +59,7 @@ def tainted_view():
 
     assert not (report and report[0])
 
-    execute_query("select * from User where name = '" + param + "'")
+    orm_impl.execute_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
     report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
@@ -94,7 +78,7 @@ def untainted_view():
 
     assert not (report and report[0])
 
-    execute_untainted_query("select * from User where name = '" + param + "'")
+    orm_impl.execute_untainted_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
     report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())

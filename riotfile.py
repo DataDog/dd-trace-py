@@ -185,12 +185,12 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
-                "sqlalchemy": "~=2.0.23",
                 "flask": "~=3.0",
+                "sqlalchemy": "~=2.0.23",
                 "pony": latest,
-                "sqliteframe": latest,
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
+                "peewee": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
