@@ -23,10 +23,22 @@ orm = os.getenv("FLASK_ORM", "sqlite")
 
 if orm == "sqlalchemy":
     from sqlalchemy_impl import execute_query
+    from sqlalchemy_impl import execute_untainted_query
+elif orm == "pony":
+    from pony_impl import execute_query
+    from pony_impl import execute_untainted_query
+elif orm == "sqliteframe":
+    from sqliteframe_impl import execute_query
+    from sqliteframe_impl import execute_untainted_query
+elif orm == "tortoise":
+    from tortoise_impl import execute_query
+    from tortoise_impl import execute_untainted_query
 elif orm == "sqlite":
     from sqlite_impl import execute_query
+    from sqlite_impl import execute_untainted_query
 else:
     from sqlite_impl import execute_query
+    from sqlite_impl import execute_untainted_query
 
 
 app = Flask(__name__)
@@ -56,10 +68,33 @@ def shutdown():
 
 
 @app.route("/")
-def pkg_requests_view():
+def tainted_view():
     param = request.args.get("param", "param")
 
-    execute_query("select * from sqlite_master where name = '" + param + "'")
+    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+
+    assert not (report and report[0])
+
+    execute_query("select * from User where name = '" + param + "'")
+
+    response = ResultResponse(param)
+    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+    if report and report[0]:
+        response.sources = report[0].sources[0].value
+        response.vulnerabilities = list(report[0].vulnerabilities)[0].type
+
+    return response.json()
+
+
+@app.route("/untainted")
+def untainted_view():
+    param = request.args.get("param", "param")
+
+    report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
+
+    assert not (report and report[0])
+
+    execute_untainted_query("select * from User where name = '" + param + "'")
 
     response = ResultResponse(param)
     report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())

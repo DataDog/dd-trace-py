@@ -187,6 +187,10 @@ venv = Venv(
             pkgs={
                 "sqlalchemy": "~=2.0.23",
                 "flask": "~=3.0",
+                "pony": latest,
+                "sqliteframe": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests

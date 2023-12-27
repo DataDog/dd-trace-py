@@ -8,8 +8,17 @@ from tests.appsec.appsec_utils import flask_server
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 12, 0), reason="Package not yet compatible with Python 3.12")
-@pytest.mark.parametrize("orm", ["sqlalchemy", "sqlite"])
-def test_iast_flask_orm(orm):
+@pytest.mark.parametrize(
+    "orm, xfail",
+    [
+        ("tortoise", True),
+        ("sqlite", False),
+        ("sqlalchemy", False),
+        ("pony", False),
+        # ("sqliteframe", False),  # WIP
+    ],
+)
+def test_iast_flask_orm(orm, xfail):
     with flask_server(
         iast_enabled="true",
         tracer_enabled="true",
@@ -20,11 +29,23 @@ def test_iast_flask_orm(orm):
     ) as context:
         _, client, pid = context
 
-        response = client.get("/?param=my-bytes-string")
+        tainted_response = client.get("/?param=my-bytes-string")
+        untainted_response = client.get("/untainted?param=my-bytes-string")
 
-    assert response.status_code == 200
-    content = json.loads(response.content)
-    assert content["param"] == "my-bytes-string"
-    assert content["sources"] == "my-bytes-string"
-    assert content["vulnerabilities"] == "SQL_INJECTION"
-    assert content["params_are_tainted"] is True
+        assert untainted_response.status_code == 200
+        content = json.loads(untainted_response.content)
+        assert content["param"] == "my-bytes-string"
+        assert content["sources"] == ""
+        assert content["vulnerabilities"] == ""
+        assert content["params_are_tainted"] is True
+
+        assert tainted_response.status_code == 200
+        content = json.loads(tainted_response.content)
+        assert content["param"] == "my-bytes-string"
+        if xfail:
+            assert content["sources"] == ""
+            assert content["vulnerabilities"] == ""
+        else:
+            assert content["sources"] == "my-bytes-string"
+            assert content["vulnerabilities"] == "SQL_INJECTION"
+        assert content["params_are_tainted"] is True

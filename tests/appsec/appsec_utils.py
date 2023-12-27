@@ -57,6 +57,7 @@ def flask_server(
         iast_enabled=iast_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        env=env,
     )
 
 

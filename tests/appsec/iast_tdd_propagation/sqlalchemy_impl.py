@@ -15,7 +15,7 @@ Base = declarative_base()
 
 
 class User(Base):
-    __tablename__ = "user_account"
+    __tablename__ = "User"
     id = Column(Integer, primary_key=True)
     name = Column(String(30), nullable=True)
 
@@ -26,3 +26,8 @@ User.metadata.create_all(engine)
 def execute_query(param):
     with engine.connect() as connection:
         connection.execute(text(param))
+
+
+def execute_untainted_query(_):
+    with engine.connect() as connection:
+        connection.execute(text("SELECT * FROM User"))
