@@ -970,7 +970,6 @@ def snapshot_context(
     agent_sample_rate_by_service=None,
     ignores=None,
     tracer=None,
-    async_mode=True,
     variants=None,
     wait_for_num_traces=None,
 ):
@@ -1013,6 +1012,12 @@ def snapshot_context(
                 pytest.fail(to_unicode(r.read()), pytrace=False)
 
         try:
+            if agent_sample_rate_by_service is not None:
+                # Ensure all trace chunks are sent to the agent with the snapshot token.
+                # For some reason this is only required to propagate the agent_sample_rate_by_service
+                # to the testagent. This is likely a bug in the testagent. The agent_sample_rate_by_service
+                # should be set by the /test/session/start endpoint.
+                tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
             yield SnapshotTest(
                 tracer=tracer,
                 token=token,
@@ -1059,9 +1064,7 @@ def snapshot_context(
         conn.close()
 
 
-def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
-):
+def snapshot(ignores=None, include_tracer=False, variants=None, token_override=None, wait_for_num_traces=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -1101,7 +1104,6 @@ def snapshot(
             token,
             ignores=ignores,
             tracer=tracer,
-            async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
         ):
