@@ -182,7 +182,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.8"),
+            pys=select_pys(min_version="3.8", max_version="3.11"),
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "sqlalchemy": "~=2.0.23",
