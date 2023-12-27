@@ -80,10 +80,9 @@ def appsec_application_server(
     server_process = subprocess.Popen(
         cmd,
         env=env,
-        # shell=False,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        preexec_fn=os.setsid,
+        start_new_session=True,
     )
     try:
         client = Client("http://0.0.0.0:8000")

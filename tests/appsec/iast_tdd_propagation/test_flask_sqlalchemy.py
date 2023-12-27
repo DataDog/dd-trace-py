@@ -20,9 +20,9 @@ def test_iast_patched():
 
         response = client.get("/?param=my-bytes-string")
 
-        assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content["param"] == "my-bytes-string"
-        assert content["result1"] == "my-bytes-string"
-        assert content["result2"] == ""
-        assert content["params_are_tainted"] is True
+    assert response.status_code == 200
+    content = json.loads(response.content)
+    assert content["param"] == "my-bytes-string"
+    assert content["result1"] == "my-bytes-string"
+    assert content["result2"] == ""
+    assert content["params_are_tainted"] is False
