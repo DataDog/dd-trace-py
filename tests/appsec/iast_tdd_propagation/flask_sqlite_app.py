@@ -52,7 +52,7 @@ def shutdown():
 def pkg_requests_view():
     param = request.args.get("param", "param")
 
-    result = cursor.execute("select * from sqlite_master where name = '" + param + "'")  # noqa: I0001
+    result = cursor.execute("select * from sqlite_master where name = '" + param + "'")  # noqa: F841
 
     response = ResultResponse(param)
     report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
