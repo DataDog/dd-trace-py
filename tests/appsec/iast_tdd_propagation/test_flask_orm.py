@@ -15,7 +15,8 @@ def test_iast_flask_orm(orm):
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        app=f"tests/appsec/iast_tdd_propagation/flask_{orm}_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_orm_app.py",
+        env={"FLASK_ORM": orm},
     ) as context:
         _, client, pid = context
 

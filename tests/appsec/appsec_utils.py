@@ -15,12 +15,15 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def _build_env():
+def _build_env(env=None):
     environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
     if os.environ.get("PATH"):
         environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
     if os.environ.get("PYTHONPATH"):
         environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env:
+        for k, v in env.items():
+            environ[k] = v
     return environ
 
 
@@ -44,6 +47,7 @@ def flask_server(
     tracer_enabled="true",
     token=None,
     app="tests/appsec/app.py",
+    env=None,
 ):
     cmd = ["python", app, "--no-reload"]
     yield from appsec_application_server(
@@ -63,8 +67,9 @@ def appsec_application_server(
     iast_enabled="false",
     tracer_enabled="true",
     token=None,
+    env=None,
 ):
-    env = _build_env()
+    env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:

@@ -4,7 +4,7 @@
 """
 
 
-import sqlite3
+import os
 import sys
 
 from flask import Flask
@@ -19,8 +19,15 @@ from ddtrace.internal import core
 
 import ddtrace.auto  # noqa: F401  # isort: skip
 
-conn = sqlite3.connect(":memory:", check_same_thread=False)
-cursor = conn.cursor()
+orm = os.getenv("FLASK_ORM", "sqlite")
+
+if orm == "sqlalchemy":
+    from sqlalchemy_impl import execute_query
+elif orm == "sqlite":
+    from sqlite_impl import execute_query
+else:
+    from sqlite_impl import execute_query
+
 
 app = Flask(__name__)
 
@@ -52,7 +59,7 @@ def shutdown():
 def pkg_requests_view():
     param = request.args.get("param", "param")
 
-    result = cursor.execute("select * from sqlite_master where name = '" + param + "'")  # noqa: F841
+    execute_query("select * from sqlite_master where name = '" + param + "'")
 
     response = ResultResponse(param)
     report = core.get_items([IAST.CONTEXT_KEY], tracer.current_root_span())
