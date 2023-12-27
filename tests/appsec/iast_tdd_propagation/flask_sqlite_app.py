@@ -6,32 +6,18 @@
 
 from flask import Flask
 from flask import request
-from sqlalchemy import Column
-from sqlalchemy import Integer
-from sqlalchemy import String
-from sqlalchemy import create_engine
-from sqlalchemy import text
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from ddtrace.appsec import _asm_request_context
 
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
 
+import sqlite3
 import ddtrace.auto  # noqa: F401  # isort: skip
 
+conn = sqlite3.connect(":memory:", check_same_thread=False)
+cursor = conn.cursor()
 
-engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 app = Flask(__name__)
-
-Base = declarative_base()
-
-
-class User(Base):
-    __tablename__ = "user_account"
-    id = Column(Integer, primary_key=True)
-    name = Column(String(30), nullable=True)
 
 
 class ResultResponse:
@@ -55,10 +41,10 @@ class ResultResponse:
 def pkg_requests_view():
     param = request.args.get("param", "param")
     response = ResultResponse(param)
-    session = sessionmaker(bind=engine)()
 
-    with engine.connect() as connection:
-        result = connection.execute("select * from user_account where name = '" + param + "'")
+    result = cursor.execute("select * from sqlite_master where name = '" + param + "'")
+    results = cursor.fetchall()
+    conn.commit()
 
     response.result1 = param
     response.result2 = ""
@@ -67,5 +53,4 @@ def pkg_requests_view():
 
 
 if __name__ == "__main__":
-    User.metadata.create_all(engine, checkfirst=False)
     app.run(debug=False, port=8000)

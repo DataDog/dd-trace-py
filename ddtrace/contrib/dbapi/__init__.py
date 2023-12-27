@@ -103,6 +103,9 @@ class TracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
+            import pdb
+
+            pdb.set_trace()
             if _is_iast_enabled():
                 try:
                     from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
