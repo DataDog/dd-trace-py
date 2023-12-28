@@ -3,7 +3,6 @@ import loguru
 import ddtrace
 from ddtrace import config
 
-from ...internal.logger import get_logger
 from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
@@ -14,8 +13,6 @@ from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
-
-log = get_logger(__name__)
 
 config._add(
     "loguru",
