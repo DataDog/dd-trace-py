@@ -3,6 +3,7 @@ import loguru
 import ddtrace
 from ddtrace import config
 
+from ...internal.logger import get_logger
 from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..logging.constants import RECORD_ATTR_ENV
 from ..logging.constants import RECORD_ATTR_SERVICE
@@ -13,6 +14,8 @@ from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 
+
+log = get_logger(__name__)
 
 config._add(
     "loguru",
@@ -47,9 +50,18 @@ def _tracer_injection(event_dict):
     return event_dict
 
 
-def _w_add(func, instance, args, kwargs):
-    # patch logger to include datadog info before logging
-    instance.configure(patcher=lambda record: record.update(_tracer_injection(record["extra"])))
+def _w_configure(func, instance, args, kwargs):
+    original_patcher = kwargs.get("patcher", None)
+    instance._dd_original_patcher = original_patcher
+    if not original_patcher:
+        # no patcher, we not need to worry about ddtrace fields being overridden
+        return func(*args, **kwargs)
+
+    def _wrapped_patcher(record):
+        original_patcher(record)
+        record.update(_tracer_injection(record["extra"]))
+
+    kwargs["patcher"] = _wrapped_patcher
     return func(*args, **kwargs)
 
 
@@ -61,12 +73,16 @@ def patch():
     if getattr(loguru, "_datadog_patch", False):
         return
     loguru._datadog_patch = True
-
-    _w(loguru.logger, "add", _w_add)
+    # Adds ddtrace fields to loguru logger
+    loguru.logger.configure(patcher=lambda record: record.update(_tracer_injection(record["extra"])))
+    # Ensures that calling loguru.logger.configure(..) does not overwrite ddtrace fields
+    _w(loguru.logger, "configure", _w_configure)
 
 
 def unpatch():
     if getattr(loguru, "_datadog_patch", False):
         loguru._datadog_patch = False
 
-        _u(loguru.logger, "add")
+        _u(loguru.logger, "configure")
+        if hasattr(loguru.logger, "_dd_original_patcher"):
+            loguru.logger.configure(patcher=loguru.logger._dd_original_patcher)
