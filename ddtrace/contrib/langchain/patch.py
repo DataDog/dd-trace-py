@@ -11,8 +11,6 @@ try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
 except ImportError:
     from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
-from langchain_core.agents import AgentAction
-from langchain_core.agents import AgentFinish
 from pydantic import SecretStr
 
 from ddtrace import config
