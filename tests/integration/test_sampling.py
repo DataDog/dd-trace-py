@@ -36,7 +36,7 @@ def snapshot_parametrized_with_writers(f):
         finally:
             tracer.shutdown()
 
-    wrapped = snapshot(include_tracer=True, token_override=f.__name__)(_patch)
+    wrapped = snapshot(token_override=f.__name__)(_patch)
     return pytest.mark.parametrize(
         "writer",
         ("default", "sync"),

@@ -211,7 +211,7 @@ def test_user_specified_dd_mariadb_service_snapshot():
     assert len(rows) == 1
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_simple_query_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -220,7 +220,7 @@ def test_simple_query_snapshot(tracer):
         assert len(rows) == 1
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS, ignores=["meta.error.stack"])
+@snapshot(variants=SNAPSHOT_VARIANTS, ignores=["meta.error.stack"])
 def test_simple_malformed_query_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -228,7 +228,7 @@ def test_simple_malformed_query_snapshot(tracer):
             cursor.execute("SELEC 1")
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_simple_query_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -238,7 +238,7 @@ def test_simple_query_fetchall_snapshot(tracer):
             assert len(rows) == 1
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_query_with_several_rows_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
@@ -248,7 +248,7 @@ def test_query_with_several_rows_snapshot(tracer):
         assert len(rows) == 3
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_query_with_several_rows_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -259,7 +259,7 @@ def test_query_with_several_rows_fetchall_snapshot(tracer):
             assert len(rows) == 3
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_query_many_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
@@ -288,13 +288,13 @@ def test_query_many_fetchall_snapshot(tracer):
             assert len(rows) == 2
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_commit_snapshot(tracer):
     with get_connection(tracer) as connection:
         connection.commit()
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_query_proc_snapshot(tracer):
     with get_connection(tracer) as connection:
         # create a procedure
@@ -315,7 +315,7 @@ def test_query_proc_snapshot(tracer):
         cursor.callproc(proc, data)
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_analytics_with_rate_snapshot(tracer):
     with override_config("mariadb", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         with get_connection(tracer) as connection:
@@ -325,7 +325,7 @@ def test_analytics_with_rate_snapshot(tracer):
             assert len(rows) == 1
 
 
-@snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@snapshot(variants=SNAPSHOT_VARIANTS)
 def test_analytics_without_rate_snapshot(tracer):
     with override_config("mariadb", dict(analytics_enabled=True)):
         with get_connection(tracer) as connection:

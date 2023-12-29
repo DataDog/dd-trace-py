@@ -1073,9 +1073,7 @@ def snapshot_context(
         conn.close()
 
 
-def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
-):
+def snapshot(ignores=None, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -1096,11 +1094,6 @@ def snapshot(
         else:
             clsname = ""
 
-        if include_tracer:
-            tracer = Tracer()
-        else:
-            tracer = ddtrace.tracer
-
         module = inspect.getmodule(wrapped)
 
         # Use the fully qualified function name as a unique test token to
@@ -1111,6 +1104,7 @@ def snapshot(
             else token_override
         )
 
+        tracer = kwargs.get("tracer", ddtrace.tracer)  # get tracer from fixture or use global tracer
         with snapshot_context(
             token,
             ignores=ignores,
@@ -1119,9 +1113,6 @@ def snapshot(
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
         ):
-            # Run the test.
-            if include_tracer:
-                kwargs["tracer"] = tracer
             return wrapped(*args, **kwargs)
 
     return wrapper

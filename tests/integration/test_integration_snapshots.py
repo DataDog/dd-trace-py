@@ -23,7 +23,7 @@ from .test_integration import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
-@snapshot(include_tracer=True)
+@snapshot()
 def test_single_trace_single_span(tracer):
     s = tracer.trace("operation", service="my-svc")
     s.set_tag("k", "v")
@@ -35,7 +35,7 @@ def test_single_trace_single_span(tracer):
     tracer.shutdown()
 
 
-@snapshot(include_tracer=True)
+@snapshot()
 def test_multiple_traces(tracer):
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
@@ -57,7 +57,7 @@ def test_multiple_traces(tracer):
     "writer",
     ("default", "sync"),
 )
-@snapshot(include_tracer=True)
+@snapshot()
 def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
