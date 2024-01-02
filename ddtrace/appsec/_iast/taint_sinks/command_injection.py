@@ -239,15 +239,15 @@ def _iast_report_cmdi(shell_args):
     # type: (Union[str, List[str]]) -> None
     report_cmdi = ""
     from .._metrics import _set_metric_iast_executed_sink
-    from .._taint_tracking import get_tainted_ranges
+    from .._taint_tracking import is_pyobject_tainted
     from .._taint_tracking.aspects import join_aspect
 
     if isinstance(shell_args, (list, tuple)):
         for arg in shell_args:
-            if get_tainted_ranges(arg):
+            if is_pyobject_tainted(arg):
                 report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
                 break
-    elif get_tainted_ranges(shell_args):
+    elif is_pyobject_tainted(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:
