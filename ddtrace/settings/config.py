@@ -510,11 +510,12 @@ class Config(object):
         self._ddtrace_bootstrapped = False
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
-        self._install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", "")
-        self._install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", "")
-        self._install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", "")
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
+
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
     def __getattr__(self, name):
         if name in self._config:
@@ -661,10 +662,10 @@ class Config(object):
         for key, value, origin in items:
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):
