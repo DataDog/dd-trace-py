@@ -244,6 +244,10 @@ venv = Venv(
                 "wheel": latest,
                 "fastapi": latest,
                 "httpx": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -285,6 +289,8 @@ venv = Venv(
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
                 "httpretty": "<1.1",
+                "werkzeug": "<2.0",
+                "pytest-randomly": latest,
             },
         ),
         Venv(
@@ -292,7 +298,11 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={"msgpack": [latest], "coverage": latest},
+            pkgs={
+                "msgpack": [latest],
+                "coverage": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -326,7 +336,10 @@ venv = Venv(
         Venv(
             name="datastreams",
             command="pytest --no-cov {cmdargs} tests/datastreams/",
-            pkgs={"msgpack": [latest]},
+            pkgs={
+                "msgpack": [latest],
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -350,7 +363,13 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
+            pkgs={
+                "httpretty": latest,
+                "gevent": latest,
+                "pytest-asyncio": "~=0.21.1",
+                "vcrpy": latest,
+                "pytest-randomly": latest,
+            },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
@@ -409,7 +428,15 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "pytest-randomly": latest,
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
@@ -420,6 +447,7 @@ venv = Venv(
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
@@ -441,6 +469,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
@@ -2315,7 +2344,7 @@ venv = Venv(
             name="ci_visibility",
             command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
-            pkgs={"msgpack": latest, "coverage": latest},
+            pkgs={"msgpack": latest, "coverage": latest, "pytest-randomly": latest},
         ),
         Venv(
             name="subprocess",

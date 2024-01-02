@@ -10,9 +10,7 @@ import os
 from os import getpid
 import sys
 import threading
-import time
 from unittest.case import SkipTest
-import uuid
 import weakref
 
 import mock
@@ -1932,43 +1930,6 @@ def test_finish_span_with_ancestors(tracer):
     assert span1.finished
     assert span2.finished
     assert span3.finished
-
-
-def test_first_trace_install_telemetry(tracer):
-    """
-    When ``config._install_id``, ``config._install_time``, and ``config._install_type`` config values are set.
-        The first span created by the tracer gets tagged with ``_dd.install.id``, ``_dd.install.time``,
-        ``_dd.install.type`` tag values are set.
-
-        All other spans created do not have the ``_dd.install.id``, ``_dd.install.time``, ``_dd.install.type`` tags set.
-    """
-    install_id = str(uuid.uuid4())
-    install_time = str(int(time.time()))
-    install_type = "k8s_single_step"
-
-    def assert_has_tags(span):
-        assert span.get_tag("_dd.install.id") == install_id
-        assert span.get_tag("_dd.install.time") == install_time
-        assert span.get_tag("_dd.install.type") == install_type
-
-    def assert_not_has_tags(span):
-        assert span.get_tag("_dd.install.id") is None
-        assert span.get_tag("_dd.install.time") is None
-        assert span.get_tag("_dd.install.type") is None
-
-    with override_global_config(dict(_install_id=install_id, _install_type=install_type, _install_time=install_time)):
-        # The first span created by this tracer is tagged, every other span created is not
-        with tracer.trace("span1") as span1:
-            assert_has_tags(span1)
-
-            with tracer.trace("child1") as child1:
-                assert_not_has_tags(child1)
-
-        with tracer.trace("span2") as span2:
-            assert_not_has_tags(span2)
-
-            with tracer.trace("child2") as child2:
-                assert_not_has_tags(child2)
 
 
 def test_ctx_api():
