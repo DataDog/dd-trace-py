@@ -354,7 +354,13 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
+            pkgs={
+                "httpretty": latest,
+                "gevent": latest,
+                "pytest-asyncio": "~=0.21.1",
+                "vcrpy": latest,
+                "pytest-randomly": latest,
+            },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
@@ -424,6 +430,7 @@ venv = Venv(
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
@@ -445,6 +452,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
