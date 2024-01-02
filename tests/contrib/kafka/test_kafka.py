@@ -11,7 +11,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace import Tracer
+from ddtrace import tracer as global_tracer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
@@ -87,13 +87,11 @@ def dummy_tracer():
 @pytest.fixture
 def tracer():
     patch()
-    t = Tracer()
-    t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    global_tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     try:
-        yield t
+        yield global_tracer
     finally:
-        t.flush()
-        t.shutdown()
+        global_tracer.configure(settings={})
         unpatch()
 
 

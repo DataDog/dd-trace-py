@@ -4,13 +4,12 @@ from typing import Generator  # noqa:F401
 
 import pytest
 
-from ddtrace import Tracer
+import ddtrace
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import SamplingRule
-from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
 
@@ -27,16 +26,20 @@ def sample_rate():
 
 @pytest.fixture
 def stats_tracer(sample_rate):
-    # type: (float) -> Generator[Tracer, None, None]
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = Tracer()
-        tracer.configure(
+    # type: (float) -> Generator[ddtrace.Tracer, None, None]
+    curr_sampler = ddtrace.tracer.sampler
+    current_stats_enabled = ddtrace.config._trace_compute_stats
+    try:
+        ddtrace.tracer.configure(
             sampler=DatadogSampler(
                 default_sample_rate=sample_rate,
-            )
+            ),
+            compute_stats_enabled=True,
         )
-        yield tracer
-        tracer.shutdown()
+        yield ddtrace.tracer
+    finally:
+        ddtrace.tracer.configure(sampler=curr_sampler, compute_stats_enabled=current_stats_enabled)
+        ddtrace.tracer.flush()
 
 
 class consistent_end_trace(object):
@@ -76,19 +79,24 @@ def send_once_stats_tracer(stats_tracer):
     processor.start()
 
 
-@pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
-def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
-    """Ensure stats computation can be enabled."""
+# env=dict(DD_TRACE_STATS_COMPUTATION_ENABLED=True, DD_TRACE_COMPUTE_STATS=True}
+@pytest.mark.subprocess()
+def test_compute_stats_default():
+    """Ensure stats computation can be enabled via `configure`"""
+    from ddtrace import tracer as t
+    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 
-    # Test enabling via `configure`
-    t = Tracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     t.configure(compute_stats_enabled=True)
     assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     assert t._compute_stats
 
-    # Test enabling via environment variable
+
+@pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
+def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
+    """Ensure stats computation can be enabled via environment variable"""
+
     env = os.environ.copy()
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(

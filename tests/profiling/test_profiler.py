@@ -232,47 +232,69 @@ def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
         pytest.fail("Unable to find HTTP exporter")
 
 
+@pytest.mark.subprocess()
 def test_default_tracer_and_url():
-    try:
-        ddtrace.tracer.configure(hostname="foobar")
-        prof = profiler.Profiler(url="https://foobaz:123")
-        _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
-    finally:
-        ddtrace.tracer.configure(hostname="localhost")
+    import ddtrace
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
 
-
-def test_tracer_and_url():
-    t = ddtrace.Tracer()
-    t.configure(hostname="foobar")
-    prof = profiler.Profiler(tracer=t, url="https://foobaz:123")
+    ddtrace.tracer.configure(hostname="foobar")
+    prof = profiler.Profiler(url="https://foobaz:123")
     _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
 
 
+@pytest.mark.subprocess()
+def test_tracer_and_url():
+    from ddtrace import tracer
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
+    tracer.configure(hostname="foobar")
+    prof = profiler.Profiler(url="https://foobaz:123")
+    _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
+
+
+@pytest.mark.subprocess()
 def test_tracer_url():
-    t = ddtrace.Tracer()
-    t.configure(hostname="foobar")
-    prof = profiler.Profiler(tracer=t)
+    from ddtrace import tracer
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
+    tracer.configure(hostname="foobar")
+    prof = profiler.Profiler()
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
+@pytest.mark.subprocess()
 def test_tracer_url_https():
-    t = ddtrace.Tracer()
-    t.configure(hostname="foobar", https=True)
-    prof = profiler.Profiler(tracer=t)
+    from ddtrace import tracer
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
+    tracer.configure(hostname="foobar", https=True)
+    prof = profiler.Profiler()
     _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
+@pytest.mark.subprocess()
 def test_tracer_url_uds_hostname():
-    t = ddtrace.Tracer()
-    t.configure(hostname="foobar", uds_path="/foobar")
-    prof = profiler.Profiler(tracer=t)
+    from ddtrace import tracer
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
+    tracer.configure(hostname="foobar", uds_path="/foobar")
+    prof = profiler.Profiler()
     _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
 
+@pytest.mark.subprocess()
 def test_tracer_url_uds():
-    t = ddtrace.Tracer()
-    t.configure(uds_path="/foobar")
-    prof = profiler.Profiler(tracer=t)
+    from ddtrace import tracer
+    from ddtrace.profiling import profiler
+    from tests.profiling.test_profiler import _check_url
+
+    tracer.configure(uds_path="/foobar")
+    prof = profiler.Profiler()
     _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
 
@@ -285,12 +307,10 @@ def test_env_no_api_key():
 def test_env_endpoint_url():
     import os
 
-    import ddtrace
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t = ddtrace.Tracer()
-    prof = profiler.Profiler(tracer=t)
+    prof = profiler.Profiler()
     _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
 
 

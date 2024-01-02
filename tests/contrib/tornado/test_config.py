@@ -1,5 +1,5 @@
+from ddtrace import tracer as global_tracer
 from ddtrace.filters import TraceFilter
-from ddtrace.tracer import Tracer
 from tests.utils import DummyWriter
 
 from .utils import TornadoTestCase
@@ -20,7 +20,7 @@ class TestTornadoSettings(TornadoTestCase):
 
     def get_app(self):
         # Override with a real tracer
-        self.tracer = Tracer()
+        self.tracer = global_tracer
         super(TestTornadoSettings, self).get_app()
 
     def get_settings(self):

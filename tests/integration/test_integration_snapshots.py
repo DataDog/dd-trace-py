@@ -5,7 +5,6 @@ import os
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import AUTO_KEEP
@@ -99,16 +98,19 @@ def test_filters(writer, tracer):
 # injected).
 @snapshot(async_mode=False)
 def test_synchronous_writer():
-    tracer = Tracer()
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampling=config._priority_sampling)
-    tracer.configure(writer=writer)
-    with tracer.trace("operation1", service="my-svc"):
-        with tracer.trace("child1"):
-            pass
+    original_writer = tracer._writer
+    try:
+        writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampling=config._priority_sampling)
+        tracer.configure(writer=writer)
+        with tracer.trace("operation1", service="my-svc"):
+            with tracer.trace("child1"):
+                pass
 
-    with tracer.trace("operation2", service="my-svc"):
-        with tracer.trace("child2"):
-            pass
+        with tracer.trace("operation2", service="my-svc"):
+            with tracer.trace("child2"):
+                pass
+    finally:
+        tracer.configure(writer=original_writer)
 
 
 @snapshot(async_mode=False)
@@ -117,19 +119,15 @@ def test_tracer_trace_across_fork():
     When a trace is started in a parent process and a child process is spawned
         The trace should be continued in the child process
     """
-    tracer = Tracer()
 
     def task(tracer):
         with tracer.trace("child"):
             pass
-        tracer.shutdown()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-
-    tracer.shutdown()
 
 
 @snapshot(async_mode=False)
@@ -138,31 +136,26 @@ def test_tracer_trace_across_multiple_forks():
     When a trace is started and crosses multiple process boundaries
         The trace should be continued in the child processes
     """
-    tracer = Tracer()
 
     def task(tracer):
         def task2(tracer):
             with tracer.trace("child2"):
                 pass
-            tracer.shutdown()
 
         with tracer.trace("child1"):
             p = multiprocessing.Process(target=task2, args=(tracer,))
             p.start()
             p.join()
-        tracer.shutdown()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-    tracer.shutdown()
 
 
 @snapshot()
 def test_wrong_span_name_type_not_sent():
     """Span names should be a text type."""
-    tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace(123):
             pass
@@ -182,7 +175,6 @@ def test_wrong_span_name_type_not_sent():
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace.span.log") as log:
             with tracer.trace("root") as root:
                 root._meta = meta
@@ -205,7 +197,6 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace.span.log") as log:
             with tracer.trace("root") as root:
                 root._metrics = metrics
@@ -217,12 +208,9 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
 
 @snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
-    tracer = Tracer()
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
-
-    tracer.shutdown()
 
 
 # Override the token so that both parameterizations of the test use the same snapshot

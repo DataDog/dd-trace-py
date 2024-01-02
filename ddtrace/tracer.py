@@ -192,6 +192,14 @@ class Tracer(object):
 
     SHUTDOWN_TIMEOUT = 5
 
+    def __new__(cls):
+        if hasattr(cls, "_instance"):
+            log.warning("ddtrace does not support multiple tracer instances. Use ddtrace.tracer")
+            return cls._instance
+
+        cls._instance = super(Tracer, cls).__new__(cls)
+        return cls._instance
+
     def __init__(
         self,
         url: Optional[str] = None,

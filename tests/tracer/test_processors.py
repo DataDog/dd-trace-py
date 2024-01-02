@@ -5,7 +5,6 @@ import mock
 import pytest
 
 from ddtrace import Span
-from ddtrace import Tracer
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -254,11 +253,10 @@ def test_aggregator_partial_flush_2_spans():
 
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
-        writer=DummyWriter(),
     )
 
     with tracer.trace("parent") as parent:
@@ -278,12 +276,8 @@ def test_trace_top_level_span_processor_partial_flushing():
     assert parent.get_metric("_dd.top_level") == 1
 
 
-def test_trace_top_level_span_processor_same_service_name():
+def test_trace_top_level_span_processor_same_service_name(tracer):
     """Parent span and child span have the same service name"""
-
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
-
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
             pass
@@ -292,11 +286,8 @@ def test_trace_top_level_span_processor_same_service_name():
     assert "_dd.top_level" not in child.get_metrics()
 
 
-def test_trace_top_level_span_processor_different_service_name():
+def test_trace_top_level_span_processor_different_service_name(tracer):
     """Parent span and child span have the different service names"""
-
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -306,11 +297,8 @@ def test_trace_top_level_span_processor_different_service_name():
     assert child.get_metric("_dd.top_level") == 1
 
 
-def test_trace_top_level_span_processor_orphan_span():
+def test_trace_top_level_span_processor_orphan_span(tracer):
     """Trace chuck does not contain parent span"""
-
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         pass
@@ -625,10 +613,8 @@ def test_endpoint_call_counter_processor_disabled():
     assert processor.reset() == {}
 
 
-def test_endpoint_call_counter_processor_real_tracer():
-    tracer = Tracer()
+def test_endpoint_call_counter_processor_real_tracer(tracer):
     tracer._endpoint_call_counter_span_processor.enable()
-    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
         with tracer.trace("child", service="top_level_test_service2"):
@@ -649,10 +635,7 @@ def test_endpoint_call_counter_processor_real_tracer():
     assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
 
 
-def test_trace_tag_processor_adds_chunk_root_tags():
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
-
+def test_trace_tag_processor_adds_chunk_root_tags(tracer):
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:
             pass
@@ -662,7 +645,7 @@ def test_trace_tag_processor_adds_chunk_root_tags():
     assert child.get_tag("language") is None
 
 
-def test_register_unregister_span_processor():
+def test_register_unregister_span_processor(tracer):
     class TestProcessor(SpanProcessor):
         def on_span_start(self, span):
             span.set_tag("on_start", "ok")
@@ -672,8 +655,6 @@ def test_register_unregister_span_processor():
 
     tp = TestProcessor()
     tp.register()
-
-    tracer = Tracer()
 
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") == "ok"

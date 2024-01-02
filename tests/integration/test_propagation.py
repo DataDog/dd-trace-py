@@ -1,9 +1,8 @@
 import pytest
 
-from ddtrace import Tracer
+import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
-from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
 
@@ -11,34 +10,17 @@ from .test_integration import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
-@pytest.fixture(
-    params=[
-        dict(global_config=dict()),
-        dict(
-            global_config=dict(_x_datadog_tags_max_length="0", _x_datadog_tags_enabled=False),
-        ),
-        dict(global_config=dict(), partial_flush_enabled=True, partial_flush_min_spans=2),
-    ]
-)
-def tracer(request):
-    global_config = request.param.get("global_config", dict())
-    partial_flush_enabled = request.param.get("partial_flush_enabled")
-    partial_flush_min_spans = request.param.get("partial_flush_min_spans")
-    with override_global_config(global_config):
-        tracer = Tracer()
-        kwargs = dict()
-        if partial_flush_enabled:
-            kwargs["partial_flush_enabled"] = partial_flush_enabled
-        if partial_flush_min_spans:
-            kwargs["partial_flush_min_spans"] = partial_flush_min_spans
-        tracer.configure(**kwargs)
-        yield tracer
-        tracer.shutdown()
-
-
 @pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH=["512", "0"],
+        DD_TRACE_X_DATADOG_TAGS_ENABLED=["1", "0"],
+        DD_TRACE_PARTIAL_FLUSH_ENABLED=["1", "0"],
+        DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=["2", "0"],
+    )
+)
 def test_trace_tags_multispan(tracer):
-    # type: (Tracer) -> None
+    # type: (ddtrace.Tracer) -> None
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
@@ -61,15 +43,8 @@ def test_trace_tags_multispan(tracer):
     gc.finish()
 
 
-@pytest.fixture
-def downstream_tracer():
-    tracer = Tracer()
-    yield tracer
-    tracer.shutdown()
-
-
 @pytest.mark.snapshot()
-def test_sampling_decision_downstream(downstream_tracer):
+def test_sampling_decision_downstream():
     """
     Ensures that set_tag(MANUAL_DROP_KEY) on a span causes the sampling decision meta and sampling priority metric
     to be set appropriately indicating rejection
@@ -81,6 +56,7 @@ def test_sampling_decision_downstream(downstream_tracer):
         "x-datadog-tags": "_dd.p.dm=-1",
     }
     kept_trace_context = HTTPPropagator.extract(headers_indicating_kept_trace)
+    downstream_tracer = ddtrace.tracer
     downstream_tracer.context_provider.activate(kept_trace_context)
 
     with downstream_tracer.trace("p", service="downstream") as span_to_reject:

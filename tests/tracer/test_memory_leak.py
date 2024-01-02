@@ -9,7 +9,7 @@ from weakref import WeakValueDictionary
 
 import pytest
 
-from ddtrace import Tracer
+import ddtrace
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -18,12 +18,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @pytest.fixture
 def tracer():
-    # type: (...) -> Tracer
-    return Tracer()
+    # type: (...) -> ddtrace.Tracer
+    return ddtrace.tracer
 
 
 def trace(weakdict, tracer, *args, **kwargs):
-    # type: (WeakValueDictionary, Tracer, ...) -> Span
+    # type: (WeakValueDictionary, ddtrace.Tracer, ...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 

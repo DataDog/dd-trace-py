@@ -15,14 +15,6 @@ class TestTracerCompatibility(object):
         tracer = ddtrace.opentracer.Tracer()
         assert tracer._dd_tracer is ddtrace.tracer
 
-    def test_custom_ddtracer(self):
-        """A user should be able to specify their own Datadog tracer instance if
-        they wish.
-        """
-        custom_dd_tracer = ddtrace.Tracer()
-        tracer = ddtrace.opentracer.Tracer(dd_tracer=custom_dd_tracer)
-        assert tracer._dd_tracer is custom_dd_tracer
-
     def test_ot_dd_global_tracers(self, global_tracer):
         """Ensure our test function opentracer_init() prep"""
         ot_tracer = global_tracer

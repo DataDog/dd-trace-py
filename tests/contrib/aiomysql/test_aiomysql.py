@@ -5,7 +5,6 @@ import pymysql
 import pytest
 
 from ddtrace import Pin
-from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
 from tests.contrib.config import MYSQL_CONFIG
@@ -33,12 +32,10 @@ async def patched_conn(tracer):
 
 @pytest.fixture()
 async def snapshot_conn():
-    tracer = Tracer()
+    # use global tracer (not dummytracer)
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
     yield conn
     conn.close()
-    tracer.shutdown()
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,12 @@
 import pytest
 import structlog
 
-from ddtrace import Tracer
+import ddtrace
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.context import Context
 from ddtrace.opentracer.tracer import Tracer as OT_Tracer
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import override_global_config
 
 
@@ -39,7 +40,7 @@ class TestCorrelationLogsContext(object):
             "version": "test-version",
         }
 
-        test_tracer = Tracer()
+        test_tracer = ddtrace.tracer
         with test_tracer.trace("test-span-2", service="span-service") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -61,7 +62,7 @@ class TestCorrelationLogsContext(object):
             "env": "test-env",
             "version": "test-version",
         }
-        test_tracer = Tracer()
+        test_tracer = ddtrace.tracer
         with test_tracer.trace("test-span-2") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -111,9 +112,10 @@ class TestCorrelationLogsContext(object):
             "version": "",
         }
 
+    @run_in_subprocess()
     def test_get_log_correlation_context_disabled_tracer(self):
         """Ensure get_correlation_log_record returns None if tracer is disabled."""
-        tracer = Tracer()
+        tracer = ddtrace.tracer
         tracer.enabled = False
         with tracer.trace("test-span"):
             dd_log_record = tracer.get_log_correlation_context()
