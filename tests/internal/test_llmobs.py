@@ -196,12 +196,20 @@ def test_send_timed_records(mock_logs):
     llmobs_writer.enqueue(_completion_record())
     llmobs_writer.enqueue(_completion_record())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 2, INTAKE_ENDPOINT)])
-
-    llmobs_writer.enqueue(_chat_completion_record())
+    mock_logs.debug.assert_has_calls(
+        [
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+        ]
+    )
     mock_logs.reset_mock()
+    llmobs_writer.enqueue(_chat_completion_record())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
+    mock_logs.debug.assert_has_calls(
+        [
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+        ]
+    )
 
 
 def test_send_on_exit(mock_logs, run_python_code_in_subprocess):
