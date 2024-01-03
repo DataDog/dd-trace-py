@@ -236,17 +236,11 @@ class _OpenAIIntegration(BaseLLMIntegration):
 
     @classmethod
     def _llmobs_tags(cls, span: Span) -> List[str]:
-        span_id, trace_id = "", ""
-        if span.sampled:
-            span_id = str(span.span_id) or ""
-            trace_id = str(span.trace_id) or ""
         tags = [
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
             "src:integration",
-            "dd.trace_id:%s" % trace_id,
-            "dd.span_id:%s" % span_id,
             "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
             "ml_obs.request.model_provider:openai",
             "ml_obs.request.error:%d" % span.error,
