@@ -1711,8 +1711,9 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
             if not expected_context.get("tracestate"):
                 assert context == Context(**expected_context)
             else:
-                tracestate = expected_context.pop("tracestate")
-                assert context == Context(**expected_context, meta={"tracestate": tracestate})
+                copied_expectation = expected_context.copy()
+                tracestate = copied_expectation.pop("tracestate")
+                assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [
