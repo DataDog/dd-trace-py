@@ -44,7 +44,6 @@ def get_queue_name(params):
     # type: (str) -> str
     """
     :params: contains the params for the current botocore action
-
     Return the name of the queue given the params
     """
     queue_url = params["QueueUrl"]
@@ -58,7 +57,6 @@ def get_pathway(pin, endpoint_service, dsm_identifier, span=None):
     :pin: patch info for the botocore client
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
     :dsm_identifier: the identifier for the topic/queue/stream/etc
-
     Set the data streams monitoring checkpoint and return the encoded pathway
     """
     path_type = "type:{}".format(endpoint_service)
@@ -75,7 +73,6 @@ def get_kinesis_data_object(data):
     # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
     """
     :data: the data from a kinesis stream
-
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
     We support injecting our trace context in the following three cases:
     - json string
@@ -112,7 +109,6 @@ def inject_trace_to_eventbridge_detail(params, span):
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
-
     Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
     Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """

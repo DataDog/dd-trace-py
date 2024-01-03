@@ -42,7 +42,6 @@ def get_topic_arn(params):
     # type: (str) -> str
     """
     :params: contains the params for the current botocore action
-
     Return the name of the topic given the params
     """
     sns_arn = params["TopicArn"]
@@ -55,7 +54,6 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
     :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
     :endpoint_service: endpoint of message, "sqs" or "sns"
-
     Inject trace headers and DSM info into the SQS or SNS record's MessageAttributes
     """
     if "MessageAttributes" not in entry:
@@ -86,7 +84,6 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     :endpoint_service: endpoint of message, "sqs" or "sns"
     :pin: patch info for the botocore client
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
     Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
     """
 
@@ -116,7 +113,6 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=
     :endpoint_service: endpoint of message, "sqs" or "sns"
     :pin: patch info for the botocore client
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
     Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}

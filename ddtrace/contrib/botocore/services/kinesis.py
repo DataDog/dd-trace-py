@@ -41,7 +41,6 @@ def get_stream_arn(params):
     # type: (str) -> str
     """
     :params: contains the params for the current botocore action
-
     Return the name of the stream given the params
     """
     stream_arn = params.get("StreamARN", "")
@@ -53,7 +52,6 @@ def inject_trace_to_kinesis_stream_data(record, span):
     """
     :record: contains args for the current botocore action, Kinesis record is at index 1
     :span: the span which provides the trace context to be propagated
-
     Inject trace headers into the Kinesis record's Data field in addition to the existing
     data. Only possible if the existing data is JSON string or base64 encoded JSON string
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
