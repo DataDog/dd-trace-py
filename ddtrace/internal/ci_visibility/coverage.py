@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
+_own_coverage = False
 
 try:
     from coverage import Coverage
@@ -30,6 +31,36 @@ def is_coverage_available():
     return Coverage is not None
 
 
+def can_initiate_coverage(ci_visibility_instance) -> bool:
+    if not is_coverage_available() or _check_if_modified_coverage_exists():
+        if not is_coverage_available():
+            log.warning("Datadog ITR Coverage could not enabled because Coverage.py is not installed")
+        elif _check_if_modified_coverage_exists():
+            log.warning(
+                "Datadog ITR Coverage could not be enabled due to a customized run of Coverage.py,"
+                " it is recommended to run Coverage.py with no arguments."
+            )
+        ci_visibility_instance._collect_coverage_enabled = False
+        log.warning("Disabling ITR")
+        return False
+    return True
+
+
+def _check_if_modified_coverage_exists() -> bool:
+    current_coverage_object = Coverage.current()
+    if not current_coverage_object or _own_coverage:
+        return False
+    current_coverage_object_config = current_coverage_object.config
+    if (
+        current_coverage_object_config.source
+        or current_coverage_object_config.source_pkgs
+        or current_coverage_object_config.run_omit
+        or current_coverage_object_config.run_include
+    ):
+        return True
+    return False
+
+
 def _initialize_coverage(root_dir):
     coverage_kwargs = {
         "data_file": None,
@@ -39,19 +70,25 @@ def _initialize_coverage(root_dir):
             "*/site-packages/*",
         ],
     }
+    current_coverage_object = Coverage.current()
+    if current_coverage_object:
+        return current_coverage_object
     cov_object = Coverage(**coverage_kwargs)
     cov_object.set_option("run:parallel", True)
+    global _own_coverage
+    _own_coverage = True
     return cov_object
 
 
 def _start_coverage(root_dir: str):
     coverage = _initialize_coverage(root_dir)
-    coverage.start()
+    if _own_coverage:
+        coverage.start()
     return coverage
 
 
 def _stop_coverage(module):
-    if _module_has_dd_coverage_enabled(module):
+    if _own_coverage and _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
         module._dd_coverage.erase()
         del module._dd_coverage
@@ -76,8 +113,10 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
-    coverage_data._collector.data.clear()  # type: ignore[union-attr]
-    coverage_data.switch_context(unique_test_name)
+    if _own_coverage:
+        coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    if coverage_data._started:
+        coverage_data.switch_context(unique_test_name)
 
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
@@ -88,7 +127,8 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )
-    coverage_data._collector.data.clear()  # type: ignore[union-attr]
+    if _own_coverage:
+        coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 
 def segments(lines: Iterable[int]) -> List[Tuple[int, int, int, int, int]]:
@@ -154,7 +194,5 @@ def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = No
             files_data.append(
                 {"filename": _global_relative_file_paths_for_cov[root_dir_str][filename], "segments": lines}
             )
-        else:
-            files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
 
     return json.dumps({"files": files_data})

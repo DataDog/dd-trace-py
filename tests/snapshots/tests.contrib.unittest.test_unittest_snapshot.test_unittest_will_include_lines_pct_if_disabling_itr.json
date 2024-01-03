@@ -12,36 +12,36 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65845ea600000000",
+      "_dd.p.tid": "65857cef00000000",
       "component": "unittest",
       "language": "python",
-      "library_version": "2.5.0.dev22+g93e162dd2",
+      "library_version": "2.5.0.dev30+g9a481b8dd",
       "os.architecture": "arm64",
       "os.platform": "Darwin",
       "os.version": "23.1.0",
-      "runtime-id": "92b923a5b18c4e04bd1e9acfeb398655",
+      "runtime-id": "892b7c59aa01462e9d7bb38b89a3477b",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.code_coverage.enabled": "false",
+      "test.code_coverage.enabled": "true",
       "test.command": "python -m unittest",
       "test.framework": "unittest",
       "test.framework_version": "3.10.11",
       "test.itr.tests_skipping.enabled": "false",
       "test.status": "pass",
       "test.type": "test",
-      "test_session_id": "18443002628966340257",
+      "test_session_id": "9620529498550955167",
       "type": "test_session_end"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 55406,
+      "process_id": 34571,
       "test.code_coverage.lines_pct": 60.0
     },
-    "duration": 8277000,
-    "start": 1703173798283637000
+    "duration": 8414000,
+    "start": 1703247087481538000
   },
      {
        "name": "unittest.test_module",
@@ -56,14 +56,14 @@
          "_dd.base_service": "",
          "_dd.origin": "ciapp-test",
          "component": "unittest",
-         "library_version": "2.5.0.dev22+g93e162dd2",
+         "library_version": "2.5.0.dev30+g9a481b8dd",
          "os.architecture": "arm64",
          "os.platform": "Darwin",
          "os.version": "23.1.0",
          "runtime.name": "CPython",
          "runtime.version": "3.10.11",
          "span.kind": "test",
-         "test.code_coverage.enabled": "false",
+         "test.code_coverage.enabled": "true",
          "test.command": "python -m unittest",
          "test.framework": "unittest",
          "test.framework_version": "3.10.11",
@@ -72,12 +72,12 @@
          "test.module_path": "test_tools.py",
          "test.status": "pass",
          "test.type": "test",
-         "test_module_id": "3053976333390255648",
-         "test_session_id": "18443002628966340257",
+         "test_module_id": "3283430585743600196",
+         "test_session_id": "9620529498550955167",
          "type": "test_module_end"
        },
-       "duration": 4386000,
-       "start": 1703173798284048000
+       "duration": 4451000,
+       "start": 1703247087481936000
      },
         {
           "name": "unittest.test_suite",
@@ -92,7 +92,7 @@
             "_dd.base_service": "",
             "_dd.origin": "ciapp-test",
             "component": "unittest",
-            "library_version": "2.5.0.dev22+g93e162dd2",
+            "library_version": "2.5.0.dev30+g9a481b8dd",
             "os.architecture": "arm64",
             "os.platform": "Darwin",
             "os.version": "23.1.0",
@@ -107,13 +107,13 @@
             "test.status": "pass",
             "test.suite": "CodeCoverageTestCase",
             "test.type": "test",
-            "test_module_id": "3053976333390255648",
-            "test_session_id": "18443002628966340257",
-            "test_suite_id": "14330109424217671713",
+            "test_module_id": "3283430585743600196",
+            "test_session_id": "9620529498550955167",
+            "test_suite_id": "13731228266110504889",
             "type": "test_suite_end"
           },
-          "duration": 4262000,
-          "start": 1703173798284164000
+          "duration": 4331000,
+          "start": 1703247087482047000
         },
            {
              "name": "unittest.test",
@@ -128,7 +128,7 @@
                "_dd.base_service": "",
                "_dd.origin": "ciapp-test",
                "component": "unittest",
-               "library_version": "2.5.0.dev22+g93e162dd2",
+               "library_version": "2.5.0.dev30+g9a481b8dd",
                "os.architecture": "arm64",
                "os.platform": "Darwin",
                "os.version": "23.1.0",
@@ -146,15 +146,15 @@
                "test.status": "pass",
                "test.suite": "CodeCoverageTestCase",
                "test.type": "test",
-               "test_module_id": "3053976333390255648",
-               "test_session_id": "18443002628966340257",
-               "test_suite_id": "14330109424217671713",
+               "test_module_id": "3283430585743600196",
+               "test_session_id": "9620529498550955167",
+               "test_suite_id": "13731228266110504889",
                "type": "test"
              },
              "metrics": {
                "test.source.end": 11,
                "test.source.start": 5
              },
-             "duration": 4212000,
-             "start": 1703173798284191000
+             "duration": 4282000,
+             "start": 1703247087482076000
            }]]
