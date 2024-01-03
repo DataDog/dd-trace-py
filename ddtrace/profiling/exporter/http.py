@@ -83,7 +83,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )(self._upload)
 
         tags = {
-            k: compat.ensure_str(v, "utf-8")
+            k: compat.ensure_text(v, "utf-8")
             for k, v in itertools.chain(
                 self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
                 config.tags.items(),

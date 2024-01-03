@@ -9,7 +9,6 @@ from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ..compat import ensure_text
-from ..compat import stringify
 
 
 VALUE_PLACEHOLDER = "?"
@@ -141,7 +140,7 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
             if isinstance(arg, (bytes, str)):
                 cmd = ensure_text(arg, errors="backslashreplace")
             else:
-                cmd = stringify(arg)
+                cmd = str(arg)
 
             if len(cmd) > value_max_len:
                 cmd = cmd[:value_max_len] + VALUE_TOO_LONG_MARK

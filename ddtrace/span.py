@@ -37,7 +37,6 @@ from .internal.compat import NumericType
 from .internal.compat import StringIO
 from .internal.compat import ensure_text
 from .internal.compat import is_integer
-from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import SPAN_API_DATADOG
@@ -290,12 +289,12 @@ class Span(object):
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
-        Keys must be strings, values must be ``stringify``-able.
+        Keys must be strings, values must be ``str``-able.
 
         :param key: Key to use for the tag
         :type key: str
         :param value: Value to assign for the tag
-        :type value: ``stringify``-able value
+        :type value: ``str``-able value
         """
 
         if not isinstance(key, str):
@@ -366,7 +365,7 @@ class Span(object):
             return
 
         try:
-            self._meta[key] = stringify(value)
+            self._meta[key] = str(value)
             if key in self._metrics:
                 del self._metrics[key]
         except Exception:
@@ -499,7 +498,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self._meta[ERROR_MSG] = stringify(exc_val)
+        self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
