@@ -6,6 +6,12 @@ import unittest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.coverage.data import _coverage_data
+from ddtrace.contrib.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.coverage.patch import run_coverage_report
+from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
+from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.unittest.constants import FRAMEWORK
 from ddtrace.contrib.unittest.constants import KIND
@@ -32,6 +38,7 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
@@ -641,6 +648,8 @@ def _start_test_session_span(instance) -> ddtrace.Span:
     else:
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "false")
     _store_module_identifier(instance)
+    if _is_coverage_invoked_by_coverage_run():
+        patch_coverage()
     return test_session_span
 
 
@@ -781,11 +790,24 @@ def _finish_span(current_span: ddtrace.Span):
     current_span.finish()
 
 
+def _finish_test_session_span():
+    _finish_remaining_suites_and_modules(
+        _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
+    )
+    _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
+    if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+        _stop_coverage(unittest)
+    if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
+        run_coverage_report()
+        _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
+        unpatch_coverage()
+    _finish_span(_CIVisibility._datadog_session_span)
+
+
 def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: dict):
     """
     Creates session span and discovers test suites and tests for the current `unittest` CLI execution
     """
-    test_session_span = None
     if _is_invoked_by_cli(instance):
         _enable_unittest_if_not_started()
         for parent_module in instance.test._tests:
@@ -801,14 +823,8 @@ def handle_cli_run(func, instance: unittest.TestProgram, args: tuple, kwargs: di
     try:
         result = func(*args, **kwargs)
     except SystemExit as e:
-        if _CIVisibility.enabled and test_session_span and hasattr(_CIVisibility, "_unittest_data"):
-            _finish_remaining_suites_and_modules(
-                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-            )
-            _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-            _finish_span(test_session_span)
-            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-                _stop_coverage(unittest)
+        if _CIVisibility.enabled and _CIVisibility._datadog_session_span and hasattr(_CIVisibility, "_unittest_data"):
+            _finish_test_session_span()
 
         raise e
     return result
@@ -832,24 +848,11 @@ def handle_text_test_runner_wrapper(func, instance: unittest.TextTestRunner, arg
     except SystemExit as e:
         _CIVisibility._datadog_finished_sessions += 1
         if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
-            _finish_remaining_suites_and_modules(
-                _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-            )
-            _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-            _finish_span(_CIVisibility._datadog_session_span)
+            _finish_test_session_span()
             del _CIVisibility._datadog_session_span
-            if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-                _stop_coverage(unittest)
         raise e
-
     _CIVisibility._datadog_finished_sessions += 1
     if _CIVisibility._datadog_finished_sessions == _CIVisibility._datadog_expected_sessions:
-        _finish_remaining_suites_and_modules(
-            _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
-        )
-        _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-        _finish_span(_CIVisibility._datadog_session_span)
+        _finish_test_session_span()
         del _CIVisibility._datadog_session_span
-        if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-            _stop_coverage(unittest)
     return result
