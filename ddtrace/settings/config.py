@@ -513,6 +513,10 @@ class Config(object):
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+
     def __getattr__(self, name):
         if name in self._config:
             return self._config[name].value()
@@ -658,10 +662,10 @@ class Config(object):
         for key, value, origin in items:
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):
