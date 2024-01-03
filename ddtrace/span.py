@@ -413,7 +413,7 @@ class Span(object):
         # only permit types that are commonly serializable (don't use
         # isinstance so that we convert unserializable types like numpy
         # numbers)
-        if isinstance(value, (int, float)):
+        if not isinstance(value, (int, float)):
             try:
                 value = float(value)
             except (ValueError, TypeError):
