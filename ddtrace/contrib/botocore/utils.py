@@ -243,16 +243,6 @@ def extract_DD_context(messages):
     return ctx
 
 
-def get_aws_trace_headers(headers_string):
-    trace_id_dict = {}
-    trace_id_parts = headers_string.split(";")
-    for part in trace_id_parts:
-        if "=" in part:
-            key, value = part.split("=")
-            trace_id_dict[key.strip()] = value.strip()
-    return trace_id_dict
-
-
 def extract_trace_context_json(message):
     context_json = None
     try:
@@ -284,9 +274,6 @@ def extract_trace_context_json(message):
             _, data = get_kinesis_data_object(message["Data"])
             if "_datadog" in data:
                 context_json = data["_datadog"]
-        elif "Attributes" in message and "AWSTraceHeader" in message["Attributes"]:
-            # this message contains AWS tracing propagation
-            context_json = get_aws_trace_headers(message["Attributes"]["AWSTraceHeader"])
 
         if context_json is None:
             # AWS SNS holds attributes within message body

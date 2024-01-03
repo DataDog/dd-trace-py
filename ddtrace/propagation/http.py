@@ -5,7 +5,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
 from ddtrace import config
@@ -23,7 +22,6 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
-from ..internal.constants import _PROPAGATION_STYLE_AWS_XRAY
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
@@ -819,59 +817,12 @@ class _NOP_Propagator:
         return headers
 
 
-class AWSXRayPropagator:
-    @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Union[Context, None]
-        trace_id = None
-        span_id = None
-        sampling_priority = None
-        dd_origin = None
-        for key, value in headers.items():
-            if key == "root":
-                aws_trace_id_segments = value.split("-")
-                for i in range(len(aws_trace_id_segments)):
-                    # this is the AWS prefix for trace-id
-                    if aws_trace_id_segments[i] == "1":
-                        continue
-                    # this is the encoded start time of the span
-                    elif i == 1 and len(aws_trace_id_segments) == 3:
-                        continue
-                    # this is the encoded trace id with a prefix of 0's
-                    elif i == 2 and len(aws_trace_id_segments) == 3:
-                        # remove additional front padding and convert from hex
-                        dd_trace_id = aws_trace_id_segments[i][8:]
-                        trace_id = int(dd_trace_id, 16)
-
-            elif key == "parent":
-                span_id = int(value, 16)
-            elif key == "sampled":
-                sampling_priority = int(value)
-            elif key == "_dd.origin":
-                dd_origin = str(value)
-            elif key == "t0":
-                # convert from string as milliseconds to nanoseconds
-                # value = int(value) * 1000000
-                # key = "e2e-start-time"
-                pass
-        if trace_id is not None and span_id is not None:
-            return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sampling_priority, dd_origin=dd_origin)
-        else:
-            return None
-
-    @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context , Dict[str, str]) -> Dict[str, str]
-        return headers
-
-
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_NONE: _NOP_Propagator,
-    _PROPAGATION_STYLE_AWS_XRAY: AWSXRayPropagator,
 }
 
 

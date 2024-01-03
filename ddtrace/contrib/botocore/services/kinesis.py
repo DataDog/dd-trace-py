@@ -107,9 +107,7 @@ def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=
     :span: the span which provides the trace context to be propagated
     :pin: patch info for the botocore client
     :data_streams_enabled: boolean for whether data streams monitoring is enabled
-
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-
     """
     if data_streams_enabled:
         stream_arn = get_stream_arn(params)

@@ -152,13 +152,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             elif "_datadog" not in params["MessageAttributeNames"]:
                 params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
-            # Ensure we have AWS attribute enabl
-            # ed for interoperability with dd-trace-java aws propagation
-            if "AttributeNames" not in params:
-                params.update({"AttributeNames": ["AWSTraceHeader"]})
-            elif "AWSTraceHeader" not in params["AttributeNames"]:
-                params.update({"AttributeNames": list(params["AttributeNames"]) + ["AWSTraceHeader"]})
-
             try:
                 start_ns = time_ns()
                 func_run = True
