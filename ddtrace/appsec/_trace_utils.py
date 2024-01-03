@@ -211,7 +211,11 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
     span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
 
     for k, v in metadata.items():
-        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
+        if isinstance(v, bool):
+            str_v = "true" if v else "false"
+        else:
+            str_v = str(v)
+        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str_v)
         _asm_manual_keep(span)
 
 
@@ -339,4 +343,4 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
 
 core.on("django.login", _on_django_login)
-core.on("django.auth", _on_django_auth)
+core.on("django.auth", _on_django_auth, "user")

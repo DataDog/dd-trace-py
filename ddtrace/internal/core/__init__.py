@@ -104,9 +104,14 @@ from contextlib import contextmanager
 import logging
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from . import event_hub  # noqa:F401
+from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
@@ -114,10 +119,7 @@ from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa:F401
-    from typing import List  # noqa:F401
-
+if TYPE_CHECKING:
     from ddtrace.span import Span  # noqa:F401
 
 
@@ -148,6 +150,7 @@ class ExecutionContext:
         if self._span is None and _CURRENT_CONTEXT is not None:
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
+        dispatch("context.started.start_span.%s" % self.identifier, (self,))
 
     def __repr__(self):
         return self.__class__.__name__ + " '" + self.identifier + "' @ " + str(id(self))
@@ -242,7 +245,12 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+def _reset_context():
+    global _CURRENT_CONTEXT
+    _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+
+
+_reset_context()
 _CONTEXT_CLASS = ExecutionContext
 
 

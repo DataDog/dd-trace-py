@@ -57,14 +57,19 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
     """assert telemetry events are generated after the first trace is flushed to the agent"""
 
     # Submit a trace to the agent in a subprocess
-    code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
+    code = """
+from ddtrace import tracer
+
+span = tracer.trace("test-telemetry")
+span.finish()
+    """
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
     events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
+        test_agent_session.get_events(), is_request=False, must_have_deps=False
     )
 
     assert len(events) == 4
@@ -86,8 +91,10 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.settings import _config
 
 # We have to start before forking since fork hooks are not enabled until after enabling
+_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
@@ -130,7 +137,9 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.settings import _config
 
+_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
 # Reset queue to avoid sending app-started event
 telemetry_writer.reset_queues()
@@ -214,6 +223,9 @@ logging.basicConfig()
 
 from ddtrace import tracer
 from ddtrace.filters import TraceFilter
+from ddtrace.settings import _config
+
+_config._telemetry_dependency_collection = False
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):
@@ -232,9 +244,7 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
+    events = test_agent_session.get_events()
 
     assert len(events) == 3
 
@@ -262,8 +272,9 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = test_agent_session.get_events()
-
+    events = _assert_dependencies_sort_and_remove(
+        test_agent_session.get_events(), is_request=False, must_have_deps=False
+    )
     assert len(events) == 2
 
     # Same runtime id is used
@@ -402,3 +413,26 @@ f.wsgi_app()
     assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
     assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
     assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:flask", "error_type:valueerror"]
+
+
+def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
+            "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+            "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
+        }
+    )
+    # Generate a trace to trigger app-started event
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; ddtrace.tracer.trace('s1').finish()", env=env)
+    assert status == 0, stderr
+
+    events = test_agent_session.get_events()
+    app_started_event = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_event) == 1
+    assert app_started_event[0]["payload"]["install_signature"] == {
+        "install_id": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
+        "install_type": "k8s_single_step",
+        "install_time": "1703188212",
+    }

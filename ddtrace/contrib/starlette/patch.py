@@ -4,6 +4,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import starlette
+from starlette import requests as starlette_requests
 from starlette.middleware import Middleware
 
 from ddtrace import config
@@ -131,8 +132,19 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans,
             resource_paths,
         )
+    request_cookies = ""
+    for name, value in scope.get("headers"):
+        if name == b"cookie":
+            request_cookies = value.decode("utf-8", errors="ignore")
+            break
     if request_spans:
-        trace_utils.set_http_meta(request_spans[0], "starlette", request_path_params=scope.get("path_params"))
+        trace_utils.set_http_meta(
+            request_spans[0],
+            "starlette",
+            request_path_params=scope.get("path_params"),
+            request_cookies=starlette_requests.cookie_parser(request_cookies),
+            route=request_spans[0].get_tag(http.ROUTE),
+        )
     core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")

@@ -1,4 +1,3 @@
-from http import cookies
 import sys
 from typing import Any
 from typing import Mapping
@@ -159,7 +158,6 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            request_cookies = None
             for key, value in scope["headers"]:
                 if key == b"host":
                     try:
@@ -168,10 +166,7 @@ class TraceMiddleware:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
-                elif key == b"cookie":
-                    c = cookies.SimpleCookie(bytes_to_str(value))
-                    request_cookies = {k: v.value for k, v in c.items()}
-
+                    break
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
@@ -194,9 +189,9 @@ class TraceMiddleware:
             if not self.integration_config.trace_query_string:
                 query_string = None
             body = None
-            parse_body_result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers))[0]
-            if len(parse_body_result) == 1:
-                receive, body = await parse_body_result[0]
+            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            if result:
+                receive, body = await result.value
 
             client = scope.get("client")
             if isinstance(client, list) and len(client):
@@ -212,7 +207,6 @@ class TraceMiddleware:
                 query=query_string,
                 request_headers=headers,
                 raw_uri=url,
-                request_cookies=request_cookies,
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
@@ -233,6 +227,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
+                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -252,13 +247,19 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                status, headers, content = core.dispatch_with_results("asgi.block.started", (ctx, url))[0][0]
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
                     message["more_body"] = False
+                    core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
                 finally:

@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime
+import enum
 import hashlib
 import json
 import os
@@ -20,7 +21,7 @@ from envier import En
 import six
 
 import ddtrace
-from ddtrace.appsec._capabilities import _appsec_rc_capabilities
+from ddtrace.appsec._capabilities import _rc_capabilities as appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
@@ -54,6 +55,10 @@ class RemoteConfigClientConfig(En):
 
 
 config = RemoteConfigClientConfig()
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
 
 
 class RemoteConfigError(Exception):
@@ -232,6 +237,9 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
+    def _encode_capabilities(self, capabilities: enum.IntFlag) -> str:
+        return base64.b64encode(capabilities.to_bytes((capabilities.bit_length() + 7) // 8, "big")).decode()
+
     def renew_id(self):
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
@@ -358,7 +366,7 @@ class RemoteConfigClient(object):
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
-
+        capabilities = appsec_rc_capabilities() | Capabilities.APM_TRACING_SAMPLE_RATE
         return dict(
             client=dict(
                 id=self.id,
@@ -366,7 +374,7 @@ class RemoteConfigClient(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
-                capabilities=_appsec_rc_capabilities(),
+                capabilities=self._encode_capabilities(capabilities),
             ),
             cached_target_files=self.cached_target_files,
         )

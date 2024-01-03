@@ -35,6 +35,8 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV3
@@ -478,7 +480,11 @@ class AgentWriter(HTTPWriter):
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
-        self._api_version = api_version or config._trace_api or ("v0.4" if priority_sampling else "v0.3")
+        default_api_version = "v0.5"
+        if is_windows or in_gcp_function() or in_azure_function_consumption_plan():
+            default_api_version = "v0.4"
+
+        self._api_version = api_version or config._trace_api or default_api_version
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "

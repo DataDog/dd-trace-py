@@ -29,6 +29,7 @@ def with_config_raise_value(raise_value: bool):
 class TestContextEventsApi(unittest.TestCase):
     def tearDown(self):
         core.reset_listeners()
+        core._reset_context()
 
     def test_core_get_execution_context(self):
         context = core.ExecutionContext("foo")
@@ -48,27 +49,27 @@ class TestContextEventsApi(unittest.TestCase):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number: handler_return.format(magic_number))
-        result = core.dispatch_with_results(event_name, (dynamic_value,))[0][0]
+        core.on(event_name, lambda magic_number: handler_return.format(magic_number), "res")
+        result = core.dispatch_with_results(event_name, (dynamic_value,)).res.value
         assert result == handler_return.format(dynamic_value)
 
     def test_core_dispatch_with_results_multiple_args(self):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number))
-        result = core.dispatch_with_results(event_name, (dynamic_value, 42))[0][0]
+        core.on(event_name, lambda magic_number, forty_two: handler_return.format(magic_number), "res")
+        result = core.dispatch_with_results(event_name, (dynamic_value, 42)).res.value
         assert result == handler_return.format(dynamic_value)
 
     def test_core_dispatch_with_results_multiple_listeners(self):
         event_name = "my.cool.event"
         dynamic_value = 42
         handler_return = "from.event.{}"
-        core.on(event_name, lambda magic_number: handler_return.format(magic_number))
-        core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!")
-        results, _ = core.dispatch_with_results(event_name, (dynamic_value,))
-        assert results[1] == handler_return.format(dynamic_value)
-        assert results[0] == handler_return + str(dynamic_value) + "!"
+        core.on(event_name, lambda magic_number: handler_return.format(magic_number), "res_a")
+        core.on(event_name, lambda another_magic_number: handler_return + str(another_magic_number) + "!", "res_b")
+        results = core.dispatch_with_results(event_name, (dynamic_value,))
+        assert results.res_a.value == handler_return.format(dynamic_value)
+        assert results.res_b.value == handler_return + str(dynamic_value) + "!"
 
     def test_core_dispatch_with_results_multiple_listeners_multiple_threads(self):
         event_name = "my.cool.event"
@@ -79,7 +80,7 @@ class TestContextEventsApi(unittest.TestCase):
                     if make_target_id % 2 == 0:
                         return make_target_id * 2
 
-                core.on(event_name, listener)
+                core.on(event_name, listener, f"name_{make_target_id}")
 
             sleep(make_target_id * 0.0001)  # ensure threads finish in order
             return target
@@ -91,12 +92,13 @@ class TestContextEventsApi(unittest.TestCase):
             t.start()
             threads.append(t)
 
-        results, exceptions = core.dispatch_with_results(event_name, ())
+        result = core.dispatch_with_results(event_name, ())
 
         for t in threads:
             t.join()
 
-        results = [r for r in results if r is not None]
+        results = [r.value for r in result.values() if r.value is not None]
+        exceptions = [r.exception for r in result.values() if r.exception is not None]
         expected = list(i * 2 for i in range(thread_count) if i % 2 == 0)
         assert sorted(results) == sorted(expected)
         assert len(exceptions) <= thread_count
@@ -207,6 +209,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 
@@ -218,7 +221,7 @@ class TestContextEventsApi(unittest.TestCase):
         def on_all_exception(*_):
             raise TypeError("OH NO!")
 
-        core.on("my.cool.event", on_exception)
+        core.on("my.cool.event", on_exception, "res")
         core.on("context.started.my.cool.context", on_exception)
         core.on("context.ended.my.cool.context", on_exception)
         core.event_hub.on_all(on_all_exception)
@@ -227,10 +230,10 @@ class TestContextEventsApi(unittest.TestCase):
         assert core.dispatch("my.cool.event", (1, 2, 3)) is None
 
         # Dispatch with results will return the exception from the on listener only
-        results, exceptions = core.dispatch_with_results("my.cool.event", (1, 2, 3))
-        assert results == [None]
-        assert len(exceptions) == 1
-        assert isinstance(exceptions[0], RuntimeError)
+        result = core.dispatch_with_results("my.cool.event", (1, 2, 3)).res
+        assert result.value is None
+        assert isinstance(result.exception, RuntimeError)
+        assert result.response_type == core.event_hub.ResultType.RESULT_EXCEPTION
 
         # Context with data continues to work as expected
         with core.context_with_data("my.cool.context"):
@@ -302,8 +305,8 @@ class TestContextEventsApi(unittest.TestCase):
         core.event_hub.on_all(l1)
 
         # The results/exceptions from all listeners don't get reported
-        assert core.dispatch_with_results("event.1", (1, 2)) == ([], [])
-        assert core.dispatch_with_results("event.2", ()) == ([], [])
+        assert core.dispatch_with_results("event.1", (1, 2)) is core.event_hub._MissingEventDict
+        assert core.dispatch_with_results("event.2", ()) is core.event_hub._MissingEventDict
 
         with core.context_with_data("my.cool.context") as ctx:
             pass
@@ -312,6 +315,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
+            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 
