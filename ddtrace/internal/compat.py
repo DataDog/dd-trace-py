@@ -58,14 +58,14 @@ def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
         return s
     if isinstance(s, bytes):
         return s.decode(encoding, errors)
-    return str(s)
+    raise TypeError("Expected str or bytes but received %r" % (s.__class__))
 
 
 def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
     if isinstance(s, bytes):
         return s
     if not isinstance(s, str):
-        s = str(s)
+        raise TypeError("Expected str or bytes but received %r" % (s.__class__))
     return s.encode(encoding, errors)
 
 
