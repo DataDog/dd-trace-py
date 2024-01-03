@@ -434,6 +434,7 @@ jobs:
       - run_test:
           pattern: 'appsec_iast$'
           snapshot: true
+          docker_services: "postgres"
 
   appsec_iast_memcheck:
     <<: *machine_executor
