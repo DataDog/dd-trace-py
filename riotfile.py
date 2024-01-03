@@ -295,6 +295,7 @@ venv = Venv(
                 "httpretty": "<1.1",
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
+                "markupsafe": "<2.0",
             },
         ),
         Venv(
