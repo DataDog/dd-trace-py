@@ -87,6 +87,8 @@ def _is_pytest_cov_enabled(config) -> bool:
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
     if type(cov_option) == list and cov_option == [True] and not nocov_option:
         return True
     return cov_option
