@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pytest: This fix resolves an issue where the `--no-cov` flag did not take precedence over the `--cov` flag
+    when deciding whether to report code coverage on spans.
