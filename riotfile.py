@@ -532,12 +532,16 @@ venv = Venv(
                     "~=3.0.0",
                     "~=3.0",  # latest 3.x
                     latest,
-                ]
+                ],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
             name="bottle",
-            pkgs={"WebTest": latest},
+            pkgs={
+                "WebTest": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
@@ -706,6 +710,7 @@ venv = Venv(
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
+                "pytest-randomly": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -723,23 +728,15 @@ venv = Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "django": ["~=4.0", latest],
+                        "django": ["~=4.0"],
                         "channels": latest,
                     },
                 ),
                 Venv(
                     # django started supporting psycopg3 in 4.2 for versions >3.1.8
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django": ["~=4.2", latest],
-                        "psycopg": latest,
-                        "channels": latest,
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={
-                        "django": [latest],
+                        "django": ["~=4.2"],
                         "psycopg": latest,
                         "channels": latest,
                     },
@@ -753,6 +750,7 @@ venv = Venv(
                 "pytest-django": [
                     "==3.10.0",
                 ],
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -774,7 +772,10 @@ venv = Venv(
         Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
-            pkgs={"pytest-django": "==3.10.0"},
+            pkgs={
+                "pytest-django": "==3.10.0",
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     # djangorestframework dropped support for Django 2.x in 3.14
@@ -873,12 +874,21 @@ venv = Venv(
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
             pys=select_pys(),
-            pkgs={"opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest]},
+            pkgs={
+                "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest, "requests": latest},
+            pkgs={
+                "blinker": latest,
+                "requests": latest,
+                "werkzeug": "~=2.0",
+                "urllib3": "~=1.0",
+                "pytest-randomly": latest,
+            },
             venvs=[
                 # Flask 1.x.x
                 Venv(
@@ -922,7 +932,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.2",  # latest 2.2
+                            "~=2.2.0",  # latest 2.2
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -937,7 +947,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.2",  # latest 2.2
+                            "~=2.2.0",  # latest 2.2
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -948,8 +958,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.0",  # latest 2.2
                         ],
                         "importlib_metadata": "<=6.0",
                     },
@@ -964,8 +973,7 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.0",  # latest 2.2
                         ],
                     },
                 ),
@@ -978,6 +986,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -1030,6 +1039,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/flask_login",
             pys="3.11",
             pkgs={
+                "pytest-randomly": latest,
                 "flask": "~=1.0.4",
                 "flask-login": "~=0.6.2",
                 "Jinja2": "~=2.11.0",
@@ -1133,12 +1143,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/starlette",
             pkgs={
                 "httpx": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": latest,
                 "aiosqlite": latest,
                 "databases": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -1249,6 +1260,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "WebTest": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
@@ -1280,9 +1292,10 @@ venv = Venv(
         Venv(
             name="asgi",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
                 "httpx": latest,
                 "asgiref": ["~=3.0.0", "~=3.0", latest],
+                "pytest-randomly": latest,
             },
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/asgi",
@@ -1865,8 +1878,10 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
                 "requests": latest,
+                "websockets": "<11.0",
             },
             venvs=[
                 Venv(
@@ -1898,7 +1913,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
-                        "sanic": ["~=22.3", "~=22.12", latest],
+                        "sanic": ["~=22.3", "~=22.12"],
                         "sanic-testing": "~=22.3.0",
                     },
                 ),
