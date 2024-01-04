@@ -234,13 +234,14 @@ def test_200_multi_query_string(client, tracer, test_spans):
 
 
 def test_create_item_success(client, tracer, test_spans):
+    _id = "aawlieufghai3w4uhfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDog"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 200
-    assert response.json() == {"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"}
+    assert response.json() == {"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"}
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -263,10 +264,11 @@ def test_create_item_success(client, tracer, test_spans):
 
 
 def test_create_item_bad_token(client, tracer, test_spans):
+    _id = "iughq8374yfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDoged"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
