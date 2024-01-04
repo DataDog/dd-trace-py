@@ -7,6 +7,7 @@ from cassandra.cluster import Cluster
 from cassandra.cluster import ResultSet
 from cassandra.query import BatchStatement
 from cassandra.query import SimpleStatement
+import mock
 
 from ddtrace import Pin
 from ddtrace import config
@@ -37,34 +38,49 @@ CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 logging.getLogger("cassandra").setLevel(logging.INFO)
 
 
-def setUpModule():
+def _setup(testObject):
+    self = testObject or mock.Mock()
+
     # skip all the modules if the Cluster is not available
     if not Cluster:
         raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
 
     # create the KEYSPACE for this test module
-    cluster = Cluster(port=CASSANDRA_CONFIG["port"], connect_timeout=CONNECTION_TIMEOUT_SECS)
-    session = cluster.connect()
-    session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
-    session.execute(
-        "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"
+    self.cluster = Cluster(port=CASSANDRA_CONFIG["port"], connect_timeout=CONNECTION_TIMEOUT_SECS)
+    self.session = self.cluster.connect()
+    self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+    self.session.execute(
+        "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"  # noqa:E501
     )
-    session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
-    session.execute("CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)")
-    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-    session.execute(
+    self.session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
+    self.session.execute(
+        "CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)"
+    )
+    self.session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')"
+    )
+    self.session.execute(
         "INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')"
     )
-    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
+    self.session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')"
+    )
+
+
+def _teardown(testObject):
+    self = testObject or mock.Mock()
+    # destroy the KEYSPACE
+    self.session.execute("DROP TABLE IF EXISTS test.person")
+    self.session.execute("DROP TABLE IF EXISTS test.person_write")
+    self.session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+
+
+def setUpModule():
+    _setup(None)
 
 
 def tearDownModule():
-    # destroy the KEYSPACE
-    cluster = Cluster(port=CASSANDRA_CONFIG["port"], connect_timeout=CONNECTION_TIMEOUT_SECS)
-    session = cluster.connect()
-    session.execute("DROP TABLE IF EXISTS test.person")
-    session.execute("DROP TABLE IF EXISTS test.person_write")
-    session.execute("DROP KEYSPACE IF EXISTS test", timeout=10)
+    _teardown(None)
 
 
 class CassandraBase(object):
@@ -78,9 +94,11 @@ class CassandraBase(object):
     TEST_PORT = CASSANDRA_CONFIG["port"]
     TEST_SERVICE = "test-cassandra"
 
-    def _traced_session(self):
-        # implement me
-        pass
+    def setUp(self):
+        _setup(self)
+
+    def tearDown(self):
+        _teardown(self)
 
     @contextlib.contextmanager
     def override_config(self, integration, values):
@@ -98,10 +116,6 @@ class CassandraBase(object):
             yield
         finally:
             options.update(original)
-
-    def setUp(self):
-        self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
-        self.session = self.cluster.connect()
 
     def _assert_result_correct(self, result):
         assert len(result.current_rows) == 1
@@ -469,6 +483,10 @@ class TestCassandraConfig(TracerTestCase):
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)
+
+    def tearDown(self):
+        unpatch()
+        super(TestCassandraConfig, self).tearDown()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
