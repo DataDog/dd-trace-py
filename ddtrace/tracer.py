@@ -178,6 +178,7 @@ def _default_span_processors_factory(
     return span_processors, appsec_processor, deferred_processors
 
 
+# REMOVE ME: run all tests
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the

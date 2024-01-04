@@ -11,7 +11,14 @@ from typing import List  # noqa:F401
 import urllib.parse
 
 import attr
-import pkg_resources
+
+
+try:
+    from importlib_metadata import PackageNotFoundError
+    from importlib_metadata import distribution
+except ImportError:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import distribution
 import pytest
 
 import ddtrace
@@ -1170,9 +1177,9 @@ def request_token(request):
 
 def package_installed(package_name):
     try:
-        pkg_resources.get_distribution(package_name)
+        distribution(package_name)
         return True
-    except pkg_resources.DistributionNotFound:
+    except PackageNotFoundError:
         return False
 
 
