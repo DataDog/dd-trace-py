@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -18,7 +17,6 @@ import uuid
 import attr
 import cattr
 from envier import En
-import six
 
 import ddtrace
 from ddtrace.appsec._capabilities import _rc_capabilities as appsec_rc_capabilities
@@ -157,13 +155,6 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
-def _load_json(data):
-    # type: (Union[str, bytes]) -> Dict[str, Any]
-    if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
-        data = str(data, encoding="utf-8")
-    return json.loads(data)
-
-
 AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
@@ -225,7 +216,7 @@ class RemoteConfigClient(object):
 
         def base64_to_struct(val, cls):
             raw = base64.b64decode(val)
-            obj = _load_json(raw)
+            obj = json.loads(raw)
             return self.converter.structure_attrs_fromdict(obj, cls)
 
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
@@ -344,7 +335,7 @@ class RemoteConfigClient(object):
             )
 
         try:
-            return _load_json(raw)
+            return json.loads(raw)
         except Exception:
             raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 

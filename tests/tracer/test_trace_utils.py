@@ -25,8 +25,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.compat import six
-from ddtrace.internal.compat import stringify
+from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
@@ -402,9 +401,9 @@ def test_set_http_meta(
             expected_url = url
 
         if query and int_config.trace_query_string:
-            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+            assert span.get_tag(http.URL) == str(expected_url + "?" + query)
         else:
-            assert span.get_tag(http.URL) == stringify(expected_url)
+            assert span.get_tag(http.URL) == str(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -418,7 +417,7 @@ def test_set_http_meta(
         assert http.STATUS_CODE not in span.get_tags()
 
     if status_msg is not None:
-        assert span.get_tag(http.STATUS_MSG) == stringify(status_msg)
+        assert span.get_tag(http.STATUS_MSG) == str(status_msg)
 
     if query is not None and int_config.trace_query_string:
         assert span.get_tag(http.QUERY_STRING) == query
@@ -728,8 +727,8 @@ def test_ip_subnet_regression():
     del_ip = "1.2.3.4/32"
     req_ip = "10.2.3.4"
 
-    del_ip = six.ensure_text(del_ip)
-    req_ip = six.ensure_text(req_ip)
+    del_ip = ensure_text(del_ip)
+    req_ip = ensure_text(req_ip)
 
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
