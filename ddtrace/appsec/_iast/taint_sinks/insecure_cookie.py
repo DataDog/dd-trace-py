@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace.internal.compat import six
-
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
@@ -44,7 +42,7 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
     if not cookies:
         return
 
-    for cookie_key, cookie_value in six.iteritems(cookies):
+    for cookie_key, cookie_value in cookies.items():
         lvalue = cookie_value.lower().replace(" ", "")
 
         if ";secure" not in lvalue:
