@@ -1583,18 +1583,18 @@ venv = Venv(
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", latest]},
+                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", latest]},
+                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", latest]},
+                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
                 ),
             ],
         ),
@@ -1878,7 +1878,7 @@ venv = Venv(
                         "redis": [
                             "~=4.1",
                             "~=4.3",
-                            latest,
+                            "==5.0.1",
                         ],
                     },
                 ),
@@ -1887,7 +1887,7 @@ venv = Venv(
                     pys="3.11",
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "redis": ["~=4.3", latest],
+                        "redis": ["~=4.3", "==5.0.1"],
                     },
                 ),
                 # FIXME[python-3.12]: blocked on redis release https://github.com/redis/redis-py/pull/2873
@@ -2015,7 +2015,7 @@ venv = Venv(
             name="asyncpg",
             command="pytest {cmdargs} tests/contrib/asyncpg",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2361,7 +2361,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "langchain": ["==0.0.192", "==0.0.259"],
-                "openai": latest,
+                "openai": "==0.27.8",
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,

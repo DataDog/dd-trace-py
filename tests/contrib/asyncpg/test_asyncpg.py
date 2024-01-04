@@ -141,7 +141,7 @@ async def test_cursor(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_cursor_manual(patched_conn):
     async with patched_conn.transaction():
         cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
