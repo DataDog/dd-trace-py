@@ -20,7 +20,6 @@ from ..internal._tagset import TagsetMaxSizeDecodeError
 from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
-from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -101,7 +100,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
         if header in headers:
-            return ensure_str(headers[header], errors="backslashreplace")
+            return ensure_text(headers[header], errors="backslashreplace")
 
     return default
 
@@ -244,7 +243,7 @@ class _DatadogMultiHeader:
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
             # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
-            ensure_str(k): ensure_str(v)
+            ensure_text(k): ensure_text(v)
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
