@@ -21,9 +21,9 @@ def index():
 
 @app.route("/otel")
 def otel():
-    oteltracer = opentelemetry.trace.get_tracer(__name__)
-    with oteltracer.start_as_current_span("otel-flask-manual-span"):
-        return "otel", 200
+    with ddtrace.tracer.trace(name="internal", resource="otel-flask-manual-span"):
+        pass
+    return "otel", 200
 
 
 @app.route("/shutdown")
