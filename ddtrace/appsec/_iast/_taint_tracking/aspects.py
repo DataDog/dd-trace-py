@@ -6,8 +6,6 @@ from types import BuiltinFunctionType
 from typing import TYPE_CHECKING
 from typing import Any
 
-from ddtrace.internal.compat import iteritems
-
 from .._metrics import _set_iast_error_metric
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
@@ -387,7 +385,7 @@ def format_map_aspect(
                     key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
                     if isinstance(value, TEXT_TYPES)
                     else value
-                    for key, value in iteritems(mapping)
+                    for key, value in mapping.items()
                 }
             ),
             ranges_orig=ranges_orig,
