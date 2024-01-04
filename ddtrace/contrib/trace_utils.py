@@ -26,7 +26,6 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
-from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -92,7 +91,7 @@ def _get_header_value_case_insensitive(headers, keyname):
     if shortcut_value is not None:
         return shortcut_value
 
-    for key, value in six.iteritems(headers):
+    for key, value in headers.items():
         if key.lower().replace("_", "-") == keyname:
             return value
 
@@ -190,7 +189,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if not headers:
         try:
-            _ = ipaddress.ip_address(six.text_type(peer_ip))
+            _ = ipaddress.ip_address(str(peer_ip))
         except ValueError:
             return ""
         return peer_ip
@@ -205,7 +204,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return ""
 
         try:
-            _ = ipaddress.ip_address(six.text_type(ip_header_value))
+            _ = ipaddress.ip_address(str(ip_header_value))
         except ValueError:
             log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
             return ""
