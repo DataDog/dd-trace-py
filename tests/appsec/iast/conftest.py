@@ -13,8 +13,6 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.contrib.langchain.patch import patch as langchain_patch
-from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
 from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
 from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
@@ -26,6 +24,13 @@ from tests.utils import override_global_config
 
 
 def iast_span(tracer, env, request_sampling="100", deduplication="false"):
+    try:
+        from ddtrace.contrib.langchain.patch import patch as langchain_patch
+        from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
+    except Exception:
+        langchain_patch = lambda: True  # noqa: E731
+        langchain_unpatch = lambda: True  # noqa: E731
+
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": deduplication})
     VulnerabilityBase._reset_cache()
     with override_global_config(dict(_iast_enabled=True)), override_env(env):
