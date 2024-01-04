@@ -144,6 +144,8 @@ venv = Venv(
                 "cryptography": latest,
                 "astunparse": latest,
                 "simplejson": latest,
+                "SQLAlchemy": "==2.0.22",
+                "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -158,6 +160,8 @@ venv = Venv(
                 "requests": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
+                "SQLAlchemy": "==2.0.22",
+                "psycopg2-binary": "~=2.9.9",
                 # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
                 # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
                 "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
@@ -244,6 +248,7 @@ venv = Venv(
                 "wheel": latest,
                 "fastapi": latest,
                 "httpx": latest,
+                "pytest-randomly": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -288,6 +293,9 @@ venv = Venv(
                 "gunicorn": latest,
                 "flask": "<=2.2.3",
                 "httpretty": "<1.1",
+                "werkzeug": "<2.0",
+                "pytest-randomly": latest,
+                "markupsafe": "<2.0",
             },
         ),
         Venv(
@@ -295,7 +303,11 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={"msgpack": [latest], "coverage": latest},
+            pkgs={
+                "msgpack": [latest],
+                "coverage": latest,
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -329,7 +341,10 @@ venv = Venv(
         Venv(
             name="datastreams",
             command="pytest --no-cov {cmdargs} tests/datastreams/",
-            pkgs={"msgpack": [latest]},
+            pkgs={
+                "msgpack": [latest],
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     name="datastreams-latest",
@@ -353,7 +368,13 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={"httpretty": latest, "gevent": latest, "pytest-asyncio": latest, "vcrpy": latest},
+            pkgs={
+                "httpretty": latest,
+                "gevent": latest,
+                "pytest-asyncio": "~=0.21.1",
+                "vcrpy": latest,
+                "pytest-randomly": latest,
+            },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
@@ -412,7 +433,15 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "pytest-randomly": latest,
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
@@ -423,6 +452,7 @@ venv = Venv(
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
@@ -444,6 +474,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
@@ -2030,7 +2061,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.7", max_version="3.11"),
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.21.1",
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
                 "opentelemetry-instrumentation-flask": "<=0.37b0",
                 # opentelemetry-instrumentation-flask does not support the latest version of markupsafe
@@ -2078,7 +2110,7 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": latest},
+            pkgs={"opentracing": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -2087,7 +2119,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": "==0.21.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
@@ -2355,7 +2387,8 @@ venv = Venv(
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
             },
             venvs=[
                 # Python 3.7

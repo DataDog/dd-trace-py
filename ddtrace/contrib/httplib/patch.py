@@ -1,8 +1,6 @@
 import os
 import sys
 
-import six
-
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -115,7 +113,7 @@ def _wrap_request(func, instance, args, kwargs):
         if span:
             span.set_exc_info(*exc_info)
             span.finish()
-        six.reraise(*exc_info)
+        raise
 
 
 def _wrap_putrequest(func, instance, args, kwargs):
@@ -174,7 +172,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         if span:
             span.set_exc_info(*exc_info)
             span.finish()
-        six.reraise(*exc_info)
+        raise
 
 
 def _wrap_putheader(func, instance, args, kwargs):
