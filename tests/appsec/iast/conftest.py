@@ -6,11 +6,15 @@ from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unp
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
+from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.contrib.langchain.patch import patch as langchain_patch
+from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
 from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
 from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
@@ -34,6 +38,8 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
             json_patch()
             psycopg_patch()
             sqlalchemy_patch()
+            cmdi_patch()
+            langchain_patch()
             oce.acquire_request(span)
             yield span
             oce.release_request()
@@ -43,6 +49,8 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
             json_unpatch()
             psycopg_unpatch()
             sqlalchemy_unpatch()
+            cmdi_unpatch()
+            langchain_unpatch()
 
 
 @pytest.fixture

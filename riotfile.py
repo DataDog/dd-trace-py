@@ -223,6 +223,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": "~=3.0",
+                        "langchain": "==0.0.354",
+                        "langchain_experimental": "==0.0.47",
                     },
                 ),
             ],
