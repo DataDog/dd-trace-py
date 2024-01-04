@@ -15,10 +15,17 @@ DEFAULT_MAX_PROBES = 100
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
-def _derive_tags(c):
-    # type: (En) -> str
-    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
-    _tags.update(ddconfig.tags)
+def _derive_tags(c: "DynamicInstrumentationConfig") -> str:
+    _tags = ddconfig.tags.copy()
+
+    # Make sure that environment and version are normalised to lowercase
+    _tags.update(
+        dict(
+            env=ddconfig.env.lower() if ddconfig.env is not None else None,
+            version=ddconfig.version.lower() if ddconfig.version is not None else None,
+            debugger_version=get_version(),
+        )
+    )
 
     # Add git metadata tags, if available
     gitmetadata.add_tags(_tags)
