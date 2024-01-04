@@ -284,7 +284,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Test
         if: needs.needs-run.outputs.outcome == 'success'
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
+        # https://github.com/tiangolo/fastapi/pull/10876
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt

@@ -15,7 +15,6 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
-from six import ensure_text
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -30,8 +29,7 @@ from ddtrace.contrib.django.patch import traced_get_response
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
-from ddtrace.internal.compat import binary_type
-from ddtrace.internal.compat import string_type
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -2279,10 +2277,10 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
     else:
         assert (
             request_cls == _HttpRequest
-            and isinstance(request_path, binary_type)
-            and isinstance(http_host, binary_type)
-            and isinstance(request_uri, binary_type)
-        ) or isinstance(request_uri, string_type)
+            and isinstance(request_path, bytes)
+            and isinstance(http_host, bytes)
+            and isinstance(request_uri, bytes)
+        ) or isinstance(request_uri, str)
 
         host = ensure_text(eval_lazy(http_host)) if isinstance(http_host, SimpleLazyObject) else http_host
         assert request_uri == "".join(map(ensure_text, (request.scheme, "://", host, request_path)))
