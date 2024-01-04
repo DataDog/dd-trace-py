@@ -13,10 +13,6 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
-from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
-from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
-from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
 from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
@@ -30,6 +26,18 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
     except Exception:
         langchain_patch = lambda: True  # noqa: E731
         langchain_unpatch = lambda: True  # noqa: E731
+    try:
+        from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
+        from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
+    except Exception:
+        sqlalchemy_patch = lambda: True  # noqa: E731
+        sqlalchemy_unpatch = lambda: True  # noqa: E731
+    try:
+        from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
+        from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
+    except Exception:
+        psycopg_patch = lambda: True  # noqa: E731
+        psycopg_unpatch = lambda: True  # noqa: E731
 
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": deduplication})
     VulnerabilityBase._reset_cache()
