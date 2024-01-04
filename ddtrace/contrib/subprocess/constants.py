@@ -1,10 +1,7 @@
-import six
-
 from ddtrace.appsec._constants import Constant_Class
 
 
-@six.add_metaclass(Constant_Class)
-class COMMANDS(object):
+class COMMANDS(metaclass=Constant_Class):
     """
     string names used by the library for tagging data for subprocess executions in context or span
     """

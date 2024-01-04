@@ -8,7 +8,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import TagsetMaxSizeEncodeError
 from ddtrace.internal._tagset import decode_tagset_string
 from ddtrace.internal._tagset import encode_tagset_values
-from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.compat import ensure_text
 
 
 @pytest.mark.parametrize(
@@ -136,8 +136,8 @@ def test_encode_tagset_values_strip_spaces():
         {"": "value"},
         {"key": ""},
         # Unicode
-        {ensure_str("☺️"): "value"},
-        {"key": ensure_str("☺️")},
+        {ensure_text("☺️"): "value"},
+        {"key": ensure_text("☺️")},
     ],
 )
 def test_encode_tagset_values_malformed(values):
