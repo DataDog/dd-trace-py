@@ -1,3 +1,4 @@
+import base64
 import json
 import sys
 import time
@@ -27,6 +28,7 @@ class _BedrockIntegration(BaseLLMIntegration):
                 "timestamp": int(span.start * 1000),
                 "model": span.get_tag("bedrock.request.model"),
                 # "model_provider": span.get_tag("bedrock.request.model_provider"),
+                # FIXME: only openai or custom providers are accepted for now.
                 "model_provider": "custom",
                 "input": {
                     "prompts": [formatted_params.get("prompt")],
@@ -51,14 +53,14 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         self._datadog_span = span
         self._datadog_integration = integration
         self._params = params
-        self._body = bytearray()
+        self._body = []
 
     def read(self, amt=None):
         try:
             body = self.__wrapped__.read(amt=amt)
-            self._body += body
+            self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
-                self._process_streamed_response()
+                self._process_response()
                 self._datadog_span.finish()
             return body
         except Exception:
@@ -71,8 +73,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         try:
             lines = self.__wrapped__.readlines()
             for line in lines:
-                self._body += line
-            self._process_streamed_response()
+                self._body.append(json.loads(line))
+            formatted_response = _extract_response(self._datadog_span, self._body[0])
+            self._process_response(formatted_response)
             self._datadog_span.finish()
             return lines
         except Exception:
@@ -81,14 +84,24 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             # TODO: set error metric, duration
             raise
 
-    def _process_streamed_response(self) -> None:
+    def __iter__(self):
+        try:
+            for line in self.__wrapped__:
+                self._body.append(json.loads(line["chunk"]["bytes"]))
+                yield line
+            formatted_response = _extract_streamed_response_metadata(self._datadog_span, self._body[0])
+            self._process_response(formatted_response)
+            self._datadog_span.finish()
+        except Exception:
+            self._datadog_span.set_exc_info(*sys.exc_info())
+            self._datadog_span.finish()
+            # TODO: set error metric, duration
+            raise
+
+    def _process_response(self, formatted_response: Dict[str, Any]) -> None:
         """
-        Extracts the text and finish_reason from the streamed response and sets them as tags on the span.
-        Also generates a llm record if sampled.
+        Sets the response tags on the span, and generates a llm record if sampled.
         """
-        # TODO: handle error here unloading incomplete response?
-        response = json.loads(self._body)
-        formatted_response = _extract_response(self._datadog_span, response)
         for i in range(len(formatted_response["text"])):
             if self._datadog_integration.is_pc_sampled_span(self._datadog_span):
                 self._datadog_span.set_tag_str(
@@ -155,26 +168,56 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     return {}
 
 
-def _extract_response(span: Span, response: Dict[str, Any]) -> Dict[str, List[str]]:
+def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     text, finish_reason = None, None
     provider = span.get_tag("bedrock.request.model_provider")
     if provider == "ai21":
-        text = response.get("completions")[0].get("data").get("text")
-        finish_reason = response.get("completions")[0].get("finishReason")
+        text = body.get("completions")[0].get("data").get("text")
+        finish_reason = body.get("completions")[0].get("finishReason")
     elif provider == "amazon":
-        text = response.get("results")[0].get("outputText")
-        finish_reason = response.get("results")[0].get("completionReason")
+        text = body.get("results")[0].get("outputText")
+        finish_reason = body.get("results")[0].get("completionReason")
     elif provider == "anthropic":
-        text = response.get("completion")
-        finish_reason = response.get("stop_reason")
+        text = body.get("completion")
+        finish_reason = body.get("stop_reason")
     elif provider == "cohere":
-        text = [generation["text"] for generation in response.get("generations")]
-        finish_reason = [generation["finish_reason"] for generation in response.get("generations")]
+        text = [generation["text"] for generation in body.get("generations")]
+        finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
         for i in range(len(text)):
-            span.set_tag_str("bedrock.response.choices.%d.id" % i, str(response.get("generations")[i]["id"]))
+            span.set_tag_str("bedrock.response.choices.%d.id" % i, str(body.get("generations")[i]["id"]))
     elif provider == "meta":
-        text = response.get("generation")
-        finish_reason = response.get("stop_reason")
+        text = body.get("generation")
+        finish_reason = body.get("stop_reason")
+    elif provider == "stability":
+        # TODO: figure out extraction for image-based models
+        pass
+
+    if not isinstance(text, list):
+        text = [text]
+        finish_reason = [finish_reason]
+
+    return {"text": text, "finish_reason": finish_reason}
+
+
+def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    text, finish_reason = None, None
+    provider = span.get_tag("bedrock.request.model_provider")
+    if provider == "ai21":
+        pass  # note: ai21 does not support streamed responses
+    elif provider == "amazon":
+        text = "".join([chunk["outputText"] for chunk in streamed_body])
+        finish_reason = streamed_body[-1]["completionReason"]
+    elif provider == "anthropic":
+        text = "".join([chunk["completion"] for chunk in streamed_body])
+        finish_reason = streamed_body[-1]["stop_reason"]
+    elif provider == "cohere":
+        text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
+        finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
+        for i in range(len(text)):
+            span.set_tag_str("bedrock.response.choices.%d.id" % i, str(streamed_body[0]["generations"][i].get("id", None)))
+    elif provider == "meta":
+        text = "".join([chunk["generation"] for chunk in streamed_body])
+        finish_reason = streamed_body[-1]["stop_reason"]
     elif provider == "stability":
         # TODO: figure out extraction for image-based models
         pass
@@ -190,9 +233,28 @@ def _extract_response_metadata(result: Dict[str, Any]) -> Dict[str, Any]:
     metadata = result["ResponseMetadata"]
     return {
         "id": metadata["RequestId"],
-        "duration": metadata["HTTPHeaders"]["x-amzn-bedrock-invocation-latency"],
-        "usage.prompt_tokens": metadata["HTTPHeaders"]["x-amzn-bedrock-input-token-count"],
-        "usage.completion_tokens": metadata["HTTPHeaders"]["x-amzn-bedrock-output-token-count"],
+        "duration": metadata["HTTPHeaders"].get("x-amzn-bedrock-invocation-latency", None),
+        "usage.prompt_tokens": metadata["HTTPHeaders"].get("x-amzn-bedrock-input-token-count", None),
+        "usage.completion_tokens": metadata["HTTPHeaders"].get("x-amzn-bedrock-output-token-count", None),
+    }
+
+
+def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, Any]:
+    provider = span.get_tag("bedrock.request.model_provider")
+    metadata = {}
+    if provider == "ai21":
+        pass  # ai21 does not support streamed responses
+    elif provider in ["amazon", "anthropic", "meta"]:
+        metadata = streamed_body[-1]["amazon-bedrock-invocationMetrics"]
+    elif provider == "cohere":
+        metadata = streamed_body[0]["amazon-bedrock-invocationMetrics"]
+    elif provider == "stability":
+        # TODO: figure out extraction for image-based models
+        pass
+    return {
+        "duration": metadata.get("invocationLatency", None),
+        "usage.prompt_tokens": metadata.get("inputTokenCount", None),
+        "usage.completion_tokens": metadata.get("outputTokenCount", None)
     }
 
 
@@ -218,3 +280,20 @@ def handle_bedrock_response(
     body = result["body"]
     result["body"] = TracedBotocoreStreamingBody(body, params, span, integration)
     return result
+
+
+def patched_bedrock_api_call(botocore, pin, original_func, instance, args, kwargs, function_vars):
+    # TODO: make sure this works with refactored botocore integration
+    # integration = botocore._datadog_integration
+    # bedrock_span = pin.tracer.start_span("bedrock.request", child_of=span, resource=operation, activate=False)
+    # # This span will be finished separately as the user fully consumes the stream body, or on error.
+    # try:
+    #     handle_bedrock_request(bedrock_span, integration, params)
+    #     result = original_func(*args, **kwargs)
+    #     result = handle_bedrock_response(bedrock_span, integration, params, result)
+    #     return result
+    # except Exception:
+    #     bedrock_span.set_exc_info(*sys.exc_info())
+    #     bedrock_span.finish()
+    #     raise
+    pass

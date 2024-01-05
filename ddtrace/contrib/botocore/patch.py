@@ -6,7 +6,6 @@ import collections
 from datetime import datetime
 import json
 import os
-import sys
 from typing import Any
 from typing import Dict
 from typing import List  # noqa:F401
@@ -22,8 +21,6 @@ import botocore.exceptions
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.botocore.bedrock import _BedrockIntegration
-from ddtrace.contrib.botocore.bedrock import handle_bedrock_request
-from ddtrace.contrib.botocore.bedrock import handle_bedrock_response
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -702,22 +699,6 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
                     log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
                 return result
-            # TODO: patch InvokeModelWithStream
-            elif endpoint_name == "bedrock-runtime" and operation == "InvokeModel" and config.llmobs_enabled:
-                integration = botocore._datadog_integration
-                bedrock_span = pin.tracer.start_span("bedrock.request", child_of=span, resource=operation, activate=False)
-                # This span will be finished separately as the user fully consumes the stream body, or on error.
-                try:
-                    handle_bedrock_request(bedrock_span, integration, params)
-                    result = original_func(*args, **kwargs)
-                    result = handle_bedrock_response(bedrock_span, integration, params, result)
-                    return result
-                except Exception:
-                    bedrock_span.set_exc_info(*sys.exc_info())
-                    bedrock_span.finish()
-                    # TODO: set error metric, duration
-                    raise
-
             else:
                 result = original_func(*args, **kwargs)
 
