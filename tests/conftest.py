@@ -18,7 +18,6 @@ from unittest import mock
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
-import attr
 import pytest
 
 import ddtrace
@@ -27,6 +26,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatusError
+import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
@@ -393,14 +393,19 @@ def telemetry_writer():
     telemetry_writer = TelemetryWriter(is_periodic=False)
     telemetry_writer.enable()
 
+    # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
+    ddtrace.internal.telemetry.telemetry_writer.disable()
+
     with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
         yield telemetry_writer
 
+    ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
 
-@attr.s
+
 class TelemetryTestSession(object):
-    token = attr.ib(type=str)
-    telemetry_writer = attr.ib(type=TelemetryWriter)
+    def __init__(self, token, telemetry_writer) -> None:
+        self.token = token
+        self.telemetry_writer = telemetry_writer
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
@@ -438,6 +443,9 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
+    def get_requests_no_heartbeats(self):
+        return [r for r in self.get_requests() if r["body"]["type"] != "heartbeat"]
+
     def get_events(self):
         """Get a list of the event payloads sent to the test agent
 
@@ -452,6 +460,7 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+
     token = request_token(request)
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
