@@ -102,6 +102,7 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 """
 from contextlib import contextmanager
 import logging
+import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -110,8 +111,9 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ddtrace.span import Span  # noqa:F401
+from ddtrace.vendor.debtcollector import deprecate
 
+from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -119,6 +121,10 @@ from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+
+
+if TYPE_CHECKING:
+    from ddtrace.span import Span  # noqa:F401
 
 
 try:
@@ -132,12 +138,30 @@ log = logging.getLogger(__name__)
 
 _CURRENT_CONTEXT = None
 ROOT_CONTEXT_ID = "__root"
+SPAN_DEPRECATION_MESSAGE = (
+    "The 'span' keyword argument on ExecutionContext methods is deprecated and will be removed in a future version."
+)
+SPAN_DEPRECATION_SUGGESTION = (
+    "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
+)
+
+
+def _deprecate_span_kwarg(span):
+    if span is not None:
+        # https://github.com/tiangolo/fastapi/pull/10876
+        if "fastapi" not in sys.modules and "fastapi.applications" not in sys.modules:
+            deprecate(
+                SPAN_DEPRECATION_MESSAGE,
+                message=SPAN_DEPRECATION_SUGGESTION,
+                category=DDTraceDeprecationWarning,
+            )
 
 
 class ExecutionContext:
     __slots__ = ["identifier", "_data", "_parents", "_span", "_token"]
 
     def __init__(self, identifier, parent=None, span=None, **kwargs):
+        _deprecate_span_kwarg(span)
         self.identifier = identifier
         self._data = {}
         self._parents = []
@@ -243,7 +267,12 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+def _reset_context():
+    global _CURRENT_CONTEXT
+    _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+
+
+_reset_context()
 _CONTEXT_CLASS = ExecutionContext
 
 
@@ -253,6 +282,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 def get_item(data_key, span=None):
     # type: (str, Optional[Span]) -> Optional[Any]
+    _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
     else:
@@ -261,6 +291,7 @@ def get_item(data_key, span=None):
 
 def get_items(data_keys, span=None):
     # type: (List[str], Optional[Span]) -> Optional[Any]
+    _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return [span._local_root._get_ctx_item(key) for key in data_keys]
     else:
@@ -275,6 +306,7 @@ def set_safe(data_key, data_value):
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
 def set_item(data_key, data_value, span=None):
     # type: (str, Optional[Any], Optional[Span]) -> None
+    _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_item(data_key, data_value)
     else:
@@ -283,6 +315,7 @@ def set_item(data_key, data_value, span=None):
 
 def set_items(keys_values, span=None):
     # type: (Dict[str, Optional[Any]], Optional[Span]) -> None
+    _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         span._local_root._set_ctx_items(keys_values)
     else:

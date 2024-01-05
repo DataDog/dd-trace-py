@@ -83,7 +83,7 @@ commands:
   setup_hatch:
     description: "Install hatch"
     steps:
-      - run: pip3 install hatch==1.7.0 hatch-containers==0.7.0
+      - run: pip3 install hatch~=1.8.0 hatch-containers==0.7.0
 
   start_docker_services:
     description: "Start Docker services"
@@ -434,12 +434,20 @@ jobs:
       - run_test:
           pattern: 'appsec_iast$'
           snapshot: true
+          docker_services: "postgres"
 
   appsec_iast_memcheck:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'appsec_iast_memcheck'
+          snapshot: true
+
+  appsec_iast_packages:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_packages'
           snapshot: true
 
   appsec_integrations:
@@ -901,13 +909,11 @@ jobs:
           pattern: 'pylibmc'
 
   pytest:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'pytest'
+          snapshot: true
 
   unittest:
     <<: *machine_executor

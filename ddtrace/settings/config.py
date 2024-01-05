@@ -511,6 +511,7 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
+        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -521,6 +522,10 @@ class Config(object):
         self._span_aggregator_rlock = asbool(os.getenv("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True))
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
+
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
     def __getattr__(self, name):
         if name in self._config:
@@ -667,10 +672,10 @@ class Config(object):
         for key, value, origin in items:
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):
@@ -700,27 +705,24 @@ class Config(object):
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        if not data:
-            for item in self._config.values():
-                item.unset_rc()
+        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
+            log.warning("unexpected RC payload %r", data)
             return
-
         if len(data["config"]) == 0:
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        if "lib_config" not in config:
-            log.warning("unexpected RC payload %r", config)
-            return
-
-        lib_config = config["lib_config"]
         updated_items = []  # type: List[Tuple[str, Any]]
 
-        if "tracing_sampling_rate" in lib_config:
-            updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+        if not config:
+            for item in self._config:
+                updated_items.append((item, None))
+        else:
+            lib_config = config["lib_config"]
+            if "tracing_sampling_rate" in lib_config:
+                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
 
         if "tracing_tags" in lib_config:
             tags = lib_config["tracing_tags"]

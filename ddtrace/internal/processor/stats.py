@@ -5,10 +5,10 @@ import typing
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
-import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.span import _is_top_level
 
@@ -109,7 +109,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
-        self._hostname = six.ensure_text(get_hostname())
+        self._hostname = compat.ensure_text(get_hostname())
         self._lock = Lock()
         self._enabled = True
 
@@ -166,8 +166,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             for aggr_key, stat_aggr in bucket.items():
                 name, service, resource, _type, http_status, synthetics = aggr_key
                 serialized_bucket = {
-                    "Name": six.ensure_text(name),
-                    "Resource": six.ensure_text(resource),
+                    "Name": compat.ensure_text(name),
+                    "Resource": compat.ensure_text(resource),
                     "Synthetics": synthetics,
                     "HTTPStatusCode": http_status,
                     "Hits": stat_aggr.hits,
@@ -178,9 +178,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                     "ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
                 }
                 if service:
-                    serialized_bucket["Service"] = six.ensure_text(service)
+                    serialized_bucket["Service"] = compat.ensure_text(service)
                 if _type:
-                    serialized_bucket["Type"] = six.ensure_text(_type)
+                    serialized_bucket["Type"] = compat.ensure_text(_type)
                 bucket_aggr_stats.append(serialized_bucket)
             serialized_buckets.append(
                 {
@@ -237,9 +237,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload["Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
-            raw_payload["Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = compat.ensure_text(config.version)
 
         payload = packb(raw_payload)
         try:
