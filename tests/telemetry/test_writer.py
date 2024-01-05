@@ -461,7 +461,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
             assert len(httpretty.latest_requests()) == 1
 
 
-@pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
 @flaky(1706677200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
