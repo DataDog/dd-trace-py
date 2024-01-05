@@ -77,7 +77,7 @@ class _DBM_Propagator(object):
         service_name_key = db_span.service
         if peer_service_enabled:
             db_name = db_span.get_tags().get("db.name")
-            service_name_key = compat.ensure_str(db_name) if db_name else db_span.service
+            service_name_key = compat.ensure_text(db_name) if db_name else db_span.service
 
         dbm_tags = {
             DBM_PARENT_SERVICE_NAME_KEY: dd_config.service,

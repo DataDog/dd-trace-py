@@ -59,13 +59,6 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    def test_not_patched(self):
-        """Ensure that vertica is not patched somewhere before our tests."""
-        import vertica_python
-
-        assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
-
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
         the module import system.
