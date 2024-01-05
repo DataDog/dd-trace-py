@@ -377,9 +377,12 @@ def test_env_user_specified_rediscluster_service_v1():
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.subprocess(
-    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0",
+    env=dict(
+        DD_SERVICE="mysvc",
+        DD_REDIS_SERVICE="myrediscluster",
+        DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0",
+    ),
     err=None,  # avoid checking stderr because of an expected deprecation warning
-             )
 )
 def test_service_precedence_v0():
     import asyncio
@@ -423,8 +426,7 @@ def test_service_precedence_v0():
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.subprocess(
-    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-
+    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
     err=None,  # avoid checking stderr because of an expected deprecation warning
 )
 def test_service_precedence_v1():
