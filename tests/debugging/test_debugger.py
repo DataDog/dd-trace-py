@@ -1154,7 +1154,7 @@ def test_debugger_exception_conditional_function_probe():
             func_qname="throwexcstuff",
             evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
             condition=DDExpression(
-                dsl="expr.__class__.__name__ == 'Expression'",
+                dsl="expr.__class__.__name__ == 'Exception'",
                 callable=dd_compile(
                     {
                         "eq": [

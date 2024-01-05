@@ -6,7 +6,6 @@ from typing import cast  # noqa:F401
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal import core
-from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings.asm import config as asm_config
@@ -265,7 +264,7 @@ class VulnerabilityBase(Operation):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
