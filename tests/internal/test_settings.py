@@ -100,7 +100,7 @@ def _deleted_rc_config():
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
             "expected": {"tags": {"key": "value", "key2": "value2"}},
-            "expected_source": {"tags": "env"},
+            "expected_source": {"tags": "env_var"},
         },
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
@@ -211,9 +211,10 @@ with tracer.trace("test") as span:
 assert span.get_tag("team") == "apm"
 
 config._handle_remoteconfig(_base_rc_config({"tracing_tags": ["team:onboarding"]}))
+
 with tracer.trace("test") as span:
     pass
-assert span.get_tag("team") == "onboarding"
+assert span.get_tag("team") == "onboarding", span._meta
 
 config._handle_remoteconfig(_base_rc_config({"tracing_tags": None}))
 with tracer.trace("test") as span:
@@ -222,4 +223,4 @@ assert span.get_tag("team") == "apm"
         """,
         env=env,
     )
-    assert status == 0, err.decode("utf-8")
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"

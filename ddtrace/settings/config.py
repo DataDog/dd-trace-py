@@ -724,11 +724,11 @@ class Config(object):
             if "tracing_sampling_rate" in lib_config:
                 updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
 
-        if "tracing_tags" in lib_config:
-            tags = lib_config["tracing_tags"]
-            if tags:
-                tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
-            updated_items.append(("tags", tags))
+            if "tracing_tags" in lib_config:
+                tags = lib_config["tracing_tags"]
+                if tags:
+                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                updated_items.append(("tags", tags))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 
