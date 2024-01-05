@@ -53,11 +53,7 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
     # ensure no request were sent
     telemetry_writer.periodic()
-    reqs = test_agent_session.get_requests()
-    import json
-
-    print(json.dumps(reqs, indent=2))
-    assert len(reqs) == 0
+    assert len(test_agent_session.get_requests()) == 0
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
