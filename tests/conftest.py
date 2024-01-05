@@ -394,12 +394,14 @@ def telemetry_writer():
     telemetry_writer.enable()
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
-    ddtrace.internal.telemetry.telemetry_writer.disable()
+    try:
+        ddtrace.internal.telemetry.telemetry_writer.disable()
 
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
-        yield telemetry_writer
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
+            yield telemetry_writer
 
-    ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
+    finally:
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
 
 
 class TelemetryTestSession(object):
