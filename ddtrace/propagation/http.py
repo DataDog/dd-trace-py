@@ -911,8 +911,6 @@ class HTTPPropagator(object):
             _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)
-        if _PROPAGATION_STYLE_AWS_XRAY in config._propagation_style_inject:
-            AWSXRayPropagator._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):

@@ -602,6 +602,23 @@ The following environment variables for the tracer are supported:
       version_added:
          v2.3.0:
 
+   DD_BOTOCORE_PROPAGATION_ENABLED:
+      type: Boolean
+      default: False
+      description: |
+         Enables trace context propagation connecting producer and consumer spans within a single trace for AWS SQS, SNS, and Kinesis messaging services.
+      version_added:
+         v2.5.0:
+
+   DD_BOTOCORE_EMPTY_POLL_ENABLED:
+      type: Boolean
+      default: True
+      description: |
+         Enables creation of consumer span when AWS SQS and AWS Kinesis ``poll()`` operations return no records. When disabled, no consumer span is created
+         if no records are returned.
+      version_added:
+         v2.5.0:
+
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
