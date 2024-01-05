@@ -1742,7 +1742,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4", latest]},
+                    pkgs={"urllib3": ["~=1.26.4"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
