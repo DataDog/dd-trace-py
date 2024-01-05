@@ -26,7 +26,6 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatusError
-import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
@@ -443,9 +442,6 @@ class TelemetryTestSession(object):
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_requests_no_heartbeats(self):
-        return [r for r in self.get_requests() if r["body"]["type"] != "heartbeat"]
-
     def get_events(self):
         """Get a list of the event payloads sent to the test agent
 
@@ -460,12 +456,11 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-
     token = request_token(request)
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_writer)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
     try:

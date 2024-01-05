@@ -245,6 +245,7 @@ class TelemetryWriter(PeriodicService):
         """
         if not self._enabled:
             return False
+
         if self.status == ServiceStatus.RUNNING:
             return True
 
@@ -560,7 +561,7 @@ class TelemetryWriter(PeriodicService):
         """
         Queues gauge metric
         """
-        if self.enable():
+        if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
                 GaugeMetric,
                 namespace,
@@ -575,7 +576,7 @@ class TelemetryWriter(PeriodicService):
         """
         Queues rate metric
         """
-        if self.enable():
+        if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
                 RateMetric,
                 namespace,
@@ -590,7 +591,7 @@ class TelemetryWriter(PeriodicService):
         """
         Queues count metric
         """
-        if self.enable():
+        if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
                 CountMetric,
                 namespace,
@@ -604,7 +605,7 @@ class TelemetryWriter(PeriodicService):
         """
         Queues distributions metric
         """
-        if self.enable():
+        if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
                 DistributionMetric,
                 namespace,

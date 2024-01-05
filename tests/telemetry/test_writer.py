@@ -145,7 +145,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert events[0] == _get_request_body(payload, "app-started")
 
 
-@flaky(1704067200, reason="This test is using the main telemetry writer")
 def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
     """
     asserts that default configuration value
