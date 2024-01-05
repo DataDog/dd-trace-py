@@ -517,7 +517,7 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     core.dispatch(
-        "set_http_meta_for_appsec",
+        "set_http_meta_for_asm",
         [
             span,
             request_ip,
