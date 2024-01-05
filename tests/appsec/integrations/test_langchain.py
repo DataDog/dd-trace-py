@@ -1,5 +1,6 @@
 import sys
 
+import pkg_resources
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -14,11 +15,18 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 
 FIXTURES_PATH = "tests/appsec/integrations/fixtures/patch_langchain.py"
 FIXTURES_MODULE = "tests.appsec.integrations.fixtures.patch_langchain"
-LANGCHAIN_PY_VERSION = not ((3, 9, 0) <= sys.version_info)
 
 
-@pytest.mark.skipif(LANGCHAIN_PY_VERSION, reason="Langchain tests work on 3.9 or higher")
-def test_openai_llm_appsec_iast_cmdi2(iast_span_defaults):  # noqa
+def is_langchain_installed():
+    try:
+        pkg_resources.get_distribution("langchain")
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Langchain tests work on 3.9 or higher")
+def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa
     mod = _iast_patched_module(FIXTURES_MODULE)
     string_to_taint = "I need to use the terminal tool to print a Hello World"
     prompt = taint_pyobject(
