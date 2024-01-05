@@ -8,6 +8,7 @@ import json
 import os
 from os.path import split
 from os.path import splitext
+import random
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -466,7 +467,8 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    token = request_token(request)
+    token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
+    print("Test session token: %s" % token)
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
