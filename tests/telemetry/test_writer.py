@@ -268,7 +268,7 @@ import ddtrace.auto
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
-            {"name": "trace_tags", "origin": "default", "value": "team:apm,component:web"},
+            {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
         ],
         key=lambda x: x["name"],
     )
