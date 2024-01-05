@@ -43,7 +43,7 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
+            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
@@ -140,7 +140,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
-        assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
 
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
@@ -670,7 +670,7 @@ class PytestTestCase(TracerTestCase):
                 assert span.get_tag(test.SUITE) == file_name
         test_session_span = spans[5]
         assert test_session_span.get_tag("test.command") == (
-            "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+            "pytest -p no:randomly --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
         )
 
     def test_pytest_sets_sample_priority(self):
@@ -842,7 +842,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
         assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
-        assert spans[0].get_tag("test.command") == "pytest --ddtrace"
+        assert spans[0].get_tag("test.command") == "pytest -p no:randomly --ddtrace"
 
     def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
         """Test that given a test class, the test span will include the hierarchy of test class(es) as a tag."""
@@ -886,7 +886,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("test.module") == ""
         assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_suite_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
         assert test_suite_span.get_tag("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
@@ -1255,7 +1255,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
+        assert test_module_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace"
         assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
         assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
 
