@@ -12,7 +12,6 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.span import Span
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -48,7 +47,7 @@ def test_encode_traces_civisibility_v0():
     for trace in traces:
         encoder.put(trace)
     payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 1
     assert len(decoded[b"metadata"]) == 1
@@ -105,7 +104,7 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     for trace in traces:
         encoder.put(trace)
     payload = encoder._build_data(traces)
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
 
@@ -164,7 +163,7 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
 
     payload = encoder._build_data(traces)
     complete_payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
 
