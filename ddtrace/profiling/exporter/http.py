@@ -2,6 +2,8 @@
 import binascii
 import datetime
 import gzip
+from http import client as http_client
+import io
 import itertools
 import json
 import os
@@ -11,13 +13,12 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 
 import attr
-import six
-from six.moves import http_client
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
+from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
@@ -82,7 +83,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )(self._upload)
 
         tags = {
-            k: six.ensure_str(v, "utf-8")
+            k: compat.ensure_text(v, "utf-8")
             for k, v in itertools.chain(
                 self._update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
                 config.tags.items(),
@@ -137,7 +138,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         return content_type, body
 
     def _get_tags(
-        self, service  # type: str
+        self,
+        service,  # type: str
     ):
         # type: (...) -> str
         tags = {
@@ -173,7 +175,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             headers["Datadog-Container-Id"] = self._container_info.container_id
 
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
-        pprof = six.BytesIO()
+        pprof = io.BytesIO()
         with gzip.GzipFile(fileobj=pprof, mode="wb") as gz:
             gz.write(profile.SerializeToString())
 
@@ -187,7 +189,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         ]
 
         if self.enable_code_provenance:
-            code_provenance = six.BytesIO()
+            code_provenance = io.BytesIO()
             with gzip.GzipFile(fileobj=code_provenance, mode="wb") as gz:
                 gz.write(
                     json.dumps(
