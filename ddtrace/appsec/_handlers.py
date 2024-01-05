@@ -84,7 +84,7 @@ def _on_set_http_meta(
                 set_waf_address(k, v, span)
 
 
-core.one("set_http_meta_for_asm", _on_set_http_meta)
+core.on("set_http_meta_for_asm", _on_set_http_meta)
 
 # ASGI
 
