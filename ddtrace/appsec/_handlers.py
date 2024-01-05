@@ -4,7 +4,6 @@ import json
 
 import xmltodict
 
-from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
@@ -62,6 +61,9 @@ def _on_set_http_meta(
             asm_check_cookies(response_cookies)
 
     if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
+        # avoid circular import
+        from ddtrace.appsec._asm_request_context import set_waf_address
+
         status_code = str(status_code) if status_code is not None else None
 
         addresses = [
