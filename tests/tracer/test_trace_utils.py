@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from ipaddress import ip_network
-import sys
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -26,8 +25,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal.compat import six
-from ddtrace.internal.compat import stringify
+from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
@@ -403,9 +401,9 @@ def test_set_http_meta(
             expected_url = url
 
         if query and int_config.trace_query_string:
-            assert span.get_tag(http.URL) == stringify(expected_url + "?" + query)
+            assert span.get_tag(http.URL) == str(expected_url + "?" + query)
         else:
-            assert span.get_tag(http.URL) == stringify(expected_url)
+            assert span.get_tag(http.URL) == str(expected_url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -419,7 +417,7 @@ def test_set_http_meta(
         assert http.STATUS_CODE not in span.get_tags()
 
     if status_msg is not None:
-        assert span.get_tag(http.STATUS_MSG) == stringify(status_msg)
+        assert span.get_tag(http.STATUS_MSG) == str(status_msg)
 
     if query is not None and int_config.trace_query_string:
         assert span.get_tag(http.QUERY_STRING) == query
@@ -488,18 +486,6 @@ def test_set_http_meta_insecure_cookies_iast_disabled(span, int_config):
         trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
         span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
         assert not span_report
-
-
-@pytest.mark.skipif(
-    sys.version_info >= (3, 12),
-    reason="Python 3.7+ test, IAST not supported with Python 3.12",
-)
-def test_set_http_meta_insecure_cookies_iast_enabled(span, int_config):
-    with override_global_config(dict(_iast_enabled=True, _asm_enabled=True)):
-        cookies = {"foo": "bar"}
-        trace_utils.set_http_meta(span, int_config.myint, request_cookies=cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        assert span_report.vulnerabilities
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
@@ -741,8 +727,8 @@ def test_ip_subnet_regression():
     del_ip = "1.2.3.4/32"
     req_ip = "10.2.3.4"
 
-    del_ip = six.ensure_text(del_ip)
-    req_ip = six.ensure_text(req_ip)
+    del_ip = ensure_text(del_ip)
+    req_ip = ensure_text(req_ip)
 
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 

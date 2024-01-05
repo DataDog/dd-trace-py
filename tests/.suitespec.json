@@ -6,6 +6,7 @@
             "pyproject.toml"
         ],
         "$harness": [
+            "docker/*",
             "riotfile.py",
             "scripts/ddtest",
             "scripts/run-test-suite",
@@ -414,6 +415,15 @@
             "@appsec_iast",
             "tests/appsec/iast/*",
             "tests/appsec/iast_memcheck/*"
+        ],
+        "appsec_iast_packages": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*",
+            "tests/appsec/iast_packages/*"
         ],
         "appsec_integrations": [
             "@bootstrap",

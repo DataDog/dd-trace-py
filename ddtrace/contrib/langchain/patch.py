@@ -7,7 +7,12 @@ from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
-from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+
+
+try:
+    from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+except ImportError:
+    from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
 from pydantic import SecretStr
 
 from ddtrace import config
@@ -555,7 +560,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if isinstance(embeddings, list) and isinstance(embeddings[0], list):
+        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
             for idx, embedding in enumerate(embeddings):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:

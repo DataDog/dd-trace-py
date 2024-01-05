@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 # Define source file encoding to support raw unicode characters in Python 2
-import sys
 
 from hypothesis import given
 from hypothesis import settings
@@ -11,7 +10,6 @@ import six
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import reraise
 from ddtrace.internal.compat import to_unicode
 
 
@@ -76,24 +74,6 @@ class TestCompat(object):
 
 class TestPy3Compat(object):
     """Common tests to ensure functions are Python 3 compatible."""
-
-    def test_reraise(self):
-        # ensure the `raise` function is Python 2/3 compatible
-        with pytest.raises(Exception) as ex:
-            try:
-                raise Exception("Ouch!")
-            except Exception:
-                # original exception we want to re-raise
-                (typ, val, tb) = sys.exc_info()
-                try:
-                    # this exception doesn't allow a re-raise, and we need
-                    # to use the previous one collected via `exc_info()`
-                    raise Exception("Obfuscate!")
-                except Exception:
-                    pass
-                # this call must be Python 2 and 3 compatible
-                raise reraise(typ, val, tb)
-        assert ex.value.args[0] == "Ouch!"
 
 
 @pytest.mark.parametrize(

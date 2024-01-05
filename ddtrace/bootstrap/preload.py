@@ -60,12 +60,14 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+        log.debug("IAST enabled")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.enable()
+    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc

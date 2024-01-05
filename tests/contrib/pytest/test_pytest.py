@@ -43,7 +43,7 @@ class PytestTestCase(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
+            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
@@ -140,7 +140,7 @@ class PytestTestCase(TracerTestCase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
-        assert test_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
 
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
@@ -670,7 +670,7 @@ class PytestTestCase(TracerTestCase):
                 assert span.get_tag(test.SUITE) == file_name
         test_session_span = spans[5]
         assert test_session_span.get_tag("test.command") == (
-            "pytest --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+            "pytest -p no:randomly --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
         )
 
     def test_pytest_sets_sample_priority(self):
@@ -842,7 +842,7 @@ class PytestTestCase(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
         assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
-        assert spans[0].get_tag("test.command") == "pytest --ddtrace"
+        assert spans[0].get_tag("test.command") == "pytest -p no:randomly --ddtrace"
 
     def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
         """Test that given a test class, the test span will include the hierarchy of test class(es) as a tag."""
@@ -886,7 +886,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("test.module") == ""
         assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.command") == "pytest --ddtrace {}".format(file_name)
+        assert test_suite_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
         assert test_suite_span.get_tag("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
@@ -1255,7 +1255,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
+        assert test_module_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace"
         assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
         assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
 
@@ -3236,3 +3236,226 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[3].get_tag("test.source.file") == "test_source_package/test_string.py"
         assert test_spans[3].get_metric("test.source.start") == 5
         assert test_spans[3].get_metric("test.source.end") == 8
+
+    def test_pytest_reports_code_coverage_with_cov_flag(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace", "--cov")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        lines_pct_value = test_session_span.get_metric("test.code_coverage.lines_pct")
+
+        assert lines_pct_value is not None
+        assert type(lines_pct_value) == float
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_reports_code_coverage_with_cov_flag_specified(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace", "--cov=tools")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        assert test_session_span.get_metric("test.code_coverage.lines_pct") == 60.0
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_does_not_report_code_coverage_with_no_cov_flag_override(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace", "--cov=tools", "--no-cov")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_does_not_report_code_coverage_with_no_cov_flag(self):
+        with open("tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def add_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a + number_b)
+                        return output_list
+
+                    def multiply_two_number_list(list_1, list_2):
+                        output_list = []
+                        for number_a, number_b in zip(list_1, list_2):
+                            output_list.append(number_a * number_b)
+                        return output_list
+                    """
+                    )
+                )
+            )
+
+        with open("test_tools.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    from tools import add_two_number_list
+
+                    def test_add_two_number_list():
+                        a_list = [1,2,3,4,5,6,7,8]
+                        b_list = [2,3,4,5,6,7,8,9]
+                        actual_output = add_two_number_list(a_list, b_list)
+
+                        assert actual_output == [3,5,7,9,11,13,15,17]
+                    """
+                    )
+                )
+            )
+
+        self.testdir.chdir()
+        self.inline_run("--ddtrace", "--no-cov")
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        test_span = spans[0]
+        test_session_span = spans[1]
+        test_module_span = spans[2]
+        test_suite_span = spans[3]
+
+        assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_span.get_metric("test.code_coverage.lines_pct") is None
