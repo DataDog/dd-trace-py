@@ -1,10 +1,8 @@
 import json
 import sys
-import time
 from typing import Any
 from typing import Dict
 from typing import List
-import uuid
 
 from ddtrace import Span
 from ddtrace.vendor import wrapt
@@ -18,50 +16,6 @@ class _BedrockIntegration(BaseLLMIntegration):
 
     def __init__(self, config, stats_url, site, api_key, app_key=None):
         super().__init__(config, stats_url, site, api_key, app_key=app_key)
-
-    def generate_llm_record(self, span: Span, formatted_response: Dict[str, Any] = None, err: bool = False) -> None:
-        """Generate payloads for the LLM Obs API from a completion."""
-        now = time.time()
-        if err:
-            attrs_dict = {
-                "type": "completion",
-                "id": str(uuid.uuid4()),
-                "timestamp": int(span.start * 1000),
-                "model": span.get_tag("bedrock.request.model"),
-                # "model_provider": span.get_tag("bedrock.request.model_provider"),
-                "model_provider": "custom",
-                "input": {
-                    "prompts": [span.get_tag("bedrock.request.prompt")],
-                    "temperature": float(span.get_tag("bedrock.request.temperature")),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                },
-                "output": {
-                    "completions": [{"content": ""}],
-                    "durations": [now - span.start],
-                    "errors": [span.get_tag("error.message")]},
-            }
-            self.llm_record(span, attrs_dict)
-            return
-        for i in range(len(formatted_response["text"])):
-            attrs_dict = {
-                "type": "completion",
-                "id": span.get_tag("bedrock.response.id"),
-                "timestamp": int(span.start * 1000),
-                "model": span.get_tag("bedrock.request.model"),
-                # "model_provider": span.get_tag("bedrock.request.model_provider"),
-                # FIXME: only openai or custom providers are accepted for now.
-                "model_provider": "custom",
-                "input": {
-                    "prompts": [span.get_tag("bedrock.request.prompt")],
-                    "temperature": float(span.get_tag("bedrock.request.temperature")),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                },
-                "output": {
-                    "completions": [{"content": formatted_response["text"][i]}],
-                    "durations": [now - span.start],
-                },
-            }
-            self.llm_record(span, attrs_dict)
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
@@ -87,8 +41,6 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         except Exception:
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, err=1)
             raise
 
     def readlines(self):
@@ -103,8 +55,6 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         except Exception:
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, err=1)
             raise
 
     def __iter__(self):
@@ -119,13 +69,11 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         except Exception:
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, err=1)
             raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
         """
-        Sets the response tags on the span, and generates a llm record if sampled.
+        Sets the response tags on the span.
         """
         if metadata is not None:
             for k, v in metadata.items():
@@ -139,8 +87,6 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.set_tag_str(
                 "bedrock.response.choices.%d.finish_reason" % i, str(formatted_response["finish_reason"][i])
             )
-        if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-            self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response)
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -327,9 +273,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         result = handle_bedrock_response(bedrock_span, integration, result)
         return result
     except Exception:
-        exc_info = sys.exc_info()
-        bedrock_span.set_exc_info(*exc_info)
+        bedrock_span.set_exc_info(*sys.exc_info())
         bedrock_span.finish()
-        if integration.is_pc_sampled_llmobs(bedrock_span):
-            integration.generate_llm_record(bedrock_span, formatted_response=None, err=1)
         raise
