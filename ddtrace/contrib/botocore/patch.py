@@ -123,11 +123,8 @@ def patched_api_call(original_func, instance, args, kwargs):
         "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
     )
 
-    operation = None
-    params = None
-    if args:
-        operation = get_argument_value(args, kwargs, 0, "operation_name")
-        params = get_argument_value(args, kwargs, 1, "api_params")
+    operation = get_argument_value(args, kwargs, 0, "operation_name", True)
+    params = get_argument_value(args, kwargs, 1, "api_params", True)
 
     function_vars = {
         "endpoint_name": endpoint_name,

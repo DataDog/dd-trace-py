@@ -42,7 +42,7 @@ def get_topic_arn(params):
     :params: contains the params for the current botocore action
     Return the name of the topic given the params
     """
-    sns_arn = params["TopicArn"]
+    sns_arn = params.get("TopicArn")
     return sns_arn
 
 
@@ -68,7 +68,10 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
             # AWS will encode our value if it sees "Binary"
             entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": _encode_data(trace_data)}
         else:
-            log.warning("skipping trace injection, endpoint is not SNS or SQS")
+            log.debug(
+                "skipping trace injection, endpoint service is not SNS or SQS.",
+                extra=dict(endpoint_service=endpoint_service),
+            )
     else:
         # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
@@ -92,15 +95,18 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     # it could either show up under Entries (in case of PutRecords),
     # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
-    for entry in entries:
-        if data_streams_enabled:
-            dsm_identifier = None
-            if endpoint_service == "sqs":
-                dsm_identifier = get_queue_name(params)
-            elif endpoint_service == "sns":
-                dsm_identifier = get_topic_arn(params)
-            trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
-        inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
+    if len(entries) != 0:
+        for entry in entries:
+            if data_streams_enabled:
+                dsm_identifier = None
+                if endpoint_service == "sqs":
+                    dsm_identifier = get_queue_name(params)
+                elif endpoint_service == "sns":
+                    dsm_identifier = get_topic_arn(params)
+                trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
+            inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
+    else:
+        log.warning("Skipping injecting Datadog attributes to records, no records available")
 
 
 def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
@@ -142,46 +148,45 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     ) as span:
         set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
-        if args:
-            if config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                            pin=pin,
-                            data_streams_enabled=config._data_streams_enabled,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                            pin=pin,
-                            data_streams_enabled=config._data_streams_enabled,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sqs" and operation == "ReceiveMessage":
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.INBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+        if config.botocore["distributed_tracing"]:
+            try:
+                if endpoint_name == "sqs" and operation == "SendMessage":
+                    inject_trace_to_sqs_or_sns_message(
+                        params,
+                        span,
+                        endpoint_service=endpoint_name,
+                        pin=pin,
+                        data_streams_enabled=config._data_streams_enabled,
+                    )
+                    span.name = schematize_cloud_messaging_operation(
+                        trace_operation,
+                        cloud_provider="aws",
+                        cloud_service="sqs",
+                        direction=SpanDirection.OUTBOUND,
+                    )
+                if endpoint_name == "sqs" and operation == "SendMessageBatch":
+                    inject_trace_to_sqs_or_sns_batch_message(
+                        params,
+                        span,
+                        endpoint_service=endpoint_name,
+                        pin=pin,
+                        data_streams_enabled=config._data_streams_enabled,
+                    )
+                    span.name = schematize_cloud_messaging_operation(
+                        trace_operation,
+                        cloud_provider="aws",
+                        cloud_service="sqs",
+                        direction=SpanDirection.OUTBOUND,
+                    )
+                if endpoint_name == "sqs" and operation == "ReceiveMessage":
+                    span.name = schematize_cloud_messaging_operation(
+                        trace_operation,
+                        cloud_provider="aws",
+                        cloud_service="sqs",
+                        direction=SpanDirection.INBOUND,
+                    )
+            except Exception:
+                log.warning("Unable to inject trace context", exc_info=True)
         try:
             if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
                 queue_name = get_queue_name(params)
