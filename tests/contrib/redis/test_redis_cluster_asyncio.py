@@ -154,7 +154,10 @@ async def test_patch_unpatch(redis_cluster):
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
 def test_default_service_name_v1():
     import asyncio
 
