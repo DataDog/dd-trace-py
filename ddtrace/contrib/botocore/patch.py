@@ -12,7 +12,6 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
-from ddtrace.contrib.botocore.bedrock import _BedrockIntegration
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -34,6 +33,8 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
+from .services.bedrock import _BedrockIntegration
+from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
 from .services.sqs import inject_trace_to_sqs_or_sns_message
@@ -64,8 +65,6 @@ config._add(
         "llmobs_enabled": asbool(os.getenv("DD_BEDROCK_LLMOBS_ENABLED", False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
-        #  send LLMObs payloads. This is a placeholder for when we do.
         "llmobs_prompt_completion_sample_rate": float(
             os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
         ),
@@ -171,6 +170,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "params": params,
         "pin": pin,
         "trace_operation": trace_operation,
+        "integration": botocore._datadog_integration,
     }
 
     if endpoint_name == "kinesis":
@@ -183,6 +183,14 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         )
     elif endpoint_name == "sqs":
         return patched_sqs_api_call(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            function_vars=function_vars,
+        )
+    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel") and config.llmobs_enabled:
+        return patched_bedrock_api_call(
             original_func=original_func,
             instance=instance,
             args=args,

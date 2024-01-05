@@ -1,4 +1,3 @@
-import base64
 import json
 import sys
 import time
@@ -9,6 +8,8 @@ from typing import List
 from ddtrace import Span
 from ddtrace.vendor import wrapt
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
+
+from ....internal.schema import schematize_service_name
 
 
 class _BedrockIntegration(BaseLLMIntegration):
@@ -44,9 +45,9 @@ class _BedrockIntegration(BaseLLMIntegration):
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
-    # TODO: Need to figure out if we can somehow cause the span to timeout
-    #  if the user never fully consumes the stream body.
-    #  Currently the span finishes only if 1) the user fully consumes the stream body and 2) error during reading
+    #  Currently the corresponding span finishes only if
+    #  1) the user fully consumes the stream body
+    #  2) error during reading
 
     def __init__(self, wrapped, params, span, integration):
         super().__init__(wrapped)
@@ -60,7 +61,8 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             body = self.__wrapped__.read(amt=amt)
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
-                self._process_response()
+                formatted_response = _extract_response(self._datadog_span, self._body[0])
+                self._process_response(formatted_response)
                 self._datadog_span.finish()
             return body
         except Exception:
@@ -229,16 +231,6 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_response_metadata(result: Dict[str, Any]) -> Dict[str, Any]:
-    metadata = result["ResponseMetadata"]
-    return {
-        "id": metadata["RequestId"],
-        "duration": metadata["HTTPHeaders"].get("x-amzn-bedrock-invocation-latency", None),
-        "usage.prompt_tokens": metadata["HTTPHeaders"].get("x-amzn-bedrock-input-token-count", None),
-        "usage.completion_tokens": metadata["HTTPHeaders"].get("x-amzn-bedrock-output-token-count", None),
-    }
-
-
 def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, Any]:
     provider = span.get_tag("bedrock.request.model_provider")
     metadata = {}
@@ -273,27 +265,37 @@ def handle_bedrock_request(span: Span, integration: _BedrockIntegration, params:
 def handle_bedrock_response(
         span: Span, integration: _BedrockIntegration, params: Dict[str, Any], result: Dict[str, Any]
 ) -> Dict[str, Any]:
-    metadata = _extract_response_metadata(result)
-    for k, v in metadata.items():
-        span.set_tag_str("bedrock.response.%s" % k, str(v))
+    metadata = result["ResponseMetadata"]
+    span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))
+    span.set_tag_str("bedrock.response.duration", str(metadata.get("x-amzn-bedrock-invocation-latency", "")))
+    span.set_tag_str("bedrock.usage.prompt_tokens", str(metadata.get("x-amzn-bedrock-input-token-count", "")))
+    span.set_tag_str("bedrock.usage.completion_tokens", str(metadata.get("HTTPStatusCode", "")))
+
     # Wrap the StreamingResponse in a traced object so that we can tag response data as the user consumes it.
     body = result["body"]
     result["body"] = TracedBotocoreStreamingBody(body, params, span, integration)
     return result
 
 
-def patched_bedrock_api_call(botocore, pin, original_func, instance, args, kwargs, function_vars):
-    # TODO: make sure this works with refactored botocore integration
-    # integration = botocore._datadog_integration
-    # bedrock_span = pin.tracer.start_span("bedrock.request", child_of=span, resource=operation, activate=False)
-    # # This span will be finished separately as the user fully consumes the stream body, or on error.
-    # try:
-    #     handle_bedrock_request(bedrock_span, integration, params)
-    #     result = original_func(*args, **kwargs)
-    #     result = handle_bedrock_response(bedrock_span, integration, params, result)
-    #     return result
-    # except Exception:
-    #     bedrock_span.set_exc_info(*sys.exc_info())
-    #     bedrock_span.finish()
-    #     raise
-    pass
+def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
+    params = function_vars.get("params")
+    trace_operation = function_vars.get("trace_operation")
+    pin = function_vars.get("pin")
+    endpoint_name = function_vars.get("endpoint_name")
+    integration = function_vars.get("integration")
+    # This span will be finished separately as the user fully consumes the stream body, or on error.
+    bedrock_span = pin.tracer.start_span(
+        "bedrock.request",
+        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        resource=trace_operation,
+        activate=False,
+    )
+    try:
+        handle_bedrock_request(bedrock_span, integration, params)
+        result = original_func(*args, **kwargs)
+        result = handle_bedrock_response(bedrock_span, integration, params, result)
+        return result
+    except Exception:
+        bedrock_span.set_exc_info(*sys.exc_info())
+        bedrock_span.finish()
+        raise
