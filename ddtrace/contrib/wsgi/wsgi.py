@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Tracer  # noqa:F401
     from ddtrace.settings import Config  # noqa:F401
 
-from six.moves.urllib.parse import quote
+from urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
