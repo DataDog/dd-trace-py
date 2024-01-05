@@ -513,16 +513,23 @@ venv = Venv(
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
+                "pytest-randomly": latest,
             },
         ),
         Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
@@ -1729,6 +1736,9 @@ venv = Venv(
         Venv(
             name="urllib3",
             command="pytest {cmdargs} tests/contrib/urllib3",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.8"),
@@ -1737,17 +1747,17 @@ venv = Venv(
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12", latest]},
+                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6", latest]},
+                    pkgs={"urllib3": ["~=1.26.6"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8", latest]},
+                    pkgs={"urllib3": ["~=1.26.8"]},
                 ),
             ],
         ),
@@ -1828,7 +1838,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
+                "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -1843,7 +1854,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
+                "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -2482,17 +2494,25 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "setuptools": ["<=67.6.0"],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
             name="ci_visibility",
             command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
-            pkgs={"msgpack": latest, "coverage": latest, "pytest-randomly": latest},
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="subprocess",
             command="pytest {cmdargs} tests/contrib/subprocess",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
