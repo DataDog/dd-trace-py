@@ -1,6 +1,7 @@
 import ast
 import base64
 import contextlib
+import http.client
 import importlib
 from itertools import product
 import json
@@ -413,12 +414,19 @@ class TelemetryTestSession(object):
     def _request(self, method, url):
         # type: (str, str) -> Tuple[int, bytes]
         conn = self.create_connection()
-        try:
-            conn.request(method, url)
-            r = conn.getresponse()
-            return r.status, r.read()
-        finally:
-            conn.close()
+        MAX_RETRY = 5
+        exp_time = 2
+        for try_nb in range(MAX_RETRY):
+            try:
+                conn.request(method, url)
+                r = conn.getresponse()
+                return r.status, r.read()
+            except (http.client.RemoteDisconnected, ConnectionRefusedError):
+                if try_nb == MAX_RETRY - 1:
+                    raise
+                time.sleep(pow(exp_time, try_nb))
+            finally:
+                conn.close()
 
     def clear(self):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
@@ -463,12 +471,17 @@ def test_agent_session(telemetry_writer, request):
     requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
-    try:
-        conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-        conn.getresponse()
-    finally:
-        conn.close()
-
+    MAX_RETRY = 5
+    exp_time = 2
+    for try_nb in range(MAX_RETRY):
+        try:
+            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+            conn.getresponse()
+            break
+        except (http.client.RemoteDisconnected, ConnectionRefusedError):
+            time.sleep(pow(exp_time, try_nb))
+        finally:
+            conn.close()
     try:
         yield requests
     finally:
