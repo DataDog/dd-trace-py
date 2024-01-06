@@ -128,6 +128,7 @@ async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
 
 def _patch(asyncpg: ModuleType) -> None:
     wrap(asyncpg, "connect", _traced_connect(asyncpg))
+    wrap(asyncpg.connect_utils, "_connect_addr", _traced_connect(asyncpg))
     for method in ("execute", "bind_execute", "query", "bind_execute_many"):
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
@@ -147,6 +148,7 @@ def patch():
 
 def _unpatch(asyncpg: ModuleType) -> None:
     unwrap(asyncpg, "connect")
+    unwrap(asyncpg.connect_utils, "_connect_addr")
     for method in ("execute", "bind_execute", "query", "bind_execute_many"):
         unwrap(asyncpg.protocol.Protocol, method)
 
