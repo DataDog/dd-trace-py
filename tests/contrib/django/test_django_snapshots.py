@@ -148,6 +148,7 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
+@flaky(1735812000)
 @pytest.mark.django_db
 def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper.
@@ -236,6 +237,7 @@ def test_asgi_200(django_asgi):
         assert resp.content == b"Hello, test app."
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():

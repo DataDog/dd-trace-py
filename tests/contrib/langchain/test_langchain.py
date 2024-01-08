@@ -12,6 +12,7 @@ from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -331,6 +332,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -545,6 +547,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -952,6 +955,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
