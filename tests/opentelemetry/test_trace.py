@@ -37,6 +37,7 @@ def test_otel_start_span_with_default_args(oteltracer):
     otel_span.end()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")

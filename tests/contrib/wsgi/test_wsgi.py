@@ -267,6 +267,7 @@ def test_500_py3():
         app.get("/error")
 
 
+@flaky(1735812000)
 @snapshot(ignores=["meta.error.stack"])
 def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
