@@ -285,8 +285,7 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500",
-    ignores=["meta.error.stack", "meta.error.type"],
+    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500", ignores=["meta.error.stack", "meta.error.type"]
 )
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
