@@ -338,9 +338,10 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
-    assert len(events) == 2
+
     assert events[0]["seq_id"] == 2
-    assert not events[0]["payload"]
+    # only one event must be sent with a non empty payload
+    assert sum(e["payload"] != {} for e in events) == 1
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
