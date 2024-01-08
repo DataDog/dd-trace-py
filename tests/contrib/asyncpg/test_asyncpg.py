@@ -46,6 +46,17 @@ async def test_connect(snapshot_context):
         )
         await conn.close()
 
+    # Make sure that the "asyncpg.connection.connect()" equivalent is also patched.
+    with snapshot_context():
+        conn = await asyncpg.connection.connect(
+            host=POSTGRES_CONFIG["host"],
+            port=POSTGRES_CONFIG["port"],
+            user=POSTGRES_CONFIG["user"],
+            database=POSTGRES_CONFIG["dbname"],
+            password=POSTGRES_CONFIG["password"],
+        )
+        await conn.close()
+
     # Using dsn should result in the same trace
     with snapshot_context():
         conn = await asyncpg.connect(
@@ -155,6 +166,23 @@ async def test_cursor_manual(patched_conn):
 async def test_service_override_pin(patched_conn):
     Pin.override(patched_conn, service="custom-svc")
     await patched_conn.execute("SELECT 1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_pool_override_pin():
+    async def _set_pin_override(conn):
+        Pin.override(conn, service="custom-svc")
+
+    async with asyncpg.create_pool(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+        init=_set_pin_override,
+    ) as pool:
+        await pool.fetch("SELECT 1")
 
 
 @pytest.mark.asyncio
