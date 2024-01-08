@@ -100,7 +100,7 @@ def appsec_application_server(
                 "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                 % (server_process.stdout, server_process.stderr)
             )
-        # If we run a Gunicorn application, we want to get the child's pid, see test_remoteconfiguration_e2e.py
+        # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         parent = psutil.Process(server_process.pid)
         children = parent.children(recursive=True)
 

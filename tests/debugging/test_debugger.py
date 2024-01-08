@@ -1138,3 +1138,38 @@ def test_debugger_redacted_identifiers():
             },
             "throwable": None,
         }
+
+
+def test_debugger_exception_conditional_function_probe():
+    """
+    Test that we can have a condition on the exception on a function probe when
+    the condition is evaluated on exit.
+    """
+    from tests.submod import stuff
+
+    snapshots = simple_debugger_test(
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="throwexcstuff",
+            evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            condition=DDExpression(
+                dsl="expr.__class__.__name__ == 'Exception'",
+                callable=dd_compile(
+                    {
+                        "eq": [
+                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                            "Exception",
+                        ]
+                    }
+                ),
+            ),
+        ),
+        lambda: stuff.throwexcstuff(),
+    )
+
+    (snapshot,) = snapshots
+    snapshot_data = snapshot["debugger.snapshot"]
+    return_capture = snapshot_data["captures"]["return"]
+    assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
+    assert return_capture["throwable"]["type"] == "Exception"

@@ -11,7 +11,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
-from ...internal.compat import stringify
 from ...internal.schema import schematize_url_operation
 from .. import trace_utils
 from ..asyncio import context_provider
@@ -89,7 +88,7 @@ def finish_request_span(request, response):
         return
 
     # default resource name
-    resource = stringify(response.status)
+    resource = str(response.status)
 
     if request.match_info.route.resource:
         # collect the resource name based on http resource type
