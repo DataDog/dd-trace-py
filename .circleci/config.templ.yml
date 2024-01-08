@@ -1091,12 +1091,14 @@ jobs:
           snapshot: true
 
   redis:
-    <<: *machine_executor
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           docker_services: 'redis rediscluster'
           pattern: 'redis$'
-          snapshot: true
 
   rediscluster:
     <<: *machine_executor
