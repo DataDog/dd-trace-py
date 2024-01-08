@@ -11,6 +11,10 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.contrib.psycopg.patch import patch as psycopg_patch
+from ddtrace.contrib.psycopg.patch import unpatch as psycopg_unpatch
+from ddtrace.contrib.sqlalchemy.patch import patch as sqlalchemy_patch
+from ddtrace.contrib.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
 from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
@@ -28,6 +32,8 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
             path_traversal_patch()
             sqli_sqlite_patch()
             json_patch()
+            psycopg_patch()
+            sqlalchemy_patch()
             oce.acquire_request(span)
             yield span
             oce.release_request()
@@ -35,6 +41,8 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
             weak_cipher_unpatch()
             sqli_sqlite_unpatch()
             json_unpatch()
+            psycopg_unpatch()
+            sqlalchemy_unpatch()
 
 
 @pytest.fixture

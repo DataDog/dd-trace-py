@@ -3,8 +3,6 @@ from typing import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ..internal.logger import get_logger
 from ..internal.utils.cache import cachedmethod
 from ..internal.utils.http import normalize_header_name
@@ -35,9 +33,7 @@ class HttpConfig(object):
             return None
 
         normalized_header_name = normalize_header_name(header_name)
-        log.debug(
-            "Checking header '%s' tracing in whitelist %s", normalized_header_name, six.viewkeys(self._header_tags)
-        )
+        log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._header_tags.keys())
         return self._header_tags.get(normalized_header_name)
 
     @property
