@@ -51,7 +51,7 @@ def _w_configure(func, instance, args, kwargs):
     original_patcher = kwargs.get("patcher", None)
     instance._dd_original_patcher = original_patcher
     if not original_patcher:
-        # no patcher, we not need to worry about ddtrace fields being overridden
+        # no patcher, we do not need to worry about ddtrace fields being overridden
         return func(*args, **kwargs)
 
     def _wrapped_patcher(record):
