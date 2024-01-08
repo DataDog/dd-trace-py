@@ -12,6 +12,7 @@ from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -108,6 +109,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     mock_metrics.reset_mock()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -331,6 +333,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -479,6 +482,7 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 def test_openai_chat_model_sync_stream(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -486,6 +490,7 @@ def test_openai_chat_model_sync_stream(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 async def test_openai_chat_model_async_stream(langchain, request_vcr):
@@ -494,6 +499,7 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
+@flaky(1735812000)
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     if sys.version_info >= (3, 10, 0):
@@ -545,6 +551,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -608,6 +615,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -643,6 +651,7 @@ def test_fake_embedding_document(langchain):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
+@flaky(1735812000)
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     if sys.version_info >= (3, 10, 0):
@@ -674,6 +683,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -952,6 +962,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1070,6 +1081,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -1093,6 +1105,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
@@ -1118,6 +1131,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
@@ -1143,6 +1157,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000)
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
@@ -1182,6 +1197,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1428,6 +1444,7 @@ def test_chat_model_logs_when_response_not_completed(
     )
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1524,6 +1541,7 @@ def test_chain_logs_when_response_not_completed(
     )
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
