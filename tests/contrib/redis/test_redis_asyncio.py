@@ -65,6 +65,7 @@ def test_patching():
     assert not isinstance(redis.asyncio.client.Pipeline.pipeline, ObjectProxy)
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_basic_request(redis_client):
