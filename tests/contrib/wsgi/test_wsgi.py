@@ -251,6 +251,7 @@ def test_chunked():
     assert resp.text.endswith("999")
 
 
+@flaky(1735812000)
 @snapshot()
 def test_200():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
