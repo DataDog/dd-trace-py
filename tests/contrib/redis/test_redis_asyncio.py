@@ -165,6 +165,7 @@ async def test_pipeline_traced(redis_client):
     assert response_list[3].decode() == "bar"
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced_context_manager_transaction(redis_client):

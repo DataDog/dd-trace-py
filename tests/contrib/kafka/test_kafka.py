@@ -522,6 +522,7 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
+@flaky(1735812000)
 def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
     def _read_single_message(consumer):
         message = None

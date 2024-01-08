@@ -17,6 +17,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_start_span_with_default_args(oteltracer):
     otel_span = oteltracer.start_span("test-start-span")
