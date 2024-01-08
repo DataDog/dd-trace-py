@@ -417,8 +417,8 @@ class TelemetryTestSession(object):
     def _request(self, method, url):
         # type: (str, str) -> Tuple[int, bytes]
         conn = self.create_connection()
-        MAX_RETRY = 5
-        exp_time = 2
+        MAX_RETRY = 9
+        exp_time = 1.618034
         for try_nb in range(MAX_RETRY):
             try:
                 conn.request(method, url)
@@ -474,8 +474,8 @@ def test_agent_session(telemetry_writer, request):
     requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
-    MAX_RETRY = 5
-    exp_time = 2
+    MAX_RETRY = 9
+    exp_time = 1.618034
     for try_nb in range(MAX_RETRY):
         try:
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
