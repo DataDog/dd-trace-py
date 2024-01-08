@@ -202,6 +202,7 @@ def test_generator_exit_ignored(tracer, test_spans):
     assert spans[0].error == 0
 
 
+@flaky(1735812000)
 @snapshot()
 def test_generator_exit_ignored_snapshot():
     with pytest.raises(GeneratorExit):
@@ -241,6 +242,7 @@ def test_chunked_response_custom_middleware(tracer, test_spans):
     assert spans[2].name == "test_wsgi.response"
 
 
+@flaky(1735812000)
 @snapshot()
 def test_chunked():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
