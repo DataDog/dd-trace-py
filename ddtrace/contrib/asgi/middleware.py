@@ -173,10 +173,6 @@ class TraceMiddleware:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
-                elif key == b"cookie":
-                    c = cookies.SimpleCookie(bytes_to_str(value))
-                    request_cookies = {k: v.value for k, v in c.items()}
-
                     break
             method = scope.get("method")
             server = scope.get("server")
