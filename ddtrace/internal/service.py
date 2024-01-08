@@ -3,7 +3,6 @@ import enum
 import typing  # noqa:F401
 
 import attr
-import six
 
 from . import forksafe
 
@@ -29,7 +28,7 @@ class ServiceStatusError(RuntimeError):
 
 
 @attr.s(eq=False)
-class Service(six.with_metaclass(abc.ABCMeta)):
+class Service(metaclass=abc.ABCMeta):
     """A service that can be started or stopped."""
 
     status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
@@ -100,7 +99,8 @@ class Service(six.with_metaclass(abc.ABCMeta)):
         """
 
     def join(
-        self, timeout=None  # type: typing.Optional[float]
+        self,
+        timeout=None,  # type: typing.Optional[float]
     ):
         # type: (...) -> None
         """Join the service once stopped."""

@@ -84,8 +84,10 @@ class Signal(abc.ABC):
     def _enrich_args(self, retval, exc_info, duration):
         _locals = list(self.args or _safety.get_args(self.frame))
         _locals.append(("@duration", duration / 1e6))  # milliseconds
-        if exc_info[1] is None:
-            _locals.append(("@return", retval))
+
+        exc = exc_info[1]
+        _locals.append(("@return", retval) if exc is None else ("@exception", exc))
+
         return dict(_locals)
 
     @abc.abstractmethod
