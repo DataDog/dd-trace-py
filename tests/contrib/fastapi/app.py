@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks
 from fastapi import FastAPI
 from fastapi import Header
 from fastapi import HTTPException
+from fastapi import WebSocket
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -36,9 +37,9 @@ def get_app():
     async_condition = asyncio.Condition()
 
     @app.websocket("/ws")
-    async def websocket(websocket):
+    async def websocket(websocket: WebSocket):
         await websocket.accept()
-        await websocket.send_json({"test": "Hello World"})
+        await websocket.send_json({"test": "Hello WebSocket"})
         await websocket.close()
 
     @app.get("/")

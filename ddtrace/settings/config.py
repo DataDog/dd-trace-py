@@ -412,7 +412,7 @@ class Config(object):
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.trace_asgi_websocket = os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False)
+        self._trace_asgi_websocket = os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False)
 
         self._unparsed_service_mapping = os.getenv("DD_SERVICE_MAPPING", default="")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)

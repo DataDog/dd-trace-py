@@ -124,6 +124,7 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
+        "_trace_asgi_websocket",
         "_trace_rate_limit",
         "_trace_sampling_rules",
         "_trace_sample_rate",
@@ -156,7 +157,6 @@ def override_global_config(values):
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
-
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
