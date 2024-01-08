@@ -14,7 +14,7 @@ from tests.webclient import Client
 
 SERVER_PORT = 8000
 # these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
-# db.name behaves unreliably for some of these tests
+# FIXME: db.name behaves unreliably for some of these tests
 SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
 
 
