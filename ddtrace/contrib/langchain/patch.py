@@ -822,7 +822,7 @@ def patch():
         def wrap_output_parser(module, parser):
             # Ensure not double patched
             if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
-                wrap(module, "%s.parse" % parser, taint_paser_output)
+                wrap(module, "%s.parse" % parser, taint_parser_output)
 
         try:
             with_agent_output_parser(wrap_output_parser)
@@ -879,7 +879,7 @@ def taint_outputs(instance, inputs, outputs):
         _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
 
 
-def taint_paser_output(func, instance, args, kwargs):
+def taint_parser_output(func, instance, args, kwargs):
     result = func(*args, **kwargs)
     try:
         try:
@@ -897,7 +897,7 @@ def taint_paser_output(func, instance, args, kwargs):
                 values = result.return_values
                 values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain taint_paser_output. {}".format(e))
+        _set_iast_error_metric("IAST propagation error. langchain taint_parser_output. {}".format(e))
 
     return result
 
