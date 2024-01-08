@@ -10,7 +10,6 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -479,7 +478,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
 
 @flaky(1706677200)
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # Ensure telemetry writer is initialized to send periodic events
@@ -503,7 +502,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
 
 @flaky(1706677200)
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
     with override_global_config(dict(_telemetry_dependency_collection=False)):
