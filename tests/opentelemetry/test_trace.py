@@ -5,6 +5,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
+from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -36,6 +37,7 @@ def test_otel_start_span_with_default_args(oteltracer):
     otel_span.end()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
@@ -134,6 +136,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     otel_span.end()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [

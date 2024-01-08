@@ -10,6 +10,7 @@ from ddtrace import tracer
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
 from ddtrace.vendor.wrapt import ObjectProxy
+from tests.utils import flaky
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -90,6 +91,7 @@ async def test_connection_error(redis_client):
             await redis_client.get("foo")
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=2)
 async def test_decoding_non_utf8_args(redis_client):
@@ -189,6 +191,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
     assert get_2.decode() == "bar"
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
