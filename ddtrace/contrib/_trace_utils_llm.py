@@ -27,22 +27,26 @@ class BaseLLMIntegration:
         # object that is strongly linked with configuration.
         self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
         self._config = config
-        self._log_writer = V2LogWriter(
-            site=site,
-            api_key=api_key,
-            interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-            timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
-        )
-        self._llmobs_writer = LLMObsWriter(
-            site=site,
-            api_key=api_key,
-            app_key=app_key,
-            interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-            timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
-        )
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-        self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
-        self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
+        self._log_writer = None
+        self._llmobs_writer = None
+        if config.logs_enabled:
+            self._log_writer = V2LogWriter(
+                site=site,
+                api_key=api_key,
+                interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+                timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            )
+            self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+        if config.llmobs_enabled:
+            self._llmobs_writer = LLMObsWriter(
+                site=site,
+                api_key=api_key,
+                app_key=app_key,
+                interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+                timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            )
+            self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
 
     def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
@@ -61,10 +65,13 @@ class BaseLLMIntegration:
         return self._llmobs_pc_sampler.sample(span)
 
     def start_log_writer(self) -> None:
+        if not self._config.logs_enabled:
+            return
         self._log_writer.start()
 
-    def start_llm_writer(self):
-        # type: (...) -> None
+    def start_llm_writer(self) -> None:
+        if not self._config.llmobs_enabled:
+            return
         self._llmobs_writer.start()
 
     @abc.abstractmethod
