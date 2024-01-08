@@ -202,7 +202,7 @@ def test_generator_exit_ignored(tracer, test_spans):
     assert spans[0].error == 0
 
 
-@snapshot(wait_for_num_traces=1)
+@snapshot()
 def test_generator_exit_ignored_snapshot():
     with pytest.raises(GeneratorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -241,7 +241,7 @@ def test_chunked_response_custom_middleware(tracer, test_spans):
     assert spans[2].name == "test_wsgi.response"
 
 
-@snapshot(wait_for_num_traces=1)
+@snapshot()
 def test_chunked():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     resp = app.get("/chunked")
@@ -251,7 +251,7 @@ def test_chunked():
     assert resp.text.endswith("999")
 
 
-@snapshot(wait_for_num_traces=1)
+@snapshot()
 def test_200():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     resp = app.get("/")
@@ -266,10 +266,7 @@ def test_500_py3():
         app.get("/error")
 
 
-@snapshot(
-    ignores=["meta.error.stack"],
-    wait_for_num_traces=1,
-)
+@snapshot(ignores=["meta.error.stack"])
 def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
     # a BaseException is raised.
@@ -278,10 +275,7 @@ def test_base_exception_in_wsgi_app_py3():
         app.get("/baseException")
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware",
-    wait_for_num_traces=1,
-)
+@pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
@@ -293,7 +287,6 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 @pytest.mark.snapshot(
     token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500",
     ignores=["meta.error.stack", "meta.error.type"],
-    wait_for_num_traces=1,
 )
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
