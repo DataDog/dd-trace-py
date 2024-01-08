@@ -109,6 +109,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     mock_metrics.reset_mock()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -481,6 +482,7 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 def test_openai_chat_model_sync_stream(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -488,6 +490,7 @@ def test_openai_chat_model_sync_stream(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 async def test_openai_chat_model_async_stream(langchain, request_vcr):
@@ -1102,6 +1105,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):

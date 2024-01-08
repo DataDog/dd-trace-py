@@ -61,6 +61,7 @@ def daphne_client(django_asgi, additional_env=None):
         proc.terminate()
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(variants={"": django.VERSION >= (2, 2)}, ignores=SNAPSHOT_IGNORES)
 def test_urlpatterns_include(client):

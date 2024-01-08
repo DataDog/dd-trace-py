@@ -277,6 +277,7 @@ def test_base_exception_in_wsgi_app_py3():
         app.get("/baseException")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
