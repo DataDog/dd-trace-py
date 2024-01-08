@@ -11,11 +11,11 @@ from tests.appsec.appsec_utils import flask_server
 @pytest.mark.parametrize(
     "orm, xfail",
     [
-        ("tortoise", True),
-        ("sqlite", False),
-        ("sqlalchemy", False),
-        ("pony", False),
         ("peewee", False),
+        ("pony", False),
+        ("sqlalchemy", False),
+        ("sqlite", False),
+        ("tortoise", True),
     ],
 )
 def test_iast_flask_orm(orm, xfail):
