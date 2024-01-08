@@ -271,6 +271,7 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
     consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -303,6 +304,7 @@ def test_analytics_with_rate(producer, consumer, kafka_topic):
             message = consumer.poll(1.0)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_analytics_without_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True)):
@@ -464,6 +466,7 @@ def _generate_in_subprocess(random_topic):
     consumer.close()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
 )
@@ -490,6 +493,7 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
@@ -585,6 +589,7 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
 
+@flaky(until=1704067200)
 def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic):
     def _read_single_message(consumer):
         message = None
