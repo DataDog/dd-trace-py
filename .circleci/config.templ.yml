@@ -149,6 +149,8 @@ commands:
               << parameters.snapshot >>
           steps:
             - setup_riot
+            - start_docker_services:
+                services: << parameters.docker_services >>
             - when:
                 condition:
                   << parameters.wait >>
