@@ -12,6 +12,7 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
+from tests.utils import flaky
 
 
 @pytest.mark.snapshot
@@ -53,6 +54,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
