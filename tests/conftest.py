@@ -1,7 +1,6 @@
 import ast
 import base64
 import contextlib
-import http.client
 import importlib
 from itertools import product
 import json
@@ -424,9 +423,9 @@ class TelemetryTestSession(object):
                 conn.request(method, url)
                 r = conn.getresponse()
                 return r.status, r.read()
-            except (http.client.RemoteDisconnected, ConnectionRefusedError):
+            except BaseException as err:
                 if try_nb == MAX_RETRY - 1:
-                    raise
+                    raise RuntimeError("Failed to connect to test agent") from err
                 time.sleep(pow(exp_time, try_nb))
             finally:
                 conn.close()
@@ -481,7 +480,9 @@ def test_agent_session(telemetry_writer, request):
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
             conn.getresponse()
             break
-        except (http.client.RemoteDisconnected, ConnectionRefusedError):
+        except BaseException as err:
+            if try_nb == MAX_RETRY - 1:
+                raise RuntimeError("Failed to connect to test agent") from err
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
