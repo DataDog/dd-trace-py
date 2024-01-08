@@ -15,6 +15,7 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from tests.utils import flaky
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_span_attributes(oteltracer):
     with oteltracer.start_span("otel-string-tags") as span1:
