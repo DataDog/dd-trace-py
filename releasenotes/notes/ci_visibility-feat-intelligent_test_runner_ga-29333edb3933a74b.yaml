@@ -1,5 +1,5 @@
 ---
-features:
+upgrades:
   - |
-    CI Visibility: Intelligent Test Runner is now GA, and can be disabled via DD_CIVISIBILITY_ITR_ENABLED. The Datadog
-    API (configured via the Datadog dashboard) now determines whether code coverage and test skipping are enabled.
+    CI Visibility: DD_CIVISIBILITY_ITR_ENABLED now defaluts to true, and the Datadog API (configured via the
+    Datadog dashboard) now determines whether code coverage and test skipping are enabled.
