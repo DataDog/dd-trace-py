@@ -13,10 +13,10 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import flatten_key_value
 
 
 if TYPE_CHECKING:
-    from typing import Callable  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
@@ -160,7 +160,8 @@ class Span(OtelSpan):
             _ddmap(self._ddspan, ddattribute, value)
             return
 
-        self._ddspan.set_tag(key, value)
+        flattened = flatten_key_value(key, value)
+        self._ddspan.set_tags(flattened)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None

@@ -19,6 +19,8 @@ CMD_MAX_LEN = 1000
 
 T = TypeVar("T")
 
+IterableAttributeValue = Union[list, tuple, set, frozenset]
+
 log = logging.getLogger(__name__)
 
 
@@ -157,3 +159,19 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
             break
 
     return " ".join(out)
+
+
+def flatten_key_value(root_key, value):
+    # type: (str, Any) -> Dict[str, str]
+    """Flattens attributes"""
+    if not isinstance(value, IterableAttributeValue):
+        return {root_key: value}
+
+    flattened = dict()
+    for i, item in enumerate(value):
+        key = f"{root_key}.{i}"
+        if isinstance(item, IterableAttributeValue):
+            flattened.update(flatten_key_value(key, item))
+        else:
+            flattened[key] = item
+    return flattened

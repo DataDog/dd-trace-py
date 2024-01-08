@@ -32,6 +32,13 @@ def test_otel_span_attributes(oteltracer):
         span2.set_attributes({"tag1": 1, "tag2": 2, "tag3": 3.1415})
         span2.end()
 
+    with oteltracer.start_span("otel-list-tags") as span:
+        span.set_attribute("moon1", [1, 2, 3])
+        span.set_attribute("moon", [True, 2, ["hello", 4, ["5", "6asda"]]])
+        span.set_attribute("sunk", (1, 2, 3))
+        span.set_attribute("teardrop68", {1, 2, 3})
+        span.set_attribute("gamer421", frozenset({1, 2, 3}))
+
     # Attributes should not be set on a closed span
     for span in [span1, span2]:
         span.set_attribute("should_not_be_set", "attributes can not be added after a span is ended")

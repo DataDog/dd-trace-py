@@ -16,6 +16,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
@@ -94,6 +95,24 @@ def test_parse_env_tags(tag_str, expected_tags, error_calls):
             log.error.assert_has_calls(error_calls)
         else:
             assert log.error.call_count == 0, log.error.call_args_list
+
+
+@pytest.mark.parametrize(
+    "key,value,expected",
+    [
+        ("a", "1", {"a": "1"}),
+        ("a", set("0"), {"a.0": "0"}),
+        ("a", ["0", "1", "2", "3"], {"a.0": "0", "a.1": "1", "a.2": "2", "a.3": "3"}),
+        ("a", ("0", "1", "2", "3"), {"a.0": "0", "a.1": "1", "a.2": "2", "a.3": "3"}),
+        (
+            "a",
+            ["0", {"1"}, ("2",), ["3", "4", ["5"]]],
+            {"a.0": "0", "a.1.0": "1", "a.2.0": "2", "a.3.0": "3", "a.3.1": "4", "a.3.2.0": "5"},
+        ),
+    ],
+)
+def test_flatten_key_value_pairs(key, value, expected):
+    assert flatten_key_value(key, value) == expected
 
 
 def test_no_states():
