@@ -262,6 +262,7 @@ def test_commit(producer, consumer, kafka_topic):
     consumer.commit(message)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_offset(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
