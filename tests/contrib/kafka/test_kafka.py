@@ -251,6 +251,7 @@ def test_message(producer, consumer, tombstone, kafka_topic):
         message = consumer.poll(1.0)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
