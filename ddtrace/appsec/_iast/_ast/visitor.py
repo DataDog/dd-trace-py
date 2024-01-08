@@ -8,8 +8,6 @@ from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 
-from six import iteritems
-
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
@@ -150,7 +148,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
-        for _, v in iteritems(self.excluded_functions):
+        for _, v in self.excluded_functions.items():
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
