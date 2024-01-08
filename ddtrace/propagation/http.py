@@ -2,6 +2,7 @@ import re
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -635,7 +636,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(tp):
-        # type: (str) -> Tuple[int, int, int]
+        # type: (str) -> Tuple[int, int, Literal[0,1]]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -674,7 +675,8 @@ class _TraceContext:
         # there's currently only one trace flag, which denotes sampling priority
         # was set to keep "01" or drop "00"
         # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-        sampling_priority = trace_flags & 0x1
+        # if statement is required to cast traceflags to a Literal
+        sampling_priority = 1 if trace_flags & 0x1 else 0  # type: Literal[0, 1]
 
         return trace_id, span_id, sampling_priority
 
@@ -747,15 +749,22 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
+            trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
-        origin = None
+
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
+    @staticmethod
+    def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
+        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        if meta is None:
+            meta = {}
+        origin = None
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -778,8 +787,9 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin = tracestate_values
                     meta.update(other_propagated_tags.items())
 
-                    sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
                 else:
+                    sampling_priority = trace_flag
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
         return Context(

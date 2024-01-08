@@ -136,7 +136,6 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     otel_span.end()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [
