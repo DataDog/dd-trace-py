@@ -111,7 +111,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     >>> needs_testrun("foobar", 6412)
     True
     """
-    if "itr:noskip" in get_commit_message(sha):
+    if "itr:noskip" in get_commit_message(sha).lower():
         return True
     try:
         patterns = get_patterns(suite)
