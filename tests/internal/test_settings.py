@@ -16,6 +16,7 @@ def _base_rc_config(cfg):
         "tracing_sampling_rate": None,
         "log_injection_enabled": None,
         "tracing_header_tags": None,
+        "tracing_tags": None,
         "data_streams_enabled": None,
     }
     lib_config.update(cfg)
@@ -95,6 +96,24 @@ def _deleted_rc_config():
             "code": {"trace_http_header_tags": {"header": "value"}},
             "expected": {"trace_http_header_tags": {"header": "value"}},
             "expected_source": {"trace_http_header_tags": "code"},
+        },
+        {
+            "env": {"DD_TAGS": "key:value,key2:value2"},
+            "expected": {"tags": {"key": "value", "key2": "value2"}},
+            "expected_source": {"tags": "env_var"},
+        },
+        {
+            "env": {"DD_TAGS": "key:value,key2:value2"},
+            "code": {"tags": {"k": "v", "k2": "v2"}},
+            "expected": {"tags": {"k": "v", "k2": "v2"}},
+            "expected_source": {"tags": "code"},
+        },
+        {
+            "env": {"DD_TAGS": "key:value,key2:value2"},
+            "code": {"tags": {"k": "v", "k2": "v2"}},
+            "rc": {"tracing_tags": ["key1:val2", "key2:val3"]},
+            "expected": {"tags": {"key1": "val2", "key2": "val3"}},
+            "expected_source": {"tags": "remote_config"},
         },
     ],
 )
@@ -177,3 +196,31 @@ assert span.get_metric("_dd.rule_psr") == 0.3
         env=env,
     )
     assert status == 0, err.decode("utf-8")
+
+
+def test_remoteconfig_custom_tags(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TAGS": "team:apm"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from tests.internal.test_settings import _base_rc_config
+
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "apm"
+
+config._handle_remoteconfig(_base_rc_config({"tracing_tags": ["team:onboarding"]}))
+
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "onboarding", span._meta
+
+config._handle_remoteconfig(_base_rc_config({"tracing_tags": None}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "apm"
+        """,
+        env=env,
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
