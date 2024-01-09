@@ -196,9 +196,17 @@ venv = Venv(
                 "tortoise-orm": latest,
                 "peewee": latest,
                 "requests": latest,
-                "six": ">=1.9.0",
+                "six": ">=1.12.0",
                 "envier": "==0.5.0",
                 "cattrs": "<23.1.1",
+                "ddsketch": ">=2.0.1",
+                "protobuf": ">=3",
+                "attrs": ">=20",
+                "typing_extensions": latest,
+                "xmltodict": ">=0.12",
+                "opentelemetry-api": ">=1",
+                "opentracing": ">=2.0.0",
+                "bytecode": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests

@@ -15,7 +15,7 @@ from tests.appsec.appsec_utils import flask_server
         ("pony", False),
         ("sqlalchemy", False),
         ("sqlite", False),
-        ("tortoise", True),
+        ("tortoise", True), # TODO: Tortoise ORM is not yet supported
     ],
 )
 def test_iast_flask_orm(orm, xfail):
