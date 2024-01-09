@@ -1,12 +1,19 @@
 import re
+import sys
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
-from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
+
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # noqa:F401
+else:
+    from typing_extensions import Literal  # noqa:F401
+
 
 from ddtrace import config
 from ddtrace.tracing._span_link import SpanLink
