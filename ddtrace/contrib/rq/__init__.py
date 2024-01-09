@@ -194,7 +194,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             try:
                 return func(*args, **kwargs)
             finally:
-                # Job status is returns None when ttl=0
+                # get_status() returns None when ttl=0
                 span.set_tag_str("job.status", job.get_status() or "None")
                 span.set_tag_str("job.origin", job.origin)
                 if job.is_failed:
