@@ -524,8 +524,8 @@ def test_span_link_v05_encoding():
     assert b"_dd.span_links" in encoded_span_meta
     assert (
         encoded_span_meta[b"_dd.span_links"]
-        == b'[{"trace_id": 1, "span_id": 2, "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
-        b'"key2.0": "True", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
+        == b'[{"trace_id": 1, "span_id": 2, "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
+        b'"link_kind", "key2.0": "True", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
         b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
