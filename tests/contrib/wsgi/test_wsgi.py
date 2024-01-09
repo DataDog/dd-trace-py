@@ -6,6 +6,7 @@ from webtest import TestApp
 
 from ddtrace import config
 from ddtrace.contrib.wsgi import wsgi
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -250,6 +251,7 @@ def test_chunked():
     assert resp.text.endswith("999")
 
 
+@flaky(1735812000)
 @snapshot()
 def test_200():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -258,6 +260,7 @@ def test_200():
     assert resp.status_int == 200
 
 
+@flaky(1735812000)
 @snapshot(ignores=["meta.error.stack"])
 def test_500_py3():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -265,6 +268,7 @@ def test_500_py3():
         app.get("/error")
 
 
+@flaky(1735812000)
 @snapshot(ignores=["meta.error.stack"])
 def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
@@ -274,6 +278,7 @@ def test_base_exception_in_wsgi_app_py3():
         app.get("/baseException")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
@@ -283,6 +288,7 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
     assert resp.status_int == 200
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(
     token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500", ignores=["meta.error.stack", "meta.error.type"]
 )
