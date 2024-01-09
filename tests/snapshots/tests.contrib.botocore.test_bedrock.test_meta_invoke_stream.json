@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c3a0e00000000",
+      "bedrock.request.max_tokens": "5",
+      "bedrock.request.model": "llama2-13b-chat-v1",
+      "bedrock.request.model_provider": "meta",
+      "bedrock.request.prompt": "What does 'lorem ipsum' mean?",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "length",
+      "bedrock.response.choices.0.text": "\\n\\nThe text you",
+      "bedrock.response.duration": "267",
+      "bedrock.response.id": "e8e5abc0-89f8-48c2-b9ed-da1fe91a3deb",
+      "bedrock.usage.completion_tokens": "5",
+      "bedrock.usage.prompt_tokens": "10",
+      "language": "python",
+      "runtime-id": "9803771cf92e4101a0c456c37681410b"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 11321
+    },
+    "duration": 2579000,
+    "start": 1704737294512582000
+  }]]

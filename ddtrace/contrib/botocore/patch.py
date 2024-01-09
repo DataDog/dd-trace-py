@@ -62,19 +62,11 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "llmobs_enabled": asbool(os.getenv("DD_BEDROCK_LLMOBS_ENABLED", False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "llmobs_prompt_completion_sample_rate": float(
-            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
         "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
-        # FIXME: log_prompt_completion_sample_rate is a placeholder.
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "_api_key": os.getenv("DD_API_KEY"),
-        "_app_key": os.getenv("DD_APP_KEY"),
     },
 )
 
@@ -95,24 +87,10 @@ def patch():
         config=config.botocore,
         stats_url=get_stats_url(),
         site=ddsite,
-        api_key=config.botocore._api_key,
-        app_key=config.botocore._app_key,
+        api_key=os.getenv("DD_API_KEY", ""),
+        app_key=os.getenv("DD_APP_KEY", ""),
     )
     botocore._datadog_integration = integration
-
-    if config.botocore.llmobs_enabled:
-        if not config.botocore._api_key:
-            raise ValueError(
-                "DD_API_KEY is required for sending LLMObs data from the Bedrock integration."
-                "To use the OpenAI integration without LLMObs, set `DD_BEDROCK_LLMOBS_ENABLED=false`."
-            )
-        if not config.botocore._app_key:
-            raise ValueError(
-                "DD_APP_KEY is required for sending LLMObs payloads from the Bedrock integration."
-                "To use the OpenAI integration without LLMObs, set `DD_BEDROCK_LLMOBS_ENABLED=false`."
-            )
-        integration.start_llm_writer()
-
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)

@@ -1,0 +1,72 @@
+interactions:
+- request:
+    body: '{"prompt": "What does ''lorem ipsum'' mean?", "temperature": 0.9, "top_p":
+      1.0, "max_gen_len": 5}'
+    headers:
+      Content-Length:
+      - '95'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgwNzU4Wg==
+      X-Amzn-Bedrock-Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NGE4Zjc5YTQtNDQ5Zi00Yjg3LWJjODktNTVkOGUzZTEyOWVl
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/meta.llama2-13b-chat-v1/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAAA3wAAAEuPia/5CzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5Sm5aVzVsY21GMGFXOXVJ
+        am9pWEc0aUxDSndjbTl0Y0hSZmRHOXJaVzVmWTI5MWJuUWlPakV3TENKblpXNWxjbUYwYVc5dVgz
+        UnZhMlZ1WDJOdmRXNTBJam94TENKemRHOXdYM0psWVhOdmJpSTZiblZzYkgwPSJ9BPJ4fgAAAOMA
+        AABL61j6fgs6ZXZlbnQtdHlwZQcABWNodW5rDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlvbi9q
+        c29uDTptZXNzYWdlLXR5cGUHAAVldmVudHsiYnl0ZXMiOiJleUpuWlc1bGNtRjBhVzl1SWpvaVhH
+        NGlMQ0p3Y205dGNIUmZkRzlyWlc1ZlkyOTFiblFpT201MWJHd3NJbWRsYm1WeVlYUnBiMjVmZEc5
+        clpXNWZZMjkxYm5RaU9qSXNJbk4wYjNCZmNtVmhjMjl1SWpwdWRXeHNmUT09In35jkU5AAAA4wAA
+        AEvrWPp+CzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pz
+        b24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5Sm5aVzVsY21GMGFXOXVJam9pVkdo
+        bElpd2ljSEp2YlhCMFgzUnZhMlZ1WDJOdmRXNTBJanB1ZFd4c0xDSm5aVzVsY21GMGFXOXVYM1J2
+        YTJWdVgyTnZkVzUwSWpvekxDSnpkRzl3WDNKbFlYTnZiaUk2Ym5Wc2JIMD0ifVPr0OMAAADnAAAA
+        Sx7YXL4LOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNv
+        bg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKblpXNWxjbUYwYVc5dUlqb2lJSFJs
+        ZUhRaUxDSndjbTl0Y0hSZmRHOXJaVzVmWTI5MWJuUWlPbTUxYkd3c0ltZGxibVZ5WVhScGIyNWZk
+        RzlyWlc1ZlkyOTFiblFpT2pRc0luTjBiM0JmY21WaGMyOXVJanB1ZFd4c2ZRPT0ifc/DYj4AAAGT
+        AAAAS9nWyRQLOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24v
+        anNvbg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKblpXNWxjbUYwYVc5dUlqb2lJ
+        SGx2ZFNJc0luQnliMjF3ZEY5MGIydGxibDlqYjNWdWRDSTZiblZzYkN3aVoyVnVaWEpoZEdsdmJs
+        OTBiMnRsYmw5amIzVnVkQ0k2TlN3aWMzUnZjRjl5WldGemIyNGlPaUpzWlc1bmRHZ2lMQ0poYldG
+        NmIyNHRZbVZrY205amF5MXBiblp2WTJGMGFXOXVUV1YwY21samN5STZleUpwYm5CMWRGUnZhMlZ1
+        UTI5MWJuUWlPakV3TENKdmRYUndkWFJVYjJ0bGJrTnZkVzUwSWpvMUxDSnBiblp2WTJGMGFXOXVU
+        R0YwWlc1amVTSTZNalkzTENKbWFYSnpkRUo1ZEdWTVlYUmxibU41SWpveE56TjlmUT09In0BemwG
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Mon, 08 Jan 2024 18:07:58 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - e8e5abc0-89f8-48c2-b9ed-da1fe91a3deb
+    status:
+      code: 200
+      message: OK
+version: 1

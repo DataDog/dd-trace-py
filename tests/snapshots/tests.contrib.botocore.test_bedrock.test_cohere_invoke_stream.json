@@ -1,0 +1,47 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c3d5d00000000",
+      "bedrock.request.max_tokens": "10",
+      "bedrock.request.model": "command-light-text-v14",
+      "bedrock.request.model_provider": "cohere",
+      "bedrock.request.n": "2",
+      "bedrock.request.prompt": "What does 'lorem ipsum' mean?",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.stream": "False",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_k": "0",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.0.id": "0aac3131-f5e2-459b-a5a2-1482e538c28f",
+      "bedrock.response.choices.0.text": " The Latin phrase *lorum ipsum* arguably",
+      "bedrock.response.choices.1.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.1.id": "5cbdcc31-e6f8-4bd4-a1de-6ea9d3c41518",
+      "bedrock.response.choices.1.text": " Lorem ipsum is a Latin phrase, which",
+      "bedrock.response.duration": "346",
+      "bedrock.response.id": "78be4d3a-24f5-4373-8cd3-5694e1430916",
+      "bedrock.usage.completion_tokens": "20",
+      "bedrock.usage.prompt_tokens": "20",
+      "language": "python",
+      "runtime-id": "5fae717bb41e4e75bb78b4443e234992"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 0.6666666666666667,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 13549
+    },
+    "duration": 789435000,
+    "start": 1704738141690927000
+  }]]
