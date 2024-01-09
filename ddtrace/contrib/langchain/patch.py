@@ -68,9 +68,6 @@ config._add(
 class _LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def __init__(self, config, stats_url, site, api_key):
-        super().__init__(config, stats_url, site, api_key)
-
     def _set_base_span_tags(self, span, interface_type="", provider=None, model=None, api_key=None):
         # type: (Span, str, Optional[str], Optional[str], Optional[str]) -> None
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
@@ -125,7 +122,7 @@ class _LangChainIntegration(BaseLLMIntegration):
 
     def record_usage(self, span, usage):
         # type: (Span, Dict[str, Any]) -> None
-        if not usage or self._config.metrics_enabled is False:
+        if not usage or self.metrics_enabled is False:
             return
         for token_type in ("prompt", "completion", "total"):
             num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
@@ -743,27 +740,12 @@ def patch():
         return
     langchain._datadog_patch = True
 
-    #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
-    ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", config.langchain._api_key)
-
     Pin().onto(langchain)
     integration = _LangChainIntegration(
         config=config.langchain,
         stats_url=get_stats_url(),
-        site=ddsite,
-        api_key=ddapikey,
     )
     langchain._datadog_integration = integration
-
-    if config.langchain.logs_enabled:
-        if not ddapikey:
-            raise ValueError(
-                "DD_API_KEY is required for sending logs from the LangChain integration."
-                " The LangChain integration can be disabled by setting the ``DD_TRACE_LANGCHAIN_ENABLED``"
-                " environment variable to False."
-            )
-        integration.start_log_writer()
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
