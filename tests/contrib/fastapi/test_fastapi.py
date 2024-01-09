@@ -620,12 +620,12 @@ def test_table_query_snapshot(snapshot_client):
 #             assert span.name == "fastapi.request"
 
 
-# def test_dont_trace_websocket_by_default(client, test_spans):
-#     with client.websocket_connect("/ws") as websocket:
-#         data = websocket.receive_json()
-#         assert data == {"test": "Hello WebSocket"}
-#         spans = test_spans.pop_traces()
-#         assert len(spans) == 0
+def test_dont_trace_websocket_by_default(client, test_spans):
+    with client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_json()
+        assert data == {"test": "Hello WebSocket"}
+        spans = test_spans.pop_traces()
+        assert len(spans) == 0
 
 
 def test_background_task(client, tracer, test_spans):
