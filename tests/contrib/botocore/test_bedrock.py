@@ -1,6 +1,5 @@
 import json
 import os
-import pytest
 
 import mock
 import pytest
@@ -13,7 +12,6 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import override_global_config
 
 
 _MODELS = {
@@ -25,41 +23,51 @@ _MODELS = {
 }
 
 _REQUEST_BODIES = {
-    "ai21": json.dumps({
-        "prompt": "Explain like I'm a five-year old: what is a neural network?",
-        "temperature": 0.9,
-        "topP": 1.0,
-        "maxTokens": 10,
-        "stopSequences": [],
-    }),
-    "amazon": json.dumps({
-        "inputText": "Command: can you explain what Datadog is to someone not in the tech industry?",
-        "textGenerationConfig": {"maxTokenCount": 50, "stopSequences": [], "temperature": 0, "topP": 0.9},
-    }),
-    "anthropic": json.dumps({
-        "prompt": "\n\nHuman: %s\n\nAssistant: What makes you better than Chat-GPT or LLAMA?",
-        "temperature": 0.9,
-        "top_p": 1,
-        "top_k": 250,
-        "max_tokens_to_sample": 50,
-        "stop_sequences": ["\n\nHuman:"],
-    }),
-    "cohere": json.dumps({
-        "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-        "temperature": 0.9,
-        "p": 1.0,
-        "k": 0,
-        "max_tokens": 10,
-        "stop_sequences": [],
-        "stream": False,
-        "num_generations": 1,
-    }),
-    "meta": json.dumps({
-        "prompt": "What does 'lorem ipsum' mean?",
-        "temperature": 0.9,
-        "top_p": 1.0,
-        "max_gen_len": 60,
-    }),
+    "ai21": json.dumps(
+        {
+            "prompt": "Explain like I'm a five-year old: what is a neural network?",
+            "temperature": 0.9,
+            "topP": 1.0,
+            "maxTokens": 10,
+            "stopSequences": [],
+        }
+    ),
+    "amazon": json.dumps(
+        {
+            "inputText": "Command: can you explain what Datadog is to someone not in the tech industry?",
+            "textGenerationConfig": {"maxTokenCount": 50, "stopSequences": [], "temperature": 0, "topP": 0.9},
+        }
+    ),
+    "anthropic": json.dumps(
+        {
+            "prompt": "\n\nHuman: %s\n\nAssistant: What makes you better than Chat-GPT or LLAMA?",
+            "temperature": 0.9,
+            "top_p": 1,
+            "top_k": 250,
+            "max_tokens_to_sample": 50,
+            "stop_sequences": ["\n\nHuman:"],
+        }
+    ),
+    "cohere": json.dumps(
+        {
+            "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
+            "temperature": 0.9,
+            "p": 1.0,
+            "k": 0,
+            "max_tokens": 10,
+            "stop_sequences": [],
+            "stream": False,
+            "num_generations": 1,
+        }
+    ),
+    "meta": json.dumps(
+        {
+            "prompt": "What does 'lorem ipsum' mean?",
+            "temperature": 0.9,
+            "top_p": 1.0,
+            "max_gen_len": 60,
+        }
+    ),
 }
 
 
@@ -93,6 +101,7 @@ def request_vcr():
 def botocore():
     patch()
     import botocore
+
     yield botocore
     unpatch()
 
@@ -100,38 +109,28 @@ def botocore():
 @pytest.fixture
 def boto3(botocore):
     import boto3
+
     yield boto3
 
 
 @pytest.fixture
-def mock_tracer():
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    yield mock_tracer
-
-
-@pytest.fixture
-def ddtrace_config():
-    return {}
-
-
-@pytest.fixture
-def bedrock_client(boto3, botocore, request_vcr, ddtrace_config):
-    with override_global_config(ddtrace_config):
-        session = boto3.Session(
-            profile_name="601427279990_account-admin",
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-            aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-            region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-        )
-        bedrock_client = session.client("bedrock-runtime")
-        yield bedrock_client
+def bedrock_client(boto3, botocore, request_vcr):
+    session = boto3.Session(
+        profile_name="601427279990_account-admin",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+    )
+    bedrock_client = session.client("bedrock-runtime")
+    yield bedrock_client
 
 
 class TestBedrockConfig(SubprocessTestCase):
     def setUp(self):
         patch()
         import boto3
+
         self.session = boto3.Session(
             profile_name="601427279990_account-admin",
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
@@ -147,7 +146,9 @@ class TestBedrockConfig(SubprocessTestCase):
         super(TestBedrockConfig, self).setUp()
 
     @run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="test-svc", DD_ENV="staging", DD_VERSION="1234", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+        env_overrides=dict(
+            DD_SERVICE="test-svc", DD_ENV="staging", DD_VERSION="1234", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"
+        )
     )
     def test_global_tags(self):
         with get_request_vcr().use_cassette("meta_invoke.yaml"):
@@ -221,21 +222,25 @@ def test_cohere_invoke_single_output(bedrock_client, request_vcr):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
+
 @pytest.mark.snapshot
 def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_invoke_multi_output.yaml"):
-        body = json.dumps({
-            "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-            "temperature": 0.9,
-            "p": 1.0,
-            "k": 0,
-            "max_tokens": 10,
-            "stop_sequences": [],
-            "stream": False,
-            "num_generations": 2,
-        })
+        body = json.dumps(
+            {
+                "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
+                "temperature": 0.9,
+                "p": 1.0,
+                "k": 0,
+                "max_tokens": 10,
+                "stop_sequences": [],
+                "stream": False,
+                "num_generations": 2,
+            }
+        )
         response = bedrock_client.invoke_model(body=body, modelId=_MODELS["cohere"])
         json.loads(response.get("body").read())
+
 
 @pytest.mark.snapshot
 def test_meta_invoke(bedrock_client, request_vcr):
@@ -275,16 +280,18 @@ def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
 @pytest.mark.snapshot
 def test_cohere_invoke_stream_multiple_output(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_invoke_stream_multiple_output.yaml"):
-        body = json.dumps({
-            "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-            "temperature": 0.9,
-            "p": 1.0,
-            "k": 0,
-            "max_tokens": 10,
-            "stop_sequences": [],
-            "stream": False,
-            "num_generations": 2,
-        })
+        body = json.dumps(
+            {
+                "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
+                "temperature": 0.9,
+                "p": 1.0,
+                "k": 0,
+                "max_tokens": 10,
+                "stop_sequences": [],
+                "stream": False,
+                "num_generations": 2,
+            }
+        )
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=_MODELS["cohere"])
         for _ in response.get("body"):
             pass
@@ -302,10 +309,11 @@ def test_meta_invoke_stream(bedrock_client, request_vcr):
 @pytest.mark.snapshot
 def test_auth_error(bedrock_client, request_vcr):
     import botocore
+
     with pytest.raises(botocore.exceptions.ClientError):
         with request_vcr.use_cassette("meta_invoke_error.yaml"):
             body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
-            response = bedrock_client.invoke_model(body=body, modelId=model)
+            bedrock_client.invoke_model(body=body, modelId=model)
 
 
 @pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error")
@@ -329,12 +337,15 @@ def test_readlines_error(bedrock_client, request_vcr):
             with pytest.raises(Exception):
                 response.get("body").readlines()
 
+
 @pytest.mark.snapshot
 def test_read_stream_error(bedrock_client, request_vcr):
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):
         body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_streamed_response") as mock_extract_response:
+        with mock.patch(
+            "ddtrace.contrib.botocore.services.bedrock._extract_streamed_response"
+        ) as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
             with pytest.raises(Exception):
                 for _ in response.get("body"):

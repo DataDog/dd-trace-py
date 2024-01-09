@@ -5,8 +5,8 @@ from typing import Dict
 from typing import List
 
 from ddtrace import Span
-from ddtrace.vendor import wrapt
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
+from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
 
@@ -82,7 +82,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             if self._datadog_integration.is_pc_sampled_span(self._datadog_span):
                 self._datadog_span.set_tag_str(
                     "bedrock.response.choices.%d.text" % i,
-                    self._datadog_integration.trunc(str(formatted_response["text"][i]))
+                    self._datadog_integration.trunc(str(formatted_response["text"][i])),
                 )
             self._datadog_span.set_tag_str(
                 "bedrock.response.choices.%d.finish_reason" % i, str(formatted_response["finish_reason"][i])
@@ -188,7 +188,9 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
         if "is_finished" in streamed_body[0]:  # streamed response
             if "index" in streamed_body[0]:  # n >= 2
                 n = int(span.get_tag("bedrock.request.n"))
-                text = ["".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)]
+                text = [
+                    "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)
+                ]
             else:
                 text = "".join([chunk["text"] for chunk in streamed_body[:-1]])
             finish_reason = streamed_body[-1]["finish_reason"]
@@ -196,7 +198,9 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
             text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
             finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
             for i in range(len(text)):
-                span.set_tag_str("bedrock.response.choices.%d.id" % i, str(streamed_body[0]["generations"][i].get("id", None)))
+                span.set_tag_str(
+                    "bedrock.response.choices.%d.id" % i, str(streamed_body[0]["generations"][i].get("id", None))
+                )
     elif provider == "meta":
         text = "".join([chunk["generation"] for chunk in streamed_body])
         finish_reason = streamed_body[-1]["stop_reason"]
@@ -224,7 +228,7 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": metadata.get("inputTokenCount", None),
-        "usage.completion_tokens": metadata.get("outputTokenCount", None)
+        "usage.completion_tokens": metadata.get("outputTokenCount", None),
     }
 
 
