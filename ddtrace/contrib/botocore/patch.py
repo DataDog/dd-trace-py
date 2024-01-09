@@ -62,11 +62,17 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "llmobs_enabled": asbool(os.getenv("DD_BEDROCK_LLMOBS_ENABLED", False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "llmobs_prompt_completion_sample_rate": float(
+            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+        ),
         "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "_api_key": os.getenv("DD_API_KEY"),
+        "_app_key": os.getenv("DD_APP_KEY"),
     },
 )
 
