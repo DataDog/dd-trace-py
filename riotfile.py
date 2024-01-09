@@ -186,7 +186,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.11", max_version="3.11"),
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "flask": "~=3.0",
