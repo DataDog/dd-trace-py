@@ -25,7 +25,6 @@ from ...ext import cassandra as cassx
 from ...ext import db
 from ...ext import net
 from ...internal.compat import maybe_stringify
-from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
@@ -292,4 +291,4 @@ def _sanitize_query(span, query):
     else:
         resource = "unknown-query-type"  # FIXME[matt] what else do to here?
 
-    span.resource = stringify(resource)[:RESOURCE_MAX_LENGTH]
+    span.resource = str(resource)[:RESOURCE_MAX_LENGTH]

@@ -14,7 +14,6 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
-import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.context import Context
@@ -24,8 +23,6 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.compat import msgpack_type
-from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
@@ -129,7 +126,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         if value is None:
             return 0
 
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return self.string_table.index(value)
 
         if isinstance(value, dict):
@@ -183,7 +180,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -214,7 +211,7 @@ class TestEncoders(TestCase):
         items = json.loads(spans)["traces"]
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -222,7 +219,7 @@ class TestEncoders(TestCase):
         for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
-                assert isinstance(items[i][j]["span_id"], string_type)
+                assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
     def test_encode_traces_msgpack_v03(self):
@@ -252,7 +249,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, msgpack_type)
+        assert isinstance(spans, bytes)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2

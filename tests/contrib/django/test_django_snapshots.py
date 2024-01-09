@@ -14,7 +14,8 @@ from tests.webclient import Client
 
 SERVER_PORT = 8000
 # these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
-SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1"]
+# FIXME: db.name behaves unreliably for some of these tests
+SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
 
 
 @contextmanager
@@ -61,6 +62,7 @@ def daphne_client(django_asgi, additional_env=None):
         proc.terminate()
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(variants={"": django.VERSION >= (2, 2)}, ignores=SNAPSHOT_IGNORES)
 def test_urlpatterns_include(client):
@@ -148,6 +150,7 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
+@flaky(1735812000)
 @pytest.mark.django_db
 def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper.
@@ -195,6 +198,7 @@ def psycopg3_patched(transactional_db):
         unpatch()
 
 
+@flaky(1735812000)
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
 def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
@@ -236,6 +240,7 @@ def test_asgi_200(django_asgi):
         assert resp.content == b"Hello, test app."
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():

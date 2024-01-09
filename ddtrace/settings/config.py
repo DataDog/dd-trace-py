@@ -513,7 +513,11 @@ class Config(object):
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
-    def __getattr__(self, name):
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+
+    def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
 
