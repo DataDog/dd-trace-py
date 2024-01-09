@@ -648,7 +648,9 @@ def set_user(
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if asm_config._asm_enabled:
-            core.dispatch("set_user_for_asm", [tracer, user_id])
+            exc = core.core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
+            if exc:
+                raise exc
 
     else:
         log.warning(

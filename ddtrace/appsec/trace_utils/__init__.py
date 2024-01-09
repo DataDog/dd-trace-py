@@ -8,4 +8,4 @@ from ddtrace.appsec._trace_utils import track_user_signup_event  # noqa: F401
 import ddtrace.internal.core
 
 
-ddtrace.internal.core.on("set_user_for_asm", block_request_if_user_blocked)
+ddtrace.internal.core.on("set_user_for_asm", block_request_if_user_blocked, "block_user")
