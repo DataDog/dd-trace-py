@@ -413,7 +413,6 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
-            "tests/appsec/iast/*",
             "tests/appsec/iast_tdd_propagation/*"
         ],
         "appsec_iast_memcheck": [
