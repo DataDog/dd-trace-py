@@ -8,7 +8,6 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
-from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -87,10 +86,6 @@ def _on_set_http_meta(
 
 core.on("set_http_meta_for_asm", _on_set_http_meta)
 
-
-# set_user
-
-core.on("set_user_for_asm", block_request_if_user_blocked)
 
 # ASGI
 
