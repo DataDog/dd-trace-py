@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 import mock
 import pytest
@@ -12,6 +13,9 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+
+
+pytest.mark.skipif(sys.version_info < (3, 8), reason="vcrpy does not support Python 3.7 or older")
 
 
 _MODELS = {
