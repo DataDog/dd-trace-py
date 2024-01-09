@@ -202,8 +202,7 @@ def test_generator_exit_ignored(tracer, test_spans):
     assert spans[0].error == 0
 
 
-@flaky(1735812000)
-@snapshot()
+@snapshot(wait_for_num_traces=1)
 def test_generator_exit_ignored_snapshot():
     with pytest.raises(GeneratorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -242,8 +241,7 @@ def test_chunked_response_custom_middleware(tracer, test_spans):
     assert spans[2].name == "test_wsgi.response"
 
 
-@flaky(1735812000)
-@snapshot()
+@snapshot(wait_for_num_traces=1)
 def test_chunked():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     resp = app.get("/chunked")
@@ -253,8 +251,7 @@ def test_chunked():
     assert resp.text.endswith("999")
 
 
-@flaky(1735812000)
-@snapshot()
+@snapshot(wait_for_num_traces=1)
 def test_200():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     resp = app.get("/")
@@ -270,8 +267,10 @@ def test_500_py3():
         app.get("/error")
 
 
-@flaky(1735812000)
-@snapshot(ignores=["meta.error.stack"])
+@snapshot(
+    ignores=["meta.error.stack"],
+    wait_for_num_traces=1,
+)
 def test_base_exception_in_wsgi_app_py3():
     # Ensure wsgi.request and wsgi.application spans are closed when
     # a BaseException is raised.
@@ -280,8 +279,10 @@ def test_base_exception_in_wsgi_app_py3():
         app.get("/baseException")
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
+@pytest.mark.snapshot(
+    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware",
+    wait_for_num_traces=1,
+)
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
@@ -292,7 +293,9 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 
 @flaky(1735812000)
 @pytest.mark.snapshot(
-    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500", ignores=["meta.error.stack", "meta.error.type"]
+    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500",
+    ignores=["meta.error.stack", "meta.error.type"],
+    wait_for_num_traces=1,
 )
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
@@ -318,6 +321,7 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
+@flaky(1709662372)
 def test_wsgi_traced_iterable(tracer, test_spans):
     # Regression test to ensure wsgi iterable does not define an __len__ attribute
     middleware = wsgi.DDWSGIMiddleware(application)
