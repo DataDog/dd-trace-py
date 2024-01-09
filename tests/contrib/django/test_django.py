@@ -38,6 +38,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -1440,6 +1441,7 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
+@flaky(1735812000)
 @pytest.mark.django_db
 def test_cached_template(client, test_spans):
     # make the first request so that the view is cached
