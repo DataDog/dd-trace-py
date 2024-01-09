@@ -11,29 +11,29 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "659c3a0e00000000",
-      "bedrock.request.max_tokens": "5",
+      "_dd.p.tid": "659d9d8600000000",
+      "bedrock.request.max_tokens": "60",
       "bedrock.request.model": "llama2-13b-chat-v1",
       "bedrock.request.model_provider": "meta",
       "bedrock.request.prompt": "What does 'lorem ipsum' mean?",
       "bedrock.request.temperature": "0.9",
       "bedrock.request.top_p": "1.0",
       "bedrock.response.choices.0.finish_reason": "length",
-      "bedrock.response.choices.0.text": "\\n\\nThe text you",
-      "bedrock.response.duration": "267",
-      "bedrock.response.id": "e8e5abc0-89f8-48c2-b9ed-da1fe91a3deb",
-      "bedrock.usage.completion_tokens": "5",
+      "bedrock.response.choices.0.text": "\\n\\nThe phrase \"lorem ipsum\" is a commonly used dummy text in the graphic design and publishing industries. The text is derived ...",
+      "bedrock.response.duration": "1686",
+      "bedrock.response.id": "4dcc90b7-81b8-4983-b2d3-9989798b0db1",
+      "bedrock.usage.completion_tokens": "60",
       "bedrock.usage.prompt_tokens": "10",
       "language": "python",
-      "runtime-id": "9803771cf92e4101a0c456c37681410b"
+      "runtime-id": "60ce339e546c4812962fb496314b8dab"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 11321
+      "process_id": 2664
     },
-    "duration": 2579000,
-    "start": 1704737294512582000
+    "duration": 3795000,
+    "start": 1704828294674321000
   }]]

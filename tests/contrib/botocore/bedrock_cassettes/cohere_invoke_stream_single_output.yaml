@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: '{"prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain
+      is?", "temperature": 0.9, "p": 1.0, "k": 0, "max_tokens": 10, "stop_sequences":
+      [], "stream": false, "num_generations": 1}'
+    headers:
+      Content-Length:
+      - '195'
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDlUMTkyNjE2Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MjA4YTMxNTUtMjEyOC00YjMzLTliYjctZjE0MGY4MGZhZWVl
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/cohere.command-light-text-v14/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAACcwAAAEt3lnxlCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5Sm5aVzVsY21GMGFXOXVj
+        eUk2VzNzaVptbHVhWE5vWDNKbFlYTnZiaUk2SWsxQldGOVVUMHRGVGxNaUxDSnBaQ0k2SW1JMk0y
+        UXpaakF6TFRVMVpUY3RORGN6TWkwNU1UWXdMVGc1TUdWbVpqQmhNR1ZtTVNJc0luUmxlSFFpT2lJ
+        Z1hDSk1URTFjSWlCemRHRnVaSE1nWm05eUlGd2lUR0Z5WjJVZ1RHRnVaM1ZoWjJVZ1RXOWtaV3dp
+        ZlYwc0ltbGtJam9pTlRWbE4yTXlaR010T1dRNU1pMDBOVE14TFRneU5tTXRNVGMzT1dWa1pERmpa
+        RFU0SWl3aWNISnZiWEIwSWpvaVhHNWNia2gxYldGdU9pQWxjMXh1WEc1QmMzTnBjM1JoYm5RNklF
+        TmhiaUI1YjNVZ1pYaHdiR0ZwYmlCM2FHRjBJR0VnVEV4TklHTm9ZV2x1SUdselB5SXNJbUZ0WVhw
+        dmJpMWlaV1J5YjJOckxXbHVkbTlqWVhScGIyNU5aWFJ5YVdOeklqcDdJbWx1Y0hWMFZHOXJaVzVE
+        YjNWdWRDSTZNakFzSW05MWRIQjFkRlJ2YTJWdVEyOTFiblFpT2pFd0xDSnBiblp2WTJGMGFXOXVU
+        R0YwWlc1amVTSTZNell5TENKbWFYSnpkRUo1ZEdWTVlYUmxibU41SWpvek5qSjlmUT09In1xg/32
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Tue, 09 Jan 2024 19:26:16 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - 55e7c2dc-9d92-4531-826c-1779edd1cd58
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659d9dd800000000",
+      "bedrock.request.max_tokens": "10",
+      "bedrock.request.model": "command-light-text-v14",
+      "bedrock.request.model_provider": "cohere",
+      "bedrock.request.n": "1",
+      "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: Can you explain what a LLM chain is?",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.stream": "False",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_k": "0",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.0.id": "b63d3f03-55e7-4732-9160-890eff0a0ef1",
+      "bedrock.response.choices.0.text": " \"LLM\" stands for \"Large Language Model",
+      "bedrock.response.duration": "362",
+      "bedrock.response.id": "55e7c2dc-9d92-4531-826c-1779edd1cd58",
+      "bedrock.usage.completion_tokens": "10",
+      "bedrock.usage.prompt_tokens": "20",
+      "language": "python",
+      "runtime-id": "f24640005b79490bae0d5a3c1ef97441"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2932
+    },
+    "duration": 836106000,
+    "start": 1704828376350131000
+  }]]
