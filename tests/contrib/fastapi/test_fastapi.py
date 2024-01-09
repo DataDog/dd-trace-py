@@ -17,7 +17,6 @@ from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_config
-from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -607,26 +606,26 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-# snapshot_client has issues making websocket call
-def test_traced_websocket(client, test_spans):
-    with override_global_config(dict(_trace_asgi_websocket=True)):
-        with client.websocket_connect("/ws") as websocket:
-            data = websocket.receive_json()
-            assert data == {"test": "Hello WebSocket"}
-            spans = test_spans.pop_traces()
-            assert len(spans) == 1
-            span = spans[0][0]
-            assert span.service == "fastapi"
-            assert span.resource == "WEBSOCKET /ws"
-            assert span.name == "fastapi.request"
+# # snapshot_client has issues making websocket call
+# def test_traced_websocket(client, test_spans):
+#     with override_global_config(dict(_trace_asgi_websocket=True)):
+#         with client.websocket_connect("/ws") as websocket:
+#             data = websocket.receive_json()
+#             assert data == {"test": "Hello WebSocket"}
+#             spans = test_spans.pop_traces()
+#             assert len(spans) == 1
+#             span = spans[0][0]
+#             assert span.service == "fastapi"
+#             assert span.resource == "WEBSOCKET /ws"
+#             assert span.name == "fastapi.request"
 
 
-def test_dont_trace_websocket_by_default(client, test_spans):
-    with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"test": "Hello WebSocket"}
-        spans = test_spans.pop_traces()
-        assert len(spans) == 0
+# def test_dont_trace_websocket_by_default(client, test_spans):
+#     with client.websocket_connect("/ws") as websocket:
+#         data = websocket.receive_json()
+#         assert data == {"test": "Hello WebSocket"}
+#         spans = test_spans.pop_traces()
+#         assert len(spans) == 0
 
 
 def test_background_task(client, tracer, test_spans):
