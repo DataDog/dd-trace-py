@@ -195,8 +195,10 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                "requests": latest,
                 "six": ">=1.9.0",
                 "envier": "==0.5.0",
+                "cattrs": "<23.1.1",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
