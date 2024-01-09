@@ -648,9 +648,8 @@ def set_user(
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if asm_config._asm_enabled:
-            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+            core.dispatch("set_user_for_asm", [tracer, user_id])
 
-            block_request_if_user_blocked(tracer, user_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
