@@ -772,6 +772,7 @@ class _TraceContext:
         if meta is None:
             meta = {}
         origin = None
+        sampling_priority = trace_flag  # type: int
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -796,7 +797,6 @@ class _TraceContext:
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
                 else:
-                    sampling_priority = trace_flag
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
         return Context(
