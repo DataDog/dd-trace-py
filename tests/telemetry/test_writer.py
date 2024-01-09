@@ -42,7 +42,6 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     assert requests[0]["body"] == _get_request_body(payload, payload_type)
 
 
-@flaky(1735812000)
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
     telemetry_writer.disable()
@@ -57,7 +56,6 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-@flaky(1735812000)
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
@@ -147,7 +145,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert events[0] == _get_request_body(payload, "app-started")
 
 
-@flaky(1735812000)
 def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
     """
     asserts that default configuration value
@@ -274,7 +271,6 @@ import ddtrace.auto
     )
 
 
-@flaky(1735812000)
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
@@ -325,7 +321,6 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     assert not events[0]["payload"]
 
 
-@flaky(1735812000)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     TelemetryWriterModuleWatchdog._initial = False
     TelemetryWriterModuleWatchdog._new_imported.clear()
@@ -349,7 +344,6 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     assert sum(e["payload"] != {} for e in events) == 1
 
 
-@flaky(1735812000)
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
@@ -402,7 +396,6 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
         assert requests[0]["body"] == _get_request_body(expected_payload, "app-integrations-change")
 
 
-@flaky(1735812000)
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
@@ -434,7 +427,6 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         ]
 
 
-@flaky(1735812000)
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
     telemetry_writer.disable()
