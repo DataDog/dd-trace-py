@@ -318,6 +318,7 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
+# FIXME: this test breaks other tests in this file in an unpredictable pattern
 """
 def test_wsgi_traced_iterable(tracer, test_spans):
     # Regression test to ensure wsgi iterable does not define an __len__ attribute
