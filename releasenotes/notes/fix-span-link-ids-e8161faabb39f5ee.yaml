@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: Fixes a critical bug that prevented span links from being visualized in the Datadog UI.
+    tracing: Fixes a critical bug that prevents span links from being visualized in the Datadog UI.
