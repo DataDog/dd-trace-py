@@ -165,7 +165,7 @@ class BaseLLMIntegration:
         if span is not None:
             # FIXME: this is a temporary workaround until we figure out why 128 bit trace IDs are stored as decimals.
             # log["dd.trace_id"] = str(span.trace_id)
-            log["dd.trace_id"] = hex(span.trace_id)[2:]
+            log["dd.trace_id"] = "{:x}".format(span.trace_id)
             log["dd.span_id"] = str(span.span_id)
         log.update(attrs)
         self._log_writer.enqueue(log)
@@ -217,9 +217,9 @@ class BaseLLMIntegration:
         llmobs_tags = self._llmobs_tags(span)
         if span is not None and span.sampled:
             # FIXME: this is a temporary workaround until we figure out why 128 bit trace IDs are stored as decimals.
-            llmobs_tags.insert(0, "dd.trace_id:%s" % hex(span.trace_id)[2:])
-            # llmobs_tags.insert(0, "dd.trace_id:%s" % str(span.trace_id))
-            llmobs_tags.insert(1, "dd.span_id:%s" % str(span.span_id))
+            llmobs_tags.insert(0, "dd.trace_id:{:x}".format(span.trace_id))
+            # llmobs_tags.insert(0, "dd.trace_id:{}".format(span.trace_id))
+            llmobs_tags.insert(1, "dd.span_id:{}".format(span.span_id))
         if tags:
             llmobs_tags += tags
         attrs["ddtags"] = llmobs_tags
