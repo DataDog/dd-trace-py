@@ -915,8 +915,6 @@ def test_tracing_with_serialization_works(dummy_tracer, empty_kafka_topic):
 
 
 def test_traces_empty_poll_by_default(dummy_tracer, consumer, empty_kafka_topic):
-    kafka_topic = empty_kafka_topic
-
     Pin.override(consumer, tracer=dummy_tracer)
 
     message = "hello"
