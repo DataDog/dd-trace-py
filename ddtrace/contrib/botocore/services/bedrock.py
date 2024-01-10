@@ -14,9 +14,6 @@ from ....internal.schema import schematize_service_name
 class _BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    def __init__(self, config, stats_url, site, api_key, app_key=None):
-        super().__init__(config, stats_url, site, api_key, app_key=app_key)
-
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
     #  Currently the corresponding span finishes only if
@@ -100,7 +97,6 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "stop_sequences": request_body.get("stopSequences", []),
         }
     elif provider == "amazon":
-        # FIXME: figure out differentiation and extraction for image-based models
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),

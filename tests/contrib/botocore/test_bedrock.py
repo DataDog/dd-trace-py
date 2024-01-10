@@ -119,6 +119,7 @@ def aws_credentials():
     os.environ["AWS_SESSION_TOKEN"] = "testing"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
+
 @pytest.fixture
 def boto3(botocore, aws_credentials):
     import boto3
