@@ -17,10 +17,10 @@ from typing import Union  # noqa:F401
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
-import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -116,8 +116,8 @@ class DataStreamsProcessor(PeriodicService):
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
-        self._hostname = six.ensure_text(get_hostname())
-        self._service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
+        self._hostname = compat.ensure_text(get_hostname())
+        self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
@@ -195,7 +195,7 @@ class DataStreamsProcessor(PeriodicService):
             for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
-                    "EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
+                    "EdgeTags": [compat.ensure_text(tag) for tag in edge_tags.split(",")],
                     "Hash": hash_value,
                     "ParentHash": parent_hash,
                     "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
@@ -281,9 +281,9 @@ class DataStreamsProcessor(PeriodicService):
             "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload["Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
-            raw_payload["Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = compat.ensure_text(config.version)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -363,8 +363,8 @@ class DataStreamsCtx:
         self.pathway_start_sec = pathway_start_sec
         self.current_edge_start_sec = current_edge_start_sec
         self.hash = hash_value
-        self.service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
-        self.env = six.ensure_text(config.env or "none")
+        self.service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
+        self.env = compat.ensure_text(config.env or "none")
         # loop detection logic
         self.previous_direction = ""
         self.closest_opposite_direction_hash = 0

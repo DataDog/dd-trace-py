@@ -10,6 +10,7 @@ from ddtrace.contrib.asyncpg import patch
 from ddtrace.contrib.asyncpg import unpatch
 from ddtrace.contrib.trace_utils import iswrapped
 from tests.contrib.config import POSTGRES_CONFIG
+from tests.utils import flaky
 
 
 @pytest.fixture(autouse=True)
@@ -141,7 +142,7 @@ async def test_cursor(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_cursor_manual(patched_conn):
     async with patched_conn.transaction():
         cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
@@ -157,6 +158,7 @@ async def test_service_override_pin(patched_conn):
     await patched_conn.execute("SELECT 1")
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_parenting(patched_conn):

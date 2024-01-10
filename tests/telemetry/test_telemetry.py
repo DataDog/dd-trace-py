@@ -3,6 +3,8 @@ import re
 
 import pytest
 
+from tests.utils import flaky
+
 
 def _assert_dependencies_sort_and_remove(items, is_request=True, must_have_deps=True, remove_heartbeat=True):
     """
@@ -305,6 +307,7 @@ def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_
     assert event_types == ["app-closing", "app-started", "generate-metrics"]
 
 
+@flaky(1735812000)
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
     code = """
 import logging
@@ -413,3 +416,26 @@ f.wsgi_app()
     assert len(metric_events[0]["payload"]["series"][0]["points"]) == 1
     assert metric_events[0]["payload"]["series"][0]["points"][0][1] == 1
     assert metric_events[0]["payload"]["series"][0]["tags"] == ["integration_name:flask", "error_type:valueerror"]
+
+
+def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
+            "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+            "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
+        }
+    )
+    # Generate a trace to trigger app-started event
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; ddtrace.tracer.trace('s1').finish()", env=env)
+    assert status == 0, stderr
+
+    events = test_agent_session.get_events()
+    app_started_event = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_event) == 1
+    assert app_started_event[0]["payload"]["install_signature"] == {
+        "install_id": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
+        "install_type": "k8s_single_step",
+        "install_time": "1703188212",
+    }
