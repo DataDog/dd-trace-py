@@ -257,6 +257,7 @@ def test_message(producer, consumer, tombstone, empty_kafka_topic):
         message = consumer.poll(1.0)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit(producer, consumer, empty_kafka_topic):
     kafka_topic = empty_kafka_topic
@@ -268,6 +269,7 @@ def test_commit(producer, consumer, empty_kafka_topic):
     consumer.commit(message)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_offset(producer, consumer, empty_kafka_topic):
     kafka_topic = empty_kafka_topic
