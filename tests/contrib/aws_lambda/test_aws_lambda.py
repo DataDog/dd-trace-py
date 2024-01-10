@@ -11,6 +11,7 @@ from tests.contrib.aws_lambda.handlers import instance_handler_with_code
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
 from tests.contrib.aws_lambda.handlers import static_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
+from tests.utils import flaky
 from tests.utils import override_env
 
 
@@ -51,8 +52,10 @@ def setup():
     unpatch()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot
+@flaky(1709306303)
 def test_timeout_traces(context, customApmFlushDeadline):
     env = get_env(
         {

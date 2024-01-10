@@ -49,7 +49,7 @@ class _PprofConverter:
         span_id: str,
         trace_resource: str,
         trace_type: str,
-        frames: HashableStackTraceType,
+        frames: HashableStackTraceType,  # noqa
         nframes: int,
         samples: typing.List[stack_event.StackSampleEvent],
     ) -> None: ...
@@ -58,7 +58,7 @@ class _PprofConverter:
         thread_id: str,
         thread_native_id: str,
         thread_name: str,
-        frames: HashableStackTraceType,
+        frames: HashableStackTraceType,  # noqa
         nframes: int,
         events: typing.List[memalloc.MemoryAllocSampleEvent],
     ) -> None: ...
@@ -74,7 +74,7 @@ class _PprofConverter:
         span_id: str,
         trace_resource: str,
         trace_type: str,
-        frames: HashableStackTraceType,
+        frames: HashableStackTraceType,  # noqa
         nframes: int,
         events: typing.List[_lock.LockAcquireEvent],
         sampling_ratio: float,
@@ -90,7 +90,7 @@ class _PprofConverter:
         span_id: str,
         trace_resource: str,
         trace_type: str,
-        frames: HashableStackTraceType,
+        frames: HashableStackTraceType,  # noqa
         nframes: int,
         events: typing.List[_lock.LockReleaseEvent],
         sampling_ratio: float,
@@ -104,7 +104,7 @@ class _PprofConverter:
         span_id: str,
         trace_resource: str,
         trace_type: str,
-        frames: HashableStackTraceType,
+        frames: HashableStackTraceType,  # noqa
         nframes: int,
         exc_type_name: str,
         events: typing.List[stack_event.StackExceptionSampleEvent],

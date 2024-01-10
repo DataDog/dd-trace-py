@@ -1,59 +1,128 @@
 import abc
 import os
 import time
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
+from ddtrace import Pin
+from ddtrace import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.sampler import RateSampler
-
-
-if TYPE_CHECKING:
-    from ddtrace import Pin
-    from ddtrace import Span
 
 
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config, stats_url, site, api_key):
+    def __init__(self, config, stats_url):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
-        self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
+        self._log_writer = None
+        self._llmobs_writer = None
+        self._statsd = None
         self._config = config
-        self._log_writer = V2LogWriter(
-            site=site,
-            api_key=api_key,
-            interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-            timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
-        )
         self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-        self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
 
-    def is_pc_sampled_span(self, span):
-        # type: (Span) -> bool
+        _dd_api_key = os.getenv("DD_API_KEY", config.get("_api_key"))
+        _dd_app_key = os.getenv("DD_APP_KEY", config.get("_app_key"))
+        _dd_site = os.getenv("DD_SITE", "datadoghq.com")
+
+        if self.metrics_enabled:
+            self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
+        if self.logs_enabled:
+            if not _dd_api_key:
+                raise ValueError(
+                    f"DD_API_KEY is required for sending logs from the {self._integration_name} integration. "
+                    f"To use the {self._integration_name} integration without logs, "
+                    f"set `DD_{self._integration_name.upper()}_LOGS_ENABLED=false`."
+                )
+            self._log_writer = V2LogWriter(
+                site=_dd_site,
+                api_key=_dd_api_key,
+                interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+                timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            )
+            self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+            self.start_log_writer()
+
+        if self.llmobs_enabled:
+            if not _dd_api_key:
+                raise ValueError(
+                    f"DD_API_KEY is required for sending LLMObs data from the {self._integration_name} integration. "
+                    f"To use the {self._integration_name} integration without LLMObs, "
+                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
+                )
+            if not _dd_app_key:
+                raise ValueError(
+                    f"DD_APP_KEY is required for sending LLMObs payloads from the {self._integration_name} integration."
+                    f" To use the {self._integration_name} integration without LLMObs, "
+                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
+                )
+            self._llmobs_writer = LLMObsWriter(
+                site=_dd_site,
+                api_key=_dd_api_key,
+                app_key=_dd_app_key,
+                interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
+                timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
+            )
+            self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
+            self.start_llm_writer()
+
+    @property
+    def metrics_enabled(self) -> bool:
+        """Return whether submitting metrics is enabled for this integration, or global config if not set."""
+        if hasattr(self._config, "metrics_enabled"):
+            return asbool(self._config.metrics_enabled)
+        return False
+
+    @property
+    def logs_enabled(self) -> bool:
+        """Return whether submitting logs is enabled for this integration, or global config if not set."""
+        if hasattr(self._config, "logs_enabled"):
+            return asbool(self._config.logs_enabled)
+        return False
+
+    @property
+    def llmobs_enabled(self) -> bool:
+        """Return whether submitting llmobs payloads is enabled for this integration, or global config if not set."""
+        if hasattr(self._config, "llmobs_enabled"):
+            return asbool(self._config.llmobs_enabled)
+        return False
+
+    def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
             return False
         return self._span_pc_sampler.sample(span)
 
-    def is_pc_sampled_log(self, span):
-        # type: (Span) -> bool
+    def is_pc_sampled_log(self, span: Span) -> bool:
         if not self._config.logs_enabled or not span.sampled:
             return False
         return self._log_pc_sampler.sample(span)
 
-    def start_log_writer(self):
-        # type: (...) -> None
+    def is_pc_sampled_llmobs(self, span: Span) -> bool:
+        # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
+        if not self._config.llmobs_enabled:
+            return False
+        return self._llmobs_pc_sampler.sample(span)
+
+    def start_log_writer(self) -> None:
+        if not self._config.logs_enabled:
+            return
         self._log_writer.start()
+
+    def start_llm_writer(self) -> None:
+        if not self._config.llmobs_enabled:
+            return
+        self._llmobs_writer.start()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span, **kwargs):
@@ -61,8 +130,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin, operation_id, **kwargs):
-        # type: (Pin, str, Dict[str, Any]) -> Span
+    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -85,7 +153,7 @@ class BaseLLMIntegration:
 
     def log(self, span, level, msg, attrs):
         # type: (Span, str, str, Dict[str, Any]) -> None
-        if not self._config.logs_enabled:
+        if not self.logs_enabled:
             return
         tags = self._logs_tags(span)
         log = {
@@ -113,7 +181,7 @@ class BaseLLMIntegration:
     def metric(self, span, kind, name, val, tags=None):
         # type: (Span, str, str, Any, Optional[List[str]]) -> None
         """Set a metric using the context from the given span."""
-        if not self._config.metrics_enabled:
+        if not self.metrics_enabled:
             return
         metric_tags = self._metrics_tags(span)
         if tags:
@@ -139,3 +207,15 @@ class BaseLLMIntegration:
         if len(text) > self._config.span_char_limit:
             text = text[: self._config.span_char_limit] + "..."
         return text
+
+    def llm_record(self, span, attrs):
+        # type: (Span, Dict[str, Any]) -> None
+        """Create a LLM record to send to the LLM Obs intake."""
+        if not self.llmobs_enabled:
+            return
+        llm_record = {}
+        if span is not None:
+            llm_record["dd.trace_id"] = str(span.trace_id)
+            llm_record["dd.span_id"] = str(span.span_id)
+        llm_record.update(attrs)
+        self._llmobs_writer.enqueue(llm_record)

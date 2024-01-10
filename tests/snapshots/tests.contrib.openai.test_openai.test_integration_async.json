@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createCompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -17,9 +19,10 @@
       "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.model": "ada",
-      "openai.request.prompt": "hello world",
+      "openai.request.prompt.0": "hello world",
       "openai.response.choices.0.finish_reason": "length",
       "openai.response.choices.0.text": ",\" a male farrago, or \"voices of the people.\" If",
+      "openai.response.created": "1681852801",
       "openai.response.id": "cmpl-76n21v67JBLBTiNAIzghImtsNjBrq",
       "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
@@ -33,8 +36,6 @@
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.remaining": 249983,
-      "openai.response.choices_count": 1,
-      "openai.response.created": 1681852801,
       "process_id": 7671
     },
     "duration": 1772243,

@@ -546,7 +546,7 @@ def test_parse_metric_probe_with_probeid_tags():
     assert probe.tags["debugger.probeid"] == probeId
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 

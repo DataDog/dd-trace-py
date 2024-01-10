@@ -4,29 +4,27 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import Iterator
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Tuple
-from typing import Union
-from typing import cast
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
-from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -39,9 +37,9 @@ from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace import Span  # noqa:F401
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -92,7 +90,7 @@ def _get_header_value_case_insensitive(headers, keyname):
     if shortcut_value is not None:
         return shortcut_value
 
-    for key, value in six.iteritems(headers):
+    for key, value in headers.items():
         if key.lower().replace("_", "-") == keyname:
             return value
 
@@ -190,7 +188,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if not headers:
         try:
-            _ = ipaddress.ip_address(six.text_type(peer_ip))
+            _ = ipaddress.ip_address(str(peer_ip))
         except ValueError:
             return ""
         return peer_ip
@@ -205,7 +203,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return ""
 
         try:
-            _ = ipaddress.ip_address(six.text_type(ip_header_value))
+            _ = ipaddress.ip_address(str(ip_header_value))
         except ValueError:
             log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
             return ""
@@ -498,10 +496,13 @@ def set_http_meta(
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
-                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+                request_ip = (
+                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+                )
 
-            span.set_tag_str(http.CLIENT_IP, request_ip)
-            span.set_tag_str("network.client.ip", request_ip)
+            if request_ip:
+                span.set_tag_str(http.CLIENT_IP, request_ip)
+                span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -515,43 +516,24 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-        if _is_iast_enabled():
-            from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
-
-            if request_cookies:
-                asm_check_cookies(request_cookies)
-
-            if response_cookies:
-                asm_check_cookies(response_cookies)
-
-        if span.span_type == SpanTypes.WEB:
-            from ddtrace.appsec._asm_request_context import set_waf_address
-            from ddtrace.appsec._constants import SPAN_DATA_NAMES
-
-            status_code = str(status_code) if status_code is not None else None
-
-            addresses = {
-                k: v
-                for k, v in [
-                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
-                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
-                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
-                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
-                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
-                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
-                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
-                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
-                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
-                ]
-                if v is not None
-            }
-            for k, v in addresses.items():
-                set_waf_address(k, v, span)
+    core.dispatch(
+        "set_http_meta_for_asm",
+        [
+            span,
+            request_ip,
+            raw_uri,
+            route,
+            method,
+            request_headers,
+            request_cookies,
+            parsed_query,
+            request_path_params,
+            request_body,
+            status_code,
+            response_headers,
+            response_cookies,
+        ],
+    )
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
@@ -666,9 +648,10 @@ def set_user(
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if asm_config._asm_enabled:
-            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
+            if exc:
+                raise exc
 
-            block_request_if_user_blocked(tracer, user_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
@@ -689,3 +672,7 @@ def extract_netloc_and_query_info_from_url(url):
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information
     return netloc, query
+
+
+class InterruptException(Exception):
+    pass

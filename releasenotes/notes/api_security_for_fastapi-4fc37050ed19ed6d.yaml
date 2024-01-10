@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ASM: This introduces (experimental) api security support for fastAPI. Flask and Django were already supported in 2.4.0.
+    Support schema computation on all addresses (requests and responses) and scanner support for pii, credentials
+    and payment data.

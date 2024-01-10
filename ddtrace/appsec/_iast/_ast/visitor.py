@@ -4,11 +4,9 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
-from typing import Any
-from typing import List
-from typing import Set
-
-from six import iteritems
+from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -150,7 +148,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
-        for _, v in iteritems(self.excluded_functions):
+        for _, v in self.excluded_functions.items():
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
@@ -470,8 +468,9 @@ class AstVisitor(ast.NodeTransformer):
                 # Send 1 as flag_added_args value
                 call_node.args.insert(0, self._int_constant(call_node, 1))
 
-                # Insert original method as first parameter (a.b.c.method)
-                call_node.args = self._add_original_function_as_arg(call_node, False)
+                # Insert None as first parameter instead of a.b.c.method
+                # to avoid unexpected side effects such as a.b.read(4).method
+                call_node.args.insert(0, self._none_constant(call_node))
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)

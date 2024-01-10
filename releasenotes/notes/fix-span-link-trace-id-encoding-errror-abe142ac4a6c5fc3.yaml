@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Resolves span encoding errors raised when span links do not contain expected types

@@ -15,4 +15,4 @@ def test_not_deprecated():
 
 def test_invalid():
     with pytest.raises(ImportError):
-        from ddtrace.constants import INVALID_CONSTANT  # noqa
+        from ddtrace.constants import INVALID_CONSTANT  # noqa:F401

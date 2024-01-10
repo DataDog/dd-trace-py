@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -16,7 +15,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.schema import _DEFAULT_SPAN_SERVICE_NAMES
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -31,8 +29,6 @@ SIGTERM_EXIT_CODE = -15
 
 
 base_exception_name = "builtins.Exception"
-if PY2:
-    base_exception_name = "exceptions.Exception"
 
 
 class FlaskRequestTestCase(BaseFlaskTestCase):
@@ -1098,7 +1094,6 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
 
     code = """
 import pytest
-from ddtrace.internal.compat import PY2
 from tests.contrib.flask import BaseFlaskTestCase
 
 class TestCase(BaseFlaskTestCase):
@@ -1143,7 +1138,6 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
 
     code = """
 import pytest
-from ddtrace.internal.compat import PY2
 from tests.contrib.flask import BaseFlaskTestCase
 
 class TestCase(BaseFlaskTestCase):

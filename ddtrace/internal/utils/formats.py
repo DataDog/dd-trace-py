@@ -1,17 +1,14 @@
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import TypeVar
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import TypeVar  # noqa:F401
+from typing import Union  # noqa:F401
 
-from ..compat import binary_type
 from ..compat import ensure_text
-from ..compat import stringify
-from ..compat import text_type
 
 
 VALUE_PLACEHOLDER = "?"
@@ -140,10 +137,10 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
     out = []  # type: List[Text]
     for arg in args:
         try:
-            if isinstance(arg, (binary_type, text_type)):
+            if isinstance(arg, (bytes, str)):
                 cmd = ensure_text(arg, errors="backslashreplace")
             else:
-                cmd = stringify(arg)
+                cmd = str(arg)
 
             if len(cmd) > value_max_len:
                 cmd = cmd[:value_max_len] + VALUE_TOO_LONG_MARK

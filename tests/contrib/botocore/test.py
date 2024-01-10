@@ -38,7 +38,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
@@ -972,7 +971,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.patch"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
@@ -2026,16 +2025,18 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    @pytest.mark.xfail(strict=False)  # FIXME: flaky test
     def test_sns_send_message_trace_injection_with_message_attributes(self):
         # TODO: Move away from inspecting MessageAttributes using span tag
-        sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        region = "us-east-1"
+        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
         topic = sns.create_topic(Name="testTopic")
 
         topic_arn = topic["TopicArn"]
         sqs_url = self.sqs_test_queue["QueueUrl"]
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_url)
+        url_parts = sqs_url.split("/")
+        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
 
@@ -2163,10 +2164,6 @@ class BotocoreTest(TracerTestCase):
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is None
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
@@ -2233,10 +2230,6 @@ class BotocoreTest(TracerTestCase):
         assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
@@ -2310,10 +2303,6 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 6),
-        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
-    )
     def test_sns_send_message_batch_trace_injection_with_max_message_attributes(self):
         region = "us-east-1"
         sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
@@ -2889,7 +2878,6 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[1].name == "aws.kinesis.send"
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager(self):
         from moto import mock_secretsmanager
 
@@ -2915,7 +2903,6 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
-    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager_binary(self):
         from moto import mock_secretsmanager
 

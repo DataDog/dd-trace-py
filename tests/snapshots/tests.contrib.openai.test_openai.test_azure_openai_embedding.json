@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createEmbedding",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -16,7 +18,7 @@
       "openai.api_version": "2023-05-15",
       "openai.base_url": "https://test-openai.openai.azure.com//openai/deployments/test-openai/",
       "openai.request.endpoint": "/v1/embeddings",
-      "openai.request.input": "Hello world",
+      "openai.request.input.0": "Hello world",
       "openai.request.method": "POST",
       "openai.request.model": "text-embedding-ada-002",
       "openai.request.user": "ddtrace-test",
@@ -30,7 +32,7 @@
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.embeddings.0.embedding-length": 1536,
+      "openai.response.embedding-length": 1536,
       "openai.response.embeddings_count": 1,
       "openai.response.usage.prompt_tokens": 2,
       "openai.response.usage.total_tokens": 2,

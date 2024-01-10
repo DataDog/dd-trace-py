@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createImage",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -23,6 +25,7 @@
       "openai.request.response_format": "b64_json",
       "openai.request.size": "256x256",
       "openai.request.user": "ddtrace-test",
+      "openai.response.created": "1685642324",
       "openai.response.images.0.b64_json": "returned",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "e3412e4f1afe4767a615b30fc1c0f91d"
@@ -33,7 +36,6 @@
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.created": 1685642324,
       "openai.response.images_count": 1,
       "process_id": 7557
     },
