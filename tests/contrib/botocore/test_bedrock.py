@@ -111,7 +111,16 @@ def botocore():
 
 
 @pytest.fixture
-def boto3(botocore):
+def aws_credentials():
+    """Mocked AWS Credentials."""
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_SECURITY_TOKEN"] = "testing"
+    os.environ["AWS_SESSION_TOKEN"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+@pytest.fixture
+def boto3(botocore, aws_credentials):
     import boto3
 
     yield boto3
@@ -120,7 +129,6 @@ def boto3(botocore):
 @pytest.fixture
 def bedrock_client(boto3, botocore, request_vcr):
     session = boto3.Session(
-        profile_name="601427279990_account-admin",
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
         aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
@@ -136,7 +144,6 @@ class TestBedrockConfig(SubprocessTestCase):
         import boto3
 
         self.session = boto3.Session(
-            profile_name="601427279990_account-admin",
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
             aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
@@ -331,18 +338,7 @@ def test_read_error(bedrock_client, request_vcr):
                 response.get("body").read()
 
 
-@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"])
-def test_readlines_error(bedrock_client, request_vcr):
-    with request_vcr.use_cassette("meta_invoke.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
-        response = bedrock_client.invoke_model(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
-            mock_extract_response.side_effect = Exception("test")
-            with pytest.raises(Exception):
-                response.get("body").readlines()
-
-
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_read_stream_error(bedrock_client, request_vcr):
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):
         body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
@@ -354,3 +350,14 @@ def test_read_stream_error(bedrock_client, request_vcr):
             with pytest.raises(Exception):
                 for _ in response.get("body"):
                     pass
+
+
+@pytest.mark.snapshot
+def test_readlines_error(bedrock_client, request_vcr):
+    with request_vcr.use_cassette("meta_invoke.yaml"):
+        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
+            mock_extract_response.side_effect = Exception("test")
+            with pytest.raises(Exception):
+                response.get("body").readlines()
