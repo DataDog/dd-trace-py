@@ -66,7 +66,6 @@ config._add(
         "llmobs_prompt_completion_sample_rate": float(
             os.getenv("DD_BEDROCK_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
         ),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
