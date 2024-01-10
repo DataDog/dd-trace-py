@@ -17,7 +17,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_with_default_args(oteltracer):
     otel_span = oteltracer.start_span("test-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
@@ -37,8 +37,7 @@ def test_otel_start_span_with_default_args(oteltracer):
     otel_span.end()
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
     otel_span = oteltracer.start_span(
