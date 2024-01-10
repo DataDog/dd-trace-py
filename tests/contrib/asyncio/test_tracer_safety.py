@@ -37,7 +37,7 @@ def test_trace_coroutine(tracer):
     assert "base" == traces[0][0].resource
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 @pytest.mark.asyncio
 async def test_trace_multiple_calls(tracer):
     tracer.configure(context_provider=DefaultContextProvider())
