@@ -313,7 +313,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
                     "choices": mock.ANY,
@@ -588,7 +588,7 @@ def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tr
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/edits,openai.request.method:POST,openai.request.model:text-davinci-edit-001,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "instruction": "fix spelling mistakes",
                     "input": "thsi si a spelilgn imstkae.",
@@ -680,7 +680,7 @@ def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompt": "sleepy capybara with monkey on top",
                     "choices": mock.ANY,
@@ -777,7 +777,7 @@ def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/edits,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompt": "A sunlit indoor lounge area with a pool containing a flamingo",
                     "image": "image.png",
@@ -871,7 +871,7 @@ def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_lo
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/variations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "image": "image.png",
                     "choices": mock.ANY,
@@ -1078,7 +1078,7 @@ def test_logs_transcribe(openai_vcr, openai, ddtrace_config_openai, mock_logs, m
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/transcriptions,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "file": "english_audio.mp3",
                     "prompt": "what's that over there?",
@@ -1176,7 +1176,7 @@ def test_logs_translate(openai_vcr, openai, ddtrace_config_openai, mock_logs, mo
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/audio/translations,openai.request.method:POST,openai.request.model:whisper-1,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "file": "french_audio.mp3",
                     "prompt": "and when I've given up,",
@@ -2296,12 +2296,12 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
     trace_id, span_id = span.trace_id, span.span_id
 
     expected_tags = [
+        "dd.trace_id:%s" % hex(trace_id)[2:],
+        "dd.span_id:%s" % str(span_id),
         "version:",
         "env:",
         "service:",
         "src:integration",
-        "dd.trace_id:%s" % str(trace_id),
-        "dd.span_id:%s" % str(span_id),
         "ml_obs.request.model:%s" % model,
         "ml_obs.request.model_provider:openai",
         "ml_obs.request.error:0",
@@ -2379,12 +2379,12 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
     trace_id, span_id = span.trace_id, span.span_id
 
     expected_tags = [
+        "dd.trace_id:%s" % hex(trace_id)[2:],
+        "dd.span_id:%s" % str(span_id),
         "version:",
         "env:",
         "service:",
         "src:integration",
-        "dd.trace_id:%s" % str(trace_id),
-        "dd.span_id:%s" % str(span_id),
         "ml_obs.request.model:%s" % model,
         "ml_obs.request.model_provider:openai",
         "ml_obs.request.error:0",
@@ -2461,12 +2461,12 @@ def test_llmobs_chat_completion_function_call(
     trace_id, span_id = span.trace_id, span.span_id
 
     expected_tags = [
+        "dd.trace_id:%s" % hex(trace_id)[2:],
+        "dd.span_id:%s" % str(span_id),
         "version:",
         "env:",
         "service:",
         "src:integration",
-        "dd.trace_id:%s" % str(trace_id),
-        "dd.span_id:%s" % str(span_id),
         "ml_obs.request.model:%s" % model,
         "ml_obs.request.model_provider:openai",
         "ml_obs.request.error:0",
