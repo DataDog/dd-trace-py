@@ -134,6 +134,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
+                    {"name": "trace_tags", "origin": "default", "value": ""},
                 ],
                 key=lambda x: x["name"],
             ),
@@ -193,6 +194,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
+    env["DD_TAGS"] = "team:apm,component:web"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -266,6 +268,7 @@ import ddtrace.auto
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
+            {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
         ],
         key=lambda x: x["name"],
     )
@@ -338,9 +341,10 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
-    assert len(events) == 2
+
     assert events[0]["seq_id"] == 2
-    assert not events[0]["payload"]
+    # only one event must be sent with a non empty payload
+    assert sum(e["payload"] != {} for e in events) == 1
 
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):

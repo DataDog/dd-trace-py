@@ -9,6 +9,7 @@ from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.pin import Pin
 from ddtrace.settings.http import HttpConfig
 from ddtrace.vendor.wrapt import ObjectProxy
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -73,6 +74,7 @@ def test_httpx_service_name(tracer, test_spans):
     assert isinstance(spans[0].service, six.text_type)
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 async def test_get_200(snapshot_context):
     url = get_url("/status/200")
@@ -146,6 +148,7 @@ async def test_configure_service_name_pin(tracer, test_spans):
     assert_spans(test_spans, service="async-client")
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(
     env=dict(
         DD_HTTPX_SERVICE="env-overridden-service-name",
@@ -220,6 +223,7 @@ def test_schematized_configure_global_service_name_env_default():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_schematized_configure_global_service_name_env_v0():
     """
@@ -253,6 +257,7 @@ def test_schematized_configure_global_service_name_env_v0():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
 def test_schematized_configure_global_service_name_env_v1():
     """
@@ -318,6 +323,7 @@ def test_schematized_unspecified_service_name_env_default():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_schematized_unspecified_service_name_env_v0():
     """
@@ -382,6 +388,7 @@ def test_schematized_unspecified_service_name_env_v1():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_schematized_operation_name_env_v0():
     """
