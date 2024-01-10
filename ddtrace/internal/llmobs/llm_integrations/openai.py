@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import openai
 
@@ -34,7 +35,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         return self._user_api_key
 
     @user_api_key.setter
-    def user_api_key(self, value: str) -> str:
+    def user_api_key(self, value: str) -> None:
         # Match the API key representation that OpenAI uses in their UI.
         self._user_api_key = "sk-...%s" % value[-4:]
 
@@ -48,7 +49,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         # organization_id is only returned by a few endpoints, grab it when we can.
         if parse_version(openai.version.VERSION) >= (1, 0, 0):
             source = self._client
-            base_attrs = ("base_url", "organization")
+            base_attrs: Tuple[str, ...] = ("base_url", "organization")
         else:
             source = self._openai
             base_attrs = ("api_base", "api_version", "api_type", "organization")
@@ -106,7 +107,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-            self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
+            self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
     def generate_completion_llm_records(self, resp: Any, span: Span, args: List[Any], kwargs: Dict[str, Any]) -> None:
         """Generate payloads for the LLM Obs API from a completion."""

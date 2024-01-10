@@ -116,12 +116,12 @@ class BaseLLMIntegration:
         return self._llmobs_pc_sampler.sample(span)
 
     def start_log_writer(self) -> None:
-        if not self.logs_enabled:
+        if not self.logs_enabled or self._log_writer is None:
             return
         self._log_writer.start()
 
     def start_llm_writer(self) -> None:
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or self._llmobs_writer is None:
             return
         self._llmobs_writer.start()
 
@@ -151,7 +151,7 @@ class BaseLLMIntegration:
         pass
 
     def log(self, span: Span, level: str, msg: str, attrs: Dict[str, Any]) -> None:
-        if not self.logs_enabled:
+        if not self.logs_enabled or self._log_writer is None:
             return
         tags = self._logs_tags(span)
         log = {
@@ -169,7 +169,7 @@ class BaseLLMIntegration:
             log["dd.trace_id"] = "{:x}".format(span.trace_id)
             log["dd.span_id"] = str(span.span_id)
         log.update(attrs)
-        self._log_writer.enqueue(log)
+        self._log_writer.enqueue(log)  # type: ignore[arg-type]
 
     @classmethod
     @abc.abstractmethod
@@ -179,7 +179,7 @@ class BaseLLMIntegration:
 
     def metric(self, span: Span, kind: str, name: str, val: Any, tags: Optional[List[str]] = None) -> None:
         """Set a metric using the context from the given span."""
-        if not self.metrics_enabled:
+        if not self.metrics_enabled or self._statsd is None:
             return
         metric_tags = self._metrics_tags(span)
         if tags:
@@ -205,9 +205,15 @@ class BaseLLMIntegration:
             text = text[: self._config.span_char_limit] + "..."
         return text
 
-    def llm_record(self, span: Span, attrs: Dict[str, Any], tags: Optional[List[str]]) -> None:
+    @classmethod
+    @abc.abstractmethod
+    def _llmobs_tags(cls, span: Span) -> List[str]:
+        """Generate a list of llmobs tags from a given span."""
+        return []
+
+    def llm_record(self, span: Span, attrs: Dict[str, Any], tags: Optional[List[str]] = None) -> None:
         """Create a LLM record to send to the LLM Obs intake."""
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or self._llmobs_writer is None:
             return
         llmobs_tags = self._llmobs_tags(span)
         if span is not None and span.sampled:
@@ -218,4 +224,4 @@ class BaseLLMIntegration:
         if tags:
             llmobs_tags += tags
         attrs["ddtags"] = llmobs_tags
-        self._llmobs_writer.enqueue(attrs)
+        self._llmobs_writer.enqueue(attrs)  # type: ignore[arg-type]

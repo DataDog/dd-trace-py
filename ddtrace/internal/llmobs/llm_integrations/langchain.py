@@ -19,7 +19,14 @@ TYPE = "langchain.request.type"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def _set_base_span_tags(self, span: Span, interface_type: str = "", provider: Optional[str] = None, model: Optional[str] = None, api_key: Optional[str] = None) -> None:
+    def _set_base_span_tags(  # type: ignore[override]
+        self,
+        span: Span,
+        interface_type: str = "",
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         span.set_tag_str(TYPE, interface_type)
         if provider is not None:
