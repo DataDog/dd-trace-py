@@ -112,7 +112,8 @@ def producer(tracer):
 
 
 @pytest.fixture
-def consumer(tracer, kafka_topic):
+def consumer(tracer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -131,7 +132,8 @@ def consumer(tracer, kafka_topic):
 
 
 @pytest.fixture
-def non_auto_commit_consumer(tracer, kafka_topic):
+def non_auto_commit_consumer(tracer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -159,7 +161,8 @@ def serializing_producer(tracer):
 
 
 @pytest.fixture
-def deserializing_consumer(tracer, kafka_topic):
+def deserializing_consumer(tracer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     _consumer = confluent_kafka.DeserializingConsumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -205,7 +208,8 @@ def test_producer_bootstrap_servers(config, expect_servers, tracer):
         assert producer._dd_bootstrap_servers is None
 
 
-def test_produce_single_server(dummy_tracer, producer, kafka_topic):
+def test_produce_single_server(dummy_tracer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     Pin.override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
@@ -216,7 +220,8 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
 
 
-def test_produce_none_key(dummy_tracer, producer, kafka_topic):
+def test_produce_none_key(dummy_tracer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     Pin.override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=None)
     producer.flush()
@@ -225,7 +230,8 @@ def test_produce_none_key(dummy_tracer, producer, kafka_topic):
     assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
 
 
-def test_produce_multiple_servers(dummy_tracer, kafka_topic):
+def test_produce_multiple_servers(dummy_tracer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
     Pin.override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -237,10 +243,10 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
-@flaky(until=1704067200)
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_message(producer, consumer, tombstone, kafka_topic):
+def test_message(producer, consumer, tombstone, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     if tombstone:
         producer.produce(kafka_topic, key=KEY)
     else:
@@ -252,7 +258,8 @@ def test_message(producer, consumer, tombstone, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit(producer, consumer, kafka_topic):
+def test_commit(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
     message = None
@@ -262,7 +269,8 @@ def test_commit(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit_with_offset(producer, consumer, kafka_topic):
+def test_commit_with_offset(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
     message = None
@@ -271,9 +279,9 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
     consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
+def test_commit_with_only_async_arg(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
     message = None
@@ -285,7 +293,8 @@ def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override", ignores=["metrics.kafka.message_offset"]
 )
-def test_service_override_config(producer, consumer, kafka_topic):
+def test_service_override_config(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     with override_config("kafka", dict(service="my-custom-service-name")):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
@@ -295,7 +304,8 @@ def test_service_override_config(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_with_rate(producer, consumer, kafka_topic):
+def test_analytics_with_rate(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     with override_config("kafka", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
@@ -304,9 +314,9 @@ def test_analytics_with_rate(producer, consumer, kafka_topic):
             message = consumer.poll(1.0)
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_analytics_without_rate(producer, consumer, kafka_topic):
+def test_analytics_without_rate(producer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     with override_config("kafka", dict(analytics_enabled=True)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
@@ -326,7 +336,10 @@ def retry_until_not_none(factory):
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
 @pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
-def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topic, payload_and_length, key_and_length):
+def test_data_streams_payload_size(
+    dsm_processor, consumer, producer, empty_kafka_topic, payload_and_length, key_and_length
+):
+    kafka_topic = empty_kafka_topic
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     test_headers = {"1234": "5678"}
@@ -356,7 +369,8 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
         assert bucket.payload_size._sum == expected_payload_size
 
 
-def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
+def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
@@ -371,7 +385,8 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     assert len(buckets) == 1
 
 
-def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka(dsm_processor, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     PAYLOAD = bytes("data streams", encoding="utf-8")
     try:
         del dsm_processor._current_context.value
@@ -466,11 +481,11 @@ def _generate_in_subprocess(random_topic):
     consumer.close()
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(
     token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=["metrics.kafka.message_offset"]
 )
-def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
+def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     code = """
 import sys
 import pytest
@@ -497,7 +512,10 @@ if __name__ == "__main__":
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
-def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
+def test_schematized_span_service_and_operation(
+    ddtrace_run_python_code_in_subprocess, service, schema, empty_kafka_topic
+):
+    kafka_topic = empty_kafka_topic
     code = """
 import sys
 import pytest
@@ -521,7 +539,11 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_messages(
+    dsm_processor, non_auto_commit_consumer, producer, empty_kafka_topic
+):
+    kafka_topic = empty_kafka_topic
+
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -560,7 +582,11 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
     )
 
 
-def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_offsets(
+    dsm_processor, non_auto_commit_consumer, producer, empty_kafka_topic
+):
+    kafka_topic = empty_kafka_topic
+
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -596,8 +622,9 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
 
-@flaky(until=1704067200)
-def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
+
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -659,7 +686,8 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] == 5
 
 
-def test_data_streams_default_context_propagation(dummy_tracer, consumer, producer, kafka_topic):
+def test_data_streams_default_context_propagation(dummy_tracer, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
@@ -682,7 +710,8 @@ def test_data_streams_default_context_propagation(dummy_tracer, consumer, produc
 
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
-def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, kafka_topic):
+def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
@@ -739,7 +768,8 @@ from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
 from tests.utils import DummyTracer
 
-def test(consumer, producer, kafka_topic):
+def test(consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     patch()
     dummy_tracer = DummyTracer()
     dummy_tracer.flush()
@@ -792,7 +822,8 @@ if __name__ == "__main__":
     assert err == b"", err.decode()
 
 
-def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
+def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
 
@@ -821,7 +852,9 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     assert consume_span.get_tag("pathway.hash") is not None
 
 
-def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
+def test_tracing_with_serialization_works(dummy_tracer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
+
     def json_serializer(msg, s_obj):
         return json.dumps(msg).encode("utf-8")
 
@@ -879,7 +912,9 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     assert consume_span.get_tag("kafka.message_key") is None
 
 
-def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
+def test_traces_empty_poll_by_default(dummy_tracer, consumer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
+
     Pin.override(consumer, tracer=dummy_tracer)
 
     message = "hello"
@@ -919,7 +954,8 @@ from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
 from tests.utils import DummyTracer
 
-def test(consumer, producer, kafka_topic):
+def test(consumer, producer, empty_kafka_topic):
+    kafka_topic = empty_kafka_topic
     patch()
     dummy_tracer = DummyTracer()
     dummy_tracer.flush()
