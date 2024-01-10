@@ -87,6 +87,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+    """
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    """
     request_body = json.loads(params.get("body"))
     if provider == "ai21":
         return {
@@ -133,12 +136,15 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "max_tokens": request_body.get("max_gen_len", None),
         }
     elif provider == "stability":
-        # FIXME: figure out extraction for image-based models
+        # TODO: request/response formats are different for image-based models. Defer for now
         return {}
     return {}
 
 
 def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
+    """
+    Extracts text and finish_reason from the response body, which has different formats for different providers.
+    """
     text, finish_reason = None, None
     provider = span.get_tag("bedrock.request.model_provider")
     if provider == "ai21":
@@ -159,7 +165,7 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
         text = body.get("generation")
         finish_reason = body.get("stop_reason")
     elif provider == "stability":
-        # TODO: figure out extraction for image-based models
+        # TODO: request/response formats are different for image-based models. Defer for now
         pass
 
     if not isinstance(text, list):
@@ -170,6 +176,9 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
 
 
 def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    Extracts text,finish_reason from the streamed response body, which has different formats for different providers.
+    """
     text, finish_reason = None, None
     provider = span.get_tag("bedrock.request.model_provider")
     if provider == "ai21":
@@ -212,6 +221,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
 
 
 def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Extracts metadata from the streamed response body."""
     provider = span.get_tag("bedrock.request.model_provider")
     metadata = {}
     if provider == "ai21":
@@ -229,6 +239,7 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
 
 
 def handle_bedrock_request(span: Span, integration: _BedrockIntegration, params: Dict[str, Any]) -> None:
+    """Perform request param extraction and tagging."""
     model_provider, model_name = params.get("modelId").split(".")
     request_params = _extract_request_params(params, model_provider)
 
@@ -241,6 +252,7 @@ def handle_bedrock_request(span: Span, integration: _BedrockIntegration, params:
 
 
 def handle_bedrock_response(span: Span, integration: _BedrockIntegration, result: Dict[str, Any]) -> Dict[str, Any]:
+    """Perform response param extraction and tagging."""
     metadata = result["ResponseMetadata"]
     span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))
     span.set_tag_str("bedrock.response.duration", str(metadata.get("x-amzn-bedrock-invocation-latency", "")))
