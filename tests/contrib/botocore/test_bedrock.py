@@ -1,10 +1,8 @@
 import json
 import os
-import sys
 
 import mock
 import pytest
-import vcr
 
 from ddtrace import Pin
 from ddtrace.contrib.botocore.patch import patch
@@ -15,7 +13,7 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
 
-pytest.mark.skipif(sys.version_info < (3, 8), reason="vcrpy does not support Python 3.7 or older")
+vcr = pytest.importskip("vcr")
 
 
 _MODELS = {
