@@ -32,7 +32,6 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetaDictType,  # _meta
         _MetricDictType,  # _metrics
         list[SpanLink],
-        dict[str, Any],
     ]
 
 
@@ -90,13 +89,12 @@ class Context(object):
             self._meta,
             self._metrics,
             self._span_links,
-            self._baggage
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state):
         # type: (_ContextState) -> None
-        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage = state
+        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
@@ -227,19 +225,17 @@ class Context(object):
                     and self._meta == other._meta
                     and self._metrics == other._metrics
                     and self._span_links == other._span_links
-                    and self._baggage == other._baggage
                 )
         return False
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
             self._metrics,
             self._span_links,
-            self._baggage,
         )
 
     __str__ = __repr__

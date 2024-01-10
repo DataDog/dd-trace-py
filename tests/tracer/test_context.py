@@ -104,9 +104,6 @@ def test_traceparent_basic():
                 )
             ],
         ),
-        Context(
-            trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}, baggage={"some_value": 1}
-        ),
     ],
 )
 def test_context_serializable(context):
