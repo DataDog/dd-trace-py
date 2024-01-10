@@ -6,12 +6,14 @@ from typing import Optional
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.langchain.constants import API_KEY
-from ddtrace.contrib.langchain.constants import MODEL
-from ddtrace.contrib.langchain.constants import PROVIDER
-from ddtrace.contrib.langchain.constants import TOTAL_COST
-from ddtrace.contrib.langchain.constants import TYPE
 from ddtrace.internal.llmobs.llm_integrations import BaseLLMIntegration
+
+
+API_KEY = "langchain.request.api_key"
+MODEL = "langchain.request.model"
+PROVIDER = "langchain.request.provider"
+TOTAL_COST = "langchain.tokens.total_cost"
+TYPE = "langchain.request.type"
 
 
 class LangChainIntegration(BaseLLMIntegration):
