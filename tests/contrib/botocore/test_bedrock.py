@@ -144,6 +144,12 @@ class TestBedrockConfig(SubprocessTestCase):
         patch()
         import boto3
 
+        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+        os.environ["AWS_SECURITY_TOKEN"] = "testing"
+        os.environ["AWS_SESSION_TOKEN"] = "testing"
+        os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
         self.session = boto3.Session(
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
@@ -318,7 +324,7 @@ def test_meta_invoke_stream(bedrock_client, request_vcr):
             pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_auth_error(bedrock_client, request_vcr):
     import botocore
 
@@ -328,7 +334,7 @@ def test_auth_error(bedrock_client, request_vcr):
             bedrock_client.invoke_model(body=body, modelId=model)
 
 
-@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error")
+@pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"])
 def test_read_error(bedrock_client, request_vcr):
     with request_vcr.use_cassette("meta_invoke.yaml"):
         body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
@@ -353,7 +359,7 @@ def test_read_stream_error(bedrock_client, request_vcr):
                     pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_readlines_error(bedrock_client, request_vcr):
     with request_vcr.use_cassette("meta_invoke.yaml"):
         body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
