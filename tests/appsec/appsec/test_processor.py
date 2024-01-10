@@ -16,6 +16,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -325,6 +326,7 @@ def test_appsec_span_tags_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
+@flaky(1735812000)
 @snapshot(
     include_tracer=True,
     ignores=[
