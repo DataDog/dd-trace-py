@@ -765,6 +765,7 @@ from ddtrace import Pin
 from ddtrace.contrib.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import empty_kafka_topic
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
@@ -949,6 +950,7 @@ from ddtrace.contrib.kafka.patch import patch
 from ddtrace import config
 
 from tests.contrib.kafka.test_kafka import consumer
+from tests.contrib.kafka.test_kafka import empty_kafka_topic
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
