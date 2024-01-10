@@ -13,7 +13,7 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
 
-vcr = pytest.importskip("vcr")
+vcr = pytest.importorskip("vcr")
 
 
 _MODELS = {
