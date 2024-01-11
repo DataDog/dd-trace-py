@@ -25,51 +25,41 @@ _MODELS = {
 }
 
 _REQUEST_BODIES = {
-    "ai21": json.dumps(
-        {
-            "prompt": "Explain like I'm a five-year old: what is a neural network?",
-            "temperature": 0.9,
-            "topP": 1.0,
-            "maxTokens": 10,
-            "stopSequences": [],
-        }
-    ),
-    "amazon": json.dumps(
-        {
-            "inputText": "Command: can you explain what Datadog is to someone not in the tech industry?",
-            "textGenerationConfig": {"maxTokenCount": 50, "stopSequences": [], "temperature": 0, "topP": 0.9},
-        }
-    ),
-    "anthropic": json.dumps(
-        {
-            "prompt": "\n\nHuman: %s\n\nAssistant: What makes you better than Chat-GPT or LLAMA?",
-            "temperature": 0.9,
-            "top_p": 1,
-            "top_k": 250,
-            "max_tokens_to_sample": 50,
-            "stop_sequences": ["\n\nHuman:"],
-        }
-    ),
-    "cohere": json.dumps(
-        {
-            "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-            "temperature": 0.9,
-            "p": 1.0,
-            "k": 0,
-            "max_tokens": 10,
-            "stop_sequences": [],
-            "stream": False,
-            "num_generations": 1,
-        }
-    ),
-    "meta": json.dumps(
-        {
-            "prompt": "What does 'lorem ipsum' mean?",
-            "temperature": 0.9,
-            "top_p": 1.0,
-            "max_gen_len": 60,
-        }
-    ),
+    "ai21": {
+        "prompt": "Explain like I'm a five-year old: what is a neural network?",
+        "temperature": 0.9,
+        "topP": 1.0,
+        "maxTokens": 10,
+        "stopSequences": [],
+    },
+    "amazon": {
+        "inputText": "Command: can you explain what Datadog is to someone not in the tech industry?",
+        "textGenerationConfig": {"maxTokenCount": 50, "stopSequences": [], "temperature": 0, "topP": 0.9},
+    },
+    "anthropic": {
+        "prompt": "\n\nHuman: %s\n\nAssistant: What makes you better than Chat-GPT or LLAMA?",
+        "temperature": 0.9,
+        "top_p": 1,
+        "top_k": 250,
+        "max_tokens_to_sample": 50,
+        "stop_sequences": ["\n\nHuman:"],
+    },
+    "cohere": {
+        "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
+        "temperature": 0.9,
+        "p": 1.0,
+        "k": 0,
+        "max_tokens": 10,
+        "stop_sequences": [],
+        "stream": False,
+        "num_generations": 1,
+    },
+    "meta": {
+        "prompt": "What does 'lorem ipsum' mean?",
+        "temperature": 0.9,
+        "top_p": 1.0,
+        "max_gen_len": 60,
+    },
 }
 
 
@@ -110,7 +100,7 @@ def botocore():
 
 @pytest.fixture
 def aws_credentials():
-    """Mocked AWS Credentials."""
+    """Mocked AWS Credentials. To regenerate test cassettes, comment this out and use real credentials."""
     os.environ["AWS_ACCESS_KEY_ID"] = "testing"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
@@ -167,8 +157,9 @@ class TestBedrockConfig(SubprocessTestCase):
         )
     )
     def test_global_tags(self):
+        body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
         with get_request_vcr().use_cassette("meta_invoke.yaml"):
-            response = self.bedrock_client.invoke_model(body=_REQUEST_BODIES["meta"], modelId=_MODELS["meta"])
+            response = self.bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
         span = self.mock_tracer.pop_traces()[0][0]
         assert span.resource == "InvokeModel"
@@ -177,10 +168,11 @@ class TestBedrockConfig(SubprocessTestCase):
         assert span.get_tag("version") == "1234"
 
     def _test_span_sampling(self, rate):
+        body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
         num_completions = 200
         for _ in range(num_completions):
             with get_request_vcr().use_cassette("meta_invoke.yaml"):
-                response = self.bedrock_client.invoke_model(body=_REQUEST_BODIES["meta"], modelId=_MODELS["meta"])
+                response = self.bedrock_client.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
         traces = self.mock_tracer.pop_traces()
         sampled = 0
@@ -209,32 +201,32 @@ class TestBedrockConfig(SubprocessTestCase):
 
 @pytest.mark.snapshot
 def test_ai21_invoke(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["ai21"]), _MODELS["ai21"]
     with request_vcr.use_cassette("ai21_invoke.yaml"):
-        body, model = _REQUEST_BODIES["ai21"], _MODELS["ai21"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
 
 @pytest.mark.snapshot
 def test_amazon_invoke(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["amazon"]), _MODELS["amazon"]
     with request_vcr.use_cassette("amazon_invoke.yaml"):
-        body, model = _REQUEST_BODIES["amazon"], _MODELS["amazon"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
 
 @pytest.mark.snapshot
 def test_anthropic_invoke(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic"]), _MODELS["anthropic"]
     with request_vcr.use_cassette("anthropic_invoke.yaml"):
-        body, model = _REQUEST_BODIES["anthropic"], _MODELS["anthropic"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
 
 @pytest.mark.snapshot
 def test_cohere_invoke_single_output(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["cohere"]), _MODELS["cohere"]
     with request_vcr.use_cassette("cohere_invoke_single_output.yaml"):
-        body, model = _REQUEST_BODIES["cohere"], _MODELS["cohere"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
@@ -260,16 +252,16 @@ def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot
 def test_meta_invoke(bedrock_client, request_vcr):
-    with request_vcr.use_cassette("meta_invoke.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
+    with get_request_vcr().use_cassette("meta_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
 
 @pytest.mark.snapshot
 def test_amazon_invoke_stream(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["amazon"]), _MODELS["amazon"]
     with request_vcr.use_cassette("amazon_invoke_stream.yaml"):
-        body, model = _REQUEST_BODIES["amazon"], _MODELS["amazon"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         for _ in response.get("body"):
             pass
@@ -277,8 +269,8 @@ def test_amazon_invoke_stream(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot
 def test_anthropic_invoke_stream(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic"]), _MODELS["anthropic"]
     with request_vcr.use_cassette("anthropic_invoke_stream.yaml"):
-        body, model = _REQUEST_BODIES["anthropic"], _MODELS["anthropic"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         for _ in response.get("body"):
             pass
@@ -286,8 +278,20 @@ def test_anthropic_invoke_stream(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot
 def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
+    body = json.dumps(
+        {
+            "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
+            "temperature": 0.9,
+            "p": 1.0,
+            "k": 0,
+            "max_tokens": 10,
+            "stop_sequences": [],
+            "stream": True,
+            "num_generations": 1,
+        }
+    )
+    model = _MODELS["cohere"]
     with request_vcr.use_cassette("cohere_invoke_stream_single_output.yaml"):
-        body, model = _REQUEST_BODIES["cohere"], _MODELS["cohere"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         for _ in response.get("body"):
             pass
@@ -304,7 +308,7 @@ def test_cohere_invoke_stream_multiple_output(bedrock_client, request_vcr):
                 "k": 0,
                 "max_tokens": 10,
                 "stop_sequences": [],
-                "stream": False,
+                "stream": True,
                 "num_generations": 2,
             }
         )
@@ -315,8 +319,8 @@ def test_cohere_invoke_stream_multiple_output(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot
 def test_meta_invoke_stream(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         for _ in response.get("body"):
             pass
@@ -326,16 +330,16 @@ def test_meta_invoke_stream(bedrock_client, request_vcr):
 def test_auth_error(bedrock_client, request_vcr):
     import botocore
 
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with pytest.raises(botocore.exceptions.ClientError):
         with request_vcr.use_cassette("meta_invoke_error.yaml"):
-            body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
             bedrock_client.invoke_model(body=body, modelId=model)
 
 
 @pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock.test_read_error", ignores=["meta.error.stack"])
 def test_read_error(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
@@ -345,8 +349,8 @@ def test_read_error(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_read_stream_error(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke_stream.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         with mock.patch(
             "ddtrace.contrib.botocore.services.bedrock._extract_streamed_response"
@@ -359,8 +363,8 @@ def test_read_stream_error(bedrock_client, request_vcr):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_readlines_error(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
-        body, model = _REQUEST_BODIES["meta"], _MODELS["meta"]
         response = bedrock_client.invoke_model(body=body, modelId=model)
         with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")

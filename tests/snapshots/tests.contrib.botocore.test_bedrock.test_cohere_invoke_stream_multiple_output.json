@@ -11,37 +11,35 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "659d9df200000000",
+      "_dd.p.tid": "65a0359000000000",
       "bedrock.request.max_tokens": "10",
       "bedrock.request.model": "command-light-text-v14",
       "bedrock.request.model_provider": "cohere",
       "bedrock.request.n": "2",
       "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: Can you explain what a LLM chain is?",
       "bedrock.request.stop_sequences": "[]",
-      "bedrock.request.stream": "False",
+      "bedrock.request.stream": "True",
       "bedrock.request.temperature": "0.9",
       "bedrock.request.top_k": "0",
       "bedrock.request.top_p": "1.0",
       "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
-      "bedrock.response.choices.0.id": "0aac3131-f5e2-459b-a5a2-1482e538c28f",
-      "bedrock.response.choices.0.text": " The Latin phrase *lorum ipsum* arguably",
+      "bedrock.response.choices.0.text": " In machine learning and natural language processing, Long Short",
       "bedrock.response.choices.1.finish_reason": "MAX_TOKENS",
-      "bedrock.response.choices.1.id": "5cbdcc31-e6f8-4bd4-a1de-6ea9d3c41518",
-      "bedrock.response.choices.1.text": " Lorem ipsum is a Latin phrase, which",
-      "bedrock.response.duration": "346",
-      "bedrock.response.id": "78be4d3a-24f5-4373-8cd3-5694e1430916",
+      "bedrock.response.choices.1.text": " A large language model (LLM) chain refers",
+      "bedrock.response.duration": "597",
+      "bedrock.response.id": "2501c28f-0a40-49ec-9b59-5d58313c05f3",
       "bedrock.usage.completion_tokens": "20",
-      "bedrock.usage.prompt_tokens": "20",
+      "bedrock.usage.prompt_tokens": "40",
       "language": "python",
-      "runtime-id": "f6f284ccb7774b4280cac6aed3969a95"
+      "runtime-id": "e2468c635ce44f8788acce3e9e569237"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 3035
+      "process_id": 21816
     },
-    "duration": 2148000,
-    "start": 1704828402008519000
+    "duration": 980170000,
+    "start": 1704998288813204000
   }]]

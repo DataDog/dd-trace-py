@@ -196,9 +196,10 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                 text = [
                     "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)
                 ]
+                finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(n)]
             else:
                 text = "".join([chunk["text"] for chunk in streamed_body[:-1]])
-            finish_reason = streamed_body[-1]["finish_reason"]
+                finish_reason = streamed_body[-1]["finish_reason"]
         else:
             text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
             finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
@@ -215,6 +216,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
 
     if not isinstance(text, list):
         text = [text]
+    if not isinstance(finish_reason, list):
         finish_reason = [finish_reason]
 
     return {"text": text, "finish_reason": finish_reason}
