@@ -1,9 +1,5 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
 
 from openai import version
 
@@ -20,10 +16,6 @@ from ddtrace.internal.wrapping import wrap
 from ...pin import Pin
 from . import _endpoint_hooks
 from .utils import _format_openai_api_key
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)

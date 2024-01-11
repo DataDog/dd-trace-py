@@ -370,7 +370,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
                     "choices": mock.ANY,
@@ -588,7 +588,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -1380,7 +1380,7 @@ def test_llm_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you please not return an error?"],
                     "choices": [],
@@ -1427,7 +1427,7 @@ def test_chat_model_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -1529,7 +1529,7 @@ def test_chain_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,
