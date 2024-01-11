@@ -9,7 +9,6 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 import attr
-import six
 
 from ddtrace import config
 from ddtrace.constants import BASE_SERVICE_KEY
@@ -42,7 +41,7 @@ log = get_logger(__name__)
 
 
 @attr.s
-class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
+class TraceProcessor(metaclass=abc.ABCMeta):
     def __attrs_post_init__(self):
         # type: () -> None
         """Default post initializer which logs the representation of the

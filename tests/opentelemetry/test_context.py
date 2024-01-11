@@ -6,6 +6,7 @@ import opentelemetry
 import pytest
 
 import ddtrace
+from tests.utils import flaky
 
 
 @pytest.mark.snapshot
@@ -31,6 +32,7 @@ def test_otel_span_parenting(oteltracer):
         orphan1.end()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_ddtrace_mixed_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-top-level"):
