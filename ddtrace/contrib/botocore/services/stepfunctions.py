@@ -1,15 +1,22 @@
 import json
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 
 import botocore.exceptions
 
+from ddtrace import Span  # noqa:F401
+from ddtrace import config
+from ddtrace.ext import http
 from ddtrace.propagation.http import HTTPPropagator
-from ..utils import set_patched_api_call_span_tags, set_response_metadata_tags
+
 from ....ext import SpanTypes
 from ....internal.logger import get_logger
-from typing import Any, Dict  # noqa:F401
-from ddtrace import Span  # noqa:F401
-from ....internal.schema import schematize_service_name, SpanDirection, schematize_cloud_messaging_operation
-from ddtrace import config
+from ....internal.schema import SpanDirection
+from ....internal.schema import schematize_cloud_messaging_operation
+from ....internal.schema import schematize_service_name
+from ..utils import set_patched_api_call_span_tags
+from ..utils import set_response_metadata_tags
+
 
 log = get_logger(__name__)
 

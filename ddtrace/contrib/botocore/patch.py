@@ -35,7 +35,8 @@ from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
 from .services.sqs import inject_trace_to_sqs_or_sns_message
 from .services.sqs import patched_sqs_api_call
-from .services.stepfunctions import inject_trace_to_stepfunction_input, patched_stepfunction_api_call
+from .services.stepfunctions import inject_trace_to_stepfunction_input
+from .services.stepfunctions import patched_stepfunction_api_call
 from .utils import inject_trace_to_client_context
 from .utils import inject_trace_to_eventbridge_detail
 from .utils import set_patched_api_call_span_tags
