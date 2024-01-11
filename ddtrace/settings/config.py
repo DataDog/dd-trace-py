@@ -735,7 +735,7 @@ class Config(object):
                 updated_items.append(("tags", tags))
 
             if "tracing_enabled" in lib_config:
-                updated_items.append("_tracing_enabled", lib_config["tracing_enabled"])
+                updated_items.append(("_tracing_enabled", lib_config["tracing_enabled"]))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

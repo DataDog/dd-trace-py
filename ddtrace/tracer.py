@@ -1071,7 +1071,7 @@ class Tracer(object):
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
         elif "_tracing_enabled" in items:
-            if cfg._tracing_enabled is False and self._enabled:
-                self._enabled = False
+            if cfg._tracing_enabled is False and self.enabled:
+                self.enabled = False
         elif "tags" in items:
             self._tags = cfg.tags.copy()
