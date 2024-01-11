@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes a bug that prevents span links from being visualized in the Datadog UI.
