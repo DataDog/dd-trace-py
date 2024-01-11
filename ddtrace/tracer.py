@@ -1071,7 +1071,12 @@ class Tracer(object):
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
         elif "_tracing_enabled" in items:
-            if cfg._tracing_enabled is False and self.enabled:
-                self.enabled = False
+            if self.enabled:
+                if cfg._tracing_enabled is False:
+                    self.enabled = False
+            else:
+                # the product specification says not to allow tracing to be re-enabled remotely at runtime
+                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+                    self.enabled = True
         elif "tags" in items:
             self._tags = cfg.tags.copy()
