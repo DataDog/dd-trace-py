@@ -114,12 +114,12 @@ def callonce(f):
 
     def _():
         # type: () -> Any
+        exc = None
         try:
             retval, exc = f.__callonce_result__  # type: ignore[attr-defined]
         except AttributeError:
             try:
                 retval = f()
-                exc = None
             except Exception as e:
                 retval = None
                 exc = e
