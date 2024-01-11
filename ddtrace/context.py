@@ -31,6 +31,8 @@ if TYPE_CHECKING:  # pragma: no cover
         Optional[int],  # span_id
         _MetaDictType,  # _meta
         _MetricDictType,  # _metrics
+        list[SpanLink],
+        dict[str, Any],
     ]
 
 
@@ -44,7 +46,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage"]
 
     def __init__(
         self,
@@ -56,9 +58,11 @@ class Context(object):
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
         span_links=None,  # type: Optional[list[SpanLink]]
+        baggage=None,  # type: Optional[dict[str, Any]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
+        self._baggage = baggage if baggage is not None else {}  # type: dict[str, Any]
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
@@ -87,12 +91,14 @@ class Context(object):
             self.span_id,
             self._meta,
             self._metrics,
+            self._span_links,
+            self._baggage
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state):
         # type: (_ContextState) -> None
-        self.trace_id, self.span_id, self._meta, self._metrics = state
+        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
@@ -100,7 +106,12 @@ class Context(object):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
-            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
+            trace_id=span.trace_id,
+            span_id=span.span_id,
+            meta=self._meta,
+            metrics=self._metrics,
+            lock=self._lock,
+            baggage=self._baggage,
         )
 
     def _update_tags(self, span):
@@ -204,6 +215,32 @@ class Context(object):
                 return
             self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
 
+    def _set_baggage_item(self, key, value):
+        # type: (str, Any) -> None
+        """Sets a baggage item in this span context.
+        Note that this operation mutates the baggage of this span context
+        """
+        self._baggage[key] = value
+
+    def _with_baggage_item(self, key, value):
+        # type: (str, Any) -> Context
+        """Returns a copy of this span with a new baggage item.
+        Useful for instantiating new child span contexts.
+        """
+        new_baggage = dict(self._baggage)
+        new_baggage[key] = value
+
+        ctx = self.__class__(trace_id=self.trace_id, span_id=self.span_id)
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        ctx._baggage = new_baggage
+        return ctx
+
+    def _get_baggage_item(self, key):
+        # type: (str) -> Optional[Any]
+        """Gets a baggage item in this span context."""
+        return self._baggage.get(key, None)
+
     def __eq__(self, other):
         # type: (Any) -> bool
         if isinstance(other, Context):
@@ -213,17 +250,20 @@ class Context(object):
                     and self.span_id == other.span_id
                     and self._meta == other._meta
                     and self._metrics == other._metrics
+                    and self._span_links == other._span_links
+                    and self._baggage == other._baggage
                 )
         return False
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
             self._metrics,
             self._span_links,
+            self._baggage,
         )
 
     __str__ = __repr__

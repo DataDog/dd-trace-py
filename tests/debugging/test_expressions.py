@@ -102,6 +102,8 @@ class CustomDict(dict):
         # Test literal values
         (42, {}, 42),
         (True, {}, True),
+        ({"isUndefined": "foobar"}, {"bar": 42}, True),
+        ({"isUndefined": "bar"}, {"bar": 42}, False),
     ],
 )
 def test_parse_expressions(ast, _locals, value):

@@ -17,6 +17,12 @@ class Resource200(object):
         resp.append_header("my-response-header", "my_response_value")
 
 
+class DynamicURIResource(object):
+    def on_get(self, req, resp, name):
+        resp.status = falcon.HTTP_200
+        resp.body = name
+
+
 class Resource201(object):
     def on_post(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_201

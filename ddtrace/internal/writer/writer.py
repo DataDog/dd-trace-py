@@ -12,8 +12,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import TextIO  # noqa:F401
 
-import six
-
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings import _config as config
@@ -35,6 +33,8 @@ from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..runtime import container
+from ..serverless import in_azure_function_consumption_plan
+from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV3
@@ -78,7 +78,7 @@ def _human_size(nbytes):
     return "%s%s" % (f, suffixes[i])
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+class TraceWriter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
@@ -306,7 +306,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
-                if isinstance(payload, six.binary_type):
+                if isinstance(payload, bytes):
                     log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
                 else:
                     log_args += (payload,)  # type: ignore
@@ -395,7 +395,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
-                six.reraise(*sys.exc_info())
+                raise
             else:
                 log.error(
                     "failed to send, dropping %d traces to intake at %s after %d retries",
@@ -478,7 +478,11 @@ class AgentWriter(HTTPWriter):
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
-        self._api_version = api_version or config._trace_api or ("v0.4" if priority_sampling else "v0.3")
+        default_api_version = "v0.5"
+        if is_windows or in_gcp_function() or in_azure_function_consumption_plan():
+            default_api_version = "v0.4"
+
+        self._api_version = api_version or config._trace_api or default_api_version
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
@@ -603,7 +607,6 @@ class AgentWriter(HTTPWriter):
         try:
             if config._telemetry_enabled and not telemetry.telemetry_writer.started:
                 telemetry.telemetry_writer._app_started_event()
-                telemetry.telemetry_writer._app_dependencies_loaded_event()
 
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized

@@ -14,7 +14,6 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
-import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.context import Context
@@ -24,8 +23,6 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.compat import msgpack_type
-from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
@@ -129,7 +126,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         if value is None:
             return 0
 
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return self.string_table.index(value)
 
         if isinstance(value, dict):
@@ -183,7 +180,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -214,7 +211,7 @@ class TestEncoders(TestCase):
         items = json.loads(spans)["traces"]
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -222,7 +219,7 @@ class TestEncoders(TestCase):
         for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
-                assert isinstance(items[i][j]["span_id"], string_type)
+                assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
     def test_encode_traces_msgpack_v03(self):
@@ -252,7 +249,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, msgpack_type)
+        assert isinstance(spans, bytes)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -297,6 +294,36 @@ def decode(obj, reconstruct=True):
 
 def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
+
+
+def test_msgpack_encoding_after_an_exception_was_raised():
+    """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
+    # Encode a trace after a rollback/BufferFull occurs exception
+    rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
+    trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
+    rand_string = rands(size=20, chars=string.ascii_letters)
+    # trace only has one span
+    trace[0].set_tag_str("some_tag", rand_string)
+    try:
+        # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
+        # BufferFull is not raised since only one span is being encoded
+        rolledback_encoder.put(trace)
+    except BufferItemTooLarge:
+        pass
+    else:
+        pytest.fail("Encoding the trace did not overflow the trace buffer. We should increase the size of the span.")
+    # Successfully encode a small trace
+    small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
+    # Add a tag to the small trace that was previously encoded in the encoder's StringTable
+    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    rolledback_encoder.put(small_trace)
+
+    # Encode a trace without triggering a rollback/BufferFull exception
+    ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
+    ref_encoder.put(small_trace)
+
+    # Ensure the two encoders have the same state
+    assert rolledback_encoder.encode() == ref_encoder.encode()
 
 
 @allencodings
@@ -436,8 +463,8 @@ def test_span_link_v04_encoding():
     assert b"span_links" in decoded_span
     assert decoded_span[b"span_links"] == [
         {
-            b"trace_id": 456,
-            b"span_id": 2,
+            b"trace_id": b"00000000000001c8",
+            b"span_id": b"0000000000000002",
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
@@ -447,7 +474,7 @@ def test_span_link_v04_encoding():
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1,
-            b"trace_id_high": 123,
+            b"trace_id_high": b"000000000000007b",
         }
     ]
 
@@ -460,8 +487,8 @@ def test_span_link_v05_encoding():
         context=Context(sampling_priority=1),
         links=[
             SpanLink(
-                trace_id=1,
-                span_id=2,
+                trace_id=(2**127) - 1,
+                span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
                 attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
@@ -484,9 +511,9 @@ def test_span_link_v05_encoding():
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
+        b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
+        b'"link_kind"}, "dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
 

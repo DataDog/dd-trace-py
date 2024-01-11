@@ -8,7 +8,6 @@ from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
-import six
 import xmltodict
 
 from ddtrace import Span
@@ -18,6 +17,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal import compat
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
@@ -175,7 +175,7 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = six.ensure_text(v)
+        urlparts[k] = compat.ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
@@ -269,8 +269,7 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-        results = core.dispatch("django.extract_body", [])[0]
-        headers = results[0] if results else None
+        headers = core.dispatch_with_results("django.extract_body").headers.value
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
@@ -344,7 +343,7 @@ def _after_request_tags(pin, span: Span, request, response):
                 # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                 template = response.template_name
 
-                if isinstance(template, six.string_types):
+                if isinstance(template, str):
                     template_names = [template]
                 elif isinstance(
                     template,
@@ -366,8 +365,7 @@ def _after_request_tags(pin, span: Span, request, response):
 
             url = get_request_uri(request)
 
-            results = core.dispatch("django.after_request_headers", [])[0]
-            request_headers = results[0] if results else None
+            request_headers = core.dispatch_with_results("django.after_request_headers").headers.value
             if not request_headers:
                 request_headers = _get_request_headers(request)
 
@@ -375,7 +373,7 @@ def _after_request_tags(pin, span: Span, request, response):
 
             response_cookies = {}
             if response.cookies:
-                for k, v in six.iteritems(response.cookies):
+                for k, v in response.cookies.items():
                     response_cookies[k] = v.OutputString()
 
             raw_uri = url
@@ -384,21 +382,22 @@ def _after_request_tags(pin, span: Span, request, response):
 
             core.dispatch(
                 "django.after_request_headers.post",
-                request_headers,
-                response_headers,
-                span,
-                config.django,
-                request,
-                _extract_body(request),
-                url,
-                raw_uri,
-                status,
-                response_cookies,
+                (
+                    request_headers,
+                    response_headers,
+                    span,
+                    config.django,
+                    request,
+                    url,
+                    raw_uri,
+                    status,
+                    response_cookies,
+                ),
             )
             content = getattr(response, "content", None)
             if content is None:
                 content = getattr(response, "streaming_content", None)
-            core.dispatch("django.after_request_headers.finalize", content, None)
+            core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

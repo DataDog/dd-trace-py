@@ -29,6 +29,7 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -124,9 +125,9 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
-        "_trace_sample_rate",
         "_trace_rate_limit",
         "_trace_sampling_rules",
+        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -134,6 +135,7 @@ def override_global_config(values):
         "_trace_writer_connection_reuse",
         "_trace_writer_log_err_payload",
         "_span_traceback_max_size",
+        "propagation_http_baggage_enabled",
         "_telemetry_enabled",
         "_telemetry_dependency_collection",
     ]
@@ -150,6 +152,8 @@ def override_global_config(values):
         "_user_model_name_field",
     ]
 
+    subscriptions = ddtrace.config._subscriptions
+    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
@@ -169,6 +173,7 @@ def override_global_config(values):
         for key, value in asm_originals.items():
             setattr(ddtrace.settings.asm.config, key, value)
         ddtrace.config._reset()
+        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
@@ -566,6 +571,7 @@ class DummyTracer(Tracer):
 
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
+        self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
 
@@ -606,7 +612,9 @@ class DummyTracer(Tracer):
         if not kwargs.get("writer"):
             # if no writer is present, check if test agent is running to determine if we
             # should emit traces.
-            kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
+            kwargs["writer"] = DummyWriter(
+                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+            )
         super(DummyTracer, self).configure(*args, **kwargs)
 
 
