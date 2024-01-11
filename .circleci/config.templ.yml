@@ -436,6 +436,12 @@ jobs:
           snapshot: true
           docker_services: "postgres"
 
+  appsec_iast_tdd_propagation:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_tdd_propagation'
+
   appsec_iast_memcheck:
     <<: *machine_executor
     steps:

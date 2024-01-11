@@ -4,6 +4,8 @@ import signal
 import subprocess
 import sys
 
+from requests.exceptions import ConnectionError
+
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.vendor import psutil
 from tests.webclient import Client
@@ -13,12 +15,15 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def _build_env():
+def _build_env(env=None):
     environ = dict(PATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR), PYTHONPATH="%s:%s" % (ROOT_PROJECT_DIR, ROOT_DIR))
     if os.environ.get("PATH"):
         environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
     if os.environ.get("PYTHONPATH"):
         environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env:
+        for k, v in env.items():
+            environ[k] = v
     return environ
 
 
@@ -36,9 +41,15 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
 
 @contextmanager
 def flask_server(
-    appsec_enabled="true", remote_configuration_enabled="true", iast_enabled="false", tracer_enabled="true", token=None
+    appsec_enabled="true",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    token=None,
+    app="tests/appsec/app.py",
+    env=None,
 ):
-    cmd = ["python", "tests/appsec/app.py", "--no-reload"]
+    cmd = ["python", app, "--no-reload"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -46,6 +57,7 @@ def flask_server(
         iast_enabled=iast_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        env=env,
     )
 
 
@@ -56,8 +68,9 @@ def appsec_application_server(
     iast_enabled="false",
     tracer_enabled="true",
     token=None,
+    env=None,
 ):
-    env = _build_env()
+    env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
@@ -77,7 +90,7 @@ def appsec_application_server(
         env=env,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        preexec_fn=os.setsid,
+        start_new_session=True,
     )
     try:
         client = Client("http://0.0.0.0:8000")
@@ -107,6 +120,8 @@ def appsec_application_server(
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
         try:
             client.get_ignored("/shutdown")
+        except ConnectionError:
+            pass
         except Exception:
             raise AssertionError(
                 "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
