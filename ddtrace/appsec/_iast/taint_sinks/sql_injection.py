@@ -55,7 +55,9 @@ class SqlInjection(VulnerabilityBase):
                 return {"value": value, "source": source}
             return {"value": value}
         new_valueparts = []
+        print("JJJ vuln: %s" % vuln)
         print("JJJ original valueParts:\n%s" % vuln.evidence.valueParts)
+
         for part in vuln.evidence.valueParts:
             value = part.get("value")
 
@@ -63,6 +65,19 @@ class SqlInjection(VulnerabilityBase):
                 new_valueparts.append(part)
                 continue
 
+            """
+            parsed = sqlparser.parse(value).flatten()
+            sio = StringIO()
+            for item in parsed:
+                if item.type in (Token.Literal.String, Token.Literal.Number, Token.Comment):
+                    # Add the previous text
+                    if len(sio):
+                        new_valueparts.append(sio.to_text())
+                    # Add this one as one valuepart
+                    new_valueparts.append(part)
+                else:
+                    sio.add(value)
+            """
             print("JJJ part: %s" % part)
             prev = 0
             source = part.get("source")
