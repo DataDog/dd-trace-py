@@ -27,6 +27,7 @@ from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -822,7 +823,16 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    return core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result.value
+    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
+    # if the callback is registered and runs, return the result
+    if result:
+        return result.value
+    # if the callback is not registered, return the original result
+    elif result.response_type == ResultType.RESULT_UNDEFINED:
+        return wrapped(*args, **kwargs)
+    # if an exception occurs, raise it. It should never happen.
+    elif result.exception:
+        raise result.exception
 
 
 def patch():
