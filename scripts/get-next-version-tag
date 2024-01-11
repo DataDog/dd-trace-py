@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPTNAME=$(basename $0)
+
+if [[ $# -lt 1 ]]; then
+    cat << EOF
+Usage: ${SCRIPTNAME} <command or release branch>
+Examples:
+    ${SCRIPTNAME} 2
+    ${SCRIPTNAME} 2.3
+    ${SCRIPTNAME} 1.20
+
+EOF
+    exit 1
+fi
+
+COMMAND=${1}
+
+if [[ ${COMMAND} == "next-major" ]]; then
+    echo "WARNING: next-major not yet supported"
+    exit 1
+fi
+
+if [[ ${COMMAND} == "next-minor" ]]; then
+    filter=".info.version | split(\".\") | [.[0], (.[1] | tonumber | .+1 | tostring), 0] | join(\".\")"
+else
+    filter="[.releases | to_entries[] | select( (.key | startswith(\"${COMMAND}\")) and (.key | contains(\"rc\") | not)) | .key] | sort | last | split(\".\") | [.[0], .[1], (.[2] | tonumber | .+1 | tostring)] | join(\".\")"
+fi
+
+curl -k --insecure -L -s "https://pypi.org/pypi/ddtrace/json" | jq -r "${filter}"
