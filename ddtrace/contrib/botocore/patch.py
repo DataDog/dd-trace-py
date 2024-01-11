@@ -89,6 +89,7 @@ def patch():
 
     integration = _BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
     botocore._datadog_integration = integration
+
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
