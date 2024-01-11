@@ -112,7 +112,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
@@ -154,7 +154,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -200,7 +200,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -223,7 +223,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4

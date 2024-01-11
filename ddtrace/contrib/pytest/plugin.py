@@ -21,6 +21,12 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.coverage.data import _coverage_data
+from ddtrace.contrib.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.coverage.patch import run_coverage_report
+from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
+from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import DDTRACE_INCLUDE_CLASS_HELP_MSG
 from ddtrace.contrib.pytest.constants import FRAMEWORK
@@ -47,10 +53,12 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
+from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -72,6 +80,18 @@ def encode_test_parameter(parameter):
 def is_enabled(config):
     """Check if the ddtrace plugin is enabled."""
     return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if type(cov_option) == list and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
 
 
 def _extract_span(item):
@@ -373,7 +393,10 @@ def pytest_configure(config):
     unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
+        take_over_logger_stream_handler()
         _CIVisibility.enable(config=ddtrace.config.pytest)
+    if _is_pytest_cov_enabled(config):
+        patch_coverage()
 
 
 def pytest_sessionstart(session):
@@ -408,6 +431,8 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
+        if _is_coverage_invoked_by_coverage_run():
+            patch_coverage()
         if _CIVisibility._instance._collect_coverage_enabled and not _module_has_dd_coverage_enabled(
             pytest, silent_mode=True
         ):
@@ -424,6 +449,13 @@ def pytest_sessionfinish(session, exitstatus):
             if _CIVisibility.test_skipping_enabled():
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
+            pytest_cov_status = _is_pytest_cov_enabled(session.config)
+            invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
+            if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
+                if invoked_by_coverage_run_status and not pytest_cov_status:
+                    run_coverage_report()
+                _add_pct_covered_to_span(_coverage_data, test_session_span)
+                unpatch_coverage()
             test_session_span.finish()
         _CIVisibility.disable()
 

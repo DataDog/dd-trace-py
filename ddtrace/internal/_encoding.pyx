@@ -6,7 +6,6 @@ from libc.string cimport strlen
 from json import dumps as json_dumps
 import threading
 from json import dumps as json_dumps
-from numbers import Number
 
 from ._utils cimport PyBytesLike_Check
 
@@ -572,8 +571,8 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             # SpanLink.to_dict() returns all serializable span link fields
             d = link.to_dict()
             # Encode 128 bit trace ids usings two 64bit integers
-            d["trace_id_high"] = d["trace_id"] >> 64
-            d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
+            d["trace_id_high"] = d["trace_id"][:16]
+            d["trace_id"] = d["trace_id"][16:]
 
             ret = msgpack_pack_map(&self.pk, len(d))
             if ret != 0:
@@ -585,7 +584,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
                 # pack the value of a span link field (values can be number, string or dict)
-                if isinstance(v, Number):
+                if isinstance(v, (int, float)):
                     ret = pack_number(&self.pk, v)
                 elif isinstance(v, str):
                     ret = pack_text(&self.pk, v)

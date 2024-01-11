@@ -36,9 +36,6 @@ log = get_logger(__name__)
 _run_code = None
 _post_run_module_hooks = []  # type: List[ModuleHookType]
 
-_IMPORTED_MODULES_MAX_SIZE = 256
-_new_imported_modules = set()  # type: Set[str]
-
 
 def _wrapped_run_code(*args, **kwargs):
     # type: (*Any, **Any) -> Dict[str, Any]
@@ -151,15 +148,6 @@ class _ImportHookChainedLoader:
             self.create_module = self._create_module
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
-
-    def __getattribute__(self, name):
-        if name == "__class__":
-            # Make isinstance believe that self is also an instance of
-            # type(self.loader). This is required, e.g. by some tools, like
-            # slotscheck, that can handle known loaders only.
-            return self.loader.__class__
-
-        return super(_ImportHookChainedLoader, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # Proxy any other attribute access to the underlying loader.
@@ -428,10 +416,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
             for hook in hooks:
                 hook(module)
-
-        if len(_new_imported_modules) <= _IMPORTED_MODULES_MAX_SIZE:
-            # Avoid _new_imported_modules to increase too much if nobody is emptying it
-            _new_imported_modules.add(str(module_path))
 
     @classmethod
     def get_by_origin(cls, _origin):

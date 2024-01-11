@@ -18,7 +18,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
-from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
@@ -227,6 +226,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
+                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -254,9 +254,11 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
                     message["body"] = content
                     message["more_body"] = False
+                    core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
                 finally:
@@ -277,7 +279,7 @@ class TraceMiddleware:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
-                reraise(exc_type, exc_val, exc_tb)
+                raise
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

@@ -201,12 +201,15 @@ class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
-        # type: (str, _JSONType, List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
-        self._default_value = default
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
+        if callable(default):
+            self._default_value = default()
+        else:
+            self._default_value = default
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
@@ -261,6 +264,11 @@ class _ConfigItem:
         )
 
 
+def _parse_global_tags(s):
+    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
+    return gitmetadata.clean_tags(parse_tags_str(s))
+
+
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
@@ -276,8 +284,13 @@ def _default_config():
         ),
         "trace_http_header_tags": _ConfigItem(
             name="trace_http_header_tags",
-            default={},
+            default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+        "tags": _ConfigItem(
+            name="tags",
+            default=lambda: {},
+            envs=[("DD_TAGS", _parse_global_tags)],
         ),
     }
 
@@ -393,9 +406,6 @@ class Config(object):
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
-        # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-        self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
-
         self.propagation_http_baggage_enabled = asbool(
             os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
         )
@@ -501,6 +511,7 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
+        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -512,7 +523,11 @@ class Config(object):
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
-    def __getattr__(self, name):
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+
+    def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
 
@@ -657,10 +672,10 @@ class Config(object):
         for key, value, origin in items:
             item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.add_configs_changed(item_names)
+            telemetry_writer.add_configs_changed(item_names)
         self._notify_subscribers(item_names)
 
     def _reset(self):
@@ -690,27 +705,30 @@ class Config(object):
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        if not data:
-            for item in self._config.values():
-                item.unset_rc()
+        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
+            log.warning("unexpected RC payload %r", data)
             return
-
         if len(data["config"]) == 0:
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        if "lib_config" not in config:
-            log.warning("unexpected RC payload %r", config)
-            return
-
-        lib_config = config["lib_config"]
         updated_items = []  # type: List[Tuple[str, Any]]
 
-        if "tracing_sampling_rate" in lib_config:
-            updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+        if not config:
+            for item in self._config:
+                updated_items.append((item, None))
+        else:
+            lib_config = config["lib_config"]
+            if "tracing_sampling_rate" in lib_config:
+                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+
+            if "tracing_tags" in lib_config:
+                tags = lib_config["tracing_tags"]
+                if tags:
+                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                updated_items.append(("tags", tags))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

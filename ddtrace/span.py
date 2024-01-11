@@ -10,8 +10,6 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ddtrace.tracing._span_link import SpanLink
 
 from . import config
@@ -39,9 +37,6 @@ from .internal.compat import NumericType
 from .internal.compat import StringIO
 from .internal.compat import ensure_text
 from .internal.compat import is_integer
-from .internal.compat import iteritems
-from .internal.compat import numeric_types
-from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.constants import SPAN_API_DATADOG
@@ -137,11 +132,11 @@ class Span(object):
         :param on_finish: list of functions called when the span finishes.
         """
         # pre-conditions
-        if not (span_id is None or isinstance(span_id, six.integer_types)):
+        if not (span_id is None or isinstance(span_id, int)):
             raise TypeError("span_id must be an integer")
-        if not (trace_id is None or isinstance(trace_id, six.integer_types)):
+        if not (trace_id is None or isinstance(trace_id, int)):
             raise TypeError("trace_id must be an integer")
-        if not (parent_id is None or isinstance(parent_id, six.integer_types)):
+        if not (parent_id is None or isinstance(parent_id, int)):
             raise TypeError("parent_id must be an integer")
 
         # required span info
@@ -294,15 +289,15 @@ class Span(object):
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
-        Keys must be strings, values must be ``stringify``-able.
+        Keys must be strings, values must be ``str``-able.
 
         :param key: Key to use for the tag
         :type key: str
         :param value: Value to assign for the tag
-        :type value: ``stringify``-able value
+        :type value: ``str``-able value
         """
 
-        if not isinstance(key, six.string_types):
+        if not isinstance(key, str):
             log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
             return
 
@@ -370,7 +365,7 @@ class Span(object):
             return
 
         try:
-            self._meta[key] = stringify(value)
+            self._meta[key] = str(value)
             if key in self._metrics:
                 del self._metrics[key]
         except Exception:
@@ -418,7 +413,7 @@ class Span(object):
         # only permit types that are commonly serializable (don't use
         # isinstance so that we convert unserializable types like numpy
         # numbers)
-        if type(value) not in numeric_types:
+        if not isinstance(value, (int, float)):
             try:
                 value = float(value)
             except (ValueError, TypeError):
@@ -439,7 +434,7 @@ class Span(object):
         must be strings (or stringable). Values must be numeric.
         """
         if metrics:
-            for k, v in iteritems(metrics):
+            for k, v in metrics.items():
                 self.set_metric(k, v)
 
     def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
@@ -503,7 +498,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self._meta[ERROR_MSG] = stringify(exc_val)
+        self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 

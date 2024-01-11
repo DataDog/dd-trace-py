@@ -468,6 +468,7 @@ def test_gitmetadata_ddtags(monkeypatch):
     # must be from env variables
     assert tags["git.commit.sha"] == "12345"
     assert tags["git.repository_url"] == "github.com/user/tag_repo"
+    gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_env(monkeypatch):
@@ -481,6 +482,7 @@ def test_gitmetadata_env(monkeypatch):
     # must be from env variables
     assert tags["git.commit.sha"] == "123456"
     assert tags["git.repository_url"] == "github.com/user/env_repo"
+    gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_disabled(monkeypatch):
@@ -495,3 +497,4 @@ def test_gitmetadata_disabled(monkeypatch):
     # must not present
     assert "git.commit.sha" not in tags
     assert "git.repository_url" not in tags
+    gitmetadata._GITMETADATA_TAGS = None
