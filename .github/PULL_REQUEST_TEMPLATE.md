@@ -7,7 +7,7 @@
 - [ ] [Library release note guidelines](https://ddtrace.readthedocs.io/en/stable/releasenotes.html) are followed. If no release note is required, add label `changelog/no-changelog`.
 - [ ] Documentation is included (in-code, generated user docs, [public corp docs](https://github.com/DataDog/documentation/)).
 - [ ] Backport labels are set (if [applicable](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting))
-- [ ] If this PR changes the public interface, I've notified `@DataDog/Support`.
+- [ ] If this PR changes the public interface, I've notified `@DataDog/apm-tees`.
 
 ## Reviewer Checklist
 
