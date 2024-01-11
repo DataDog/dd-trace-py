@@ -21,7 +21,8 @@ from ddtrace.profiling.collector import stack_event
 from . import test_collector
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 12)
 
 
 def func1():
@@ -170,7 +171,6 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.skipif(sys.version_info >= (3, 12), reason="FIXME: causes segfaults in 3.12")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
     from gevent import monkey  # noqa:F401
@@ -696,7 +696,6 @@ def test_thread_time_cache():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.skipif(sys.version_info >= (3, 12), reason="FIXME: causes segfaults in 3.12")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_threads():
     import gevent.monkey
