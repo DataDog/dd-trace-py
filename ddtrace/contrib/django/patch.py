@@ -822,7 +822,11 @@ def _patch(django):
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
-    return core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result.value
+    result = core.dispatch_with_results("django.wsgi_environ", (wrapped, _instance, args, kwargs)).wrapped_result
+    if result:
+        return result.value
+    else:
+        return wrapped(*args, **kwargs)
 
 
 def patch():
