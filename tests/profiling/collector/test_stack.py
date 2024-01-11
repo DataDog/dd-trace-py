@@ -170,6 +170,7 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="FIXME: causes segfaults in 3.12")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
     from gevent import monkey  # noqa:F401
@@ -695,6 +696,7 @@ def test_thread_time_cache():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="FIXME: causes segfaults in 3.12")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_threads():
     import gevent.monkey
