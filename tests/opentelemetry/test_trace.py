@@ -5,7 +5,6 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
