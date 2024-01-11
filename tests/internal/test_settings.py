@@ -132,7 +132,6 @@ def _deleted_rc_config():
         },
         {
             "env": {"DD_TRACE_ENABLED": "false"},
-            "rc": {"tracing_enabled": "true"},
             "expected": {"_tracing_enabled": False},
             "expected_source": {"_tracing_enabled": "env_var"},
         },
@@ -255,15 +254,15 @@ def test_remoteconfig_tracing_enabled(run_python_code_in_subprocess):
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
 
-assert tracer._enabled = True
+assert tracer.enabled is True
 
 config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "false"}))
 
-assert tracer._enabled = False
+assert tracer.enabled is False
 
 config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "true"}))
 
-assert tracer._enabled = False
+assert tracer.enabled is False
         """,
         env=env,
     )
