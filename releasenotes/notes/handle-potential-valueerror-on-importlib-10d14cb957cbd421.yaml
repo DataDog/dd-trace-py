@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Handle potencial ValueError on importlib_metadata. Fixes #8068.
