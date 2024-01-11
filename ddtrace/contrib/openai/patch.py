@@ -4,10 +4,12 @@ import time
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from openai import version
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.internal.agent import get_stats_url
@@ -22,10 +24,6 @@ from ddtrace.internal.wrapping import wrap
 from ...pin import Pin
 from . import _endpoint_hooks
 from .utils import _format_openai_api_key
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -230,6 +228,22 @@ class _OpenAIIntegration(BaseLLMIntegration):
             "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
             "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
             "error:%d" % span.error,
+        ]
+        err_type = span.get_tag("error.type")
+        if err_type:
+            tags.append("error_type:%s" % err_type)
+        return tags
+
+    @classmethod
+    def _llmobs_tags(cls, span: Span) -> List[str]:
+        tags = [
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
+            "src:integration",
+            "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "ml_obs.request.model_provider:openai",
+            "ml_obs.request.error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
         if err_type:
