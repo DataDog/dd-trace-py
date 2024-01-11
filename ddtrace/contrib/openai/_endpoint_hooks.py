@@ -68,6 +68,11 @@ class _EndpointHook:
     def handle_request(self, pin, integration, span, args, kwargs):
         self._record_request(pin, integration, span, args, kwargs)
         resp, error = yield
+        if hasattr(resp, "parse"):
+            # Users can request the raw response, in which case we need to process on the parsed response
+            # and return the original raw APIResponse.
+            self._record_response(pin, integration, span, args, kwargs, resp.parse(), error)
+            return resp
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -251,7 +256,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
         messages = kwargs.get("messages", [])
         if integration.is_pc_sampled_span(span):
             for idx, m in enumerate(messages):
-                content = integration.trunc(m.get("content", ""))
+                content = integration.trunc(str(m.get("content", "")))
                 role = integration.trunc(m.get("role", ""))
                 name = integration.trunc(m.get("name", ""))
                 span.set_tag_str("openai.request.messages.%d.content" % idx, content)
@@ -279,7 +284,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
         span.set_tag_str("openai.response.model", resp.model or "")
         for choice in choices:
             idx = choice.index
-            finish_reason = choice.finish_reason
+            finish_reason = getattr(choice, "finish_reason", None)
             message = choice.message
             if finish_reason is not None:
                 span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
