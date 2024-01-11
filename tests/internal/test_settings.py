@@ -17,6 +17,7 @@ def _base_rc_config(cfg):
         "log_injection_enabled": None,
         "tracing_header_tags": None,
         "tracing_tags": None,
+        "tracing_enabled": None,
         "data_streams_enabled": None,
     }
     lib_config.update(cfg)
@@ -114,6 +115,26 @@ def _deleted_rc_config():
             "rc": {"tracing_tags": ["key1:val2", "key2:val3"]},
             "expected": {"tags": {"key1": "val2", "key2": "val3"}},
             "expected_source": {"tags": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "true"},
+            "code": {"_tracing_enabled": True},
+            "rc": {"tracing_enabled": "true"},
+            "expected": {"_tracing_enabled": True},
+            "expected_source": {"_tracing_enabled": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "true"},
+            "code": {"_tracing_enabled": True},
+            "rc": {"tracing_enabled": "false"},
+            "expected": {"_tracing_enabled": False},
+            "expected_source": {"_tracing_enabled": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "false"},
+            "rc": {"tracing_enabled": "true"},
+            "expected": {"_tracing_enabled": False},
+            "expected_source": {"_tracing_enabled": "env_var"},
         },
     ],
 )
@@ -220,6 +241,29 @@ config._handle_remoteconfig(_base_rc_config({"tracing_tags": None}))
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "apm"
+        """,
+        env=env,
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+def test_remoteconfig_tracing_enabled(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "true"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from tests.internal.test_settings import _base_rc_config
+
+assert tracer._enabled = True
+
+config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "false"}))
+
+assert tracer._enabled = False
+
+config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "true"}))
+
+assert tracer._enabled = False
         """,
         env=env,
     )

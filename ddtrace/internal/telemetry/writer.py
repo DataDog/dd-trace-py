@@ -84,7 +84,6 @@ from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
 from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
-from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -347,6 +346,9 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "tags":
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
+        elif cfg_name == "_tracing_enabled":
+            name = "tracing_enabled"
+            value = "true" if item.value() else "false"
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
@@ -369,7 +371,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
-                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
+                self._telemetry_entry("_tracing_enabled"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, asm_config._asm_enabled, "unknown"),

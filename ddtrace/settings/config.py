@@ -292,6 +292,11 @@ def _default_config():
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
+        "_tracing_enabled": _ConfigItem(
+            name="tracing_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
     }
 
 
@@ -364,7 +369,6 @@ class Config(object):
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
@@ -729,6 +733,9 @@ class Config(object):
                 if tags:
                     tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
                 updated_items.append(("tags", tags))
+
+            if "tracing_enabled" in lib_config:
+                updated_items.append("_tracing_enabled", lib_config["tracing_enabled"])
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

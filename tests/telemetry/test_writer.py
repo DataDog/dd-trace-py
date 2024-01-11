@@ -101,7 +101,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
                     {
                         "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
@@ -134,6 +133,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
+                    {"name": "tracing_enabled", "origin": "default", "value": True},
                 ],
                 key=lambda x: x["name"],
             ),
@@ -239,7 +239,6 @@ import ddtrace.auto
             {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
             {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": True},
-            {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "unknown", "value": ".*"},
             {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": True},
@@ -268,6 +267,7 @@ import ddtrace.auto
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
+            {"name": "tracing_enabled", "origin": "env_var", "value": False},
         ],
         key=lambda x: x["name"],
     )
