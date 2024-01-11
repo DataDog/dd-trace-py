@@ -165,7 +165,7 @@ class Span(OtelSpan):
             for k, v in flatten_key_value(key, value).items():
                 self._ddspan.set_tag(k, v)
             return
-        self._ddspan.set_tag(k, v)
+        self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
