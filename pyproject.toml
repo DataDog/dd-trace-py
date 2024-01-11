@@ -28,7 +28,7 @@ dependencies = [
     "cattrs",
     "ddsketch>=2.0.1",
     "envier",
-    "importlib_metadata; python_version<'3.8'",
+    "importlib_metadata~=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "setuptools; python_version>='3.12'",
