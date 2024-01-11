@@ -5,8 +5,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-import openai
-
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
@@ -47,7 +45,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         # Do these dynamically as openai users can set these at any point
         # not necessarily before patch() time.
         # organization_id is only returned by a few endpoints, grab it when we can.
-        if parse_version(openai.version.VERSION) >= (1, 0, 0):
+        if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
             source = self._client
             base_attrs: Tuple[str, ...] = ("base_url", "organization")
         else:
