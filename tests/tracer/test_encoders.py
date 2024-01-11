@@ -464,8 +464,8 @@ def test_span_link_v04_encoding():
     assert b"span_links" in decoded_span
     assert decoded_span[b"span_links"] == [
         {
-            b"trace_id": 456,
-            b"span_id": 2,
+            b"trace_id": b"00000000000001c8",
+            b"span_id": b"0000000000000002",
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
@@ -480,7 +480,7 @@ def test_span_link_v04_encoding():
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1,
-            b"trace_id_high": 123,
+            b"trace_id_high": b"000000000000007b",
         }
     ]
 
@@ -493,8 +493,8 @@ def test_span_link_v05_encoding():
         context=Context(sampling_priority=1),
         links=[
             SpanLink(
-                trace_id=1,
-                span_id=2,
+                trace_id=(2**127) - 1,
+                span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
                 attributes={
@@ -523,8 +523,8 @@ def test_span_link_v05_encoding():
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.span_links"]
-        == b'[{"trace_id": 1, "span_id": 2, "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
+        b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
         b'"link_kind", "key2.0": "True", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
         b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
