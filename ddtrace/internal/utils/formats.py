@@ -160,7 +160,7 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
     return " ".join(out)
 
 
-def _is_sequence(obj):
+def is_sequence(obj):
     # type: (Any) -> bool
     try:
         return isinstance(obj, (list, tuple, set, frozenset))
@@ -172,13 +172,13 @@ def _is_sequence(obj):
 def flatten_key_value(root_key, value):
     # type: (str, Any) -> Dict[str, Any]
     """Flattens attributes"""
-    if not _is_sequence(value):
+    if not is_sequence(value):
         return {root_key: value}
 
     flattened = dict()
     for i, item in enumerate(value):
         key = f"{root_key}.{i}"
-        if _is_sequence(item):
+        if is_sequence(item):
             flattened.update(flatten_key_value(key, item))
         else:
             flattened[key] = item

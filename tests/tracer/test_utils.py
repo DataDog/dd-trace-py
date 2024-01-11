@@ -17,6 +17,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import flatten_key_value
+from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
@@ -102,6 +103,7 @@ def test_parse_env_tags(tag_str, expected_tags, error_calls):
     [
         ("a", "1", {"a": "1"}),
         ("a", set("0"), {"a.0": "0"}),
+        ("a", frozenset("0"), {"a.0": "0"}),
         ("a", ["0", "1", "2", "3"], {"a.0": "0", "a.1": "1", "a.2": "2", "a.3": "3"}),
         ("a", ("0", "1", "2", "3"), {"a.0": "0", "a.1": "1", "a.2": "2", "a.3": "3"}),
         (
@@ -113,6 +115,21 @@ def test_parse_env_tags(tag_str, expected_tags, error_calls):
 )
 def test_flatten_key_value_pairs(key, value, expected):
     assert flatten_key_value(key, value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (("0", "1"), True),
+        (["0", "1"], True),
+        ({"0", "1"}, True),
+        (frozenset(["0", "1"]), True),
+        ("123", False),
+        ({"a": "1"}, False),
+    ],
+)
+def test_is_sequence(value, expected):
+    assert is_sequence(value) == expected
 
 
 def test_no_states():
