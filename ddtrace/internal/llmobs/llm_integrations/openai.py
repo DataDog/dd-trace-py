@@ -114,8 +114,7 @@ class OpenAIIntegration(BaseLLMIntegration):
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage or not self.metrics_enabled:
             return
-        tags = self._metrics_tags(span)
-        tags.append("openai.estimated:false")
+        tags = ["openai.estimated:false"]
         for token_type in ("prompt", "completion", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
             if not num_tokens:
