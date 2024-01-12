@@ -71,7 +71,7 @@ class TestTracerConfig(object):
 
     def test_ddtrace_fallback_config(self):
         """Ensure datadog configuration is used by default."""
-        with override_global_config(dict(_tracing_enabled=False)):
+        with override_global_config(dict(tracing_enabled=False)):
             tracer = Tracer(dd_tracer=DDTracer())
             assert tracer._dd_tracer.enabled is False
 
