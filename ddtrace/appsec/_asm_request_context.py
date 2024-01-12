@@ -343,6 +343,11 @@ def store_waf_results_data(data) -> None:
     if not env.active:
         log.debug("storing waf results data with no active asm context")
         return
+    if not env.span:
+        log.debug("storing waf results data with no active span")
+        return
+    for d in data:
+        d["span_id"] = env.span.span_id
     env.waf_triggers.extend(data)
 
 

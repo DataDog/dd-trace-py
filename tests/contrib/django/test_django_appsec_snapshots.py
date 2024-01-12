@@ -123,6 +123,7 @@ def test_request_ipblock_nomatch_200():
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
@@ -156,6 +157,7 @@ def test_request_ipblock_match_403():
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
