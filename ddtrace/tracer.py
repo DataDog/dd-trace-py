@@ -280,6 +280,7 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+        config._subscribe(["tags"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -1068,3 +1069,5 @@ class Tracer(object):
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
+        elif "tags" in items:
+            self._tags = cfg.tags.copy()
