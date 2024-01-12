@@ -724,6 +724,9 @@ class Config(object):
             if "tracing_sampling_rate" in lib_config:
                 updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
 
+            if "log_injection_enabled" in lib_config:
+                updated_items.append(("logs_injection", lib_config["log_injection_enabled"]))
+
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
                 if tags:
