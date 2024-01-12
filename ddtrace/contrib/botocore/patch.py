@@ -39,6 +39,8 @@ from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
 from .services.sqs import inject_trace_to_sqs_or_sns_message
 from .services.sqs import patched_sqs_api_call
+from .services.stepfunctions import inject_trace_to_stepfunction_input
+from .services.stepfunctions import patched_stepfunction_api_call
 from .utils import inject_trace_to_client_context
 from .utils import inject_trace_to_eventbridge_detail
 from .utils import set_patched_api_call_span_tags
@@ -166,6 +168,9 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             args=args,
             kwargs=kwargs,
             function_vars=function_vars,
+    elif endpoint_name == "states":
+        return patched_stepfunction_api_call(
+            original_func=original_func, instance=instance, args=args, kwargs=kwargs, function_vars=function_vars
         )
     else:
         # this is the default patched api call
@@ -235,6 +240,16 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                             trace_operation,
                             cloud_provider="aws",
                             cloud_service="sns",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "states" and (
+                        operation == "StartExecution" or operation == "StartSyncExecution"
+                    ):
+                        inject_trace_to_stepfunction_input(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="stepfunctions",
                             direction=SpanDirection.OUTBOUND,
                         )
                 except Exception:
