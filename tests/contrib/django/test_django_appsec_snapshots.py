@@ -67,6 +67,7 @@ def daphne_client(django_asgi, additional_env=None):
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ]
 )
 def test_appsec_enabled():
@@ -85,6 +86,7 @@ def test_appsec_enabled():
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ]
 )
 def test_appsec_enabled_attack():
@@ -101,7 +103,7 @@ def test_appsec_enabled_attack():
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
+        "meta._dd.appsec.json",
     ]
 )
 def test_request_ipblock_nomatch_200():
