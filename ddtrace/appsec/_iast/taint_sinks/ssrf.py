@@ -1,12 +1,14 @@
 import re
-from typing import Callable
-from typing import Dict
-from typing import Set
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Set  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config
+from ddtrace.settings.asm import config as asm_config
 
+from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._metrics import increment_iast_span_metric
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
 from .._utils import _scrub
@@ -14,7 +16,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
-from ..reporter import IastSpanReporter
+from ..reporter import IastSpanReporter  # noqa:F401
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
 from ._base import _check_positions_contained
@@ -57,7 +59,7 @@ class SSRF(VulnerabilityBase):
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
-        if not _config._iast_redaction_enabled:
+        if not asm_config._iast_redaction_enabled:
             return report
 
         # See if there is a match on either any of the sources or value parts of the report
@@ -159,6 +161,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     from .._metrics import _set_metric_iast_executed_sink
 
     report_ssrf = kwargs.get("url", False)
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
     _set_metric_iast_executed_sink(SSRF.vulnerability_type)
     if report_ssrf:
         if oce.request_has_quota and SSRF.has_quota():

@@ -28,13 +28,8 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
-if sys.version_info >= (3, 0):
-    from urllib.error import HTTPError
-    from urllib.request import urlretrieve
-else:
-    from urllib import urlretrieve
-
-    from urllib2 import HTTPError
+from urllib.error import HTTPError
+from urllib.request import urlretrieve
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -48,7 +43,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.14.0"
+LIBDDWAF_VERSION = "1.15.1"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -95,21 +90,12 @@ def load_module_from_project_file(mod_name, fname):
     """
     fpath = os.path.join(HERE, fname)
 
-    if sys.version_info >= (3, 5):
-        import importlib.util
+    import importlib.util
 
-        spec = importlib.util.spec_from_file_location(mod_name, fpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    elif sys.version_info >= (3, 3):
-        from importlib.machinery import SourceFileLoader
-
-        return SourceFileLoader(mod_name, fpath).load_module()
-    else:
-        import imp
-
-        return imp.load_source(mod_name, fpath)
+    spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def is_64_bit_python():
@@ -159,7 +145,7 @@ class LibraryDownload:
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
-            archive_name = archive_dir + ".tar.gz"
+            archive_name = cls.get_archive_name(arch, CURRENT_OS)
 
             download_address = "%s/%s/%s" % (
                 cls.url_root,
@@ -205,6 +191,10 @@ class LibraryDownload:
     def run(cls):
         cls.download_artifacts()
 
+    @classmethod
+    def get_archive_name(cls, arch, os):
+        return cls.get_package_name(arch, os) + ".tar.gz"
+
 
 class LibDDWafDownload(LibraryDownload):
     name = "ddwaf"
@@ -221,6 +211,15 @@ class LibDDWafDownload(LibraryDownload):
     @classmethod
     def get_package_name(cls, arch, os):
         archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+        return archive_dir
+
+    @classmethod
+    def get_archive_name(cls, arch, os):
+        os_name = os.lower()
+        if os_name == "linux":
+            archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
+        else:
+            archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
         return archive_dir
 
 
@@ -298,86 +297,106 @@ class CleanLibraries(CleanCommand):
 
 class CMakeBuild(build_ext):
     @staticmethod
-    def strip_symbols(so_file):
-        subprocess.check_output(["strip", "-g", so_file])
+    def try_strip_symbols(so_file):
+        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
+            subprocess.run(["strip", "-g", so_file], check=True)
 
     def build_extension(self, ext):
-        tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
-        tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
-        tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
-
-        cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
-
-        if (
-            sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec._iast._taint_tracking._native"
-            and os.path.exists(cmake_list_path)
-        ):
-            os.makedirs(tmp_iast_path, exist_ok=True)
-
-            import subprocess
-
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            build_type = "Debug" if DEBUG_COMPILE else "Release"
-            build_args = ["--config", build_type]
-            cmake_args = [
-                "-S",
-                IAST_DIR,
-                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
-                "-B",
-                tmp_iast_path,
-                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                "-DCMAKE_BUILD_TYPE={}".format(build_type),
-            ]
-
-            if CURRENT_OS == "Windows":
-                cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-
-            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
-                # Cross-compile support for macOS - respect ARCHFLAGS if set
-                # Darwin Universal2 should bundle both architectures
-                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                if archs:
-                    cmake_args += [
-                        "-DBUILD_MACOS=ON",
-                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
-                    ]
-
-            # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
-            # across all generators.
-            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                # self.parallel is a Python 3 only way to set parallel jobs by hand
-                # using -j in the build_ext call, not supported by pip or PyPA-build.
-                # DEV: -j is only supported in CMake 3.12+ only.
-                if hasattr(self, "parallel") and self.parallel:
-                    build_args += ["-j{}".format(self.parallel)]
-            try:
-                cmake_cmd_with_args = [cmake_command] + cmake_args
-                subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
-
-                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                subprocess.run(build_command, cwd=tmp_iast_path, check=True)
-            except Exception as e:
-                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
-            finally:
-                import shutil
-
-                for directory_to_remove in ["_deps", "CMakeFiles"]:
-                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove), ignore_errors=True)
-                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
-                iast_artifact = os.path.join(IAST_DIR, tmp_filename)
-                if os.path.exists(iast_artifact):
-                    shutil.copy(iast_artifact, tmp_iast_file_path)
+        if isinstance(ext, CMakeExtension):
+            self.build_extension_cmake(ext)
         else:
-            build_ext.build_extension(self, ext)
-            if CURRENT_OS == "Linux" and not DEBUG_COMPILE:
-                for ext in self.extensions:
-                    try:
-                        self.strip_symbols(self.get_ext_fullpath(ext.name))
-                    except Exception:
-                        pass
+            super().build_extension(ext)
+
+        if not DEBUG_COMPILE:
+            try:
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+            except Exception as e:
+                print(f"WARNING: An error occurred while building the extension: {e}")
+                raise
+
+    def build_extension_cmake(self, ext):
+        # Define the build and output directories
+        output_dir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
+        extension_basename = os.path.basename(self.get_ext_fullpath(ext.name))
+
+        # We derive the cmake build directory from the output directory, but put it in
+        # a sibling directory to avoid polluting the final package
+        cmake_build_dir = os.path.abspath(self.build_lib.replace("lib.", "cmake."))
+        os.makedirs(cmake_build_dir, exist_ok=True)
+
+        # Which commands are passed to _every_ cmake invocation
+        cmake_args = ext.cmake_args or []
+        cmake_args += [
+            "-S{}".format(ext.source_dir),  # cmake>=3.13
+            "-B{}".format(cmake_build_dir),  # cmake>=3.13
+            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+            "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
+            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
+            "-DLIB_INSTALL_DIR={}".format(output_dir),
+            "-DEXTENSION_NAME={}".format(extension_basename),
+        ]
+
+        # Arguments to the cmake --build command
+        build_args = ext.build_args or []
+        build_args += ["--config {}".format(ext.build_type)]
+        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+            # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
+            # self.parallel is a Python 3 only way to set parallel jobs by hand
+            # using -j in the build_ext call, not supported by pip or PyPA-build.
+            # DEV: -j is only supported in CMake 3.12+ only.
+            if hasattr(self, "parallel") and self.parallel:
+                build_args += ["-j{}".format(self.parallel)]
+
+        # Arguments to cmake --install command
+        install_args = ext.install_args or []
+        install_args += ["--config {}".format(ext.build_type)]
+
+        # platform/version-specific arguments--may go into cmake, build, or install as needed
+        if CURRENT_OS == "Windows":
+            cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+        if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+            # Cross-compile support for macOS - respect ARCHFLAGS if set
+            # Darwin Universal2 should bundle both architectures
+            # This is currently specific to IAST and requires cmakefile support
+            archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+            if archs:
+                cmake_args += [
+                    "-DBUILD_MACOS=ON",
+                    "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                ]
+
+        try:
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+            if not ext.permissive_build:
+                raise
+        except Exception:
+            print("WARNING: An error occurred while building the CMake extension.")
+            raise
+
+
+class CMakeExtension(Extension):
+    def __init__(
+        self,
+        name,
+        source_dir=".",
+        cmake_args=[],
+        build_args=[],
+        install_args=[],
+        build_type=None,
+        permissive_build=False,
+    ):
+        super().__init__(name, sources=[])
+        self.source_dir = source_dir
+        self.cmake_args = cmake_args or []
+        self.build_args = build_args or []
+        self.install_args = install_args or []
+        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.permissive_build = permissive_build  # If True, build errors are ignored
 
 
 long_description = """
@@ -446,7 +465,7 @@ else:
     else:
         debug_compile_args = []
 
-if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
+if not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -470,8 +489,13 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
 
-        if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.appsec._iast._taint_tracking._native",
+                source_dir=IAST_DIR,
+                permissive_build=True if CURRENT_OS == "Darwin" else False,
+            )
+        )
 else:
     ext_modules = []
 
@@ -511,7 +535,8 @@ def get_ddup_ext():
 
 bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
 ]
 
 setup(
@@ -555,9 +580,7 @@ setup(
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
-        "psutil>=5.8.0",
         "setuptools; python_version>='3.12'",
-        "wrapt>=1.15.0",
     ]
     + bytecode,
     extras_require={
@@ -595,7 +618,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -657,5 +680,7 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil")
     + get_ddup_ext(),
 )

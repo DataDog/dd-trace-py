@@ -1,22 +1,20 @@
 import abc
 import copy
 import os
-from typing import TYPE_CHECKING
-
-import six
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Callable
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
     PreprocessFunc = Callable[[Dict[str, Any], Optional[PubSub]], Any]
@@ -24,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
+class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
     _preprocess_results_func = None  # type: Optional[PreprocessFunc]
 
     def __init__(self, data_connector, preprocess_func=None):

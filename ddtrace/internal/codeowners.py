@@ -1,8 +1,8 @@
 import os
 import re
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 
 def path_to_regex(pattern):
@@ -67,7 +67,6 @@ def path_to_regex(pattern):
 
     iterator = enumerate(pattern_trimmed)
     for i, ch in iterator:
-
         if escaped:
             regex += re.escape(ch)
             escaped = False

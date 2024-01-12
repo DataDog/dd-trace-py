@@ -1,5 +1,5 @@
 import os
-from typing import Generator
+from typing import Generator  # noqa:F401
 
 import asyncpg
 import pytest
@@ -10,6 +10,7 @@ from ddtrace.contrib.asyncpg import patch
 from ddtrace.contrib.asyncpg import unpatch
 from ddtrace.contrib.trace_utils import iswrapped
 from tests.contrib.config import POSTGRES_CONFIG
+from tests.utils import flaky
 
 
 @pytest.fixture(autouse=True)
@@ -141,7 +142,7 @@ async def test_cursor(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_cursor_manual(patched_conn):
     async with patched_conn.transaction():
         cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
@@ -157,6 +158,7 @@ async def test_service_override_pin(patched_conn):
     await patched_conn.execute("SELECT 1")
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_parenting(patched_conn):
@@ -187,10 +189,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
@@ -219,10 +218,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
@@ -251,10 +247,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
@@ -282,10 +275,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
@@ -314,10 +304,7 @@ async def test():
     await conn.execute("SELECT 1")
     await conn.close()
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
+asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version

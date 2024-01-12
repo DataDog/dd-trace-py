@@ -1,14 +1,14 @@
 import os
 import uuid
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import _get_blocked_template  # noqa
-from ddtrace.internal.utils.http import parse_form_multipart  # noqa
-from ddtrace.internal.utils.http import parse_form_params  # noqa
+from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
+from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
+from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings import _config as config
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -19,6 +19,7 @@ def parse_response_body(raw_body):
 
     import xmltodict
 
+    from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._constants import SPAN_DATA_NAMES
     from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
 
@@ -68,6 +69,10 @@ def _appsec_rc_features_is_enabled() -> bool:
     return False
 
 
+def _appsec_apisec_features_is_active() -> bool:
+    return asm_config._asm_enabled and asm_config._api_security_enabled and asm_config._api_security_sample_rate > 0.0
+
+
 def _safe_userid(user_id):
     try:
         _ = int(user_id)
@@ -108,7 +113,7 @@ class _UserInfoRetriever:
         return None  # explicit to make clear it has a meaning
 
     def get_userid(self):
-        user_login = getattr(self.user, config._user_model_login_field, None)
+        user_login = getattr(self.user, asm_config._user_model_login_field, None)
         if user_login:
             return user_login
 
@@ -119,7 +124,7 @@ class _UserInfoRetriever:
         return _safe_userid(user_login)
 
     def get_username(self):
-        username = getattr(self.user, config._user_model_name_field, None)
+        username = getattr(self.user, asm_config._user_model_name_field, None)
         if username:
             return username
 
@@ -132,14 +137,14 @@ class _UserInfoRetriever:
         return self.find_in_user_model(self.possible_login_fields)
 
     def get_user_email(self):
-        email = getattr(self.user, config._user_model_email_field, None)
+        email = getattr(self.user, asm_config._user_model_email_field, None)
         if email:
             return email
 
         return self.find_in_user_model(self.possible_email_fields)
 
     def get_name(self):
-        name = getattr(self.user, config._user_model_name_field, None)
+        name = getattr(self.user, asm_config._user_model_name_field, None)
         if name:
             return name
 
@@ -154,7 +159,7 @@ class _UserInfoRetriever:
         user_extra_info = {}
 
         user_id = self.get_userid()
-        if config._automatic_login_events_mode == "extended":
+        if asm_config._automatic_login_events_mode == "extended":
             if not user_id:
                 user_id = self.find_in_user_model(self.possible_user_id_fields)
 

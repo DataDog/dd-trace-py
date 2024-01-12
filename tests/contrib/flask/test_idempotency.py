@@ -2,12 +2,12 @@ import unittest
 
 import flask
 import mock
-import wrapt
 
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from ddtrace.contrib.flask.patch import _u
 from ddtrace.contrib.flask.patch import _w
+from ddtrace.vendor import wrapt
 
 
 class FlaskIdempotencyTestCase(unittest.TestCase):
@@ -42,7 +42,8 @@ class FlaskIdempotencyTestCase(unittest.TestCase):
     def test_patch_idempotency(self, _w):
         # Ensure we didn't do any patching automatically
         _w.assert_not_called()
-        self.assert_is_not_patched()
+        if hasattr(flask, "_datadog_patch"):
+            self.assert_is_not_patched()
 
         # Patch for the first time
         patch()

@@ -9,8 +9,10 @@ import vcr
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -53,6 +55,9 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
     with override_config("langchain", ddtrace_config_langchain):
         # ensure that mock OpenAI API key is passed in
         os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+        os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
+        os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
+        os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
         patch()
         import langchain
 
@@ -104,6 +109,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     mock_metrics.reset_mock()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -237,7 +243,12 @@ def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain.llms.OpenAI()
-    with pytest.raises(openai.error.InvalidRequestError):
+
+    if parse_version(openai.__version__) >= (1, 0, 0):
+        invalid_error = openai.BadRequestError
+    else:
+        invalid_error = openai.InvalidRequestError
+    with pytest.raises(invalid_error):
         with request_vcr.use_cassette("openai_completion_error.yaml"):
             llm.generate([12345, 123456])
 
@@ -322,6 +333,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -358,7 +370,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
                     "choices": mock.ANY,
@@ -470,6 +482,7 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 def test_openai_chat_model_sync_stream(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -477,6 +490,7 @@ def test_openai_chat_model_sync_stream(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 async def test_openai_chat_model_async_stream(langchain, request_vcr):
@@ -485,6 +499,7 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
+@flaky(1735812000)
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     if sys.version_info >= (3, 10, 0):
@@ -536,6 +551,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -572,7 +588,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -599,6 +615,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -634,6 +651,7 @@ def test_fake_embedding_document(langchain):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
+@flaky(1735812000)
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     if sys.version_info >= (3, 10, 0):
@@ -665,6 +683,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -943,6 +962,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1061,6 +1081,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -1078,14 +1099,13 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
@@ -1100,9 +1120,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1113,6 +1131,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
@@ -1127,9 +1146,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1140,6 +1157,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000)
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
@@ -1152,9 +1170,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1181,6 +1197,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1205,9 +1222,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-        )
+        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
@@ -1365,7 +1380,7 @@ def test_llm_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you please not return an error?"],
                     "choices": [],
@@ -1412,7 +1427,7 @@ def test_chat_model_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -1429,6 +1444,7 @@ def test_chat_model_logs_when_response_not_completed(
     )
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [
@@ -1513,7 +1529,7 @@ def test_chain_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,
@@ -1525,6 +1541,7 @@ def test_chain_logs_when_response_not_completed(
     )
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [

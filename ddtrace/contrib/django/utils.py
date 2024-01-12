@@ -1,23 +1,23 @@
 import json
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
-import six
-from wrapt import FunctionWrapper
 import xmltodict
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal import compat
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
@@ -25,6 +25,7 @@ from ddtrace.propagation._utils import from_wsgi_header
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
+from ...vendor.wrapt import FunctionWrapper
 from .. import trace_utils
 from .compat import get_resolver
 from .compat import user_is_authenticated
@@ -174,7 +175,7 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = six.ensure_text(v)
+        urlparts[k] = compat.ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
@@ -268,8 +269,7 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
-        results = core.dispatch("django.extract_body", [])[0]
-        headers = results[0] if results else None
+        headers = core.dispatch_with_results("django.extract_body").headers.value
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
@@ -300,7 +300,7 @@ def _get_request_headers(request):
     return request_headers
 
 
-def _after_request_tags(pin, span, request, response):
+def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
@@ -343,7 +343,7 @@ def _after_request_tags(pin, span, request, response):
                 # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                 template = response.template_name
 
-                if isinstance(template, six.string_types):
+                if isinstance(template, str):
                     template_names = [template]
                 elif isinstance(
                     template,
@@ -365,9 +365,7 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            results = core.dispatch("django.after_request_headers", [])[0]
-            request_headers = results[0] if results else None
-
+            request_headers = core.dispatch_with_results("django.after_request_headers").headers.value
             if not request_headers:
                 request_headers = _get_request_headers(request)
 
@@ -375,32 +373,31 @@ def _after_request_tags(pin, span, request, response):
 
             response_cookies = {}
             if response.cookies:
-                for k, v in six.iteritems(response.cookies):
+                for k, v in response.cookies.items():
                     response_cookies[k] = v.OutputString()
 
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
-            trace_utils.set_http_meta(
-                span,
-                config.django,
-                method=request.method,
-                url=url,
-                raw_uri=raw_uri,
-                status_code=status,
-                query=request.META.get("QUERY_STRING", None),
-                parsed_query=request.GET,
-                request_headers=request_headers,
-                response_headers=response_headers,
-                request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-                request_body=_extract_body(request),
-                peer_ip=core.get_item("http.request.remote_ip", span=span),
-                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
-                response_cookies=response_cookies,
+            core.dispatch(
+                "django.after_request_headers.post",
+                (
+                    request_headers,
+                    response_headers,
+                    span,
+                    config.django,
+                    request,
+                    url,
+                    raw_uri,
+                    status,
+                    response_cookies,
+                ),
             )
-            core.dispatch("django.after_request_headers.post", response.content, None)
+            content = getattr(response, "content", None)
+            if content is None:
+                content = getattr(response, "streaming_content", None)
+            core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

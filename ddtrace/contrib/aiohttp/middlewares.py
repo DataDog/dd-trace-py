@@ -1,3 +1,6 @@
+from aiohttp import web
+from aiohttp.web_urldispatcher import SystemRoute
+
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -8,7 +11,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
-from ...internal.compat import stringify
 from ...internal.schema import schematize_url_operation
 from .. import trace_utils
 from ..asyncio import context_provider
@@ -69,6 +71,8 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = await handler(request)
+            if isinstance(response, web.StreamResponse):
+                request.task.add_done_callback(lambda _: finish_request_span(request, response))
             return response
         except Exception:
             request_span.set_traceback()
@@ -77,18 +81,14 @@ async def trace_middleware(app, handler):
     return attach_context
 
 
-async def on_prepare(request, response):
-    """
-    The on_prepare signal is used to close the request span that is created during
-    the trace middleware execution.
-    """
+def finish_request_span(request, response):
     # safe-guard: discard if we don't have a request span
     request_span = request.get(REQUEST_SPAN_KEY, None)
     if not request_span:
         return
 
     # default resource name
-    resource = stringify(response.status)
+    resource = str(response.status)
 
     if request.match_info.route.resource:
         # collect the resource name based on http resource type
@@ -113,6 +113,16 @@ async def on_prepare(request, response):
     if trace_query_string:
         request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
+    # The match info object provided by aiohttp's default (and only) router
+    # has a `route` attribute, but routers are susceptible to being replaced/hand-rolled
+    # so we can only support this case.
+    route = None
+    if hasattr(request.match_info, "route"):
+        aiohttp_route = request.match_info.route
+        if not isinstance(aiohttp_route, SystemRoute):
+            # SystemRoute objects exist to throw HTTP errors and have no path
+            route = aiohttp_route.resource.canonical
+
     trace_utils.set_http_meta(
         request_span,
         config.aiohttp,
@@ -121,9 +131,22 @@ async def on_prepare(request, response):
         status_code=response.status,
         request_headers=request.headers,
         response_headers=response.headers,
+        route=route,
     )
 
     request_span.finish()
+
+
+async def on_prepare(request, response):
+    """
+    The on_prepare signal is used to close the request span that is created during
+    the trace middleware execution.
+    """
+    # NB isinstance is not appropriate here because StreamResponse is a parent of the other
+    # aiohttp response types
+    if type(response) is web.StreamResponse and not response.task.done():
+        return
+    finish_request_span(request, response)
 
 
 def trace_app(app, tracer, service="aiohttp-web"):

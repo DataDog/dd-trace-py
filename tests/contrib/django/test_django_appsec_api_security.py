@@ -2,14 +2,11 @@
 import base64
 import gzip
 import json
-import sys
 
-import pytest
-
-from ddtrace import config
 from ddtrace.appsec import _constants
-from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.test_processor import RULES_SRB
+from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.settings.asm import config as asm_config
+from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -26,8 +23,8 @@ def _aux_appsec_get_root_span(
 ):
     if cookies is None:
         cookies = {}
-    tracer._appsec_enabled = config._appsec_enabled
-    tracer._iast_enabled = config._iast_enabled
+    tracer._asm_enabled = asm_config._asm_enabled
+    tracer._iast_enabled = asm_config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     # Set cookies
@@ -45,13 +42,12 @@ def _aux_appsec_get_root_span(
     return test_spans.spans[0], response
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security(client, test_spans, tracer):
     import django
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0"}
-    ):
+    with override_global_config(
+        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+    ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -64,7 +60,8 @@ def test_api_security(client, test_spans, tracer):
         )
         assert response.status_code == 200
 
-        assert config._api_security_enabled
+        assert asm_config._api_security_enabled
+        assert asm_config._api_security_sample_rate == 1.0
 
         headers_schema = {
             "1": [
@@ -120,13 +117,12 @@ def test_api_security(client, test_spans, tracer):
             assert equal_with_meta(api, expected_value), name
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_with_srb(client, test_spans, tracer):
     """Test if srb is still working as expected with api security activated"""
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
-    ):
+    with override_global_config(
+        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+    ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -136,18 +132,19 @@ def test_api_security_with_srb(client, test_spans, tracer):
             payload=payload,
             cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
+            headers={"HTTP_USER_AGENT": "dd-test-scanner-log-block"},
         )
         assert response.status_code == 403
         loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["ua0-600-56x"]
 
-        assert config._api_security_enabled
+        assert asm_config._api_security_enabled
 
         for name, expected_value in [
             ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
             (
                 "_dd.appsec.s.req.headers",
-                [{"content-length": [8], "content-type": [8]}],
+                [{"user-agent": [8], "content-length": [8], "content-type": [8]}],
             ),
             ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
             ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
@@ -158,15 +155,15 @@ def test_api_security_with_srb(client, test_spans, tracer):
             value = root_span.get_tag(name)
             assert value, name
             api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+            print(api)
             assert equal_with_meta(api, expected_value), name
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason="Python 2 not supported for api security")
 def test_api_security_deactivated(client, test_spans, tracer):
     """Test if blocking is still working as expected with api security deactivated"""
 
-    with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=False)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)), override_env(
+        {_constants.API_SECURITY.SAMPLE_RATE: "1.0"}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -177,12 +174,13 @@ def test_api_security_deactivated(client, test_spans, tracer):
             payload=payload,
             cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
+            headers={"HTTP_USER_AGENT": "dd-test-scanner-log-block"},
         )
         assert response.status_code == 403
         loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["ua0-600-56x"]
 
-        assert not config._api_security_enabled
+        assert not asm_config._api_security_enabled
 
         for name in [
             "_dd.appsec.s.req.body",

@@ -16,6 +16,7 @@ from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
+from ddtrace.debugging._redaction import DDRedactedExpression
 
 
 def compile_template(*args):
@@ -28,7 +29,7 @@ def compile_template(*args):
             segments.append(LiteralTemplateSegment(arg))
         else:
             template += "{" + arg["dsl"] + "}"
-            segments.append(ExpressionTemplateSegment(DDExpression(dsl=arg["dsl"], callable=dd_compile(arg["json"]))))
+            segments.append(ExpressionTemplateSegment(DDRedactedExpression.compile(arg)))
 
     return {"template": template, "segments": segments}
 

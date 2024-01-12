@@ -1,11 +1,13 @@
 [[
   {
     "name": "trace7",
-    "service": null,
+    "service": "",
     "resource": "trace7",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-4",
       "language": "python",
@@ -23,22 +25,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 11715,
        "start": 1690574476628770928
      }],
 [
   {
     "name": "trace6",
-    "service": null,
+    "service": "",
     "resource": "trace6",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "language": "python",
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
@@ -55,22 +61,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 12752,
        "start": 1690574476627692203
      }],
 [
   {
     "name": "trace5",
-    "service": null,
+    "service": "",
     "resource": "trace5",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "language": "python",
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
@@ -87,22 +97,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 7332,
        "start": 1690574476626585194
      }],
 [
   {
     "name": "trace4",
-    "service": null,
+    "service": "",
     "resource": "trace4",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
@@ -120,22 +134,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 3,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 7522,
        "start": 1690574476625479881
      }],
 [
   {
     "name": "trace3",
-    "service": null,
+    "service": "",
     "resource": "trace3",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "language": "python",
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
@@ -152,22 +170,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 4,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 7704,
        "start": 1690574476624305295
      }],
 [
   {
     "name": "trace2",
-    "service": null,
+    "service": "",
     "resource": "trace2",
     "trace_id": 5,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
@@ -185,22 +207,26 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 5,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 7840,
        "start": 1690574476622978394
      }],
 [
   {
     "name": "trace1",
-    "service": null,
+    "service": "",
     "resource": "trace1",
     "trace_id": 6,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -217,11 +243,13 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 6,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 13539,
        "start": 1690574476621625665
      }]]

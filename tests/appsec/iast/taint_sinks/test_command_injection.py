@@ -7,6 +7,10 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
@@ -14,14 +18,6 @@ from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
 
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
 
@@ -39,7 +35,7 @@ def setup():
 
 
 def test_ossystem(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -78,7 +74,7 @@ def test_ossystem(tracer, iast_span_defaults):
 
 
 def test_communicate(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -118,7 +114,7 @@ def test_communicate(tracer, iast_span_defaults):
 
 
 def test_run(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -156,7 +152,7 @@ def test_run(tracer, iast_span_defaults):
 
 
 def test_popen_wait(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -195,7 +191,7 @@ def test_popen_wait(tracer, iast_span_defaults):
 
 
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -248,7 +244,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
     ],
 )
 def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments, tag):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = "forbidden_dir/"
         _BAD_DIR = taint_pyobject(
@@ -296,7 +292,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
 def test_multiple_cmdi(tracer, iast_span_defaults):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True)):
         patch()
         _BAD_DIR = taint_pyobject(
             pyobject="forbidden_dir/",
@@ -318,3 +314,48 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
         assert span_report
 
         assert len(list(span_report.vulnerabilities)) == 2
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
+def test_string_cmdi(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        patch()
+        cmd = taint_pyobject(
+            pyobject="dir -l .",
+            source_name="test_run",
+            source_value="dir -l .",
+            source_origin=OriginType.PARAMETER,
+        )
+        with tracer.trace("test_string_cmdi"):
+            subprocess.run(cmd, shell=True, check=True)
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+
+        assert len(list(span_report.vulnerabilities)) == 1
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_cmdi_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+    patch()
+    _BAD_DIR = "forbidden_dir/"
+    _BAD_DIR = taint_pyobject(
+        pyobject=_BAD_DIR,
+        source_name="test_ossystem",
+        source_value=_BAD_DIR,
+        source_origin=OriginType.PARAMETER,
+    )
+    assert is_pyobject_tainted(_BAD_DIR)
+    for _ in range(0, 5):
+        with tracer.trace("ossystem_test"):
+            # label test_ossystem
+            os.system(add_aspect("dir -l ", _BAD_DIR))
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+
+    if num_vuln_expected == 0:
+        assert span_report is None
+    else:
+        assert span_report
+
+        assert len(span_report.vulnerabilities) == num_vuln_expected

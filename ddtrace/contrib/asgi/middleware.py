@@ -1,33 +1,26 @@
 import sys
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import Mapping
+from typing import Optional
+from urllib import parse
 
 import ddtrace
+from ddtrace import Span
 from ddtrace import config
-from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec import _utils as appsec_utils
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ...appsec._constants import WAF_CONTEXT_NAMES
 from ...internal import core
-from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Mapping
-    from typing import Optional
-
-    from ddtrace import Span
 
 
 log = get_logger(__name__)
@@ -41,13 +34,12 @@ ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
 def bytes_to_str(str_or_bytes):
-    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
+    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope, integration_config):
@@ -81,14 +73,9 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
-def span_from_scope(scope):
-    # type: (Mapping[str, Any]) -> Optional[Span]
+def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     """Retrieve the top-level ASGI span from the scope."""
     return scope.get("datadog", {}).get("request_spans", [None])[0]
-
-
-def _request_blocked(span):
-    return span and config._appsec_enabled and core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span)
 
 
 async def _blocked_asgi_app(scope, receive, send):
@@ -123,7 +110,6 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-
         try:
             headers = _extract_headers(scope)
         except Exception:
@@ -134,25 +120,26 @@ class TraceMiddleware:
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
 
-        ip_tuple = scope.get("client")
-        if ip_tuple:
-            ip = ip_tuple[0]
-        else:
-            ip = ""
-
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
-
-        with _asm_request_context.asm_request_context_manager(ip, headers):
-            span = self.tracer.trace(
-                name=operation_name,
-                service=trace_utils.int_service(None, self.integration_config),
-                resource=resource,
-                span_type=SpanTypes.WEB,
-            )
-
+        pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
+        with pin.tracer.trace(
+            name=operation_name,
+            service=trace_utils.int_service(None, self.integration_config),
+            resource=resource,
+            span_type=SpanTypes.WEB,
+        ) as span, core.context_with_data(
+            "asgi.__call__",
+            remote_addr=scope.get("REMOTE_ADDR"),
+            headers=headers,
+            headers_case_sensitive=True,
+            environ=scope,
+            middleware=self,
+            span=span,
+        ) as ctx:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+            ctx.set_item("req_span", span)
 
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
@@ -179,10 +166,10 @@ class TraceMiddleware:
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
                     break
-
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
+            parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("root_path", "") + scope.get("path", "")
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
@@ -200,28 +187,49 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            trace_utils.set_http_meta(
-                span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
-            )
+            body = None
+            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            if result:
+                receive, body = await result.value
 
+            client = scope.get("client")
+            if isinstance(client, list) and len(client):
+                peer_ip = client[0]
+            else:
+                peer_ip = None
+
+            trace_utils.set_http_meta(
+                span,
+                self.integration_config,
+                method=method,
+                url=url,
+                query=query_string,
+                request_headers=headers,
+                raw_uri=url,
+                parsed_query=parsed_query,
+                request_body=body,
+                peer_ip=peer_ip,
+            )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
 
             async def wrapped_send(message):
-                if span and message.get("type") == "http.response.start" and "status" in message:
-                    status_code = message["status"]
-                else:
-                    status_code = None
-
                 try:
                     response_headers = _extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
 
-                trace_utils.set_http_meta(
-                    span, self.integration_config, status_code=status_code, response_headers=response_headers
-                )
+                if span and message.get("type") == "http.response.start" and "status" in message:
+                    status_code = message["status"]
+                    trace_utils.set_http_meta(
+                        span, self.integration_config, status_code=status_code, response_headers=response_headers
+                    )
+                    core.dispatch("asgi.start_response", ("asgi",))
+                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
+
+                if core.get_item(HTTP_REQUEST_BLOCKED):
+                    raise trace_utils.InterruptException("wrapped_send")
                 try:
                     return await send(message)
                 finally:
@@ -238,41 +246,40 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                accept_header = (
-                    "text/html"
-                    if "text/html" in _asm_request_context.get_headers().get("accept", "").lower()
-                    else "text/json"
-                )
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 if span and message.get("type") == "http.response.start":
-                    message["headers"] = [
-                        (
-                            b"content-type",
-                            b"text/html"
-                            if accept_header and "text/html" in accept_header.lower()
-                            else b"application/json",
-                        ),
-                    ]
-
-                if message.get("type") == "http.response.body":
-                    message["body"] = bytes(appsec_utils._get_blocked_template(accept_header), "utf-8")
+                    message["headers"] = headers
+                    message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
+                elif message.get("type") == "http.response.body":
+                    message["body"] = content
                     message["more_body"] = False
-
+                    core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
                 finally:
+                    trace_utils.set_http_meta(
+                        span, self.integration_config, status_code=status, response_headers=headers
+                    )
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
 
             try:
-                if _request_blocked(span):
+                core.dispatch("asgi.start_request", ("asgi",))
+                if core.get_item(HTTP_REQUEST_BLOCKED):
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)
+            except trace_utils.InterruptException:
+                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
-                reraise(exc_type, exc_val, exc_tb)
+                raise
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
-                span.finish()

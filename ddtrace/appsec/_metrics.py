@@ -2,8 +2,8 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._ddwaf import DDWaf_info
 from ddtrace.appsec._ddwaf import version
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 
 
@@ -11,8 +11,7 @@ log = get_logger(__name__)
 
 
 @deduplication
-def _set_waf_error_metric(msg, stack_trace, info):
-    # type: (str, str, DDWaf_info) -> None
+def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
     try:
         tags = {
             "waf_version": version(),
@@ -20,7 +19,7 @@ def _set_waf_error_metric(msg, stack_trace, info):
         }
         if info and info.version:
             tags["event_rules_version"] = info.version
-        telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
+        telemetry.telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
 
@@ -35,7 +34,7 @@ def _set_waf_updates_metric(info):
         else:
             tags = (("waf_version", version()),)
 
-        telemetry_writer.add_count_metric(
+        telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.updates",
             1.0,
@@ -60,7 +59,7 @@ def _set_waf_init_metric(info):
                 ),
             )
 
-        telemetry_writer.add_count_metric(
+        telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE_TAG_APPSEC,
             "waf.init",
             1.0,
@@ -72,7 +71,7 @@ def _set_waf_init_metric(info):
 
 def _set_waf_request_metrics(*args):
     try:
-        list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results()
+        list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results() or ([], [], [])
         if any((list_results, list_result_info, list_is_blocked)):
             is_blocked = any(list_is_blocked)
             is_triggered = any((result.data for result in list_results))
@@ -100,7 +99,7 @@ def _set_waf_request_metrics(*args):
                     ("waf_timeout", str(is_timeout).lower()),
                 )
 
-            telemetry_writer.add_count_metric(
+            telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE_TAG_APPSEC,
                 "waf.requests",
                 1.0,

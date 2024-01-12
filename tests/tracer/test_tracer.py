@@ -35,6 +35,7 @@ from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
+from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -42,11 +43,11 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
+from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
-from ..appsec.test_processor import tracer_appsec
 from ..utils import override_env
 
 
@@ -616,8 +617,7 @@ class TracerTestCases(TracerTestCase):
         assert span.context.dd_user_id is None
         assert not user_id
 
-    @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
-    def test_tracer_set_user_propagation_string_error_py3(self):
+    def test_tracer_set_user_propagation_string_error(self):
         span = self.trace("fake_span")
         user_id_string = "ユーザーID"
         set_user(
@@ -634,24 +634,6 @@ class TracerTestCases(TracerTestCase):
 
         assert span.get_tag(user.ID) == user_id_string
         assert span.context.dd_user_id == user_id_string
-        assert user_id == "44Om44O844K244O8SUQ="
-
-    @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
-    def test_tracer_set_user_propagation_string_error_py2(self):
-        span = self.trace("fake_span")
-        set_user(
-            self.tracer,
-            user_id="ユーザーID",
-            email="usr.email",
-            name="usr.name",
-            session_id="usr.session_id",
-            role="usr.role",
-            scope="usr.scope",
-            propagate=True,
-        )
-        user_id = span.context._meta.get("_dd.p.usr.id")
-        assert span.get_tag(user.ID) == u"ユーザーID"
-        assert span.context.dd_user_id == "ユーザーID"
         assert user_id == "44Om44O844K244O8SUQ="
 
 
@@ -788,7 +770,6 @@ def test_tracer_fork():
     def task(t, errors):
         # Start a new span to trigger process checking
         with t.trace("test", service="test"):
-
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
@@ -1402,7 +1383,7 @@ class TestPartialFlush(TracerTestCase):
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
 
-    with override_global_config(dict(version=u"😇", env=u"😇")):
+    with override_global_config(dict(version="😇", env="😇")):
         with t.trace("1"):
             pass
     t.shutdown()
@@ -1876,7 +1857,7 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
 
     t.configure(api_version="v0.3")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import threading
-import typing
+import typing  # noqa:F401
 
 import attr
 
@@ -20,7 +20,6 @@ class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):
-
     ACQUIRE_EVENT_CLASS = ThreadingLockAcquireEvent
     RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
 

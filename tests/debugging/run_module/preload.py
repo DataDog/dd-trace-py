@@ -3,8 +3,8 @@ import sys
 
 sys.path.insert(0, "../../..")  # to allow importing from the tests module.
 
-from tests.debugging.mocking import TestDebugger  # noqa
-from tests.debugging.utils import create_snapshot_line_probe  # noqa
+from tests.debugging.mocking import TestDebugger  # noqa:E402,F401
+from tests.debugging.utils import create_snapshot_line_probe  # noqa:E402,F401
 
 
 TestDebugger.enable()

@@ -17,7 +17,7 @@
 import inspect
 
 import six
-import wrapt
+from .. import wrapt
 
 from . import _utils
 

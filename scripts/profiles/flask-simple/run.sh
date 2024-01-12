@@ -19,7 +19,8 @@ function profile_with_load {
     sleep 3
     ${PREFIX}/k6*/k6 run --quiet scripts/profiles/flask-simple/k6-load.js &
         sleep 2
-        sudo ${PREFIX}/austin -bsCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.mojo -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
+        sudo `which austin` -bsCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.mojo -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
+        LC_ALL=C sed -i 's|/home/runner/work/dd-trace-py/dd-trace-py/ddtrace/||g' ${PREFIX}/artifacts/${name}.mojo
     pkill k6
 }
 

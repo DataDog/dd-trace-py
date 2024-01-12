@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from opentelemetry.context import Context as OtelContext
+from opentelemetry.context import Context as OtelContext  # noqa:F401
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -19,17 +19,17 @@ from ddtrace.opentelemetry._span import Span
 
 
 if TYPE_CHECKING:
-    from typing import Iterator
-    from typing import Mapping
-    from typing import Optional
-    from typing import Sequence
-    from typing import Union
+    from typing import Iterator  # noqa:F401
+    from typing import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Sequence  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from opentelemetry.trace import Link as OtelLink
-    from opentelemetry.util.types import AttributeValue as OtelAttributeValue
+    from opentelemetry.trace import Link as OtelLink  # noqa:F401
+    from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
 
-    from ddtrace import Tracer as DDTracer
-    from ddtrace.span import _MetaDictType
+    from ddtrace import Tracer as DDTracer  # noqa:F401
+    from ddtrace.span import _MetaDictType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -57,7 +57,7 @@ class TracerProvider(OtelTracerProvider):
 
 
 class Tracer(OtelTracer):
-    """Starts and/or activates Open Telemetry compatible Spans using the global Datadog Tracer."""
+    """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
 
     def __init__(self, datadog_tracer):
         # type: (DDTracer) -> None
@@ -101,6 +101,16 @@ class Tracer(OtelTracer):
             )
         # Create a new Datadog span (not activated), then return a valid OTel span
         dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
+
+        if links:
+            for link in links:
+                dd_span._set_span_link(
+                    link.context.trace_id,
+                    link.context.span_id,
+                    link.context.trace_state.to_header(),
+                    link.context.trace_flags,
+                    link.attributes,
+                )
         return Span(
             dd_span,
             kind=kind,

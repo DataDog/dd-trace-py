@@ -1,4 +1,4 @@
-import typing
+import typing  # noqa:F401
 
 import attr
 
@@ -18,7 +18,6 @@ class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
-
     ACQUIRE_EVENT_CLASS = AsyncioLockAcquireEvent
     RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
 

@@ -1,9 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace.internal.compat import six
-
+from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
+from .._metrics import increment_iast_span_metric
 from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
@@ -12,8 +12,8 @@ from ..taint_sinks._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import Optional
+    from typing import Dict  # noqa:F401
+    from typing import Optional  # noqa:F401
 
 
 @oce.register
@@ -42,19 +42,18 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
     if not cookies:
         return
 
-    for cookie_key, cookie_value in six.iteritems(cookies):
+    for cookie_key, cookie_value in cookies.items():
         lvalue = cookie_value.lower().replace(" ", "")
-        evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)
             _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
-            InsecureCookie.report(evidence_value=evidence)
-            return
+            InsecureCookie.report(evidence_value=cookie_key)
 
         if ";httponly" not in lvalue:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoHttpOnlyCookie.vulnerability_type)
             _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
-            NoHttpOnlyCookie.report(evidence_value=evidence)
-            return
+            NoHttpOnlyCookie.report(evidence_value=cookie_key)
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
@@ -68,5 +67,6 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             report_samesite = True
 
         if report_samesite:
-            NoSameSite.report(evidence_value=evidence)
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoSameSite.vulnerability_type)
             _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
+            NoSameSite.report(evidence_value=cookie_key)

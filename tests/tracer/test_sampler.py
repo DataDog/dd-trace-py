@@ -16,7 +16,6 @@ from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.context import Context
-from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
@@ -696,7 +695,7 @@ def test_datadog_sampler_init():
         SamplingRule(sample_rate=0.5)
     ], "DatadogSampler initialized with default_sample_rate should hold a SamplingRule with that rate"
 
-    with override_global_config(dict(_trace_sample_rate="0.5", _trace_rate_limit=10)):
+    with override_global_config(dict(_trace_sample_rate=0.5, _trace_rate_limit=10)):
         sampler = DatadogSampler()
         assert (
             sampler.limiter.rate_limit == 10
@@ -705,7 +704,7 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0.5)
         ], "DatadogSampler initialized with no arguments and envvars set should hold a sample_rate from the envvar"
 
-    with override_global_config(dict(_trace_sample_rate="0")):
+    with override_global_config(dict(_trace_sample_rate=0)):
         sampler = DatadogSampler()
         assert (
             sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
@@ -990,7 +989,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in iteritems(priority_sampler._by_service_samplers):
+        for k, v in priority_sampler._by_service_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
     # It's important to also test in reverse mode for we want to make sure key deletion
@@ -999,7 +998,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in iteritems(priority_sampler._by_service_samplers):
+        for k, v in priority_sampler._by_service_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
 

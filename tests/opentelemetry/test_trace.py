@@ -5,6 +5,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
+from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -16,7 +17,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_with_default_args(oteltracer):
     otel_span = oteltracer.start_span("test-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
@@ -36,7 +37,7 @@ def test_otel_start_span_with_default_args(oteltracer):
     otel_span.end()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
     otel_span = oteltracer.start_span(
@@ -65,6 +66,33 @@ def test_otel_start_span_without_default_args(oteltracer):
     assert root.is_recording()
     otel_span.end()
     root.end()
+
+
+def test_otel_start_span_with_span_links(oteltracer):
+    # create a span and generate an otel link object
+    span1 = oteltracer.start_span("span-1")
+    span1_context = span1.get_span_context()
+    attributes1 = {"attr1": 1, "link.name": "moon"}
+    link_from_span_1 = opentelemetry.trace.Link(span1_context, attributes1)
+    # create another span and generate an otel link object
+    span2 = oteltracer.start_span("span-2")
+    span2_context = span2.get_span_context()
+    attributes2 = {"attr2": 2, "link.name": "tree"}
+    link_from_span_2 = opentelemetry.trace.Link(span2_context, attributes2)
+
+    # create an otel span that links to span1 and span2
+    with oteltracer.start_as_current_span("span-3", links=[link_from_span_1, link_from_span_2]) as span3:
+        pass
+
+    # assert that span3 has the expected links
+    links = span3._ddspan._links
+    assert len(links) == 2
+    for i, span_context, attributes in ((0, span1_context, attributes1), (1, span2_context, attributes2)):
+        assert links[i].trace_id == span_context.trace_id
+        assert links[i].span_id == span_context.span_id
+        assert links[i].tracestate == span_context.trace_state.to_header()
+        assert links[i].flags == span_context.trace_flags
+        assert links[i].attributes == attributes
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
@@ -107,6 +135,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     otel_span.end()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [

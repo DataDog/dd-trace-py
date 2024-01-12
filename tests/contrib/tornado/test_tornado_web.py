@@ -103,7 +103,7 @@ class TestTornadoWeb(TornadoTestCase):
         traces = self.pop_traces()
         assert 2 == len(traces)
 
-        for (i, trace) in enumerate(traces, start=1):
+        for i, trace in enumerate(traces, start=1):
             request_span = trace[0]
             assert_span_http_status_code(request_span, 200)
             assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
@@ -585,6 +585,7 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
     """
 
     def test_no_propagation_via_int_config(self):
+        original = config.tornado.distributed_tracing
         config.tornado.distributed_tracing = False
         # it should not propagate the HTTP context
         headers = {
@@ -615,6 +616,8 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
+
+        config.tornado.distributed_tracing = original
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TORNADO_DISTRIBUTED_TRACING="False"))
     def test_no_propagation_via_env_var(self):

@@ -2,7 +2,6 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -14,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -55,7 +55,7 @@ def _track_user_login_common(
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
         auto_tag_mode = (
-            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else config._automatic_login_events_mode
+            login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else asm_config._automatic_login_events_mode
         )
         span.set_tag_str(mode_tag, auto_tag_mode)
 
@@ -115,8 +115,9 @@ def track_user_login_success_event(
         return
 
     if (
-        login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)
-        and not config._user_model_login_field
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -137,6 +138,13 @@ def track_user_login_failure_event(
     :param exists: a boolean indicating if the user exists in the system
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
+
+    if (
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
+    ):
+        user_id = _safe_userid(user_id)
 
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
@@ -203,7 +211,11 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
     span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
 
     for k, v in metadata.items():
-        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
+        if isinstance(v, bool):
+            str_v = "true" if v else "false"
+        else:
+            str_v = str(v)
+        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str_v)
         _asm_manual_keep(span)
 
 
@@ -215,7 +227,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
     :param userid: the ID of the user as registered by `set_user`
     """
 
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning(
             "One click blocking of user ids is disabled. To use this feature please enable "
             "Application Security Monitoring"
@@ -247,7 +259,7 @@ def block_request() -> None:
     could be different among frameworks, but it usually involves raising some kind of internal Exception,
     meaning that if you capture the exception the request blocking could not work.
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
         return
 
@@ -262,7 +274,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
     """
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
         return
 
@@ -280,7 +292,7 @@ def _on_django_login(
     mode,
     info_retriever,
 ):
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return
 
     if user:
@@ -310,7 +322,7 @@ def _on_django_login(
 
 
 def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return True, result_user
 
     extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
@@ -331,4 +343,4 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
 
 core.on("django.login", _on_django_login)
-core.on("django.auth", _on_django_auth)
+core.on("django.auth", _on_django_auth, "user")

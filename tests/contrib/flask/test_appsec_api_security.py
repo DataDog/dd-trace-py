@@ -1,16 +1,15 @@
 import base64
 import gzip
 import json
-import sys
 
 from flask import request
 import pytest
 
-from ddtrace import config
+from ddtrace.appsec import _constants
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.sqlite3.patch import patch
-from tests.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.test_processor import RULES_SRB
+from ddtrace.settings.asm import config as asm_config
+from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -32,12 +31,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         patch()
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True, iast_enabled=False):
-        self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._asm_enabled = appsec_enabled
         self.tracer._iast_enabled = iast_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
@@ -49,9 +47,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
-        ):
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+        ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(
@@ -61,7 +59,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             )
             assert resp.status_code == 200
             root_span = self.pop_spans()[0]
-            assert config._api_security_enabled
+            assert asm_config._api_security_enabled
 
             for name, expected_value in [
                 (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -83,7 +81,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert equal_with_meta(api, expected_value), name
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security_srb(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
@@ -95,19 +92,22 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(dict(_appsec_enabled=True, _api_security_enabled=True)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
-        ):
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+        ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(
                 "/response-header/posting?x=2&extended=xtrace&x=3",
                 data=json.dumps(payload),
                 content_type="application/json",
+                headers={"user-agent": "dd-test-scanner-log-block"},
             )
             assert resp.status_code == 403
             root_span = self.pop_spans()[0]
-            assert config._api_security_enabled
+            loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
+            assert [t["rule"]["id"] for t in loaded["triggers"]] == ["ua0-600-56x"]
+            assert asm_config._api_security_enabled
 
             for name, expected_value in [
                 (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
@@ -129,7 +129,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert equal_with_meta(api, expected_value), name
 
-    @pytest.mark.skipif((sys.version_info.major, sys.version_info.minor) < (3, 7), reason="python<3.7 not supported")
     def test_api_security_disabled(self):
         @self.app.route("/response-header/<string:str_param>", methods=["POST"])
         def specific_reponse(str_param):
@@ -141,8 +140,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         # appsec disabled must not block
-        with override_global_config(dict(_appsec_enabled=False, _api_security_enabled=False)), override_env(
-            {"DD_APPSEC_RULES": RULES_SRB, API_SECURITY.SAMPLE_RATE: "1.0"}
+        with override_global_config(dict(_asm_enabled=False, _api_security_enabled=False)), override_env(
+            {API_SECURITY.SAMPLE_RATE: "1.0"}
         ):
             self._aux_appsec_prepare_tracer(appsec_enabled=False)
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
@@ -154,7 +153,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert resp.status_code == 200
             root_span = self.pop_spans()[0]
-            assert not config._api_security_enabled
+            assert not asm_config._api_security_enabled
             for name in [
                 API_SECURITY.REQUEST_BODY,
                 API_SECURITY.REQUEST_HEADERS_NO_COOKIES,

@@ -61,15 +61,15 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"GET cheese"
+        assert span.get_tag("redis.raw_command") == "GET cheese"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == "GET cheese"
+        assert span.resource == "GET"
 
     def test_unicode(self):
-        us = self.r.get(u"😐")
+        us = self.r.get("😐")
         assert us is None
         spans = self.get_spans()
         assert len(spans) == 1
@@ -79,17 +79,17 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"GET 😐"
+        assert span.get_tag("redis.raw_command") == "GET 😐"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
-        assert span.resource == u"GET 😐"
+        assert span.resource == "GET"
 
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)
-            p.rpush("foo", u"éé")
+            p.rpush("foo", "éé")
             p.hgetall("xxx")
             p.execute()
 
@@ -99,10 +99,10 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert_is_measured(span)
         assert span.service == "rediscluster"
         assert span.name == "redis.command"
-        assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.resource == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.get_tag("component") == "rediscluster"
         assert span.get_tag("span.kind") == "client"
         assert span.get_metric("redis.pipeline_length") == 3
@@ -258,3 +258,32 @@ def test_cmd_max_length_env():
 
     r = _get_test_client()
     r.get("here-is-a-long-key")
+
+
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.snapshot
+def test_full_command_in_resource_env():
+    import ddtrace
+    from tests.contrib.rediscluster.test import _get_test_client
+
+    ddtrace.patch(rediscluster=True)
+
+    with ddtrace.tracer.trace("web-request", service="test"):
+        redis_client = _get_test_client()
+        redis_client.get("put_key_in_resource")
+        p = redis_client.pipeline(transaction=False)
+        p.set("pipeline-cmd1", 1)
+        p.set("pipeline-cmd2", 2)
+        p.execute()
+
+
+@pytest.mark.snapshot
+@pytest.mark.parametrize("use_global_tracer", [True])
+def test_full_command_in_resource_config(tracer, redis_client):
+    with override_config("rediscluster", dict(resource_only_command=False)):
+        with tracer.trace("web-request", service="test"):
+            redis_client.get("put_key_in_resource")
+            p = redis_client.pipeline(transaction=False)
+            p.set("pipeline-cmd1", 1)
+            p.set("pipeline-cmd2", 2)
+            p.execute()
