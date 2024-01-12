@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import json
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -11,6 +12,7 @@ from typing import Tuple
 from urllib import parse
 
 from ddtrace.appsec import _handlers
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -34,7 +36,7 @@ _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
 
 
-GLOBAL_CALLBACKS: Dict[str, Any] = {}
+GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {}
 
 
 class ASM_Environment:
@@ -53,6 +55,7 @@ class ASM_Environment:
         self.telemetry: Dict[str, Any] = {}
         self.addresses_sent: Set[str] = set()
         self.must_call_globals: bool = True
+        self.waf_triggers: List[Dict[str, Any]] = []
 
 
 def _get_asm_context() -> ASM_Environment:
@@ -101,6 +104,17 @@ def unregister(span: Span) -> None:
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
         env.must_call_globals = False
+
+
+def flush_waf_triggers(env: ASM_Environment) -> None:
+    if env.waf_triggers and env.span:
+        env.span.set_tag_str(APPSEC.JSON, json.dumps({"triggers": env.waf_triggers}, separators=(",", ":")))
+
+        core.set_item("waf_triggers", env.waf_triggers, span=env.span)
+        env.waf_triggers = []
+
+
+GLOBAL_CALLBACKS[_CONTEXT_CALL] = [flush_waf_triggers]
 
 
 class _DataHandler:
@@ -320,6 +334,16 @@ def get_waf_results() -> Optional[Tuple[List[Any], List[Any], List[bool]]]:
 
 def reset_waf_results() -> None:
     set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
+
+
+def store_waf_results_data(data) -> None:
+    if not data:
+        return
+    env = _get_asm_context()
+    if not env.active:
+        log.debug("storing waf results data with no active asm context")
+        return
+    env.waf_triggers.extend(data)
 
 
 @contextlib.contextmanager
