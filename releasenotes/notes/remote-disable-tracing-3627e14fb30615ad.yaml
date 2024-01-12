@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracing: This introduces the ability to disable tracing at runtime based on configuration values
+    sent from the Datadog frontend. Disabling tracing in this way also disables instrumentation telemetry.
