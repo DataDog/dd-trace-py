@@ -104,6 +104,7 @@ def test_appsec_enabled_attack():
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
+        "metrics._dd.appsec.event_rules.loaded",
     ]
 )
 def test_request_ipblock_nomatch_200():
