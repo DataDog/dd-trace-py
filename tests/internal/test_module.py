@@ -438,3 +438,16 @@ def test_module_watchdog_namespace_import():
     finally:
         sys.path.pop(0)
         ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        PYTHONPATH=os.pathsep.join((str(Path(__file__).parent), os.environ.get("PYTHONPATH", ""))),
+        PYTHONDEVMODE="1",
+    ),
+)
+def test_module_watchdog_namespace_import_no_warnings():
+    # Test that the namespace import does not emit warnings (e.g. fallback to
+    # legacy import machinery).
+    import namespace_test.ns_module  # noqa:F401
