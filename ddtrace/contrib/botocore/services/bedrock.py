@@ -5,8 +5,8 @@ from typing import Dict
 from typing import List
 
 from ddtrace import Span
-from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.vendor import wrapt
+from ddtrace.internal.llmobs.integrations import BedrockIntegration
 
 from ....internal.schema import schematize_service_name
 
@@ -17,10 +17,6 @@ _ANTHROPIC = "anthropic"
 _COHERE = "cohere"
 _META = "meta"
 _STABILITY = "stability"
-
-
-class _BedrockIntegration(BaseLLMIntegration):
-    _integration_name = "bedrock"
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
@@ -249,7 +245,7 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     }
 
 
-def handle_bedrock_request(span: Span, integration: _BedrockIntegration, params: Dict[str, Any]) -> None:
+def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: Dict[str, Any]) -> None:
     """Perform request param extraction and tagging."""
     model_provider, model_name = params.get("modelId").split(".")
     request_params = _extract_request_params(params, model_provider)
@@ -262,7 +258,7 @@ def handle_bedrock_request(span: Span, integration: _BedrockIntegration, params:
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
 
 
-def handle_bedrock_response(span: Span, integration: _BedrockIntegration, result: Dict[str, Any]) -> Dict[str, Any]:
+def handle_bedrock_response(span: Span, integration: BedrockIntegration, result: Dict[str, Any]) -> Dict[str, Any]:
     """Perform response param extraction and tagging."""
     metadata = result["ResponseMetadata"]
     span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))

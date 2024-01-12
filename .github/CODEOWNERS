@@ -77,8 +77,7 @@ ddtrace/contrib/langchain                           @DataDog/ml-observability
 ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
 tests/contrib/openai                                @DataDog/ml-observability
 tests/contrib/langchain                             @DataDog/ml-observability
-tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
-tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
+tests/contrib/botocore                              @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
