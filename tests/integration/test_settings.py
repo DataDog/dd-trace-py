@@ -175,6 +175,7 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
 
+config._subscriptions = [a for a in config._subscriptions if a[0][0] != "tracing_enabled"]
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.5}))
 with tracer.trace("test") as span:
     pass
