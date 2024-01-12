@@ -86,7 +86,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
         login_manager._user_callback = load_user
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
-        self.tracer._appsec_enabled = appsec_enabled
+        self.tracer._asm_enabled = appsec_enabled
         # Hack: need to pass an argument to configure so that the processors are recreated
         self.tracer.configure(api_version="v0.4")
 
@@ -115,7 +115,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="disabled")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="disabled")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -134,7 +134,7 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            with override_global_config(dict(_appsec_enabled=False, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=False, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
@@ -153,9 +153,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="extended")):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
@@ -177,9 +177,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
@@ -201,9 +201,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="foobar")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="foobar")):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
@@ -220,9 +220,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True)):
+            with override_global_config(dict(_asm_enabled=True)):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"
@@ -237,13 +237,14 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return self._login_base("mike@test.com", TEST_PASSWD)
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="extended")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="extended")):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"User not found"
                 root_span = self.pop_spans()[0]
+                print(root_span)
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.track") == "true"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
                 assert root_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
@@ -256,9 +257,9 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return self._login_base(TEST_EMAIL, "hacker")
 
         try:
-            patch_login()
-            with override_global_config(dict(_appsec_enabled=True, _automatic_login_events_mode="safe")):
+            with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="safe")):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"Authentication failure"
@@ -277,11 +278,11 @@ class FlaskLoginAppSecTestCase(BaseFlaskTestCase):
             return str(current_user == _user)
 
         try:
-            patch_login()
             with override_global_config(
-                dict(_appsec_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
+                dict(_asm_enabled=True, _user_model_login_field="login", _automatic_login_events_mode="safe")
             ):
                 self._aux_appsec_prepare_tracer()
+                patch_login()
                 resp = self.client.get("/login")
                 assert resp.status_code == 200
                 assert resp.data == b"True"

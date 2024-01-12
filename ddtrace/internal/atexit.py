@@ -8,7 +8,7 @@ import atexit
 import logging
 import signal
 import threading
-import typing
+import typing  # noqa:F401
 
 from ddtrace.internal.utils import signals
 
@@ -40,7 +40,7 @@ else:
     def register(
         func,  # type: typing.Callable[..., typing.Any]
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> typing.Callable[..., typing.Any]
         """Register a function to be executed upon normal program termination"""

@@ -10,7 +10,6 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -36,17 +35,11 @@ class RCMockPubSub(PubSub):
 
 
 def to_bytes(string):
-    if PY2:
-        return bytes(string)
-    else:
-        return bytes(string, encoding="utf-8")
+    return bytes(string, encoding="utf-8")
 
 
 def to_str(bytes_string):
-    if PY2:
-        return str(bytes_string)
-    else:
-        return str(bytes_string, encoding="utf-8")
+    return str(bytes_string, encoding="utf-8")
 
 
 def get_mock_encoded_msg(msg):
@@ -146,7 +139,7 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
 
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    class MockPubsub:
+    class MockPubsub(PubSub):
         def stop(self, *args, **kwargs):
             pass
 
@@ -165,10 +158,15 @@ def test_remote_config_register_auto_enable(remote_config_worker):
 
 def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     remoteconfig_poller.disable()
+
+    class MockPubsub(PubSub):
+        def stop(self, *args, **kwargs):
+            pass
+
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", lambda m, c: None)
+        remoteconfig_poller.register("LIVE_DEBUGGER", MockPubsub())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -218,6 +216,7 @@ def test_remote_config_forksafe():
         exit(0)
 
 
+# TODO: split this test into smaller tests that operate independently from each other
 @mock.patch.object(RemoteConfigClient, "_send_request")
 def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
     class Callback:
@@ -233,7 +232,6 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
 
-            mock_pubsub.start_subscriber()
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
@@ -243,9 +241,6 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
                 "shared_data_counter": ANY,
             }
 
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worker):
     class Callback:
         features = {}
 
@@ -263,9 +258,8 @@ def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worke
         with RemoteConfigPoller() as rc:
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
             rc._online()
-            mock_send_request.assert_called_once()
+            mock_send_request.assert_called()
             sleep(0.5)
             assert callback.features == {
                 "config": {
@@ -280,6 +274,92 @@ def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worke
                         }
                     ]
                 },
+                "metadata": {},
+                "shared_data_counter": ANY,
+            }
+
+    class Callback:
+        features = {}
+
+        def _reload_features(self, features, test_tracer=None):
+            self.features = features
+
+    callback = Callback()
+    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
+        with RemoteConfigPoller() as rc:
+            msg = b'{"asm":{"enabled":true}}'
+            expires_date = datetime.datetime.strftime(
+                datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
+            )
+            path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
+            # Signed data without version `spec_version`
+            signed_errors = {
+                "_type": "targets",
+                "custom": {"opaque_backend_state": ""},
+                "expires": expires_date,
+                "targets": {
+                    path: {
+                        "custom": {"c": [""], "v": 0},
+                        "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
+                        "length": 24,
+                    }
+                },
+                "version": 0,
+            }
+            mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            rc._online()
+            mock_send_request.assert_called()
+            sleep(0.5)
+            assert callback.features == {}
+            assert rc._client._last_error == "invalid agent payload received"
+
+    class Callback:
+        features = {}
+
+        def _reload_features(self, features, test_tracer=None):
+            self.features = features
+
+    callback = Callback()
+    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
+        with RemoteConfigPoller() as rc:
+            mock_pubsub = RCMockPubSub(None, callback._reload_features)
+            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
+            for _ in range(0, 2):
+                msg = b'{"asm":{"enabled":true}}'
+                expires_date = datetime.datetime.strftime(
+                    datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
+                )
+                path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
+                # Signed data without version `spec_version`
+                signed_errors = {
+                    "_type": "targets",
+                    "custom": {"opaque_backend_state": ""},
+                    "expires": expires_date,
+                    "targets": {
+                        path: {
+                            "custom": {"c": [""], "v": 0},
+                            "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
+                            "length": 24,
+                        }
+                    },
+                    "version": 0,
+                }
+                mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
+                rc._online()
+                mock_send_request.assert_called()
+                sleep(0.5)
+                assert callback.features == {}
+                assert rc._client._last_error == "invalid agent payload received"
+
+            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+            rc._online()
+            mock_send_request.assert_called()
+            sleep(0.5)
+            assert rc._client._last_error is None
+            assert callback.features == {
+                "config": {"asm": {"enabled": True}},
                 "metadata": {},
                 "shared_data_counter": ANY,
             }
@@ -318,99 +398,3 @@ def test_remote_configuration_check_remote_config_enable_in_agent_errors(
     assert worker._state == worker._online if expected else worker._agent_check
     worker.stop_subscribers(True)
     worker.disable()
-
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_payload_with_errors_signed_wrong_data(mock_send_request, remote_config_worker):
-    class Callback:
-        features = {}
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
-        with RemoteConfigPoller() as rc:
-            msg = b'{"asm":{"enabled":true}}'
-            expires_date = datetime.datetime.strftime(
-                datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
-            )
-            path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
-            # Signed data without version `spec_version`
-            signed_errors = {
-                "_type": "targets",
-                "custom": {"opaque_backend_state": ""},
-                "expires": expires_date,
-                "targets": {
-                    path: {
-                        "custom": {"c": [""], "v": 0},
-                        "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
-                        "length": 24,
-                    }
-                },
-                "version": 0,
-            }
-            mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert callback.features == {}
-            assert rc._client._last_error == "invalid agent payload received"
-
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_payload_with_errors_signed_wrong_data_recover_from_error(
-    mock_send_request, remote_config_worker
-):
-    class Callback:
-        features = {}
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
-        with RemoteConfigPoller() as rc:
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            mock_pubsub.start_subscriber()
-            for _ in range(0, 2):
-                msg = b'{"asm":{"enabled":true}}'
-                expires_date = datetime.datetime.strftime(
-                    datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
-                )
-                path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
-                # Signed data without version `spec_version`
-                signed_errors = {
-                    "_type": "targets",
-                    "custom": {"opaque_backend_state": ""},
-                    "expires": expires_date,
-                    "targets": {
-                        path: {
-                            "custom": {"c": [""], "v": 0},
-                            "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
-                            "length": 24,
-                        }
-                    },
-                    "version": 0,
-                }
-                mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
-                rc._online()
-                mock_send_request.assert_called()
-                sleep(0.5)
-                assert callback.features == {}
-                assert rc._client._last_error == "invalid agent payload received"
-
-            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert rc._client._last_error is None
-            assert callback.features == {
-                "config": {"asm": {"enabled": True}},
-                "metadata": {},
-                "shared_data_counter": ANY,
-            }

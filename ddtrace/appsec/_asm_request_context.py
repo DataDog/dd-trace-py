@@ -10,7 +10,6 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
-from ddtrace import config
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -18,6 +17,7 @@ from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.span import Span
 
 
@@ -52,6 +52,7 @@ class ASM_Environment:
         self.callbacks: Dict[str, Any] = {}
         self.telemetry: Dict[str, Any] = {}
         self.addresses_sent: Set[str] = set()
+        self.must_call_globals: bool = True
 
 
 def _get_asm_context() -> ASM_Environment:
@@ -95,10 +96,11 @@ def unregister(span: Span) -> None:
     env = _get_asm_context()
     if env.span_asm_context is not None and env.span is span:
         env.span_asm_context.__exit__(None, None, None)
-    elif env.span is span:
+    elif env.span is span and env.must_call_globals:
         # needed for api security flushing information before end of the span
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
+        env.must_call_globals = False
 
 
 class _DataHandler:
@@ -124,7 +126,8 @@ class _DataHandler:
     def finalise(self):
         if self.active:
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, [])
+            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+            env.must_call_globals = False
             if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
                 callbacks += env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
@@ -220,7 +223,7 @@ def set_waf_callback(value) -> None:
 
 
 def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
-    if not config._appsec_enabled:
+    if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
@@ -261,7 +264,7 @@ def get_headers_case_sensitive() -> bool:
     return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
-def set_block_request_callable(_callable: Optional[Callable]) -> None:
+def set_block_request_callable(_callable: Optional[Callable], *_) -> None:
     """
     Sets a callable that could be use to do a best-effort to block the request. If
     the callable need any params, like headers, they should be curried with
@@ -342,9 +345,10 @@ def asm_request_context_manager(
 def _start_context(
     remote_ip: Optional[str], headers: Any, headers_case_sensitive: bool, block_request_callable: Optional[Callable]
 ) -> Optional[_DataHandler]:
-    if config._appsec_enabled:
+    if asm_config._asm_enabled or asm_config._iast_enabled:
         resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        if asm_config._asm_enabled:
+            asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         _handlers.listen()
         listen_context_handlers()
         return resources
@@ -382,7 +386,7 @@ core.on("django.traced_get_response.pre", set_block_request_callable)
 def _on_wrapped_view(kwargs):
     return_value = [None, None]
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
-    if config._appsec_enabled and in_context():
+    if asm_config._asm_enabled and in_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
         if kwargs:
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
@@ -409,61 +413,88 @@ def _on_set_request_tags(request, span, flask_config):
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        request.cookies = LazyTaintDict(
+        request.cookies = taint_structure(
             request.cookies,
-            origins=(OriginType.COOKIE_NAME, OriginType.COOKIE),
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
             override_pyobject_tainted=True,
         )
 
 
 def _on_pre_tracedrequest(ctx):
-    _on_set_request_tags(ctx.get_item("flask_request"), ctx.get_item("current_span"), ctx.get_item("flask_config"))
+    _on_set_request_tags(ctx.get_item("flask_request"), ctx["current_span"], ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
-    current_span = ctx.get_item("current_span")
-    if config._appsec_enabled:
+    current_span = ctx["current_span"]
+    if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             block_request()
 
 
-def _set_headers_and_response(response, headers):
-    if config._api_security_enabled and config._appsec_enabled:
+def _set_headers_and_response(response, headers, *_):
+    if not asm_config._asm_enabled:
+        return
+
+    from ddtrace.appsec._utils import _appsec_apisec_features_is_active
+
+    if _appsec_apisec_features_is_active():
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier
-            set_headers_response(list(headers))
+            if isinstance(headers, dict):
+                list_headers = list(headers.items())
+            else:
+                list_headers = list(headers)
+            set_headers_response(list_headers)
         if response:
             set_body_response(response)
 
 
-def _call_waf(integration):
+def _call_waf_first(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
+    log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
+    return call_waf_callback()
+
+
+def _call_waf(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    call_waf_callback()
-    return get_headers().get("Accept", "").lower()
+    return call_waf_callback()
 
 
 def _on_block_decided(callback):
+    if not asm_config._asm_enabled:
+        return
+
     set_value(_CALLBACKS, "flask_block", callback)
 
 
 def _get_headers_if_appsec():
-    if config._appsec_enabled:
+    if asm_config._asm_enabled:
         return get_headers()
 
 
 def listen_context_handlers():
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view)
-    core.on("context.started.flask._patched_request", _on_pre_tracedrequest)
+    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
+    core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _call_waf)
-    core.on("django.start_response", _call_waf)
+    core.on("flask.start_response", _call_waf, "waf")
+
+    core.on("django.start_response.post", _call_waf)
     core.on("django.finalize_response", _call_waf)
-    core.on("django.after_request_headers", _get_headers_if_appsec)
-    core.on("django.extract_body", _get_headers_if_appsec)
-    core.on("django.after_request_headers.post", _set_headers_and_response)
+    core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
+    core.on("django.extract_body", _get_headers_if_appsec, "headers")
+    core.on("django.after_request_headers.finalize", _set_headers_and_response)
     core.on("flask.set_request_tags", _on_set_request_tags)
+
+    core.on("asgi.start_request", _call_waf_first)
+    core.on("asgi.start_response", _call_waf)
+    core.on("asgi.finalize_response", _set_headers_and_response)

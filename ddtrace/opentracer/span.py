@@ -1,10 +1,10 @@
 import threading
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Text
-from typing import Union
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
@@ -12,8 +12,8 @@ from opentracing.ext import tags as OTTags
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.context import Context as DatadogContext
-from ddtrace.internal.compat import NumericType
+from ddtrace.context import Context as DatadogContext  # noqa:F401
+from ddtrace.internal.compat import NumericType  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.span import Span as DatadogSpan
 
@@ -22,7 +22,7 @@ from .tags import Tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .tracer import Tracer
+    from .tracer import Tracer  # noqa:F401
 
 
 _TagNameType = Union[Text, bytes]
@@ -72,7 +72,7 @@ class Span(OpenTracingSpan):
         :type key: str
 
         :param value: baggage item value
-        :type value: a type that can be compat.stringify()'d
+        :type value: a type that can be str'd
 
         :rtype: Span
         :return: itself for chaining calls
@@ -117,7 +117,7 @@ class Span(OpenTracingSpan):
         """
 
         # match opentracing defined keys to datadog functionality
-        # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
+        # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table  # noqa: E501
         for key, val in key_values.items():
             if key == "event" and val == "error":
                 # TODO: not sure if it's actually necessary to set the error manually

@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "resource-override",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "655529ab00000000",
+      "language": "python",
+      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 7032
+    },
+    "duration": 231375,
+    "start": 1700080043717985509
+  }]]

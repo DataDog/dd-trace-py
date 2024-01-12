@@ -11,11 +11,11 @@ from pymemcache.exceptions import MemcacheIllegalInputError
 from pymemcache.exceptions import MemcacheServerError
 from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
-import wrapt
 
 # 3p
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.vendor import wrapt
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -26,7 +26,6 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import memcached as memcachedx
 from ...ext import net
-from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cache_operation
 from ...internal.utils.formats import asbool
@@ -245,7 +244,7 @@ class WrappedHashClient(_WrapperBase):
             ),
             command,
             *args,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -359,4 +358,4 @@ def _trace(func, p, method_name, *args, **kwargs):
         ):
             (typ, val, tb) = sys.exc_info()
             span.set_exc_info(typ, val, tb)
-            reraise(typ, val, tb)
+            raise

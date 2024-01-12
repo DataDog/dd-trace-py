@@ -33,13 +33,15 @@ def _calculate_byte_size(data):
             total += _calculate_byte_size(v)
         return total
 
+    return 0  # Return 0 to avoid breaking calculations if its a type we don't know
 
-def dsm_kafka_message_produce(instance, args, kwargs):
+
+def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
 
     topic = core.get_item("kafka_topic")
-    message = args[MESSAGE_ARG_POSITION]
-    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME)
+    message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
+    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
 
     payload_size = 0
@@ -47,7 +49,9 @@ def dsm_kafka_message_produce(instance, args, kwargs):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    pathway = processor().set_checkpoint(["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size)
+    pathway = processor().set_checkpoint(
+        ["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+    )
     encoded_pathway = pathway.encode()
     headers[PROPAGATION_KEY] = encoded_pathway
     kwargs["headers"] = headers
@@ -58,9 +62,10 @@ def dsm_kafka_message_produce(instance, args, kwargs):
     try:
         on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
     except ArgumentError:
-        on_delivery_kwarg = "callback"
-        on_delivery_arg = 4
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+        if not is_serializing:
+            on_delivery_kwarg = "callback"
+            on_delivery_arg = 4
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
 
     def wrapped_callback(err, msg):
         if err is None:
@@ -76,7 +81,7 @@ def dsm_kafka_message_produce(instance, args, kwargs):
         kwargs[on_delivery_kwarg] = wrapped_callback
 
 
-def dsm_kafka_message_consume(instance, message):
+def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1] for header in (message.headers() or [])}
@@ -94,7 +99,9 @@ def dsm_kafka_message_consume(instance, message):
     payload_size += _calculate_byte_size(headers)
 
     ctx = processor().decode_pathway(headers.get(PROPAGATION_KEY, None))
-    ctx.set_checkpoint(["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size)
+    ctx.set_checkpoint(
+        ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
+    )
 
     if instance._auto_commit:
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged

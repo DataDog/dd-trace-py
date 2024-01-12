@@ -2,7 +2,6 @@ import asyncio
 
 from aiopg import __version__
 from aiopg.utils import _ContextManager
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -17,6 +16,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 
 AIOPG_VERSION = parse_version(__version__)

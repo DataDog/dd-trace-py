@@ -2,21 +2,20 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
 import codecs
-import traceback
 from types import BuiltinFunctionType
-from typing import Any
-from typing import Callable
 from typing import TYPE_CHECKING
-
-from ddtrace.internal.compat import iteritems
+from typing import Any
 
 from .._metrics import _set_iast_error_metric
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
+from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
 from .._taint_tracking import as_formatted_evidence
 from .._taint_tracking import common_replace
+from .._taint_tracking import copy_and_shift_ranges_from_strings
+from .._taint_tracking import copy_ranges_from_strings
 from .._taint_tracking import get_ranges
 from .._taint_tracking import get_tainted_ranges
 from .._taint_tracking import is_pyobject_tainted
@@ -27,10 +26,11 @@ from .._taint_tracking._native import aspects  # noqa: F401
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import List
-    from typing import Optional
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
 
@@ -52,77 +52,102 @@ def add_aspect(op1, op2):
     return _add_aspect(op1, op2)
 
 
-def str_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> str
-    if orig_function != builtin_str:
-        return orig_function(*args, **kwargs)
+def str_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> str
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+        result = builtin_str(*args, **kwargs)
+    else:
+        result = args[0].str(*args[1:], **kwargs)
 
-    result = builtin_str(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 check_offset = args[0].decode("utf-8")
             else:
                 check_offset = args[0]
             offset = result.index(check_offset)
-            new_ranges = [shift_taint_range(text_range, offset) for text_range in get_tainted_ranges(args[0])]
-            if new_ranges:
-                taint_pyobject_with_ranges(result, tuple(new_ranges))
+            copy_and_shift_ranges_from_strings(args[0], result, offset)
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. str_aspect. {}".format(e), traceback.format_exc())
+            _set_iast_error_metric("IAST propagation error. str_aspect. {}".format(e))
     return result
 
 
-def bytes_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> bytes
-    if orig_function != builtin_bytes:
-        return orig_function(*args, **kwargs)
+def bytes_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> bytes
+    if orig_function:
+        if orig_function != builtin_bytes:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+        result = builtin_bytes(*args, **kwargs)
+    else:
+        result = args[0].bytes(*args[1:], **kwargs)
 
-    result = builtin_bytes(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. bytes_aspect. {}".format(e), traceback.format_exc())
+            _set_iast_error_metric("IAST propagation error. bytes_aspect. {}".format(e))
     return result
 
 
-def bytearray_aspect(orig_function, *args, **kwargs):
-    # type: (Callable, Any, Any) -> bytearray
-    if orig_function != builtin_bytearray:
-        return orig_function(*args, **kwargs)
+def bytearray_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> bytearray
+    if orig_function:
+        if orig_function != builtin_bytearray:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+        result = builtin_bytearray(*args, **kwargs)
+    else:
+        result = args[0].bytearray(*args[1:], **kwargs)
 
-    result = builtin_bytearray(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            taint_pyobject_with_ranges(result, tuple(get_ranges(args[0])))
+            copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. bytearray_aspect. {}".format(e), traceback.format_exc())
+            _set_iast_error_metric("IAST propagation error. bytearray_aspect. {}".format(e))
     return result
 
 
-def join_aspect(orig_function, joiner, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def join_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> Any
+    if not orig_function:
+        orig_function = args[0].join
     if not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    if not args:
+        return orig_function(*args, **kwargs)
+
+    joiner = args[0]
+    args = args[flag_added_args:]
     if not isinstance(joiner, TEXT_TYPES):
         return joiner.join(*args, **kwargs)
     try:
         return _join_aspect(joiner, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. join_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. join_aspect. {}".format(e))
         return joiner.join(*args, **kwargs)
 
 
 def index_aspect(candidate_text, index) -> Any:
+    result = candidate_text[index]
+
     if not isinstance(candidate_text, TEXT_TYPES) or not isinstance(index, int):
-        return candidate_text[index]
+        return result
+
     try:
         return _index_aspect(candidate_text, index)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. index_aspect. {}".format(e), traceback.format_exc())
-        return candidate_text[index]
+        _set_iast_error_metric("IAST propagation error. index_aspect. {}".format(e))
+    return result
 
 
 def slice_aspect(candidate_text, start, stop, step) -> Any:
@@ -133,28 +158,38 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
         or (step is not None and not isinstance(step, int))
     ):
         return candidate_text[start:stop:step]
+    result = candidate_text[start:stop:step]
     try:
-        result = _slice_aspect(candidate_text, start, stop, step)
-        expected_result = candidate_text[start:stop:step]
-        if result != expected_result:
-            return expected_result
-        return result
+        new_result = _slice_aspect(candidate_text, start, stop, step)
+        if new_result != result:
+            raise Exception("Propagation result %r is different to candidate_text[slice] %r" % (new_result, result))
+        return new_result
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e), traceback.format_exc())
-        return candidate_text[start:stop:step]
+        _set_iast_error_metric("IAST propagation error. slice_aspect. {}".format(e))
+    return result
 
 
-def bytearray_extend_aspect(orig_function, op1, op2):
-    # type: (Callable, Any, Any) -> Any
-    if not isinstance(orig_function, BuiltinFunctionType):
-        return orig_function(op1, op2)
+def bytearray_extend_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> Any
+    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        return orig_function(*args, **kwargs)
 
+    if len(args) < 2:
+        # If we're not receiving at least 2 arguments, means the call was
+        # ``x.extend()`` and not ``x.extend(y)``
+        # so either not the extend we're looking for, or no changes in taint ranges.
+        return args[0].extend(*args[1:], **kwargs)
+
+    op1 = args[0]
+    op2 = args[1]
     if not isinstance(op1, bytearray) or not isinstance(op2, (bytearray, bytes)):
-        return op1.extend(op2)
+        return op1.extend(*args[1:], **kwargs)
     try:
         return _extend_aspect(op1, op2)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. extend_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. extend_aspect. {}".format(e))
         return op1.extend(op2)
 
 
@@ -191,55 +226,73 @@ def modulo_aspect(candidate_text, candidate_tuple):
             ranges_orig=ranges_orig,
         )
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. modulo_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. modulo_aspect. {}".format(e))
         return candidate_text % candidate_tuple
 
 
 def build_string_aspect(*args):  # type: (List[Any]) -> str
-    return join_aspect("".join, "", args)
+    return join_aspect("".join, 1, "", args)
 
 
-def ljust_aspect(orig_function, candidate_text, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Union[str, bytes, bytearray]
+def ljust_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> Union[str, bytes, bytearray]
+    if not orig_function:
+        orig_function = args[0].ljust
     if not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
+
+    result = candidate_text.ljust(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.ljust(*args, **kwargs)
+        return result
+
     try:
         ranges_new = get_ranges(candidate_text)
         fillchar = parse_params(1, "fillchar", " ", *args, **kwargs)
         fillchar_ranges = get_ranges(fillchar)
         if ranges_new is None or (not ranges_new and not fillchar_ranges):
-            return candidate_text.ljust(*args, **kwargs)
+            return result
 
         if fillchar_ranges:
             # Can only be one char, so we create one range to cover from the start to the end
             ranges_new = ranges_new + [shift_taint_range(fillchar_ranges[0], len(candidate_text))]
 
-        res = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
-        taint_pyobject_with_ranges(res, ranges_new)
-        return res
+        new_result = candidate_text.ljust(parse_params(0, "width", None, *args, **kwargs), fillchar)
+        taint_pyobject_with_ranges(new_result, ranges_new)
+        return new_result
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. ljust_aspect. {}".format(e), traceback.format_exc())
-        return candidate_text.ljust(*args, **kwargs)
+        _set_iast_error_metric("IAST propagation error. ljust_aspect. {}".format(e))
+
+    return result
 
 
-def zfill_aspect(orig_function, candidate_text, *args, **kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
-    if not isinstance(orig_function, BuiltinFunctionType):
+def zfill_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], int, Any, Any) -> Any
+    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
+
+    result = candidate_text.zfill(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.zfill(*args, **kwargs)
+        return result
+
     try:
         ranges_orig = get_ranges(candidate_text)
         if not ranges_orig:
-            return candidate_text.zfill(*args, **kwargs)
+            return result
         prefix = candidate_text[0] in ("-", "+")
-        res = candidate_text.zfill(*args, **kwargs)
 
-        difflen = len(res) - len(candidate_text)
+        difflen = len(result) - len(candidate_text)
         ranges_new = []  # type: List[TaintRange]
         ranges_new_append = ranges_new.append
         ranges_new_extend = ranges_new.extend
@@ -254,63 +307,66 @@ def zfill_aspect(orig_function, candidate_text, *args, **kwargs):
                         TaintRange(start=r.start + difflen + 1, length=r.length - 1, source=r.source),
                     ]
                 )
-        taint_pyobject_with_ranges(res, tuple(ranges_new))
-        return res
+        taint_pyobject_with_ranges(result, tuple(ranges_new))
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e), traceback.format_exc())
-        return candidate_text.zfill(*args, **kwargs)
+        _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e))
+
+    return result
 
 
 def format_aspect(
-    orig_function,  # type: Callable
-    candidate_text,  # type: str
-    *args,  # type: List[Any]
-    **kwargs  # type: Dict[str, Any]
+    orig_function,  # type: Optional[Callable]
+    flag_added_args,  # type: int
+    *args,  # type: Any
+    **kwargs,  # type: Dict[str, Any]
 ):  # type: (...) -> str
+    if not orig_function:
+        orig_function = args[0].format
+
     if not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    if not args:
+        return orig_function(*args, **kwargs)
+
+    candidate_text = args[0]  # type: str
+    args = args[flag_added_args:]
+
+    result = candidate_text.format(*args, **kwargs)
+
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.format(*args, **kwargs)
+        return result
+
     try:
         params = tuple(args) + tuple(kwargs.values())
-        ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, params)
-        if not ranges_orig:
-            return candidate_text.format(*args, **kwargs)
-
-        new_template = as_formatted_evidence(
-            candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
-        )
-        fun = (
-            lambda arg: as_formatted_evidence(arg, tag_mapping_function=TagMappingMode.Mapper)
-            if isinstance(arg, TEXT_TYPES)
-            else arg
-        )
-
-        new_args = list(map(fun, args))
-
-        new_kwargs = {key: fun(value) for key, value in iteritems(kwargs)}
-        result = _convert_escaped_text_to_tainted_text(
-            new_template.format(*new_args, **new_kwargs),
-            ranges_orig=ranges_orig,
-        )
-        if result != candidate_text.format(*args):
-            raise Exception(
-                "format_aspect result %s is different to candidate_text.format %s"
-                % (result, candidate_text.format(*args))
-            )
-        return result
+        new_result = _format_aspect(candidate_text, params, *args, **kwargs)
+        if new_result != result:
+            raise Exception("Propagation result %r is different to candidate_text.format %r" % (new_result, result))
+        return new_result
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e), traceback.format_exc())
-        return candidate_text.format(*args, **kwargs)
+        _set_iast_error_metric("IAST propagation error. format_aspect. {}".format(e))
+
+    return result
 
 
-def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, str, Any, Any) -> str
-    if not isinstance(orig_function, BuiltinFunctionType):
+def format_map_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> str
+    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    if orig_function and not args:
+        return orig_function(*args, **kwargs)
+
+    candidate_text = args[0]  # type: str
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.format_map(*args, **kwargs)
+
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
         mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
@@ -329,36 +385,37 @@ def format_map_aspect(orig_function, candidate_text, *args, **kwargs):  # type: 
                     key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
                     if isinstance(value, TEXT_TYPES)
                     else value
-                    for key, value in iteritems(mapping)
+                    for key, value in mapping.items()
                 }
             ),
             ranges_orig=ranges_orig,
         )
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. format_map_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. format_map_aspect. {}".format(e))
         return candidate_text.format_map(*args, **kwargs)
 
 
-def repr_aspect(orig_function, *args, **kwargs):
-    # type: (Optional[Callable], Any, Any) -> Any
+def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
+    # type: (Optional[Callable], Any, Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
     result = repr(*args, **kwargs)
-    if isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+
+    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 check_offset = args[0].decode("utf-8")
             else:
                 check_offset = args[0]
             offset = result.index(check_offset)
-            new_ranges = [shift_taint_range(text_range, offset) for text_range in get_tainted_ranges(args[0])]
-            if new_ranges:
-                taint_pyobject_with_ranges(result, tuple(new_ranges))
+            copy_and_shift_ranges_from_strings(args[0], result, offset)
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e), traceback.format_exc())
+            _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e))
     return result
 
 
@@ -367,12 +424,11 @@ def format_value_aspect(
     options=0,  # type: int
     format_spec=None,  # type: Optional[str]
 ):  # type: (...) -> str
-
     if options == 115:
-        new_text = str_aspect(element)
+        new_text = str_aspect(str, 0, element)
     elif options == 114:
         # TODO: use our repr once we have implemented it
-        new_text = repr_aspect(None, element)
+        new_text = repr_aspect(repr, 0, element)
     elif options == 97:
         new_text = ascii(element)
     else:
@@ -398,9 +454,9 @@ def format_value_aspect(
             else:
                 return ("{:%s}" % format_spec).format(new_text)
         else:
-            return str_aspect(str, new_text)
+            return str_aspect(str, 0, new_text)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. format_value_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. format_value_aspect. {}".format(e))
         return new_text
 
 
@@ -444,124 +500,195 @@ def incremental_translation(self, incr_coder, funcode, empty):
     return result
 
 
-def decode_aspect(orig_function, self, *args, **kwargs):
+def decode_aspect(orig_function, flag_added_args, *args, **kwargs):
+    if orig_function and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    # Assume we call decode method of the first argument
+    result = self.decode(*args, **kwargs)
+
     if not is_pyobject_tainted(self) or not isinstance(self, bytes):
-        return self.decode(*args, **kwargs)
+        return result
+
     try:
         codec = args[0] if args else "utf-8"
         inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
         return incremental_translation(self, inc_dec, inc_dec.decode, "")
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. decode_aspect. {}".format(e), traceback.format_exc())
-        return self.decode(*args, **kwargs)
+        _set_iast_error_metric("IAST propagation error. decode_aspect. {}".format(e))
+    return result
 
 
-def encode_aspect(orig_function, self, *args, **kwargs):
+def encode_aspect(orig_function, flag_added_args, *args, **kwargs):
+    if orig_function and (not flag_added_args or not args):
+        # This patch is unexpected, so we fallback
+        # to executing the original function
+        return orig_function(*args, **kwargs)
+
+    self = args[0]
+    args = args[(flag_added_args or 1) :]
+    # Assume we call encode method of the first argument
+    result = self.encode(*args, **kwargs)
+
     if not is_pyobject_tainted(self) or not isinstance(self, str):
-        return self.encode(*args, **kwargs)
+        return result
+
     try:
         codec = args[0] if args else "utf-8"
         inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
         return incremental_translation(self, inc_enc, inc_enc.encode, b"")
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. encode_aspect. {}".format(e), traceback.format_exc())
-        return self.encode(*args, **kwargs)
+        _set_iast_error_metric("IAST propagation error. encode_aspect. {}".format(e))
+    return result
 
 
-def upper_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def upper_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.upper(*args, **kwargs)
 
     try:
         return common_replace("upper", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. upper_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. upper_aspect. {}".format(e))
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def lower_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.lower(*args, **kwargs)
 
     try:
         return common_replace("lower", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. lower_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. lower_aspect. {}".format(e))
         return candidate_text.lower(*args, **kwargs)
 
 
-def swapcase_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def swapcase_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.swapcase(*args, **kwargs)
     try:
         return common_replace("swapcase", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))
         return candidate_text.swapcase(*args, **kwargs)
 
 
-def title_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def title_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.title(*args, **kwargs)
     try:
         return common_replace("title", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. title_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. title_aspect. {}".format(e))
         return candidate_text.title(*args, **kwargs)
 
 
-def capitalize_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def capitalize_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.capitalize(*args, **kwargs)
 
     try:
         return common_replace("capitalize", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. capitalize_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. capitalize_aspect. {}".format(e))
         return candidate_text.capitalize(*args, **kwargs)
 
 
-def casefold_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def casefold_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function:
+        if not isinstance(orig_function, BuiltinFunctionType) or not args:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    else:
+        orig_function = getattr(args[0], "casefold", None)
+
+    if orig_function and orig_function.__qualname__ not in ("str.casefold", "bytes.casefold", "bytearray.casefold"):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
-    if orig_function.__qualname__ not in ("str.casefold", "bytes.casefold", "bytearray.casefold"):
-        return orig_function(args, **kwargs)
-
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return candidate_text.casefold(*args, **kwargs)
     try:
         return common_replace("casefold", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. casefold_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. casefold_aspect. {}".format(e))
         return candidate_text.casefold(*args, **kwargs)  # type: ignore[union-attr]
 
 
-def translate_aspect(orig_function, candidate_text, *args, **kwargs):  # type: (Callable, Any, Any, Any) -> TEXT_TYPE
-    if not isinstance(orig_function, BuiltinFunctionType):
+def translate_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
 
+    candidate_text = args[0]
+    args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.translate(*args, **kwargs)
     try:
         return common_replace("translate", candidate_text, *args, **kwargs)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. translate_aspect. {}".format(e), traceback.format_exc())
+        _set_iast_error_metric("IAST propagation error. translate_aspect. {}".format(e))
         return candidate_text.translate(*args, **kwargs)
 
 

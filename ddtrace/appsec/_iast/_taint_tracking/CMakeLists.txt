@@ -26,7 +26,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message("Release mode: using abseil")
         FetchContent_Declare(
                 absl
-                URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.zip"
+                URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip"
         )
         FetchContent_MakeAvailable(absl)
 else()
@@ -68,3 +68,9 @@ set_target_properties(
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 endif()
+
+install(TARGETS _native DESTINATION
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+)

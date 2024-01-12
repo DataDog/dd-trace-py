@@ -6,10 +6,10 @@ import logging
 import os
 import platform
 import re
-from typing import Dict
-from typing import List
-from typing import MutableMapping
-from typing import Optional
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import MutableMapping  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
@@ -72,7 +72,7 @@ LIBRARY_VERSION = "library_version"
 # CI Visibility env vars used for pipeline correlation ID
 _CI_ENV_VARS = "_dd.ci.env_vars"
 
-_RE_URL = re.compile(r"(https?://)[^/]*@")
+_RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
 
 
 log = get_logger(__name__)
@@ -337,31 +337,33 @@ def extract_github_actions(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Github environ."""
 
-    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        env.get("GITHUB_SERVER_URL"),
-        env.get("GITHUB_REPOSITORY"),
-        env.get("GITHUB_RUN_ID"),
-    )
+    github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
+    github_repository = env.get("GITHUB_REPOSITORY")
+    git_commit_sha = env.get("GITHUB_SHA")
+    github_run_id = env.get("GITHUB_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
-    if run_attempt:
-        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
+
+    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
+        github_server_url,
+        github_repository,
+        github_run_id,
+    )
 
     env_vars = {
-        "GITHUB_SERVER_URL": env.get("GITHUB_SERVER_URL"),
-        "GITHUB_REPOSITORY": env.get("GITHUB_REPOSITORY"),
-        "GITHUB_RUN_ID": env.get("GITHUB_RUN_ID"),
+        "GITHUB_SERVER_URL": github_server_url,
+        "GITHUB_REPOSITORY": github_repository,
+        "GITHUB_RUN_ID": github_run_id,
     }
-    if env.get("GITHUB_RUN_ATTEMPT") is not None:
-        env_vars["GITHUB_RUN_ATTEMPT"] = env["GITHUB_RUN_ATTEMPT"]
+    if run_attempt:
+        env_vars["GITHUB_RUN_ATTEMPT"] = run_attempt
+        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
     return {
         git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
-        git.COMMIT_SHA: env.get("GITHUB_SHA"),
-        git.REPOSITORY_URL: "{0}/{1}.git".format(env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY")),
-        JOB_URL: "{0}/{1}/commit/{2}/checks".format(
-            env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
-        ),
-        PIPELINE_ID: env.get("GITHUB_RUN_ID"),
+        git.COMMIT_SHA: git_commit_sha,
+        git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
+        JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
+        PIPELINE_ID: github_run_id,
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
         PIPELINE_URL: pipeline_url,

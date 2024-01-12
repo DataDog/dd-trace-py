@@ -21,7 +21,7 @@ The following environment variables for the tracer are supported:
      description: |
          Set the service name to be used for this application. A default is
          provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
-         :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
+         :ref:`pyramid`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
          :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
 
    DD_SERVICE_MAPPING:
@@ -34,6 +34,14 @@ The following environment variables for the tracer are supported:
      version_added:
        v0.38.0: Comma separated support added
        v0.48.0: Space separated support added
+
+   DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         Enables propagation of baggage items through http headers with prefix ``ot-baggage-``.
+     version_added:
+       v2.4.0:
 
    DD_VERSION:
      description: |
@@ -279,7 +287,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.4``
+         ``v0.5``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
@@ -288,6 +296,7 @@ The following environment variables for the tracer are supported:
        v0.56.0:
        v1.7.0: default changed to ``v0.5``.
        v1.19.1: default reverted to ``v0.4``.
+       v2.4.0: default changed to ``v0.5``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
@@ -361,6 +370,13 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_EXTRACT_FIRST:
+     type: Boolean
+     default: False
+     description: Whether the propagator stops after extracting the first header.
+     version_added:
+       v2.3.0:
+
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
      default: 512
@@ -405,7 +421,7 @@ The following environment variables for the tracer are supported:
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
      description: |
-         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and 
+         Add more possible matches to the internal list of subprocess execution argument scrubbing. Must be a comma-separated list and
          each item can take `fnmatch` style wildcards, for example: ``*ssn*,*personalid*,*idcard*,*creditcard*``.
 
    DD_HTTP_CLIENT_TAG_QUERY_STRING:
@@ -417,7 +433,7 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Send query strings in http.url tag in http server integrations.
-    
+
    DD_TRACE_SPAN_AGGREGATOR_RLOCK:
      type: Boolean
      default: True
@@ -431,7 +447,8 @@ The following environment variables for the tracer are supported:
      default: ""
      description: |
         Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
-        Note that this setting is only compatible with ``ddtrace-run``.
+        Note that this setting is only compatible with ``ddtrace-run``, and that it doesn't work for methods implemented
+        by libraries for which there's an integration in ``ddtrace/contrib``.
      version_added:
        v2.1.0:
 
@@ -522,12 +539,23 @@ The following environment variables for the tracer are supported:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
-     default: False
+     default: True
      description: |
-        Configures the ``CIVisibility`` service to generate and upload git packfiles in support
-        of the Datadog Intelligent Test Runner. This configuration has no effect if ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` is false.
+        Configures the ``CIVisibility`` service query the Datadog API to enable the Datadog Intelligent Test Runner.
      version_added:
         v1.13.0:
+
+   DD_CIVISIBILITY_LOG_LEVEL:
+      type: String
+      default: "info"
+      description: |
+         Configures the ``CIVisibility`` service to replace the default Datadog logger's stream handler with one that
+         only displays messages related to the ``CIVisibility`` service, at a level of or higher than the given log
+         level. The Datadog logger's file handler is unaffected. Valid, case-insensitive, values are ``critical``,
+         ``error``, ``warning``, ``info``, or ``debug``. A value of ``none`` silently disables the logger. Note:
+         enabling debug logging with the ``DD_TRACE_DEBUG`` environment variable overrides this behavior.
+      version_added:
+         v2.5.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
@@ -535,7 +563,7 @@ The following environment variables for the tracer are supported:
       description: |
          Sets the mode for the automated user login events tracking feature which sets some traces on each user login event. The
          supported modes are ``safe`` which will only store the user id or primary key, ``extended`` which will also store
-         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be 
+         the username, email and full name and ``disabled``. Note that this feature requires ``DD_APPSEC_ENABLED`` to be
          set to ``true`` to work.
       version_added:
          v1.17.0: Added support to the Django integration. No other integrations support this configuration.
@@ -545,7 +573,7 @@ The following environment variables for the tracer are supported:
       default: ""
       description: |
          Field to be used to read the user login when using a custom ``User`` model for the automatic login events. This field will take precedence over automatic inference.
-         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and, 
+         Please note that, if set, this field will be used to retrieve the user login even if ``DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING`` is set to ``safe`` and,
          in some cases, the selected field could hold potentially private information.
       version_added:
          v1.15.0:
@@ -566,6 +594,13 @@ The following environment variables for the tracer are supported:
       version_added:
          v1.15.0:
 
+   DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
+      type: Integer
+      default: 30
+      description: |
+         The maximum length of a traceback included in a span.
+      version_added:
+         v2.3.0:
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

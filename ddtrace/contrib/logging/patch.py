@@ -1,12 +1,12 @@
 import logging
 
 import attr
-from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 
 from ...internal.utils import get_argument_value
+from ...vendor.wrapt import wrap_function_wrapper as _w
 from ..trace_utils import unwrap as _u
 from .constants import RECORD_ATTR_ENV
 from .constants import RECORD_ATTR_SERVICE
@@ -45,7 +45,6 @@ def _get_current_span(tracer=None):
     """Helper to get the currently active span"""
 
     if not tracer:
-
         # With the addition of a custom ddtrace logger in _logger.py, logs that happen on startup
         # don't have access to `ddtrace.tracer`. Checking that this exists prevents an error
         # if log injection is enabled.

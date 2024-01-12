@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.settings.asm import config as asm_config
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -16,24 +16,23 @@ from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...internal.utils import get_argument_value
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 
 
 log = get_logger(__name__)
 
 
-def _extract_hostname(uri):
+def _extract_hostname_and_path(uri):
     # type: (str) -> str
     parsed_uri = parse.urlparse(uri)
-    port = None
+    hostname = parsed_uri.hostname
     try:
-        port = parsed_uri.port
+        if parsed_uri.port is not None:
+            hostname = "%s:%s" % (hostname, str(parsed_uri.port))
     except ValueError:
         # ValueError is raised in PY>3.5 when parsed_uri.port < 0 or parsed_uri.port > 65535
-        return "%s:?" % (parsed_uri.hostname,)
-
-    if port is not None:
-        return "%s:%s" % (parsed_uri.hostname, str(port))
-    return parsed_uri.hostname
+        hostname = "%s:?" % (hostname,)
+    return hostname, parsed_uri.path
 
 
 def _extract_query_string(uri):
@@ -57,7 +56,7 @@ def _wrap_request(func, instance, args, kwargs):
     """This function wraps `request.request`, which includes all request verbs like `request.get` and `request.post`.
     IAST needs to wrap this function because `Session.send` is too late, as we require the raw arguments of the request.
     """
-    if config._iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
         _iast_report_ssrf(func, *args, **kwargs)
@@ -80,8 +79,11 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    url = request.url
-    hostname = _extract_hostname(url)
+    url = trace_utils._sanitized_url(request.url)
+    method = ""
+    if request.method is not None:
+        method = request.method.upper()
+    hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
     cfg = config.get_from(instance)
@@ -96,7 +98,7 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
-    with tracer.trace(operation_name, service=service, span_type=SpanTypes.HTTP) as span:
+    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
         span.set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -134,7 +136,7 @@ def _wrap_send(func, instance, args, kwargs):
                     config.requests,
                     request_headers=request.headers,
                     response_headers=response_headers,
-                    method=request.method.upper(),
+                    method=method,
                     url=request.url,
                     target_host=host_without_port,
                     status_code=status,

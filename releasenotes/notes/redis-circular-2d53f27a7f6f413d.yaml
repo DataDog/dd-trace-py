@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    redis: This fix resolves an issue where the yaaredis and aredis integrations imported
+    code from the redis integration, causing a circular import error.

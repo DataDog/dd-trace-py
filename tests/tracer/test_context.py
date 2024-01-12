@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import pickle
-from typing import Optional
+from typing import Optional  # noqa:F401
 
 import pytest
 
 from ddtrace.context import Context
 from ddtrace.span import Span
+from ddtrace.tracing._span_link import SpanLink
 
 
 @pytest.mark.parametrize(
@@ -88,6 +89,24 @@ def test_traceparent_basic():
         Context(trace_id=123, span_id=321),
         Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
         Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}),
+        Context(
+            trace_id=123,
+            span_id=321,
+            meta={"meta": "value"},
+            metrics={"metric": 4.556},
+            span_links=[
+                SpanLink(
+                    trace_id=123 << 64,
+                    span_id=456,
+                    tracestate="congo=t61rcWkgMzE",
+                    flags=1,
+                    attributes={"link.name": "some_name"},
+                )
+            ],
+        ),
+        Context(
+            trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}, baggage={"some_value": 1}
+        ),
     ],
 )
 def test_context_serializable(context):

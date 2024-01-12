@@ -4,6 +4,9 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 from werkzeug.exceptions import abort
 
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -22,10 +25,9 @@ try:
 except ImportError:
     _HAS_JSON_MIXIN = False
 
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...internal.logger import get_logger
@@ -103,12 +105,12 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_call_name = "flask.response"
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", flask.request, ctx, config.flask, status_code, headers)
+        core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
-            results, exceptions = core.dispatch("flask.start_response", "Flask")
-            if not any(exceptions) and results and results[0]:
-                headers_from_context = results[0]
+            result = core.dispatch_with_results("flask.start_response", ("Flask",)).waf
+            if result:
+                headers_from_context = result.value
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
                 block_config = core.get_item(HTTP_REQUEST_BLOCKED)
@@ -123,7 +125,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         ctype = "text/" + block_config["type"]
                     response_headers = [("content-type", ctype)]
                 result = start_response(str(status), response_headers)
-                core.dispatch("flask.start_response.blocked", config.flask, response_headers, status)
+                core.dispatch("flask.start_response.blocked", (ctx, config.flask, response_headers, status))
             else:
                 result = start_response(status_code, headers)
         else:
@@ -137,23 +139,22 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         request = _RequestType(environ)
 
         req_body = None
-        results, exceptions = core.dispatch(
+        result = core.dispatch_with_results(
             "flask.request_call_modifier",
-            ctx,
-            config.flask,
-            request,
-            environ,
-            _HAS_JSON_MIXIN,
-            FLASK_VERSION,
-            flask_version_str,
-            BadRequest,
-        )
-        if not any(exceptions) and results and any(results):
-            for result in results:
-                if result is not None:
-                    req_body = result
-                    break
-        core.dispatch("flask.request_call_modifier.post", ctx, config.flask, request, req_body)
+            (
+                ctx,
+                config.flask,
+                request,
+                environ,
+                _HAS_JSON_MIXIN,
+                FLASK_VERSION,
+                flask_version_str,
+                BadRequest,
+            ),
+        ).request_body
+        if result:
+            req_body = result.value
+        core.dispatch("flask.request_call_modifier.post", (ctx, config.flask, request, req_body))
 
 
 def patch():
@@ -166,7 +167,7 @@ def patch():
     flask._datadog_patch = True
 
     Pin().onto(flask.Flask)
-    core.dispatch("flask.patch", [flask_version])
+    core.dispatch("flask.patch", (flask_version,))
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Flask.wsgi_app", patched_wsgi_app)
     _w("flask", "Flask.dispatch_request", request_patcher("dispatch_request"))
@@ -382,7 +383,7 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     if getattr(rv, "is_sequence", False):
         response = rv.response
         headers = rv.headers
-    core.dispatch("flask.finalize_request.post", [response, headers])
+    core.dispatch("flask.finalize_request.post", (response, headers))
     return rv
 
 
@@ -461,7 +462,13 @@ def _build_render_template_wrapper(name):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with core.context_with_data(
-            "flask.render_template", name=name, pin=pin, flask_config=config.flask
+            "flask.render_template",
+            span_name=name,
+            pin=pin,
+            flask_config=config.flask,
+            tags={COMPONENT: config.flask.integration_name},
+            span_type=SpanTypes.TEMPLATE,
+            call_key=[name + ".call", "current_span"],
         ) as ctx, ctx.get_item(name + ".call"):
             return wrapped(*args, **kwargs)
 
@@ -475,7 +482,7 @@ def patched_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        core.dispatch("flask.render", template, config.flask)
+        core.dispatch("flask.render", (template, config.flask))
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -497,7 +504,7 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 
 def _block_request_callable(call):
     core.set_item(HTTP_REQUEST_BLOCKED, STATUS_403_TYPE_AUTO)
-    core.dispatch("flask.blocked_request_callable", call)
+    core.dispatch("flask.blocked_request_callable", (call,))
     ctype = "text/html" if "text/html" in flask.request.headers.get("Accept", "").lower() else "text/json"
     abort(flask.Response(http_utils._get_blocked_template(ctype), content_type=ctype, status=403))
 
@@ -507,13 +514,17 @@ def request_patcher(name):
     def _patched_request(pin, wrapped, instance, args, kwargs):
         with core.context_with_data(
             "flask._patched_request",
-            name=".".join(("flask", name)),
+            span_name=".".join(("flask", name)),
             pin=pin,
+            service=trace_utils.int_service(pin, config.flask, pin),
             flask_config=config.flask,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
+            call_key="flask_request_call",
+            tags={COMPONENT: config.flask.integration_name},
         ) as ctx, ctx.get_item("flask_request_call"):
+            core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
 
     return _patched_request
@@ -538,6 +549,11 @@ def patched_jsonify(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with core.context_with_data(
-        "flask.jsonify", name="flask.jsonify", flask_config=config.flask, pin=pin
+        "flask.jsonify",
+        span_name="flask.jsonify",
+        flask_config=config.flask,
+        tags={COMPONENT: config.flask.integration_name},
+        pin=pin,
+        call_key="flask_jsonify_call",
     ) as ctx, ctx.get_item("flask_jsonify_call"):
         return wrapped(*args, **kwargs)

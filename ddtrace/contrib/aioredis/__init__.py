@@ -1,3 +1,12 @@
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
+
+deprecate(
+    "The aioredis integration is deprecated.",
+    message="Please use the redis integration with redis>=4.2.0 instead.",
+    category=DDTraceDeprecationWarning,
+)
 """
 The aioredis integration instruments aioredis requests. Version 1.3 and above are fully
 supported.
@@ -7,7 +16,7 @@ Enabling
 ~~~~~~~~
 
 The aioredis integration is enabled automatically when using
-:ref:`ddtrace-run <ddtracerun>` or :func:`patch_all() <ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
@@ -37,6 +46,16 @@ Global Configuration
 
    Default: ``1000``
 
+.. py:data:: ddtrace.config.aioedis["resource_only_command"]
+
+   The span resource will only include the command executed. To include all
+   arguments in the span resource, set this value to ``False``.
+
+   This option can also be set with the ``DD_REDIS_RESOURCE_ONLY_COMMAND`` environment
+   variable.
+
+   Default: ``True``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +69,7 @@ To configure the aioredis integration on a per-instance basis use the
     myaioredis = aioredis.Aioredis()
     Pin.override(myaioredis, service="myaioredis")
 """
-from ...internal.utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules  # noqa:E402
 
 
 required_modules = ["aioredis"]

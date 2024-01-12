@@ -2,7 +2,7 @@
 import logging
 import os
 import threading
-import typing
+import typing  # noqa:F401
 
 import attr
 

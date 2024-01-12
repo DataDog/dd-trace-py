@@ -1,13 +1,12 @@
 """
 Generic dbapi tracing code.
 """
-import six
-import wrapt
-
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
 
+from ...appsec._constants import IAST_SPAN_TAGS
+from ...appsec._iast._metrics import increment_iast_span_metric
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -15,11 +14,11 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
-from ...internal.compat import PY2
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...pin import Pin
+from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
 
@@ -70,12 +69,6 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
-    if PY2:
-
-        # Python 2 iterators use `next`
-        def next(self):  # noqa: A001
-            return self.__wrapped__.next()
-
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
@@ -114,6 +107,7 @@ class TracedCursor(wrapt.ObjectProxy):
                     from ddtrace.appsec._iast._taint_utils import check_tainted_args
                     from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 
+                    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
                     _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                     if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                         SqlInjection.report(evidence_value=args[0])
@@ -149,7 +143,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def execute(self, query, *args, **kwargs):
@@ -167,7 +161,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_dbm_propagator,
             query,
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def callproc(self, proc, *args):
@@ -187,7 +181,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
-        if isinstance(row_count, six.integer_types) and row_count >= 0:
+        if isinstance(row_count, int) and row_count >= 0:
             span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):

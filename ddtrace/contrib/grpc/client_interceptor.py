@@ -1,19 +1,15 @@
 import collections
 
 import grpc
-import wrapt
 
 from ddtrace import config
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
 
-from . import constants
-from . import utils
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
@@ -23,6 +19,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_url_operation
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
+from . import constants
+from . import utils
 
 
 log = get_logger(__name__)
@@ -114,7 +113,7 @@ def _handle_error(span, response_error, status_code):
             exc_val = to_unicode(response_error.details())
             span.set_tag_str(ERROR_MSG, exc_val)
             span.set_tag_str(ERROR_TYPE, status_code)
-            span.set_tag_str(ERROR_STACK, stringify(traceback))
+            span.set_tag_str(ERROR_STACK, str(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)

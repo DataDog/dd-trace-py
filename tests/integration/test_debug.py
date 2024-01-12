@@ -14,8 +14,7 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace.internal import debug
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
@@ -197,6 +196,9 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
+            # shove an unserializable object into the config log output
+            # regression: this used to cause an exception to be raised
+            ddtrace.config.version = AgentWriter(agent_url="foobar")
             tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
@@ -211,23 +213,8 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer.configure()
-        # Python 2 logs will go to stderr directly since there's no log handler
-        if PY3:
-            assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
-            assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-        )
-    )
-    def test_tracer_loglevel_info_no_connection_py2_handler(self):
-        tracer = ddtrace.Tracer()
-        logging.basicConfig()
-        with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
-            if PY2:
-                assert mock_logger.mock_calls == []
+        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+        assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -316,20 +303,16 @@ def test_custom_writer():
     tracer = ddtrace.Tracer()
 
     class CustomWriter(TraceWriter):
-        def recreate(self):
-            # type: () -> TraceWriter
+        def recreate(self) -> TraceWriter:
             return self
 
-        def stop(self, timeout=None):
-            # type: (Optional[float]) -> None
+        def stop(self, timeout: Optional[float] = None) -> None:
             pass
 
-        def write(self, spans=None):
-            # type: (Optional[List[Span]]) -> None
+        def write(self, spans: Optional[List[Span]] = None) -> None:
             pass
 
-        def flush_queue(self):
-            # type: () -> None
+        def flush_queue(self) -> None:
             pass
 
     tracer._writer = CustomWriter()

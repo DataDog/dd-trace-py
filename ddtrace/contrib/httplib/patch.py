@@ -1,19 +1,15 @@
 import os
 import sys
 
-import six
-import wrapt
-
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.vendor import wrapt
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
 from ...internal.constants import _HTTPLIB_NO_TRACE_REQUEST
@@ -22,10 +18,11 @@ from ...internal.schema import schematize_url_operation
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 from ..trace_utils import unwrap as _u
 
 
-span_name = "httplib.request" if PY2 else "http.client.request"
+span_name = "http.client.request"
 span_name = schematize_url_operation(span_name, protocol="http", direction=SpanDirection.OUTBOUND)
 
 log = get_logger(__name__)
@@ -116,7 +113,7 @@ def _wrap_request(func, instance, args, kwargs):
         if span:
             span.set_exc_info(*exc_info)
             span.finish()
-        six.reraise(*exc_info)
+        raise
 
 
 def _wrap_putrequest(func, instance, args, kwargs):
@@ -175,7 +172,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         if span:
             span.set_exc_info(*exc_info)
             span.finish()
-        six.reraise(*exc_info)
+        raise
 
 
 def _wrap_putheader(func, instance, args, kwargs):

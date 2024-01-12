@@ -10,7 +10,7 @@ Enabling
 ~~~~~~~~
 
 The client integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
@@ -29,6 +29,12 @@ Global Configuration
    environment variable.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.aiohttp_client['split_by_domain']
+
+   Whether or not to use the domain name of requests as the service name.
+
+   Default: ``False``
 
 
 Server

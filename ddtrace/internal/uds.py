@@ -1,5 +1,5 @@
 import socket
-from typing import Any
+from typing import Any  # noqa:F401
 
 from .compat import httplib
 from .http import BasePathMixin
@@ -14,7 +14,7 @@ class UDSHTTPConnection(BasePathMixin, httplib.HTTPConnection):
         self,
         path,  # type: str
         *args,  # type: Any
-        **kwargs  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> None
         super(UDSHTTPConnection, self).__init__(*args, **kwargs)
