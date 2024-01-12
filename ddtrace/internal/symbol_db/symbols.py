@@ -425,16 +425,24 @@ class ScopeContext:
         )
 
         with connector(get_trace_url(), timeout=5.0)() as conn:
+            log.debug("Uploading symbols payload %r", body)
             conn.request("POST", "/symdb/v1/input", body, {"Content-Type": f"multipart/form-data; boundary={boundary}"})
 
             return compat.get_connection_response(conn)
 
+    def __bool__(self) -> bool:
+        return bool(self._scopes)
+
 
 def is_module_included(module: ModuleType) -> bool:
-    return (
-        module.__name__ in symdb_config.includes
-        or getattr(packages.module_to_package(module), "name", None) in symdb_config.includes
-    )
+    if symdb_config._includes_re.match(module.__name__):
+        return True
+
+    package = packages.module_to_package(module)
+    if package is None:
+        return False
+
+    return symdb_config._includes_re.match(package.name) is not None
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
@@ -444,14 +452,14 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
         context = ScopeContext()
-        for module in [_ for _ in sys.modules.values() if is_module_included(_)]:
-            scope = Scope.from_module(module)
+        for scope in (Scope.from_module(m) for m in list(sys.modules.values()) if is_module_included(m)):
             if scope is not None:
                 context.add_scope(scope)
         self._upload_context(context)
 
     def after_import(self, module: ModuleType) -> None:
         if not is_module_included(module):
+            log.debug("Excluding module %s from symbol database", module.__name__)
             return
 
         scope = Scope.from_module(module)
@@ -460,11 +468,14 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
     @staticmethod
     def _upload_context(context: ScopeContext) -> None:
+        if not context:
+            return
+
         try:
+            log.debug("Uploading symbols")
             result = context.upload()
             if result.status // 100 != 2:
-                print(result.status)
                 log.error("Bad response while uploading symbols: %s", result.status)
-        except Exception as e:
-            print("exception", e)
+
+        except Exception:
             log.exception("Failed to upload symbols")

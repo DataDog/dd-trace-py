@@ -1,3 +1,5 @@
+import re
+
 from envier import En
 
 
@@ -19,6 +21,7 @@ class SymbolDatabaseConfig(En):
         help_type="List",
         help="List of modules/packages to include in the symbol uploads",
     )
+    _includes_re = En.d(re.Pattern, lambda c: re.compile("(" + "|".join(f"^{p}$|^{p}[.]" for p in c.includes) + ")"))
 
     # ---- Private settings ----
 
