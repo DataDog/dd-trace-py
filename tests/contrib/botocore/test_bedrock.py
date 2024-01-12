@@ -391,10 +391,9 @@ def test_readlines_error(bedrock_client, request_vcr):
             _app_key="<not-a-real-app-key>",
             llmobs_prompt_completion_sample_rate=1.0,
         ),
-    ]
+    ],
 )
 class TestLLMObsBedrock:
-
     @staticmethod
     def _expected_llmobs_calls(span, n_output):
         prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
@@ -516,7 +515,11 @@ class TestLLMObsBedrock:
 
     def test_llmobs_cohere_multi_output_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke(
-            "cohere", bedrock_client, mock_llmobs_writer, cassette_name="cohere_invoke_multi_output.yaml", n_output=2,
+            "cohere",
+            bedrock_client,
+            mock_llmobs_writer,
+            cassette_name="cohere_invoke_multi_output.yaml",
+            n_output=2,
         )
 
     def test_llmobs_meta_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
@@ -528,16 +531,26 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_single_output_invoke_stream(
+        self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer
+    ):
         self._test_llmobs_invoke_stream(
-            "cohere", bedrock_client, mock_llmobs_writer, cassette_name="cohere_invoke_stream_single_output.yaml",
+            "cohere",
+            bedrock_client,
+            mock_llmobs_writer,
+            cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_multi_output_invoke_stream(
+        self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer
+    ):
         self._test_llmobs_invoke_stream(
-            "cohere", bedrock_client, mock_llmobs_writer, cassette_name="cohere_invoke_stream_multi_output.yaml", n_output=2,
+            "cohere",
+            bedrock_client,
+            mock_llmobs_writer,
+            cassette_name="cohere_invoke_stream_multi_output.yaml",
+            n_output=2,
         )
 
     def test_llmobs_meta_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_llmobs_writer)
-

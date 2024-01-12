@@ -30,7 +30,9 @@ class BedrockIntegration(BaseLLMIntegration):
             tags.append("error_type:%s" % err_type)
         return tags
 
-    def generate_llm_record(self, span: Span, formatted_response: Dict[str, Any] = None, prompt: Optional[str] = None, err: bool = False) -> None:
+    def generate_llm_record(
+        self, span: Span, formatted_response: Dict[str, Any] = None, prompt: Optional[str] = None, err: bool = False
+    ) -> None:
         """Generate payloads for the LLM Obs API from a completion."""
         if not self.llmobs_enabled:
             return

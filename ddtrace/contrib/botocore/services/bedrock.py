@@ -45,7 +45,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
             if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, prompt=self._prompt, err=1)
+                self._datadog_integration.generate_llm_record(
+                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
+                )
             raise
 
     def readlines(self):
@@ -61,7 +63,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
             if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, prompt=self._prompt, err=1)
+                self._datadog_integration.generate_llm_record(
+                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
+                )
             raise
 
     def __iter__(self):
@@ -77,7 +81,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.set_exc_info(*sys.exc_info())
             self._datadog_span.finish()
             if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=None, prompt=self._prompt, err=1)
+                self._datadog_integration.generate_llm_record(
+                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
+                )
             raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
@@ -97,7 +103,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 "bedrock.response.choices.%d.finish_reason" % i, str(formatted_response["finish_reason"][i])
             )
         if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-            self._datadog_integration.generate_llm_record(self._datadog_span, formatted_response=formatted_response, prompt=self._prompt)
+            self._datadog_integration.generate_llm_record(
+                self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
+            )
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -272,7 +280,9 @@ def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: 
     return prompt
 
 
-def handle_bedrock_response(span: Span, integration: BedrockIntegration, result: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
+def handle_bedrock_response(
+    span: Span, integration: BedrockIntegration, result: Dict[str, Any], prompt: Optional[str] = None
+) -> Dict[str, Any]:
     """Perform response param extraction and tagging."""
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
