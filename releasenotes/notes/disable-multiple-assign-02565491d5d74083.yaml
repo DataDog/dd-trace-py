@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Disable multiple assignments patching for now since they're broken.
