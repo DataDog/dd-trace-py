@@ -168,6 +168,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             args=args,
             kwargs=kwargs,
             function_vars=function_vars,
+        )
     elif endpoint_name == "states":
         return patched_stepfunction_api_call(
             original_func=original_func, instance=instance, args=args, kwargs=kwargs, function_vars=function_vars

@@ -11,6 +11,14 @@ from ddtrace.vendor import wrapt
 from ....internal.schema import schematize_service_name
 
 
+_AI21 = "ai21"
+_AMAZON = "amazon"
+_ANTHROPIC = "anthropic"
+_COHERE = "cohere"
+_META = "meta"
+_STABILITY = "stability"
+
+
 class _BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
@@ -91,7 +99,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
     """
     request_body = json.loads(params.get("body"))
-    if provider == "ai21":
+    if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
             "temperature": request_body.get("temperature", None),
@@ -99,7 +107,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "max_tokens": request_body.get("maxTokens", None),
             "stop_sequences": request_body.get("stopSequences", []),
         }
-    elif provider == "amazon":
+    elif provider == _AMAZON:
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),
@@ -108,7 +116,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "max_tokens": text_generation_config.get("maxTokenCount", None),
             "stop_sequences": text_generation_config.get("stopSequences", []),
         }
-    elif provider == "anthropic":
+    elif provider == _ANTHROPIC:
         return {
             "prompt": request_body.get("prompt"),
             "temperature": request_body.get("temperature", None),
@@ -117,7 +125,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "max_tokens": request_body.get("max_tokens_to_sample", None),
             "stop_sequences": request_body.get("stop_sequences", []),
         }
-    elif provider == "cohere":
+    elif provider == _COHERE:
         return {
             "prompt": request_body.get("prompt"),
             "temperature": request_body.get("temperature", None),
@@ -128,14 +136,14 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "stream": request_body.get("stream", None),
             "n": request_body.get("num_generations", None),
         }
-    elif provider == "meta":
+    elif provider == _META:
         return {
             "prompt": request_body.get("prompt"),
             "temperature": request_body.get("temperature", None),
             "top_p": request_body.get("top_p", None),
             "max_tokens": request_body.get("max_gen_len", None),
         }
-    elif provider == "stability":
+    elif provider == _STABILITY:
         # TODO: request/response formats are different for image-based models. Defer for now
         return {}
     return {}
@@ -147,24 +155,24 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     """
     text, finish_reason = None, None
     provider = span.get_tag("bedrock.request.model_provider")
-    if provider == "ai21":
+    if provider == _AI21:
         text = body.get("completions")[0].get("data").get("text")
         finish_reason = body.get("completions")[0].get("finishReason")
-    elif provider == "amazon":
+    elif provider == _AMAZON:
         text = body.get("results")[0].get("outputText")
         finish_reason = body.get("results")[0].get("completionReason")
-    elif provider == "anthropic":
+    elif provider == _ANTHROPIC:
         text = body.get("completion")
         finish_reason = body.get("stop_reason")
-    elif provider == "cohere":
+    elif provider == _COHERE:
         text = [generation["text"] for generation in body.get("generations")]
         finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
         for i in range(len(text)):
             span.set_tag_str("bedrock.response.choices.%d.id" % i, str(body.get("generations")[i]["id"]))
-    elif provider == "meta":
+    elif provider == _META:
         text = body.get("generation")
         finish_reason = body.get("stop_reason")
-    elif provider == "stability":
+    elif provider == _STABILITY:
         # TODO: request/response formats are different for image-based models. Defer for now
         pass
 
@@ -182,15 +190,15 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
     """
     text, finish_reason = None, None
     provider = span.get_tag("bedrock.request.model_provider")
-    if provider == "ai21":
+    if provider == _AI21:
         pass  # note: ai21 does not support streamed responses
-    elif provider == "amazon":
+    elif provider == _AMAZON:
         text = "".join([chunk["outputText"] for chunk in streamed_body])
         finish_reason = streamed_body[-1]["completionReason"]
-    elif provider == "anthropic":
+    elif provider == _ANTHROPIC:
         text = "".join([chunk["completion"] for chunk in streamed_body])
         finish_reason = streamed_body[-1]["stop_reason"]
-    elif provider == "cohere":
+    elif provider == _COHERE:
         if "is_finished" in streamed_body[0]:  # streamed response
             if "index" in streamed_body[0]:  # n >= 2
                 n = int(span.get_tag("bedrock.request.n"))
@@ -208,10 +216,10 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                 span.set_tag_str(
                     "bedrock.response.choices.%d.id" % i, str(streamed_body[0]["generations"][i].get("id", None))
                 )
-    elif provider == "meta":
+    elif provider == _META:
         text = "".join([chunk["generation"] for chunk in streamed_body])
         finish_reason = streamed_body[-1]["stop_reason"]
-    elif provider == "stability":
+    elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
 
@@ -227,11 +235,11 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     """Extracts metadata from the streamed response body."""
     provider = span.get_tag("bedrock.request.model_provider")
     metadata = {}
-    if provider == "ai21":
+    if provider == _AI21:
         pass  # ai21 does not support streamed responses
-    elif provider in ["amazon", "anthropic", "meta", "cohere"]:
+    elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META]:
         metadata = streamed_body[-1]["amazon-bedrock-invocationMetrics"]
-    elif provider == "stability":
+    elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
     return {
