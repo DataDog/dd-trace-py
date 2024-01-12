@@ -170,6 +170,7 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
 
     if not isinstance(text, list):
         text = [text]
+    if not isinstance(finish_reason, list):
         finish_reason = [finish_reason]
 
     return {"text": text, "finish_reason": finish_reason}
