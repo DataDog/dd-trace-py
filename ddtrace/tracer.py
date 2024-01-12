@@ -223,7 +223,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = config.tracing_enabled
+        self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
         self._sampler: BaseSampler = DatadogSampler()
@@ -281,7 +281,7 @@ class Tracer(object):
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
-        config._subscribe(["tracing_enabled"], self._on_global_config_update)
+        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -1072,11 +1072,11 @@ class Tracer(object):
             self._sampler = sampler
         elif "tags" in items:
             self._tags = cfg.tags.copy()
-        elif "tracing_enabled" in items:
+        elif "_tracing_enabled" in items:
             if self.enabled:
-                if cfg.tracing_enabled is False:
+                if cfg._tracing_enabled is False:
                     self.enabled = False
             else:
                 # the product specification says not to allow tracing to be re-enabled remotely at runtime
-                if cfg.tracing_enabled is True and cfg._get_source("tracing_enabled") != "remote_config":
+                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                     self.enabled = True

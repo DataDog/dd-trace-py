@@ -346,7 +346,7 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "tags":
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
-        elif cfg_name == "tracing_enabled":
+        elif cfg_name == "_tracing_enabled":
             name = "tracing_enabled"
             value = "true" if item.value() else "false"
         else:
@@ -371,7 +371,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
-                self._telemetry_entry("tracing_enabled"),
+                self._telemetry_entry("_tracing_enabled"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
                 (TELEMETRY_ASM_ENABLED, asm_config._asm_enabled, "unknown"),
