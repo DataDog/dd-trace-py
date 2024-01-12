@@ -253,7 +253,7 @@ def pyramid_client(snapshot, pyramid_app):
         proc.terminate()
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 @pytest.mark.parametrize(
     "pyramid_app",
     [

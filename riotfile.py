@@ -185,6 +185,35 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_tdd_propagation",
+            pys=select_pys(min_version="3.11", max_version="3.11"),
+            command="pytest --no-cov tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "flask": "~=3.0",
+                "sqlalchemy": "~=2.0.23",
+                "pony": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
+                "peewee": latest,
+                "requests": latest,
+                "six": ">=1.12.0",
+                "envier": "==0.5.0",
+                "cattrs": "<23.1.1",
+                "ddsketch": ">=2.0.1",
+                "protobuf": ">=3",
+                "attrs": ">=20",
+                "typing_extensions": latest,
+                "xmltodict": ">=0.12",
+                "opentelemetry-api": ">=1",
+                "opentracing": ">=2.0.0",
+                "bytecode": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_integrations",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
@@ -513,16 +542,23 @@ venv = Venv(
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
+                "pytest-randomly": latest,
             },
         ),
         Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
@@ -1636,18 +1672,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", latest]},
+                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", latest]},
+                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", latest]},
+                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
                 ),
             ],
         ),
@@ -1729,25 +1765,28 @@ venv = Venv(
         Venv(
             name="urllib3",
             command="pytest {cmdargs} tests/contrib/urllib3",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4", latest]},
+                    pkgs={"urllib3": ["~=1.26.4"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12", latest]},
+                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6", latest]},
+                    pkgs={"urllib3": ["~=1.26.6"]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8", latest]},
+                    pkgs={"urllib3": ["~=1.26.8"]},
                 ),
             ],
         ),
@@ -1828,7 +1867,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
+                "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -1843,7 +1883,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
             pkgs={
                 "pytest-aiohttp": [latest],
-                "pytest-asyncio": [latest],
+                "pytest-asyncio": ["==0.21.1"],
+                "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
                     latest,
@@ -2482,17 +2523,25 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "setuptools": ["<=67.6.0"],
+                "pytest-randomly": latest,
             },
         ),
         Venv(
             name="ci_visibility",
             command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pys=select_pys(),
-            pkgs={"msgpack": latest, "coverage": latest, "pytest-randomly": latest},
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="subprocess",
             command="pytest {cmdargs} tests/contrib/subprocess",
+            pkgs={
+                "pytest-randomly": latest,
+            },
             pys=select_pys(),
         ),
         Venv(
