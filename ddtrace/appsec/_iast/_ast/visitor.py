@@ -617,12 +617,17 @@ class AstVisitor(ast.NodeTransformer):
         ret_nodes = []
 
         if len(assign_node.targets) > 1:
+            # FIXME: this is wrong because:
+            # 1. It creates a new var, that some introspection tools (e.g. sqlalchemy) could add
+            # 2. Where is b?
+            # So it's disabled for the moment.
             # Multiple assignments, assign the value to a temporal variable
-            tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
-            assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
-            assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
-            ret_nodes.append(assign_to_tmp)
-            self.ast_modified = True
+            # tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
+            # assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
+            # assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
+            # ret_nodes.append(assign_to_tmp)
+            # self.ast_modified = True
+            return assign_node
         else:
             assign_value = assign_node.value  # type: ignore
 
