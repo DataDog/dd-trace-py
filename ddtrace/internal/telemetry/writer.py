@@ -127,12 +127,6 @@ class _TelemetryClient:
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
-        if config._install_id:
-            self._headers["DD-Agent-Install-Id"] = config._install_id
-        if config._install_type:
-            self._headers["DD-Agent-Install-Type"] = config._install_type
-        if config._install_time:
-            self._headers["DD-Agent-Install-Time"] = config._install_time
 
     @property
     def url(self):
@@ -350,6 +344,9 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "trace_http_header_tags":
             name = "trace_header_tags"
             value = ",".join(":".join(x) for x in item.value().items())
+        elif cfg_name == "tags":
+            name = "trace_tags"
+            value = ",".join(":".join(x) for x in item.value().items())
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
@@ -371,6 +368,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("_trace_sample_rate"),
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
+                self._telemetry_entry("tags"),
                 (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
@@ -435,6 +433,14 @@ class TelemetryWriter(PeriodicService):
                 "message": self._error[1],
             },
         }  # type: Dict[str, Union[Dict[str, Any], List[Any]]]
+        # Add time to value telemetry metrics for single step instrumentation
+        if config._telemetry_install_id or config._telemetry_install_type or config._telemetry_install_time:
+            payload["install_signature"] = {
+                "install_id": config._telemetry_install_id,
+                "install_type": config._telemetry_install_type,
+                "install_time": config._telemetry_install_time,
+            }
+
         # Reset the error after it has been reported.
         self._error = (0, "")
         self.add_event(payload, "app-started")

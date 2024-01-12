@@ -16,8 +16,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
@@ -111,7 +109,7 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
 def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    if isinstance(cmd, six.string_types):
+    if isinstance(cmd, str):
         cmd = cmd.split(" ")
 
     stdout, stderr, _, returncode = _git_subprocess_cmd_with_details(*cmd, cwd=cwd, std_in=None)

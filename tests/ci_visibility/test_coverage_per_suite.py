@@ -112,7 +112,13 @@ class PytestTestCase(TracerTestCase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=_CIVisibilitySettings(True, False, False, True),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
@@ -208,7 +214,13 @@ class PytestTestCase(TracerTestCase):
                 "test_cov_second.py",
             ],
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]

@@ -4,7 +4,6 @@ import socket
 from typing import TypeVar
 from typing import Union
 
-from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config as ddconfig
 
@@ -104,4 +103,4 @@ def info():
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(ensure_str(data))
+    return json.loads(data)

@@ -345,9 +345,10 @@ def asm_request_context_manager(
 def _start_context(
     remote_ip: Optional[str], headers: Any, headers_case_sensitive: bool, block_request_callable: Optional[Callable]
 ) -> Optional[_DataHandler]:
-    if asm_config._asm_enabled:
+    if asm_config._asm_enabled or asm_config._iast_enabled:
         resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        if asm_config._asm_enabled:
+            asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         _handlers.listen()
         listen_context_handlers()
         return resources
@@ -435,27 +436,43 @@ def _on_pre_tracedrequest(ctx):
 
 
 def _set_headers_and_response(response, headers, *_):
+    if not asm_config._asm_enabled:
+        return
+
     from ddtrace.appsec._utils import _appsec_apisec_features_is_active
 
     if _appsec_apisec_features_is_active():
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier
-            set_headers_response(list(headers))
+            if isinstance(headers, dict):
+                list_headers = list(headers.items())
+            else:
+                list_headers = list(headers)
+            set_headers_response(list_headers)
         if response:
             set_body_response(response)
 
 
 def _call_waf_first(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
     return call_waf_callback()
 
 
 def _call_waf(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     return call_waf_callback()
 
 
 def _on_block_decided(callback):
+    if not asm_config._asm_enabled:
+        return
+
     set_value(_CALLBACKS, "flask_block", callback)
 
 
@@ -480,3 +497,4 @@ def listen_context_handlers():
 
     core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)
+    core.on("asgi.finalize_response", _set_headers_and_response)

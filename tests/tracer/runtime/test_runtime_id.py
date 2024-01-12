@@ -60,3 +60,39 @@ def test_get_runtime_id_double_fork():
     pid, status = os.waitpid(child, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+def test_ancestor_runtime_id():
+    """
+    Check that the ancestor runtime ID is set after a fork, and that it remains
+    the same in nested forks.
+    """
+    ancestor_runtime_id = runtime.get_runtime_id()
+
+    assert ancestor_runtime_id is not None
+    assert runtime.get_ancestor_runtime_id() is None
+
+    child = os.fork()
+
+    if child == 0:
+        assert ancestor_runtime_id != runtime.get_runtime_id()
+        assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
+
+        child = os.fork()
+
+        if child == 0:
+            assert ancestor_runtime_id != runtime.get_runtime_id()
+            assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
+            os._exit(42)
+
+        _, status = os.waitpid(child, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 42
+
+        os._exit(42)
+
+    _, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+    assert runtime.get_ancestor_runtime_id() is None
