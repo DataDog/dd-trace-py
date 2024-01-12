@@ -576,7 +576,7 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
+        "importlib_metadata==6.5.0; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
