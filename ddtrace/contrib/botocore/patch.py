@@ -15,6 +15,7 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
@@ -33,7 +34,6 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .services.bedrock import _BedrockIntegration
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
@@ -89,7 +89,7 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    integration = _BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
+    integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
     botocore._datadog_integration = integration
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
