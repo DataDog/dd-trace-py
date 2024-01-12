@@ -5,8 +5,8 @@ from typing import Dict
 from typing import List
 
 from ddtrace import Span
-from ddtrace.vendor import wrapt
 from ddtrace.internal.llmobs.integrations import BedrockIntegration
+from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
 
