@@ -10,7 +10,6 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -134,6 +133,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
+                    {"name": "trace_tags", "origin": "default", "value": ""},
                 ],
                 key=lambda x: x["name"],
             ),
@@ -193,6 +193,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
+    env["DD_TAGS"] = "team:apm,component:web"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -266,6 +267,7 @@ import ddtrace.auto
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
+            {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
         ],
         key=lambda x: x["name"],
     )
@@ -437,7 +439,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
@@ -458,8 +460,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
             assert len(httpretty.latest_requests()) == 1
 
 
-@pytest.mark.parametrize("telemetry_writer", [TelemetryWriter()])
-@flaky(1704067200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
+@flaky(1706677200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         telemetry_writer.start()
@@ -475,9 +476,9 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
         assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
-@flaky(1704067200)
+@flaky(1706677200)
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # Ensure telemetry writer is initialized to send periodic events
@@ -499,9 +500,9 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         assert len(heartbeat_events) == 1
 
 
-@flaky(1704067200)
+@flaky(1706677200)
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
     with override_global_config(dict(_telemetry_dependency_collection=False)):
