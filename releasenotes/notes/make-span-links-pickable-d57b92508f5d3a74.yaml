@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensures all fields in ``ddtrace.context.Context`` are picklable.

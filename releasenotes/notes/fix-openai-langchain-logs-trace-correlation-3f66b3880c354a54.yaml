@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    openai: This fixes a bug that prevents logs from being correlated with traces in the Datadog UI.
+  - |
+    langchain: This fixes a bug that prevents logs from being correlated with traces in the Datadog UI.
