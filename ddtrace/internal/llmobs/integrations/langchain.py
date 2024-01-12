@@ -6,7 +6,7 @@ from typing import Optional
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.llmobs.llm_integrations import BaseLLMIntegration
+from ddtrace.internal.llmobs.integrations import BaseLLMIntegration
 
 
 API_KEY = "langchain.request.api_key"

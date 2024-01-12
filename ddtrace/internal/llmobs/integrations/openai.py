@@ -8,7 +8,7 @@ from typing import Tuple
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.llmobs.llm_integrations.base import BaseLLMIntegration
+from ddtrace.internal.llmobs.integrations.base import BaseLLMIntegration
 from ddtrace.internal.utils.version import parse_version
 
 

@@ -5,7 +5,7 @@ from openai import version
 
 from ddtrace import config
 from ddtrace.internal.agent import get_stats_url
-from ddtrace.internal.llmobs.llm_integrations import OpenAIIntegration
+from ddtrace.internal.llmobs.integrations import OpenAIIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
