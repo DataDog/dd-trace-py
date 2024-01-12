@@ -18,7 +18,7 @@ from tests.utils import override_global_config
 
 def _expected_payload(
     rc_client,
-    capabilities="BJAA",
+    capabilities="BJAA",  # this was gathered by running the test and observing the payload
     has_errors=False,
     targets_version=0,
     backend_client_state=None,

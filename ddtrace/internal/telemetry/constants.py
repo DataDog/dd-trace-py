@@ -8,7 +8,6 @@ TELEMETRY_TYPE_LOGS = "logs"
 
 # Configuration names must map to values supported by backend services:
 # https://github.com/DataDog/dd-go/blob/f88e85d64b173e7733ac03e23576d1c9be37f32e/trace/apps/tracer-telemetry-intake/telemetry-payload/static/config_norm_rules.json
-TELEMETRY_TRACING_ENABLED = "DD_TRACE_ENABLED"
 TELEMETRY_PROFILING_ENABLED = "DD_PROFILING_ENABLED"
 TELEMETRY_ASM_ENABLED = "DD_APPSEC_ENABLED"
 TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
