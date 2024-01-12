@@ -223,7 +223,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = config._tracing_enabled
+        self.enabled = config.tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
         self._sampler: BaseSampler = DatadogSampler()
@@ -281,7 +281,7 @@ class Tracer(object):
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
-        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
+        config._subscribe(["tracing_enabled"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"

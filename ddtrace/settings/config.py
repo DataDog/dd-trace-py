@@ -292,7 +292,7 @@ def _default_config():
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
-        "_tracing_enabled": _ConfigItem(
+        "tracing_enabled": _ConfigItem(
             name="tracing_enabled",
             default=True,
             envs=[("DD_TRACE_ENABLED", asbool)],
@@ -735,7 +735,7 @@ class Config(object):
                 updated_items.append(("tags", tags))
 
             if "tracing_enabled" in lib_config:
-                updated_items.append(("_tracing_enabled", asbool(lib_config["tracing_enabled"])))
+                updated_items.append(("tracing_enabled", asbool(lib_config["tracing_enabled"])))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

@@ -78,11 +78,19 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
+
+# unsubscribe listeners to the "tracing_enabled" config change event
+# because the tracer uses such a listener to disable itself
+# the tracer controls the sending of telemetry events, so when it's disabled none of these
+# events are sent
+config._subscriptions = [a for a in config._subscriptions if a[0][0] != "tracing_enabled"]
+
 config._trace_sample_rate = 0.2
 config.logs_injection = False
 config.trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
-config._tracing_enabled = False
+config.tracing_enabled = False
+
 with tracer.trace("test") as span:
     pass
         """,
