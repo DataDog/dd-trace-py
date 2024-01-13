@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue that might have caused the dynamic
+    instrumentation service to lose information about instrumentation to be
+    applied to a process after a fork.

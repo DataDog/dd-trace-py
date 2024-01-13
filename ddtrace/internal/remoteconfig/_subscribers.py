@@ -27,7 +27,7 @@ class RemoteConfigSubscriber(PeriodicService):
         self._callback = callback
         self._name = name
 
-        log.debug("[PID %d] %s initialized", os.getpid(), self)
+        log.debug("[PID %d] Subscriber %s initialized", os.getpid(), self._name)
 
     def _exec_callback(self, data, test_tracer=None):
         # type: (SharedDataType, Optional[Tracer]) -> None
