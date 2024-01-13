@@ -6,9 +6,13 @@ from typing import List
 
 from ddtrace import Span
 from ddtrace.internal.llmobs.integrations import BedrockIntegration
+from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
+
+
+log = get_logger(__name__)
 
 
 _AI21 = "ai21"
@@ -20,17 +24,28 @@ _STABILITY = "stability"
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
-    #  Currently the corresponding span finishes only if
-    #  1) the user fully consumes the stream body
-    #  2) error during reading
+    """
+    This class wraps the StreamingBody object returned by botocore api calls, specifically for Bedrock invocations.
+    Since the response body is in the form of a stream object, we need to wrap it in order to tag the response data
+    and finish the span as the user consumes the streamed response.
+    Currently, the corresponding span finishes only if:
+     1) the user fully consumes the stream body
+     2) error during reading
+    This means that if the stream is not consumed, there is a small risk of memory leak due to unfinished spans.
+    """
 
     def __init__(self, wrapped, span, integration):
+        """
+        The TracedBotocoreStreamingBody wrapper stores a reference to the
+        underlying Span object, BedrockIntegration object, and the response body that will saved and tagged.
+        """
         super().__init__(wrapped)
         self._datadog_span = span
         self._datadog_integration = integration
         self._body = []
 
     def read(self, amt=None):
+        """Patched read() method which tags the response data and finishes the span as the user consumes the stream."""
         try:
             body = self.__wrapped__.read(amt=amt)
             self._body.append(json.loads(body))
@@ -45,20 +60,27 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             raise
 
     def readlines(self):
+        """
+        Patched readlines() method which tags the response data and finishes the span as the user consumes the stream.
+        """
         try:
             lines = self.__wrapped__.readlines()
             for line in lines:
                 self._body.append(json.loads(line))
             formatted_response = _extract_response(self._datadog_span, self._body[0])
             self._process_response(formatted_response)
-            self._datadog_span.finish()
             return lines
         except Exception:
             self._datadog_span.set_exc_info(*sys.exc_info())
-            self._datadog_span.finish()
             raise
+        finally:
+            self._datadog_span.finish()
 
     def __iter__(self):
+        """
+        Patched __iter__() method which tags the response data and
+        finishes the span as the user consumes the iterable stream.
+        """
         try:
             for line in self.__wrapped__:
                 self._body.append(json.loads(line["chunk"]["bytes"]))
@@ -66,27 +88,27 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             metadata = _extract_streamed_response_metadata(self._datadog_span, self._body)
             formatted_response = _extract_streamed_response(self._datadog_span, self._body)
             self._process_response(formatted_response, metadata=metadata)
-            self._datadog_span.finish()
         except Exception:
             self._datadog_span.set_exc_info(*sys.exc_info())
-            self._datadog_span.finish()
             raise
+        finally:
+            self._datadog_span.finish()
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
         """
-        Sets the response tags on the span.
+        Sets the response tags on the span given the formatted response body and any metadata.
         """
         if metadata is not None:
             for k, v in metadata.items():
-                self._datadog_span.set_tag_str("bedrock.%s" % k, str(v))
+                self._datadog_span.set_tag_str("bedrock.{}".format(k), str(v))
         for i in range(len(formatted_response["text"])):
             if self._datadog_integration.is_pc_sampled_span(self._datadog_span):
                 self._datadog_span.set_tag_str(
-                    "bedrock.response.choices.%d.text" % i,
+                    "bedrock.response.choices.{}.text".format(i),
                     self._datadog_integration.trunc(str(formatted_response["text"][i])),
                 )
             self._datadog_span.set_tag_str(
-                "bedrock.response.choices.%d.finish_reason" % i, str(formatted_response["finish_reason"][i])
+                "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
             )
 
 
@@ -149,28 +171,31 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     """
     Extracts text and finish_reason from the response body, which has different formats for different providers.
     """
-    text, finish_reason = None, None
+    text, finish_reason = "", ""
     provider = span.get_tag("bedrock.request.model_provider")
-    if provider == _AI21:
-        text = body.get("completions")[0].get("data").get("text")
-        finish_reason = body.get("completions")[0].get("finishReason")
-    elif provider == _AMAZON:
-        text = body.get("results")[0].get("outputText")
-        finish_reason = body.get("results")[0].get("completionReason")
-    elif provider == _ANTHROPIC:
-        text = body.get("completion")
-        finish_reason = body.get("stop_reason")
-    elif provider == _COHERE:
-        text = [generation["text"] for generation in body.get("generations")]
-        finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
-        for i in range(len(text)):
-            span.set_tag_str("bedrock.response.choices.%d.id" % i, str(body.get("generations")[i]["id"]))
-    elif provider == _META:
-        text = body.get("generation")
-        finish_reason = body.get("stop_reason")
-    elif provider == _STABILITY:
-        # TODO: request/response formats are different for image-based models. Defer for now
-        pass
+    try:
+        if provider == _AI21:
+            text = body.get("completions")[0].get("data").get("text")
+            finish_reason = body.get("completions")[0].get("finishReason")
+        elif provider == _AMAZON:
+            text = body.get("results")[0].get("outputText")
+            finish_reason = body.get("results")[0].get("completionReason")
+        elif provider == _ANTHROPIC:
+            text = body.get("completion")
+            finish_reason = body.get("stop_reason")
+        elif provider == _COHERE:
+            text = [generation["text"] for generation in body.get("generations")]
+            finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
+            for i in range(len(text)):
+                span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"]))
+        elif provider == _META:
+            text = body.get("generation")
+            finish_reason = body.get("stop_reason")
+        elif provider == _STABILITY:
+            # TODO: request/response formats are different for image-based models. Defer for now
+            pass
+    except (IndexError, AttributeError):
+        log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):
         text = [text]
@@ -184,40 +209,43 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
     """
     Extracts text,finish_reason from the streamed response body, which has different formats for different providers.
     """
-    text, finish_reason = None, None
+    text, finish_reason = "", ""
     provider = span.get_tag("bedrock.request.model_provider")
-    if provider == _AI21:
-        pass  # note: ai21 does not support streamed responses
-    elif provider == _AMAZON:
-        text = "".join([chunk["outputText"] for chunk in streamed_body])
-        finish_reason = streamed_body[-1]["completionReason"]
-    elif provider == _ANTHROPIC:
-        text = "".join([chunk["completion"] for chunk in streamed_body])
-        finish_reason = streamed_body[-1]["stop_reason"]
-    elif provider == _COHERE:
-        if "is_finished" in streamed_body[0]:  # streamed response
-            if "index" in streamed_body[0]:  # n >= 2
-                n = int(span.get_tag("bedrock.request.n"))
-                text = [
-                    "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)
-                ]
-                finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(n)]
+    try:
+        if provider == _AI21:
+            pass  # note: ai21 does not support streamed responses
+        elif provider == _AMAZON:
+            text = "".join([chunk["outputText"] for chunk in streamed_body])
+            finish_reason = streamed_body[-1]["completionReason"]
+        elif provider == _ANTHROPIC:
+            text = "".join([chunk["completion"] for chunk in streamed_body])
+            finish_reason = streamed_body[-1]["stop_reason"]
+        elif provider == _COHERE and streamed_body:
+            if "is_finished" in streamed_body[0]:  # streamed response
+                if "index" in streamed_body[0]:  # n >= 2
+                    n = int(span.get_tag("bedrock.request.n"))
+                    text = [
+                        "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)
+                    ]
+                    finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(n)]
+                else:
+                    text = "".join([chunk["text"] for chunk in streamed_body[:-1]])
+                    finish_reason = streamed_body[-1]["finish_reason"]
             else:
-                text = "".join([chunk["text"] for chunk in streamed_body[:-1]])
-                finish_reason = streamed_body[-1]["finish_reason"]
-        else:
-            text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
-            finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
-            for i in range(len(text)):
-                span.set_tag_str(
-                    "bedrock.response.choices.%d.id" % i, str(streamed_body[0]["generations"][i].get("id", None))
-                )
-    elif provider == _META:
-        text = "".join([chunk["generation"] for chunk in streamed_body])
-        finish_reason = streamed_body[-1]["stop_reason"]
-    elif provider == _STABILITY:
-        # TODO: figure out extraction for image-based models
-        pass
+                text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
+                finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
+                for i in range(len(text)):
+                    span.set_tag_str(
+                        "bedrock.response.choices.{}.id".format(i), str(streamed_body[0]["generations"][i].get("id", None))
+                    )
+        elif provider == _META:
+            text = "".join([chunk["generation"] for chunk in streamed_body])
+            finish_reason = streamed_body[-1]["stop_reason"]
+        elif provider == _STABILITY:
+            # TODO: figure out extraction for image-based models
+            pass
+    except (IndexError, AttributeError):
+        log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):
         text = [text]
@@ -233,8 +261,8 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     metadata = {}
     if provider == _AI21:
         pass  # ai21 does not support streamed responses
-    elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META]:
-        metadata = streamed_body[-1]["amazon-bedrock-invocationMetrics"]
+    elif provider in [_AMAZON, _ANTHROPIC, _COHERE, _META] and streamed_body:
+        metadata = streamed_body[-1].get("amazon-bedrock-invocationMetrics", {})
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
@@ -260,7 +288,7 @@ def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: 
 
 def handle_bedrock_response(span: Span, integration: BedrockIntegration, result: Dict[str, Any]) -> Dict[str, Any]:
     """Perform response param extraction and tagging."""
-    metadata = result["ResponseMetadata"]
+    metadata = result.get("ResponseMetadata", {})
     span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))
     span.set_tag_str("bedrock.response.duration", str(metadata.get("x-amzn-bedrock-invocation-latency", "")))
     span.set_tag_str("bedrock.usage.prompt_tokens", str(metadata.get("x-amzn-bedrock-input-token-count", "")))

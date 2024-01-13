@@ -1348,6 +1348,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
                     pys=select_pys(min_version="3.8"),
                     pkgs={"vcrpy": latest},
                 ),
