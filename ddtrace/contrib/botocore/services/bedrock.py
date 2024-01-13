@@ -311,6 +311,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         resource=operation,
         activate=False,
     )
+    prompt = None
     try:
         prompt = handle_bedrock_request(bedrock_span, integration, params)
         result = original_func(*args, **kwargs)
@@ -319,4 +320,5 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     except Exception:
         bedrock_span.set_exc_info(*sys.exc_info())
         bedrock_span.finish()
+        integration.generate_llm_record(bedrock_span, formatted_response=None, prompt=prompt, err=1)
         raise

@@ -31,13 +31,13 @@ class BedrockIntegration(BaseLLMIntegration):
         return tags
 
     def generate_llm_record(
-        self, span: Span, formatted_response: Dict[str, Any] = None, prompt: Optional[str] = None, err: bool = False
+        self, span: Span, formatted_response: Optional[Dict[str, Any]] = None, prompt: Optional[str] = None, err: bool = False
     ) -> None:
         """Generate payloads for the LLM Obs API from a completion."""
         if not self.llmobs_enabled:
             return
         now = time.time()
-        if err:
+        if err or formatted_response is None:
             attrs_dict = {
                 "type": "completion",
                 "id": str(uuid.uuid4()),
@@ -46,8 +46,8 @@ class BedrockIntegration(BaseLLMIntegration):
                 "model_provider": span.get_tag("bedrock.request.model_provider"),
                 "input": {
                     "prompts": [prompt],
-                    "temperature": float(span.get_tag("bedrock.request.temperature")),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                    "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
+                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
                 },
                 "output": {
                     "completions": [{"content": ""}],
@@ -58,8 +58,8 @@ class BedrockIntegration(BaseLLMIntegration):
             self.llm_record(span, attrs_dict)
             return
         for i in range(len(formatted_response["text"])):
-            prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
-            completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
+            prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
+            completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
             attrs_dict = {
                 "type": "completion",
                 "id": span.get_tag("bedrock.response.id"),
@@ -68,8 +68,8 @@ class BedrockIntegration(BaseLLMIntegration):
                 "model_provider": span.get_tag("bedrock.request.model_provider"),
                 "input": {
                     "prompts": [prompt],
-                    "temperature": float(span.get_tag("bedrock.request.temperature")),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                    "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
+                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
                     "prompt_tokens": [prompt_tokens],
                 },
                 "output": {
