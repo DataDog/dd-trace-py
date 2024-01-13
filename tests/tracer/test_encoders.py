@@ -463,8 +463,8 @@ def test_span_link_v04_encoding():
     assert b"span_links" in decoded_span
     assert decoded_span[b"span_links"] == [
         {
-            b"trace_id": b"00000000000001c8",
-            b"span_id": b"0000000000000002",
+            b"trace_id": 456,
+            b"span_id": 2,
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
@@ -474,7 +474,7 @@ def test_span_link_v04_encoding():
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1,
-            b"trace_id_high": b"000000000000007b",
+            b"trace_id_high": 123,
         }
     ]
 
