@@ -45,7 +45,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         self._body = []
 
     def read(self, amt=None):
-        """Patched read() method which tags the response data and finishes the span as the user consumes the stream."""
+        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
         try:
             body = self.__wrapped__.read(amt=amt)
             self._body.append(json.loads(body))
@@ -60,9 +60,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             raise
 
     def readlines(self):
-        """
-        Patched readlines() method which tags the response data and finishes the span as the user consumes the stream.
-        """
+        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
         try:
             lines = self.__wrapped__.readlines()
             for line in lines:
@@ -77,10 +75,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.finish()
 
     def __iter__(self):
-        """
-        Patched __iter__() method which tags the response data and
-        finishes the span as the user consumes the iterable stream.
-        """
+        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
         try:
             for line in self.__wrapped__:
                 self._body.append(json.loads(line["chunk"]["bytes"]))
@@ -225,7 +220,8 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                 if "index" in streamed_body[0]:  # n >= 2
                     n = int(span.get_tag("bedrock.request.n"))
                     text = [
-                        "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i]) for i in range(n)
+                        "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
+                        for i in range(n)
                     ]
                     finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(n)]
                 else:
@@ -236,7 +232,8 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                 finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
                 for i in range(len(text)):
                     span.set_tag_str(
-                        "bedrock.response.choices.{}.id".format(i), str(streamed_body[0]["generations"][i].get("id", None))
+                        "bedrock.response.choices.{}.id".format(i),
+                        str(streamed_body[0]["generations"][i].get("id", None)),
                     )
         elif provider == _META:
             text = "".join([chunk["generation"] for chunk in streamed_body])
