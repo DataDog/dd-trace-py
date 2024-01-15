@@ -81,6 +81,7 @@ extra-dependencies = [
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
     "sphinxcontrib-eval==0.0.2",
+    "sphinxcontrib-applehelp==1.0.7",
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
