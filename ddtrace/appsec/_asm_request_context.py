@@ -108,9 +108,20 @@ def unregister(span: Span) -> None:
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
-        env.span.set_tag_str(APPSEC.JSON, json.dumps({"triggers": env.waf_triggers}, separators=(",", ":")))
+        root_span = env.span._local_root or env.span
+        old_tags = root_span.get_tag(APPSEC.JSON)
+        if old_tags is not None:
+            try:
+                new_json = json.loads(old_tags)
+                if "triggers" not in new_json:
+                    new_json["triggers"] = []
+                new_json["triggers"].extend(env.waf_triggers)
+            except BaseException:
+                new_json = {"triggers": env.waf_triggers}
+        else:
+            new_json = {"triggers": env.waf_triggers}
+        root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
 
-        core.set_item("waf_triggers", env.waf_triggers, span=env.span)
         env.waf_triggers = []
 
 
