@@ -604,6 +604,10 @@ class AstVisitor(ast.NodeTransformer):
         return augassign_node
 
     def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
+        """
+        Add the ignore marks for left-side subscripts or list/tuples to avoid problems
+        later with the visit_Subscript node.
+        """
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
                 # We can't assign to a function call, which is anyway going to rewrite
