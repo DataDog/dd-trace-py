@@ -89,6 +89,7 @@ def test_repr_aspect_tainting(obj, expected_result):
     assert is_pyobject_tainted(result) is True
 
 
+
 class TestOperatorsReplacement(BaseReplacement):
     def test_aspect_ljust_str_tainted(self):
         # type: () -> None
