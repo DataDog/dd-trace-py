@@ -76,6 +76,7 @@ extensions = [
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
 
+
 # Add filters for sphinxcontrib.spelling
 spelling_filters = [VersionTagFilter]
 
