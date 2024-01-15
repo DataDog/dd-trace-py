@@ -175,6 +175,7 @@ def test_headers_collection(tracer_appsec):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -199,6 +200,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -312,6 +314,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -332,6 +335,7 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta._dd.appsec.event_rules.errors",
     ],
 )
