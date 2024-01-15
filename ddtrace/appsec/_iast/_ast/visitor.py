@@ -629,7 +629,7 @@ class AstVisitor(ast.NodeTransformer):
             # self.ast_modified = True
             return assign_node
         else:
-            assign_value = assign_node.value  # type: ignore
+            assign_value = assign_node.value
 
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
