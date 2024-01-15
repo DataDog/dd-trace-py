@@ -12,8 +12,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import TextIO  # noqa:F401
 
-import six
-
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings import _config as config
@@ -80,7 +78,7 @@ def _human_size(nbytes):
     return "%s%s" % (f, suffixes[i])
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+class TraceWriter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
@@ -308,7 +306,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
-                if isinstance(payload, six.binary_type):
+                if isinstance(payload, bytes):
                     log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
                 else:
                     log_args += (payload,)  # type: ignore
@@ -397,7 +395,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
-                six.reraise(*sys.exc_info())
+                raise
             else:
                 log.error(
                     "failed to send, dropping %d traces to intake at %s after %d retries",

@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import json
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -11,6 +12,7 @@ from typing import Tuple
 from urllib import parse
 
 from ddtrace.appsec import _handlers
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
@@ -34,7 +36,7 @@ _BLOCK_CALL = "block"
 _WAF_RESULTS = "waf_results"
 
 
-GLOBAL_CALLBACKS: Dict[str, Any] = {}
+GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {}
 
 
 class ASM_Environment:
@@ -53,6 +55,7 @@ class ASM_Environment:
         self.telemetry: Dict[str, Any] = {}
         self.addresses_sent: Set[str] = set()
         self.must_call_globals: bool = True
+        self.waf_triggers: List[Dict[str, Any]] = []
 
 
 def _get_asm_context() -> ASM_Environment:
@@ -101,6 +104,28 @@ def unregister(span: Span) -> None:
         for function in GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []):
             function(env)
         env.must_call_globals = False
+
+
+def flush_waf_triggers(env: ASM_Environment) -> None:
+    if env.waf_triggers and env.span:
+        root_span = env.span._local_root or env.span
+        old_tags = root_span.get_tag(APPSEC.JSON)
+        if old_tags is not None:
+            try:
+                new_json = json.loads(old_tags)
+                if "triggers" not in new_json:
+                    new_json["triggers"] = []
+                new_json["triggers"].extend(env.waf_triggers)
+            except BaseException:
+                new_json = {"triggers": env.waf_triggers}
+        else:
+            new_json = {"triggers": env.waf_triggers}
+        root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
+
+        env.waf_triggers = []
+
+
+GLOBAL_CALLBACKS[_CONTEXT_CALL] = [flush_waf_triggers]
 
 
 class _DataHandler:
@@ -322,6 +347,21 @@ def reset_waf_results() -> None:
     set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
 
 
+def store_waf_results_data(data) -> None:
+    if not data:
+        return
+    env = _get_asm_context()
+    if not env.active:
+        log.debug("storing waf results data with no active asm context")
+        return
+    if not env.span:
+        log.debug("storing waf results data with no active span")
+        return
+    for d in data:
+        d["span_id"] = env.span.span_id
+    env.waf_triggers.extend(data)
+
+
 @contextlib.contextmanager
 def asm_request_context_manager(
     remote_ip: Optional[str] = None,
@@ -345,9 +385,10 @@ def asm_request_context_manager(
 def _start_context(
     remote_ip: Optional[str], headers: Any, headers_case_sensitive: bool, block_request_callable: Optional[Callable]
 ) -> Optional[_DataHandler]:
-    if asm_config._asm_enabled:
+    if asm_config._asm_enabled or asm_config._iast_enabled:
         resources = _DataHandler()
-        asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
+        if asm_config._asm_enabled:
+            asm_request_context_set(remote_ip, headers, headers_case_sensitive, block_request_callable)
         _handlers.listen()
         listen_context_handlers()
         return resources
@@ -435,6 +476,9 @@ def _on_pre_tracedrequest(ctx):
 
 
 def _set_headers_and_response(response, headers, *_):
+    if not asm_config._asm_enabled:
+        return
+
     from ddtrace.appsec._utils import _appsec_apisec_features_is_active
 
     if _appsec_apisec_features_is_active():
@@ -450,16 +494,25 @@ def _set_headers_and_response(response, headers, *_):
 
 
 def _call_waf_first(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
     return call_waf_callback()
 
 
 def _call_waf(integration, *_):
+    if not asm_config._asm_enabled:
+        return
+
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
     return call_waf_callback()
 
 
 def _on_block_decided(callback):
+    if not asm_config._asm_enabled:
+        return
+
     set_value(_CALLBACKS, "flask_block", callback)
 
 

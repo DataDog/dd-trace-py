@@ -18,6 +18,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+from moto import mock_stepfunctions
 import pytest
 
 from tests.utils import get_128_bit_trace_id_from_headers
@@ -885,6 +886,61 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[2].name == "aws.sqs.receive"
 
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="lincoln",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
+        )
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_array_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="miller",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller", input='["one", "two", "three"]'
+        )
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_true_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="hobart",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart", input="true")
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart")
+
     def _test_kinesis_client(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -971,7 +1027,7 @@ class BotocoreTest(TracerTestCase):
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
-    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.patch"], "_encode_data")
+    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """

@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 
+import _thread
 import abc
 import os.path
 import sys
 import typing
 
 import attr
-from six.moves import _thread
 
 from ddtrace.internal import compat
 from ddtrace.profiling import _threading
@@ -191,7 +191,8 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     @abc.abstractmethod
     def _set_original(
-        self, value  # type: typing.Any
+        self,
+        value,  # type: typing.Any
     ):
         # type: (...) -> None
         pass

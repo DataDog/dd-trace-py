@@ -11,7 +11,6 @@ from ddtrace import tracer
 from ddtrace.contrib.snowflake import patch
 from ddtrace.contrib.snowflake import unpatch
 from tests.opentracer.utils import init_tracer
-from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import snapshot
 
@@ -176,7 +175,6 @@ def test_snowflake_service_env():
                 assert cur.fetchone() == ("4.30.2",)
 
 
-@flaky(until=1704067200)
 @snapshot()
 @req_mock.activate
 def test_snowflake_pin_override(client):

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fix an unhandled ValueError in ``ast_function`` thrown in some cases (i.e. Numpy arrays when converted to bool).
