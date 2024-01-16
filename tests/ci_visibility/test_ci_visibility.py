@@ -155,15 +155,13 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
-    with (
-        override_env(
-            dict(
-                DD_API_KEY="foobar.baz",
-                DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            )
-        ),
-        mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
-        _dummy_noop_git_client(),
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
