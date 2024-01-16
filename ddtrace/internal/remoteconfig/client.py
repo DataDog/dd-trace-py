@@ -58,8 +58,7 @@ config = RemoteConfigClientConfig()
 class Capabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RATE = 1 << 12
     APM_TRACING_CUSTOM_TAGS = 1 << 15
-    APM_TRACING_ENABLED = 1 << 18  # following the above pattern, adding three to the shift amount
-
+    APM_TRACING_ENABLED = 1 << 19
 
 class RemoteConfigError(Exception):
     """
