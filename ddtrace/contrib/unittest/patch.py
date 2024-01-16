@@ -18,6 +18,7 @@ from ddtrace.contrib.unittest.constants import KIND
 from ddtrace.contrib.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.unittest.constants import SUITE_OPERATION_NAME
+from ddtrace.contrib.unittest.workaround_utils import is_flexmock_erroneous_add_success
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
@@ -280,8 +281,8 @@ def _set_identifier(item, name: str):
     item._datadog_object = name
 
 
-def _is_valid_result(instance: unittest.TextTestRunner, args: tuple) -> bool:
-    return instance and isinstance(instance, unittest.runner.TextTestResult) and args
+def _is_valid_result(instance: unittest.TextTestResult, args: tuple) -> bool:
+    return instance and isinstance(instance, unittest.TextTestResult) and args
 
 
 def _is_valid_test_call(kwargs: dict) -> bool:
@@ -472,35 +473,39 @@ def _set_test_xpass_xfail_result(test_item, result: str):
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
 
 
-def add_success_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def add_success_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
+    if is_flexmock_erroneous_add_success(instance):
+        log.debug("Skipping rest of add_success_test_wrapper due to flexmock bug")
+        return
+
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], status=test.Status.PASS.value)
 
     return func(*args, **kwargs)
 
 
-def add_failure_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def add_failure_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], exc_info=_extract_test_reason(args), status=test.Status.FAIL.value)
 
     return func(*args, **kwargs)
 
 
-def add_xfail_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def add_xfail_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XFAIL.value)
 
     return func(*args, **kwargs)
 
 
-def add_skip_test_wrapper(func, instance: unittest.TextTestRunner, args: tuple, kwargs: dict):
+def add_skip_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_span_status(test_item=args[0], skip_reason=_extract_test_reason(args), status=test.Status.SKIP.value)
 
     return func(*args, **kwargs)
 
 
-def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
+def add_xpass_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
     if _is_valid_result(instance, args):
         _set_test_xpass_xfail_result(test_item=args[0], result=test.Status.XPASS.value)
 
