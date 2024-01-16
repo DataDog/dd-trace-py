@@ -601,7 +601,7 @@ class TestLLMObsBedrock:
                     },
                     "ddtags": expected_tags,
                 }
-            )
+            ),
         ]
 
         assert mock_llmobs_writer.enqueue.call_count == 1
