@@ -335,8 +335,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             # rule detected but non blocking
             assert root_span.get_tag(APPSEC.JSON)
             loaded = json.loads(root_span.get_tag(APPSEC.JSON))
-            assert loaded["triggers"][0]["rule"]["id"] == "tst-421-001"
-            assert loaded["triggers"][0]["rule"]["on_match"] == ["monitor"]
+            ids = sorted(t["rule"]["id"] for t in loaded["triggers"])
+            assert ids == ["blk-001-010", "tst-421-001"]
+            on_match = [t["rule"]["on_match"] for t in loaded["triggers"]]
+            assert on_match == [["monitor"], ["monitor"]]
             assert root_span.get_tag("appsec.event") == "true"
             assert root_span.get_tag("appsec.blocked") is None
 

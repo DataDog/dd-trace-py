@@ -1341,12 +1341,19 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pys=select_pys(min_version="3.7"),
             pkgs={
                 "moto[all]": latest,
                 "botocore": latest,
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={"vcrpy": latest},
+                ),
+                Venv(pys="3.7"),
+            ],
         ),
         Venv(
             name="mongoengine",
