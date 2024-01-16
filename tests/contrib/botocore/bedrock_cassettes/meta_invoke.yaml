@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"prompt": "What does ''lorem ipsum'' mean?", "temperature": 0.9, "top_p":
+      1.0, "max_gen_len": 60}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '96'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgwNDUxWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        Yzc1NDA4NzUtMTliMy00ZjNjLThkYjgtNGU3MDQwZjQwYzYx
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/meta.llama2-13b-chat-v1/invoke
+  response:
+    body:
+      string: '{"generation":"\n\n\"Lorem ipsum\" is a commonly used phrase in the
+        graphic design and publishing industries. It refers to a piece of pretend
+        text that is used as a placeholder until the actual text is available. The
+        text is usually derived from a Latin text, such as \"Lorem ipsum","prompt_token_count":10,"generation_token_count":60,"stop_reason":"length"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '358'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 08 Jan 2024 18:04:53 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '10'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '1686'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '60'
+      x-amzn-RequestId:
+      - 491ad1a3-45d8-4d84-b92c-eb8e79cc79d3
+    status:
+      code: 200
+      message: OK
+version: 1
