@@ -3,6 +3,8 @@ import base64
 import gzip
 import json
 
+import pytest
+
 from ddtrace.appsec import _constants
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.settings.asm import config as asm_config
@@ -117,11 +119,32 @@ def test_api_security(client, test_spans, tracer):
             assert equal_with_meta(api, expected_value), name
 
 
-def test_api_security_with_srb(client, test_spans, tracer):
+@pytest.mark.parametrize("parse_response_body", [True, False])
+@pytest.mark.parametrize(
+    ["name", "expected_value"],
+    [
+        ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+        (
+            "_dd.appsec.s.req.headers",
+            [{"user-agent": [8], "content-length": [8], "content-type": [8]}],
+        ),
+        ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
+        ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
+        ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
+        ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
+        ("_dd.appsec.s.res.body", [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
+    ],
+)
+def test_api_security_with_srb(client, test_spans, tracer, parse_response_body, name, expected_value):
     """Test if srb is still working as expected with api security activated"""
 
     with override_global_config(
-        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
+        dict(
+            _asm_enabled=True,
+            _api_security_enabled=True,
+            _api_security_sample_rate=1.0,
+            _api_security_parse_response_body=parse_response_body,
+        )
     ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -140,22 +163,12 @@ def test_api_security_with_srb(client, test_spans, tracer):
 
         assert asm_config._api_security_enabled
 
-        for name, expected_value in [
-            ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
-            (
-                "_dd.appsec.s.req.headers",
-                [{"user-agent": [8], "content-length": [8], "content-type": [8]}],
-            ),
-            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
-            ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
-            ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
-            ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
-            ("_dd.appsec.s.res.body", [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
-        ]:
-            value = root_span.get_tag(name)
+        value = root_span.get_tag(name)
+        if not parse_response_body and name == "_dd.appsec.s.res.body":
+            assert value is None, "response body should not be parsed with DD_API_SECURITY_PARSE_RESPONSE_BODY=false"
+        else:
             assert value, name
             api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-            print(api)
             assert equal_with_meta(api, expected_value), name
 
 
