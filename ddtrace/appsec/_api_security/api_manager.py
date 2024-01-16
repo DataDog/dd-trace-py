@@ -38,8 +38,10 @@ class APIManager(Service):
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
     ]
+
+    if asm_config._api_security_parse_response_body:
+        COLLECTED.append(("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None))
 
     _instance = None  # type: Optional[APIManager]
 
