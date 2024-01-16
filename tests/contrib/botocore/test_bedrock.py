@@ -116,7 +116,7 @@ def boto3(aws_credentials, mock_llmobs_writer, ddtrace_config_botocore):
 
 
 @pytest.fixture
-def bedrock_client(boto3, request_vcr, ddtrace_config_botocore):
+def bedrock_client(boto3, request_vcr):
     session = boto3.Session(
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),

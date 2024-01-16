@@ -89,9 +89,7 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
-    botocore._datadog_integration = integration
-
+    botocore._datadog_integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
@@ -168,7 +166,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             kwargs=kwargs,
             function_vars=function_vars,
         )
-    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel") and config.llmobs_enabled:
+    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
         return patched_bedrock_api_call(
             original_func=original_func,
             instance=instance,
