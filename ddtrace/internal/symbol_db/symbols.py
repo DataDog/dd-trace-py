@@ -9,6 +9,7 @@ from inspect import CO_VARKEYWORDS
 from itertools import chain
 from itertools import islice
 from itertools import tee
+import json
 from pathlib import Path
 import sys
 from types import CodeType
@@ -28,7 +29,9 @@ from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
+from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.settings.symbol_db import config as symdb_config
@@ -401,32 +404,26 @@ class ScopeContext:
         }
 
     def upload(self) -> http.client.HTTPResponse:
-        import json
-
-        boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-        sep = f"--{boundary}\r\n"
-
-        def form_data(name, filename, data):
-            return (
-                sep
-                + f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
-                + "Content-Type: application/json\r\n"
-                + f"\r\n{data}\r\n"
-            )
-
-        body = (
-            sep.join(
-                (
-                    form_data("event", "event.json", json.dumps(self._event_data)),
-                    form_data("file", "symdb_export.json", json.dumps(self.to_json())),
-                )
-            )
-            + f"{sep}--\r\n"
+        body, headers = multipart(
+            parts=[
+                FormData(
+                    name="event",
+                    filename="event.json",
+                    data=json.dumps(self._event_data),
+                    content_type="json",
+                ),
+                FormData(
+                    name="file",
+                    filename="symdb_export.json",
+                    data=json.dumps(self.to_json()),
+                    content_type="json",
+                ),
+            ]
         )
 
         with connector(get_trace_url(), timeout=5.0)() as conn:
             log.debug("Uploading symbols payload %r", body)
-            conn.request("POST", "/symdb/v1/input", body, {"Content-Type": f"multipart/form-data; boundary={boundary}"})
+            conn.request("POST", "/symdb/v1/input", body, headers)
 
             return compat.get_connection_response(conn)
 
