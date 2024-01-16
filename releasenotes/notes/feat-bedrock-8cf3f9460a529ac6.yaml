@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    botocore: This introduces tracing support for bedrock-runtime operations.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#botocore>`_
+      for more information.

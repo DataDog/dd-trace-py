@@ -13,7 +13,6 @@ from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
-from tests.utils import flaky
 
 
 logger = logging.getLogger()
@@ -198,8 +197,9 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @flaky(until=1704067200)
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion", _DD_TEST_TRACE_FLUSH_ENABLED="0")
+    )
     def test_log_DD_TAGS(self):
         def create_span():
             return self.tracer.trace("test.logging")

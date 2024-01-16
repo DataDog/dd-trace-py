@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    loguru: Ensures log correlation is enabled when the root logger is initialized. Previously, log correlation was only enabled when a new sink was added.
