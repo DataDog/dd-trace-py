@@ -57,12 +57,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 self._datadog_span.finish()
             return body
         except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
-            self._datadog_span.finish()
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(
-                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
-                )
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
             raise
 
     def readlines(self):
@@ -73,16 +68,11 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 self._body.append(json.loads(line))
             formatted_response = _extract_response(self._datadog_span, self._body[0])
             self._process_response(formatted_response)
+            self._datadog_span.finish()
             return lines
         except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(
-                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
-                )
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
             raise
-        finally:
-            self._datadog_span.finish()
 
     def __iter__(self):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
@@ -93,15 +83,10 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             metadata = _extract_streamed_response_metadata(self._datadog_span, self._body)
             formatted_response = _extract_streamed_response(self._datadog_span, self._body)
             self._process_response(formatted_response, metadata=metadata)
-        except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
-            if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-                self._datadog_integration.generate_llm_record(
-                    self._datadog_span, formatted_response=None, prompt=self._prompt, err=1
-                )
-            raise
-        finally:
             self._datadog_span.finish()
+        except Exception:
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
+            raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
         """
@@ -124,6 +109,14 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_integration.generate_llm_record(
                 self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
             )
+
+
+def _handle_exception(span, integration, prompt, exc_info):
+    """Helper method to finish the span on stream read error."""
+    span.set_exc_info(*exc_info)
+    span.finish()
+    if integration.is_pc_sampled_llmobs(span):
+        integration.generate_llm_record(span, formatted_response=None, prompt=prompt, err=1)
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -344,7 +337,5 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
         return result
     except Exception:
-        bedrock_span.set_exc_info(*sys.exc_info())
-        bedrock_span.finish()
-        integration.generate_llm_record(bedrock_span, formatted_response=None, prompt=prompt, err=1)
+        _handle_exception(bedrock_span, integration, prompt, sys.exc_info())
         raise

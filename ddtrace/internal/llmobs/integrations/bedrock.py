@@ -36,47 +36,41 @@ class BedrockIntegration(BaseLLMIntegration):
         """Generate payloads for the LLM Obs API from a completion."""
         if not self.llmobs_enabled:
             return
-        now = time.time()
         if err or formatted_response is None:
-            attrs_dict = {
-                "type": "completion",
-                "id": str(uuid.uuid4()),
-                "timestamp": int(span.start * 1000),
-                "model": span.get_tag("bedrock.request.model"),
-                "model_provider": span.get_tag("bedrock.request.model_provider"),
-                "input": {
-                    "prompts": [prompt],
-                    "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
-                },
-                "output": {
-                    "completions": [{"content": ""}],
-                    "durations": [now - span.start],
-                    "errors": [span.get_tag("error.message")],
-                },
-            }
-            self.llm_record(span, attrs_dict)
+            record = _llmobs_record(span, prompt)
+            record["id"] = str(uuid.uuid4())
+            record["output"]["completions"] = [{"content": ""}]
+            record["output"]["errors"] = [span.get_tag("error.message")]
+            self.llm_record(span, record)
             return
         for i in range(len(formatted_response["text"])):
             prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
             completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
-            attrs_dict = {
-                "type": "completion",
-                "id": span.get_tag("bedrock.response.id"),
-                "timestamp": int(span.start * 1000),
-                "model": span.get_tag("bedrock.request.model"),
-                "model_provider": span.get_tag("bedrock.request.model_provider"),
-                "input": {
-                    "prompts": [prompt],
-                    "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
-                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
-                    "prompt_tokens": [prompt_tokens],
-                },
-                "output": {
-                    "completions": [{"content": formatted_response["text"][i]}],
-                    "durations": [now - span.start],
-                    "completion_tokens": [completion_tokens],
-                    "total_tokens": [prompt_tokens + completion_tokens],
-                },
-            }
-            self.llm_record(span, attrs_dict)
+            record = _llmobs_record(span, prompt)
+            record["id"] = span.get_tag("bedrock.response.id")
+            record["input"]["prompt_tokens"] = [prompt_tokens]
+            record["output"]["completions"] = [{"content": formatted_response["text"][i]}]
+            record["output"]["completion_tokens"] = [completion_tokens]
+            record["output"]["total_tokens"] = [prompt_tokens + completion_tokens]
+            self.llm_record(span, record)
+
+
+def _llmobs_record(span: Span, prompt: Optional[str]) -> Dict[str, Any]:
+    """LLMObs bedrock record template."""
+    now = time.time()
+    record = {
+        "type": "completion",
+        "id": str(uuid.uuid4()),
+        "timestamp": int(span.start * 1000),
+        "model": span.get_tag("bedrock.request.model"),
+        "model_provider": span.get_tag("bedrock.request.model_provider"),
+        "input": {
+            "prompts": [prompt],
+            "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
+            "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
+        },
+        "output": {
+            "durations": [now - span.start],
+        },
+    }
+    return record
