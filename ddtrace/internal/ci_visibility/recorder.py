@@ -194,7 +194,7 @@ class CIVisibility(Service):
             self._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
         )
-        log.info("Detected configurations: %s", self._configurations)
+        log.info("Detected configurations: %s", str(self._configurations))
 
         try:
             from ddtrace.internal.codeowners import Codeowners
