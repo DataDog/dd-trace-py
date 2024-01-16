@@ -60,6 +60,7 @@ class Capabilities(enum.IntFlag):
     APM_TRACING_CUSTOM_TAGS = 1 << 15
     APM_TRACING_ENABLED = 1 << 19
 
+
 class RemoteConfigError(Exception):
     """
     An error occurred during the configuration update procedure.
