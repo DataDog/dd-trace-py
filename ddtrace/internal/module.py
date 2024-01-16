@@ -158,6 +158,16 @@ class _ImportHookChainedLoader:
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
 
+    def call_back(self, module: ModuleType) -> None:
+        if module.__name__ == "pkg_resources":
+            # DEV: pkg_resources support to prevent errors such as
+            # NotImplementedError: Can't perform this operation for unregistered
+            # loader type
+            module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
+
+        for callback in self.callbacks.values():
+            callback(module)
+
     def load_module(self, fullname):
         # type: (str) -> Optional[ModuleType]
         if self.loader is None:
@@ -168,8 +178,7 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
         return module
 
@@ -214,8 +223,7 @@ class _ImportHookChainedLoader:
             else:
                 self.loader.exec_module(module)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
 
 class BaseModuleWatchdog(abc.ABC):
