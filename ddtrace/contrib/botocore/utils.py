@@ -227,14 +227,14 @@ def extract_DD_context(messages):
         message = messages[0]
         context_json = extract_trace_context_json(message)
         if context_json is not None:
-            ctx = HTTPPropagator().extract(context_json)
+            ctx = HTTPPropagator.extract(context_json)
     elif len(messages) > 1:
         prev_ctx = None
         for message in messages:
             prev_ctx = ctx
             context_json = extract_trace_context_json(message)
             if context_json is not None:
-                ctx = HTTPPropagator().extract(context_json)
+                ctx = HTTPPropagator.extract(context_json)
 
             # only want parenting for batches if all contexts are the same
             if prev_ctx is not None and prev_ctx != ctx:

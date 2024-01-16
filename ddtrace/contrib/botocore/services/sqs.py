@@ -146,41 +146,48 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     message_received = False
     func_run = False
     func_run_err = None
-    ctx = None
+    child_of = None
     start_ns = None
     result = None
 
-    if config.botocore.propagation_enabled:
-        if endpoint_name == "sqs" and operation == "ReceiveMessage":
-            # Ensure we have Datadog MessageAttribute enabled
-            if "MessageAttributeNames" not in params:
-                params.update({"MessageAttributeNames": ["_datadog"]})
-            elif "_datadog" not in params["MessageAttributeNames"]:
-                params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+    if operation == "ReceiveMessage":
+        # Ensure we have Datadog MessageAttribute enabled
+        if "MessageAttributeNames" not in params:
+            params.update({"MessageAttributeNames": ["_datadog"]})
+        elif "_datadog" not in params["MessageAttributeNames"]:
+            params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
-            try:
-                start_ns = time_ns()
-                func_run = True
-                # run the function before in order to extract possible parent context before starting span
-                result = original_func(*args, **kwargs)
-            except Exception as e:
-                func_run_err = e
-            if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
-                message_received = True
-                ctx = extract_DD_context(result["Messages"])
+        try:
+            start_ns = time_ns()
+            func_run = True
+            # run the function before in order to extract possible parent context before starting span
+            result = original_func(*args, **kwargs)
+        except Exception as e:
+            func_run_err = e
+        if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
+            message_received = True
+            if config.botocore.propagation_enabled:
+                child_of = extract_DD_context(result["Messages"])
 
-    # we don't want to create a span for empty poll consumer operations
+    """
+    We only want to create a span for the following cases:
+        - not func_run: The function is not `ReceiveMessage` and we need to run it
+        - func_run and message_received: Received a message when polling
+        - config.empty_poll_enabled: We want to trace empty poll operations
+    """
     if (func_run and message_received) or config.empty_poll_enabled or not func_run:
         with pin.tracer.start_span(
             trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
-            child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
         ) as span:
             set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
-            if start_ns is not None:
+            # we need this since we may have ran the wrapped operation before starting the span
+            # we need to ensure the span start time is correct
+            if start_ns is not None and func_run:
                 span.start_ns = start_ns
 
             if args:
