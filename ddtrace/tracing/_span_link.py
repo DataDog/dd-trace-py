@@ -91,6 +91,9 @@ class SpanLink:
                 # flatten all values with the type list, tuple and set
                 for k1, v1 in flatten_key_value(k, v).items():
                     # convert all values to string
+                    if isinstance(v1, bool):
+                        # convert bool to lowercase string to be consistent with json encoding
+                        v1 = "true" if v1 else "false"
                     d["attributes"][k1] = str(v1)
 
         if self._dropped_attributes > 0:
