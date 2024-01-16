@@ -8,21 +8,18 @@ import botocore.exceptions
 
 from ddtrace import Span  # noqa:F401
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
 from ....ext import http
 from ....internal.compat import time_ns
-from ....internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
 from ..utils import extract_DD_context
-from ..utils import extract_trace_context_json
-from ..utils import get_pathway
-from ..utils import get_queue_name
 from ..utils import set_patched_api_call_span_tags
 from ..utils import set_response_metadata_tags
 
@@ -36,16 +33,6 @@ def _encode_data(trace_data):
     moto doesn't support auto-encoded SNS -> SQS as binary with RawDelivery enabled
     """
     return json.dumps(trace_data)
-
-
-def get_topic_arn(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-    Return the name of the topic given the params
-    """
-    sns_arn = params.get("TopicArn")
-    return sns_arn
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
@@ -79,15 +66,13 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
     :endpoint_service: endpoint of message, "sqs" or "sns"
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-    Inject trace headers and DSM info into MessageAttributes for all SQS or SNS records inside a batch
+    Inject trace headers info into MessageAttributes for all SQS or SNS records inside a batch
     """
 
     trace_data = {}
@@ -99,39 +84,24 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     if len(entries) != 0:
         for entry in entries:
-            if data_streams_enabled:
-                dsm_identifier = None
-                if endpoint_service == "sqs":
-                    dsm_identifier = get_queue_name(params)
-                elif endpoint_service == "sns":
-                    dsm_identifier = get_topic_arn(params)
-                trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
+            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
             inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
     else:
         log.warning("Skipping injecting Datadog attributes to records, no records available")
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None, pin=None, data_streams_enabled=False):
-    # type: (Any, Span, Optional[str], Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
     :endpoint_service: endpoint of message, "sqs" or "sns"
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-    Inject trace headers and DSM info into MessageAttributes for the SQS or SNS record
+    Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
-    if data_streams_enabled:
-        dsm_identifier = None
-        if endpoint_service == "sqs":
-            dsm_identifier = get_queue_name(params)
-        elif endpoint_service == "sns":
-            dsm_identifier = get_topic_arn(params)
-
-        trace_data[PROPAGATION_KEY_BASE_64] = get_pathway(pin, endpoint_service, dsm_identifier, span)
+    core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
 
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 

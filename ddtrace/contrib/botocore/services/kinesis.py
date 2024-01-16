@@ -1,4 +1,3 @@
-from datetime import datetime
 import json
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -10,6 +9,7 @@ import botocore.exceptions
 
 from ddtrace import Span  # noqa:F401
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
@@ -22,7 +22,6 @@ from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
 from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
-from ..utils import get_pathway
 from ..utils import set_patched_api_call_span_tags
 from ..utils import set_response_metadata_tags
 
@@ -35,16 +34,6 @@ MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
 
 class TraceInjectionSizeExceed(Exception):
     pass
-
-
-def get_stream_arn(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-    Return the name of the stream given the params
-    """
-    stream_arn = params.get("StreamARN", "")
-    return stream_arn
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
@@ -81,43 +70,14 @@ def inject_trace_to_kinesis_stream_data(record, span):
         record["Data"] = data_json
 
 
-def record_data_streams_path_for_kinesis_stream(pin, params, results, span):
-    stream_arn = params.get("StreamARN")
-
-    if not stream_arn:
-        log.debug("Unable to determine StreamARN for request with params: ", params)
-        return
-
-    processor = pin.tracer.data_streams_processor
-    pathway = processor.new_pathway()
-    for record in results.get("Records", []):
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        pathway.set_checkpoint(
-            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-            span=span,
-        )
-
-
-def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
-    # type: (List[Any], Span, Optional[Pin], Optional[bool]) -> None
+def inject_trace_to_kinesis_stream(params, span):
+    # type: (List[Any], Span) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
-    if data_streams_enabled:
-        stream_arn = get_stream_arn(params)
-        if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-            # put_records has a "Records" entry but put_record does not, so we fake a record to
-            # collapse the logic for the two cases
-            for _ in params.get("Records", ["fake_record"]):
-                # In other DSM code, you'll see the pathway + context injection but not here.
-                # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
-                get_pathway(pin, "kinesis", stream_arn, span)
+    core.dispatch("botocore.kinesis.start", [params])
 
     if "Records" in params:
         records = params["Records"]
@@ -179,9 +139,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                        inject_trace_to_kinesis_stream(
-                            params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
-                        )
+                        inject_trace_to_kinesis_stream(params, span)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",
