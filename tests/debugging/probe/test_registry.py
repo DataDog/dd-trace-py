@@ -8,7 +8,7 @@ def test_registry_contains():
     probe_in = create_snapshot_line_probe(probe_id=42, source_file="foo", line=1)
     probe_out = create_snapshot_line_probe(probe_id=0, source_file="foo", line=2)
 
-    registry = ProbeRegistry(DummyProbeStatusLogger("test", "test"))
+    registry = ProbeRegistry(DummyProbeStatusLogger("test"))
     registry.register(probe_in)
 
     assert probe_in in registry
@@ -19,7 +19,7 @@ def test_registry_pending():
     # Start with registering 10 probes
     probes = [create_snapshot_line_probe(probe_id=i, source_file=__file__, line=i) for i in range(10)]
 
-    registry = ProbeRegistry(DummyProbeStatusLogger("test", "test"))
+    registry = ProbeRegistry(DummyProbeStatusLogger("test"))
     registry.register(*probes)
 
     assert registry.get_pending(__file__) == probes
@@ -43,7 +43,7 @@ def test_registry_pending():
 
 
 def test_registry_location_error():
-    status_logger = DummyProbeStatusLogger("test", "test")
+    status_logger = DummyProbeStatusLogger("test")
     registry = ProbeRegistry(status_logger)
 
     probe = create_snapshot_line_probe(probe_id=42, source_file=__file__, line=1)
@@ -69,6 +69,7 @@ def test_registry_location_error():
                     "probeId": 42,
                     "probeVersion": 0,
                     "runtimeId": runtime.get_runtime_id(),
+                    "parentId": None,
                     "status": "ERROR",
                     "exception": {
                         "type": "UnresolvedLocation",
