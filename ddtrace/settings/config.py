@@ -714,23 +714,20 @@ class Config(object):
 
         # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        updated_items = []  # type: List[Tuple[str, Any]]
+        base_rc_config = {n: None for n in self._config}
 
-        if not config:
-            for item in self._config:
-                updated_items.append((item, None))
-        else:
+        if config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
-                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
 
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
                 if tags:
                     tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
-                updated_items.append(("tags", tags))
+                base_rc_config["tags"] = tags
 
-        self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
+        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
     def enable_remote_configuration(self):
         # type: () -> None

@@ -1069,5 +1069,5 @@ class Tracer(object):
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
-        elif "tags" in items:
+        if "tags" in items:
             self._tags = cfg.tags.copy()
