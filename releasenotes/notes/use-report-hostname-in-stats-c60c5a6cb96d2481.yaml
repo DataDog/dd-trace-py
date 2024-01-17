@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensures hostnames are reported in statsd metrics if ``DD_TRACE_REPORT_HOSTNAME=True`` (default value is ``False``).

@@ -2,6 +2,7 @@ import functools
 import os
 from typing import Generator  # noqa:F401
 
+import mock
 import pytest
 
 from ddtrace import Tracer
@@ -97,11 +98,33 @@ from ddtrace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 assert config._trace_compute_stats is True
-assert any(isinstance(p, SpanStatsProcessorV06) for p in tracer._span_processors)
+stats_processor = None
+for p in tracer._span_processors:
+    if isinstance(p, SpanStatsProcessorV06):
+        stats_processor = p
+        break
+
+assert stats_processor is not None
+assert stats_processor._hostname == "" # report_hostname is disabled by default
 """,
         env=env,
     )
     assert status == 0, out + err
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_stats_report_hostname(get_hostname):
+    get_hostname.return_value = "test-hostname"
+
+    # Enable report_hostname
+    with override_global_config(dict(report_hostname=True)):
+        p = SpanStatsProcessorV06("http://localhost:8126")
+        assert p._hostname == "test-hostname"
+
+    # Disable report_hostname
+    with override_global_config(dict(report_hostname=False)):
+        p = SpanStatsProcessorV06("http://localhost:8126")
+        assert p._hostname == ""
 
 
 # Can't use a value between 0 and 1 since sampling is not deterministic.
