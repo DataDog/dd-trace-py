@@ -38,10 +38,8 @@ class APIManager(Service):
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
     ]
-
-    if asm_config._api_security_parse_response_body:
-        COLLECTED.append(("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None))
 
     _instance = None  # type: Optional[APIManager]
 
@@ -129,6 +127,8 @@ class APIManager(Service):
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
+            if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
+                continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)
