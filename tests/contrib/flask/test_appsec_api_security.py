@@ -11,7 +11,6 @@ from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -47,9 +46,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
-        ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(
@@ -92,9 +89,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
-        ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
             resp = self.client.post(
@@ -140,8 +135,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         # appsec disabled must not block
-        with override_global_config(dict(_asm_enabled=False, _api_security_enabled=False)), override_env(
-            {API_SECURITY.SAMPLE_RATE: "1.0"}
+        with override_global_config(
+            dict(_asm_enabled=False, _api_security_enabled=False, _api_security_sample_rate=1.0)
         ):
             self._aux_appsec_prepare_tracer(appsec_enabled=False)
             self.client.set_cookie("localhost", "secret", "a1b2c3d4e5f6")
