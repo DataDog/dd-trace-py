@@ -1,18 +1,15 @@
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
+OriginType = pytest.importorskip("ddtrace.appsec._iast._taint_tracking.OriginType")
+get_tainted_ranges = pytest.importorskip("ddtrace.appsec._iast._taint_tracking.get_tainted_ranges")
+taint_pyobject = pytest.importorskip("ddtrace.appsec._iast._taint_tracking.taint_pyobject")
+_iast_patched_module = pytest.importorskip("tests.appsec.iast.aspects.conftest._iast_patched_module")
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_string_assigment():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     string_input = taint_pyobject(
         pyobject="foo",
         source_name="test_add_aspect_tainting_left_hand",
@@ -25,12 +22,7 @@ def test_string_assigment():
     assert len(get_tainted_ranges(res)) == 1
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_multiple_string_assigment():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     string_input = taint_pyobject(
         pyobject="foo",
         source_name="test_add_aspect_tainting_left_hand",
@@ -44,12 +36,7 @@ def test_multiple_string_assigment():
         assert len(get_tainted_ranges(res)) == 1
 
 
-@pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
 def test_multiple_tuple_string_assigment():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     string_input = taint_pyobject(
         pyobject="foo",
         source_name="test_add_aspect_tainting_left_hand",
