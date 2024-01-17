@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix for an import issue that caused the pytest plugin to fail to properly
+    initialize a test session and exit with an import exception.
