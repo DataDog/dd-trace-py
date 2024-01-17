@@ -238,6 +238,7 @@ log = logging.getLogger()
 log.level = logging.CRITICAL
 logHandler = logging.StreamHandler(); logHandler.setFormatter(jsonlogger.JsonFormatter())
 log.addHandler(logHandler)
+config._128_bit_trace_id_logging_enabled = True
 # Enable logs injection
 config._handle_remoteconfig(_base_rc_config({"log_injection_enabled": True}))
 with tracer.trace("test") as span:
