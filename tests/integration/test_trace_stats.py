@@ -112,7 +112,7 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
-@mock.patch("ddtrace.internal.hostname.get_hostname")
+@mock.patch("ddtrace.internal.processor.stats.get_hostname")
 def test_stats_report_hostname(get_hostname):
     get_hostname.return_value = "test-hostname"
 
