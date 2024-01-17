@@ -185,6 +185,11 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         ) as span:
             set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
+            # we need this since we may have ran the wrapped operation before starting the span
+            # we need to ensure the span start time is correct
+            if start_ns is not None and func_run:
+                span.start_ns = start_ns
+
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "sqs" and operation == "SendMessage":
