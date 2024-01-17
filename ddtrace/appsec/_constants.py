@@ -131,7 +131,9 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
 class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
+    ENABLED = "_dd.appsec.api_security.enabled"
     ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
+    PARSE_RESPONSE_BODY = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
@@ -140,7 +142,6 @@ class API_SECURITY(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
     RESPONSE_BODY = "_dd.appsec.s.res.body"
     SAMPLE_RATE = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
-    ENABLED = "_dd.appsec.api_security.enabled"
     MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 

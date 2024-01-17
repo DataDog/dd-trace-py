@@ -367,7 +367,12 @@ class SpanTestCase(TracerTestCase):
         s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
         s2.context.sampling_priority = 1
 
-        link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "value2"}
+        link_attributes = {
+            "link.name": "s1_to_s2",
+            "link.kind": "scheduled_by",
+            "key1": "value2",
+            "key2": [True, 2, ["hello", 4, ["5", "6asda"]]],
+        }
         s1.link_span(s2.context, link_attributes)
 
         assert s1._links == [

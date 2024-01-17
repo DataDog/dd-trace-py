@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    opentelemetry: Ensures that span links are serialized in a json-compatible representation.
