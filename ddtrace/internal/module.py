@@ -146,9 +146,10 @@ class _ImportHookChainedLoader:
 
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
-        if hasattr(loader, "create_module"):
+        # A missing loader is generally an indication of a namespace package.
+        if loader is None or hasattr(loader, "create_module"):
             self.create_module = self._create_module
-        if hasattr(loader, "exec_module"):
+        if loader is None or hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
 
     def __getattribute__(self, name):
