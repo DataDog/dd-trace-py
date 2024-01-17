@@ -176,21 +176,20 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
 
-            if args:
-                if config.botocore["distributed_tracing"]:
-                    try:
-                        if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                            inject_trace_to_kinesis_stream(
-                                params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
-                            )
-                            span.name = schematize_cloud_messaging_operation(
-                                trace_operation,
-                                cloud_provider="aws",
-                                cloud_service="kinesis",
-                                direction=SpanDirection.OUTBOUND,
-                            )
-                    except Exception:
-                        log.warning("Unable to inject trace context", exc_info=True)
+            if args and config.botocore["distributed_tracing"]:
+                try:
+                    if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
+                        inject_trace_to_kinesis_stream(
+                            params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="kinesis",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                except Exception:
+                    log.warning("Unable to inject trace context", exc_info=True)
 
             try:
                 if not func_run:
