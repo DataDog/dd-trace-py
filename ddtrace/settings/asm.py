@@ -59,6 +59,7 @@ class ASMConfig(Env):
         "_user_model_name_field",
         "_api_security_enabled",
         "_api_security_sample_rate",
+        "_api_security_parse_response_body",
         "_waf_timeout",
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
