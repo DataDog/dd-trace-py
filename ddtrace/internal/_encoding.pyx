@@ -571,8 +571,10 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             # SpanLink.to_dict() returns all serializable span link fields
             d = link.to_dict()
             # Encode 128 bit trace ids usings two 64bit integers
-            d["trace_id_high"] = d["trace_id"] >> 64
-            d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
+            d["trace_id_high"] = int(d["trace_id"][:16], 16)
+            d["trace_id"] = int(d["trace_id"][16:], 16)
+            # span id should be uint64 in v0.4 (it is hex in v0.5)
+            d["span_id"] = int(d["span_id"], 16)
 
             ret = msgpack_pack_map(&self.pk, len(d))
             if ret != 0:
