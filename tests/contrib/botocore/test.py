@@ -615,7 +615,6 @@ class BotocoreTest(TracerTestCase):
             assert consume_span.parent_id == produce_span.span_id
             assert consume_span.trace_id == produce_span.trace_id
 
-
     def test_distributed_tracing_sns_to_sqs_works(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         self._test_distributed_tracing_sns_to_sqs(False)
