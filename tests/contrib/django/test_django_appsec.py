@@ -1028,3 +1028,23 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         assert login_span.get_tag(user.ID) == "fred2"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+
+
+# nested events
+def test_nested_appsec_events(client, test_spans, tracer):
+    # activate two monitoring rules, once on request and the other on response.
+    # check if they are both triggered and merged correctly
+    with override_global_config(dict(_asm_enabled=True)):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/config.php", headers={"HTTP_USER_AGENT": "Arachni/v1.5.1"}
+        )
+        assert response.status_code == 404
+        appsec_json = root_span.get_tag(APPSEC.JSON)
+        assert appsec_json
+        loaded = json.loads(appsec_json)
+        assert "triggers" in loaded
+        rules = loaded["triggers"]
+        assert len(rules) == 2
+        assert any(r["rule"]["id"] == "ua0-600-12x" for r in rules)
+        assert any(r["rule"]["id"] == "nfd-000-001" for r in rules)
+        assert all("span_id" in r for r in rules)

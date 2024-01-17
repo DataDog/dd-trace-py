@@ -127,6 +127,8 @@ class APIManager(Service):
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
+            if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
+                continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)
