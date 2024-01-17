@@ -280,6 +280,7 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+        config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
 
     def _atexit(self) -> None:
