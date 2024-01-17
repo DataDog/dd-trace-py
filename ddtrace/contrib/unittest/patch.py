@@ -475,7 +475,7 @@ def _set_test_xpass_xfail_result(test_item, result: str):
 
 def add_success_test_wrapper(func, instance: unittest.TextTestResult, args: tuple, kwargs: dict):
     if is_flexmock_erroneous_add_success(instance):
-        log.debug("Skipping rest of add_success_test_wrapper due to flexmock bug")
+        log.warning("Skipping rest of add_success_test_wrapper due to flexmock bug")
         return
 
     if _is_valid_result(instance, args):
