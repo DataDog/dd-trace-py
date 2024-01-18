@@ -67,7 +67,7 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
@@ -81,7 +81,7 @@ def mock_logs(scope="session"):
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
     """
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.V2LogWriter")
+    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.V2LogWriter")
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
@@ -370,7 +370,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
                     "choices": mock.ANY,
@@ -588,7 +588,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -1380,7 +1380,7 @@ def test_llm_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you please not return an error?"],
                     "choices": [],
@@ -1427,7 +1427,7 @@ def test_chat_model_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "messages": [
                         [
@@ -1529,7 +1529,7 @@ def test_chain_logs_when_response_not_completed(
                     "service": "",
                     "status": "error",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,

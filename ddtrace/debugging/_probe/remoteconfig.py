@@ -278,21 +278,21 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             self._send_status_update()
             self._status_timestamp = next(self._status_timestamp_sequence)
 
-        if not data:
-            # Nothing else to do.
-            return
+        if data:
+            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+            for metadata, config in zip(data["metadata"], data["config"]):
+                if metadata is None:
+                    log.debug(
+                        "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                        os.getpid(),
+                        os.getppid(),
+                    )
+                    continue
 
-        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-        for metadata, config in zip(data["metadata"], data["config"]):
-            if metadata is None:
-                log.debug(
-                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
-                    os.getpid(),
-                    os.getppid(),
-                )
-                continue
+                self._update_probes_for_config(metadata["id"], config)
 
-            self._update_probes_for_config(metadata["id"], config)
+        # Flush any probe status messages that migh have been generated
+        self._status_logger.flush()
 
     def _send_status_update(self):
         log.debug(

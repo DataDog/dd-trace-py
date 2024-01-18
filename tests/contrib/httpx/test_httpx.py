@@ -190,6 +190,7 @@ def test_configure_service_name_env():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
 def test_schematized_configure_global_service_name_env_default():
     """

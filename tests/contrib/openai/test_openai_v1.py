@@ -347,7 +347,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/completions,openai.request.method:POST,openai.request.model:ada,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "Hello world",
                     "choices": mock.ANY,
@@ -650,7 +650,7 @@ def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tr
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/edits,openai.request.method:POST,openai.request.model:text-davinci-edit-001,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "instruction": "fix spelling mistakes",
                     "input": "thsi si a spelilgn imstkae.",
@@ -737,7 +737,7 @@ def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,openai.request.endpoint:/v1/images/generations,openai.request.method:POST,openai.request.model:dall-e,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
+                    "dd.trace_id": "{:x}".format(trace_id),
                     "dd.span_id": str(span_id),
                     "prompt": "sleepy capybara with monkey on top",
                     "choices": mock.ANY,
@@ -1921,9 +1921,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     with openai_vcr.use_cassette("completion.yaml"):
+        model = "ada"
         client = openai.OpenAI()
         resp = client.completions.create(
-            model="ada",
+            model=model,
             prompt="Hello world",
             temperature=0.8,
             n=2,
@@ -1934,14 +1935,25 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
+    expected_tags = [
+        "dd.trace_id:{:x}".format(trace_id),
+        "dd.span_id:%s" % str(span_id),
+        "version:",
+        "env:",
+        "service:",
+        "src:integration",
+        "ml_obs.request.model:%s" % model,
+        "ml_obs.request.model_provider:openai",
+        "ml_obs.request.error:0",
+    ]
+
     assert mock_llmobs_writer.enqueue.call_count == 2
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
+                    "ddtags": expected_tags,
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
@@ -1956,8 +1968,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
             ),
             mock.call.enqueue(
                 {
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
+                    "ddtags": expected_tags,
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
@@ -1994,6 +2005,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
     with openai_vcr.use_cassette("chat_completion.yaml"):
+        model = "gpt-3.5-turbo"
         input_messages = [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Who won the world series in 2020?"},
@@ -2002,7 +2014,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         ]
         client = openai.OpenAI()
         resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=input_messages,
             top_p=0.9,
             n=2,
@@ -2011,14 +2023,25 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
+    expected_tags = [
+        "dd.trace_id:{:x}".format(trace_id),
+        "dd.span_id:%s" % str(span_id),
+        "version:",
+        "env:",
+        "service:",
+        "src:integration",
+        "ml_obs.request.model:%s" % model,
+        "ml_obs.request.model_provider:openai",
+        "ml_obs.request.error:0",
+    ]
+
     assert mock_llmobs_writer.enqueue.call_count == 2
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
+                    "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
@@ -2033,8 +2056,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
             ),
             mock.call.enqueue(
                 {
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
+                    "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
@@ -2070,9 +2092,10 @@ def test_llmobs_chat_completion_function_call(
 ):
     """Test that function call chat completion calls are recorded as LLMObs events correctly."""
     with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
+        model = "gpt-3.5-turbo"
         client = openai.OpenAI()
         resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[{"role": "user", "content": chat_completion_input_description}],
             functions=chat_completion_custom_functions,
             function_call="auto",
@@ -2081,14 +2104,25 @@ def test_llmobs_chat_completion_function_call(
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
+    expected_tags = [
+        "dd.trace_id:{:x}".format(trace_id),
+        "dd.span_id:%s" % str(span_id),
+        "version:",
+        "env:",
+        "service:",
+        "src:integration",
+        "ml_obs.request.model:%s" % model,
+        "ml_obs.request.model_provider:openai",
+        "ml_obs.request.error:0",
+    ]
+
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
+                    "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,

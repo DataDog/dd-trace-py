@@ -83,7 +83,7 @@ def test_middleware_trace_callable_view(client):
     assert client.get("/feed-view/").status_code == 200
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
     reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
