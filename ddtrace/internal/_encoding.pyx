@@ -581,7 +581,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if "flags" in d:
                 # If traceflags set, the high bit (bit 31) should be set to 1 (uint32).
                 # This helps us distinguish between when the sample decision is zero or not set
-                d["flags"] = d["flags"] | (1 << 31)
+                d["flags"] = d["flags"] | (-1 << 31)
 
             ret = msgpack_pack_map(&self.pk, len(d))
             if ret != 0:
