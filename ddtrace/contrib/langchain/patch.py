@@ -9,9 +9,6 @@ from typing import Union
 import langchain
 
 from ddtrace.appsec._iast import _is_iast_enabled
-from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
 try:
@@ -26,7 +23,6 @@ from ddtrace.contrib.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.langchain.constants import MODEL
 from ddtrace.contrib.langchain.constants import PROMPT_TOKENS
 from ddtrace.contrib.langchain.constants import TOTAL_COST
-from ddtrace.contrib.langchain.constants import TYPE
 from ddtrace.contrib.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
@@ -724,6 +720,7 @@ def patch():
                 )
 
     if _is_iast_enabled():
+        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
         def wrap_output_parser(module, parser):
             # Ensure not double patched
@@ -763,10 +760,15 @@ def unpatch():
                 deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
             ):
                 unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
+
     delattr(langchain, "_datadog_integration")
 
 
 def taint_outputs(instance, inputs, outputs):
+    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
     try:
         ranges = None
         for key in filter(lambda x: x in inputs, instance.input_keys):
@@ -786,6 +788,10 @@ def taint_outputs(instance, inputs, outputs):
 
 
 def taint_parser_output(func, instance, args, kwargs):
+    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
     result = func(*args, **kwargs)
     try:
         try:
