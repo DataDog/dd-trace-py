@@ -175,14 +175,18 @@ def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
+from ddtrace.contrib import trace_utils
 from tests.internal.test_settings import _base_rc_config
 
 config._handle_remoteconfig(_base_rc_config({
-    "tracing_header_tags": "X-Header-Tag-69:header_tag_69,X-Header-Tag-70:header_tag_70"
+    "tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]
 }))
 with tracer.trace("test") as span:
-    pass
-assert span.get_tag("mycoolheader") is not None
+    trace_utils.set_http_meta(span,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"X-Header-Tag-69": "foobarbanana"})
+assert span.get_tag("header_tag_69") == "foobarbanana"
+assert span.get_tag("header_tag_70") is None
         """,
     )
     assert status == 0, err
@@ -190,6 +194,6 @@ assert span.get_tag("mycoolheader") is not None
     events = test_agent_session.get_events()
     assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
         "name": "trace_header_tags",
-        "value": '{"mycoolheader": "foobar"}',
+        "value": "X-Header-Tag-69:header_tag_69,X-Header-Tag-70:header_tag_70",
         "origin": "remote_config",
     }

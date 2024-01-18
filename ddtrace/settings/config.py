@@ -735,7 +735,7 @@ class Config(object):
                 if header_tags:
                     header_tags = {k: v for k, v in [t.split(":") for t in header_tags]}
                 base_rc_config["trace_http_header_tags"] = header_tags
-                self._config.http = HttpConfig(header_tags=header_tags)
+                self.http = HttpConfig(header_tags=header_tags)
 
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
