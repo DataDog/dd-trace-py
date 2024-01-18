@@ -90,6 +90,13 @@ def _deleted_rc_config():
             "expected_source": {"trace_http_header_tags": "code"},
         },
         {
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
+            "rc": {"tracing_header_tags": "X-Header-Tag-69:header_tag_69,X-Header-Tag-70:header_tag_70"},
+            "code": {"trace_http_header_tags": {"header": "value"}},
+            "expected": {"trace_http_header_tags": {"header": "value"}},
+            "expected_source": {"trace_http_header_tags": "rc"},
+        },
+        {
             "env": {"DD_TAGS": "key:value,key2:value2"},
             "expected": {"tags": {"key": "value", "key2": "value2"}},
             "expected_source": {"tags": "env_var"},
@@ -248,3 +255,31 @@ with tracer.trace("test") as span:
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled
+
+
+def test_remoteconfig_header_tags(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TRACE_HEADER_TAGS": "team:banana"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from tests.internal.test_settings import _base_rc_config
+
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "banana"
+
+config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": ["team:foobar"]}))
+
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "foobar", span._meta
+
+config._handle_remoteconfig(_base_rc_config({}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_tag("team") == "banana"
+        """,
+        env=env,
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"

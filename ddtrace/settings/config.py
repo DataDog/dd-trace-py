@@ -730,6 +730,13 @@ class Config(object):
                     tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
                 base_rc_config["tags"] = tags
 
+            if "tracing_header_tags" in lib_config:
+                header_tags = lib_config["tracing_header_tags"]
+                if header_tags:
+                    header_tags = {k: v for k, v in [t.split(":") for t in header_tags]}
+                base_rc_config["trace_http_header_tags"] = header_tags
+                base_rc_config["http"] = HttpConfig(header_tags=header_tags)
+
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
     def enable_remote_configuration(self):
