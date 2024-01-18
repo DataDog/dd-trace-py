@@ -56,6 +56,7 @@ class LFUCache(dict):
                 return value
 
             # Cache miss: ensure that we have enough space in the cache
+            # by evicting half of the entries when we go over the threshold
             while len(self) >= self.maxsize:
                 for h in sorted(self, key=lambda h: self[h][1])[: self.maxsize >> 1]:
                     del self[h]
