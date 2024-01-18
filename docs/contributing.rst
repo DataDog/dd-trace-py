@@ -55,6 +55,7 @@ Pull requests that change the library's public API require a :ref:`release note<
 If your pull request doesn't change the public API, apply the ``no-changelog`` label.
 
 Once approved, pull requests should be merged with the "Squah and Merge" option.
+At this time, do not use the merge queue option.
 
 Backporting
 -----------
