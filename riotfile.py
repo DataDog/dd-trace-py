@@ -332,11 +332,7 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={
-                "msgpack": [latest],
-                "coverage": latest,
-                "pytest-randomly": latest,
-            },
+            pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -403,6 +399,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "vcrpy": latest,
                 "pytest-randomly": latest,
+                "python-json-logger": "==2.0.7",
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
@@ -1341,12 +1338,19 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pys=select_pys(min_version="3.7"),
             pkgs={
                 "moto[all]": latest,
                 "botocore": latest,
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={"vcrpy": latest},
+                ),
+                Venv(pys="3.7"),
+            ],
         ),
         Venv(
             name="mongoengine",
