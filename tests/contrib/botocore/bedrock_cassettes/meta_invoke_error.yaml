@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"prompt": "What does ''lorem ipsum'' mean?", "temperature": 0.9, "top_p":
+      1.0, "max_gen_len": 60}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '96'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDlUMTgzMzM0Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NjE4YzVkMGYtY2ViNS00NWQxLWI2YjEtZGExMDJiMDMyMWEz
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/meta.llama2-13b-chat-v1/invoke
+  response:
+    body:
+      string: '{"message":"The security token included in the request is expired"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '67'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Jan 2024 18:33:34 GMT
+      x-amzn-ErrorType:
+      - ExpiredTokenException:http://internal.amazon.com/coral/com.amazon.coral.service/
+      x-amzn-RequestId:
+      - 402bd639-607f-433b-aa01-2852fc75287a
+    status:
+      code: 403
+      message: Forbidden
+version: 1

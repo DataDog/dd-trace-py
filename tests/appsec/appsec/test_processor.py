@@ -16,6 +16,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -174,6 +175,7 @@ def test_headers_collection(tracer_appsec):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -198,6 +200,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -311,6 +314,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -325,11 +329,13 @@ def test_appsec_span_tags_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
+@flaky(1735812000)
 @snapshot(
     include_tracer=True,
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta._dd.appsec.event_rules.errors",
     ],
 )

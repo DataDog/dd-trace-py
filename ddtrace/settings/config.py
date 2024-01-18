@@ -201,12 +201,15 @@ class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
-        # type: (str, _JSONType, List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
-        self._default_value = default
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
+        if callable(default):
+            self._default_value = default()
+        else:
+            self._default_value = default
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
@@ -261,6 +264,11 @@ class _ConfigItem:
         )
 
 
+def _parse_global_tags(s):
+    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
+    return gitmetadata.clean_tags(parse_tags_str(s))
+
+
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
@@ -276,8 +284,13 @@ def _default_config():
         ),
         "trace_http_header_tags": _ConfigItem(
             name="trace_http_header_tags",
-            default={},
+            default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+        "tags": _ConfigItem(
+            name="tags",
+            default=lambda: {},
+            envs=[("DD_TAGS", _parse_global_tags)],
         ),
     }
 
@@ -393,9 +406,6 @@ class Config(object):
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
-        # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-        self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
-
         self.propagation_http_baggage_enabled = asbool(
             os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
         )
@@ -499,7 +509,7 @@ class Config(object):
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
@@ -517,7 +527,7 @@ class Config(object):
         self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
         self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
 
@@ -713,6 +723,12 @@ class Config(object):
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
                 updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+
+            if "tracing_tags" in lib_config:
+                tags = lib_config["tracing_tags"]
+                if tags:
+                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                updated_items.append(("tags", tags))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

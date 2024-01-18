@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from dataclasses import dataclass
 from json import loads
 import logging
 import os
@@ -412,3 +413,29 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+@dataclass
+class FormData:
+    name: str
+    filename: str
+    data: str
+    content_type: str
+
+    def __str__(self):
+        return (
+            f'Content-Disposition: form-data; name="{self.name}"; filename="{self.filename}"\r\n'
+            + f"Content-Type: {self.content_type}\r\n"
+            + f"\r\n{self.data}\r\n"
+        )
+
+
+MULTIPART_BOUNDARY = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+MULTIPART_SEPARATOR = f"--{MULTIPART_BOUNDARY}\r\n"
+MULTIPART_HEADERS = {"Content-Type": f"multipart/form-data; boundary={MULTIPART_BOUNDARY}"}
+
+
+def multipart(parts: List[FormData]) -> bytes:
+    return f"{MULTIPART_SEPARATOR}{MULTIPART_SEPARATOR.join(str(_) for _ in parts)}--{MULTIPART_BOUNDARY}--\r\n".encode(
+        "utf-8"
+    )
