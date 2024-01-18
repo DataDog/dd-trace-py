@@ -131,11 +131,13 @@ class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
     def _set_git_metadata(self, chunk_root):
-        repository_url, commit_sha = gitmetadata.get_git_tags()
+        repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
             chunk_root.set_tag_str("_dd.git.repository_url", repository_url)
         if commit_sha:
             chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
+        if main_package:
+            chunk_root.set_tag_str("_dd.python_main_package", main_package)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]

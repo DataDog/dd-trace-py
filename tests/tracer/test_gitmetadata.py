@@ -51,11 +51,11 @@ class GitMetadataTestCase(TracerTestCase):
 
         assert s.get_tag("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
         assert s.get_tag("_dd.git.repository_url") == "https://github.com/companydotcom/repo"
+        assert s.get_tag("_dd.python_main_package") == "mypackage"
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
-            DD_MAIN_PACKAGE_="mypackage",
+            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package:mypackage",
         )
     )
     def test_gitmetadata_from_DD_TAGS(self):
@@ -67,16 +67,18 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from DD_TAGS
         assert s.get_tag("_dd.git.commit.sha") == "12345"
         assert s.get_tag("_dd.git.repository_url") == "github.com/user/tag_repo"
+        assert s.get_tag("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package=mypackage",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
-            DD_MAIN_PACKAGE="mypackage",
+            DD_MAIN_PACKAGE="mypackage2",
         )
     )
     def test_gitmetadata_from_ENV(self):
@@ -88,13 +90,15 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from env variables
         assert s.get_tag("_dd.git.commit.sha") == "123456"
         assert s.get_tag("_dd.git.repository_url") == "github.com/user/env_repo"
+        assert s.get_tag("_dd.python_main_package") == "mypackage2"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
+            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package=mypackage",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
             DD_MAIN_PACKAGE="mypackage",
@@ -110,8 +114,10 @@ class GitMetadataTestCase(TracerTestCase):
         # must not present
         assert s.get_tag("_dd.git.commit.sha") is None
         assert s.get_tag("_dd.git.repository_url") is None
+        assert s.get_tag("_dd.python_main_package") is None
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -132,10 +138,14 @@ class GitMetadataTestCase(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:https://username:password@github.com/user/env_repo.git",
+            DD_TAGS=(
+                "git.commit.sha:12345,"
+                "git.repository_url:https://username:password@github.com/user/env_repo.git,"
+                "python_main_package:mypackage"
+            ),
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="https://username:password@github.com/user/env_repo.git",
-            DD_MAIN_PACKAGE="mypackage",
+            DD_MAIN_PACKAGE="mypackage2",
         )
     )
     def test_gitmetadata_from_env_filtering_https(self):
@@ -147,14 +157,19 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from env variables
         assert s.get_tag("_dd.git.commit.sha") == "123456"
         assert s.get_tag("_dd.git.repository_url") == "https://github.com/user/env_repo.git"
+        assert s.get_tag("_dd.python_main_package") == "mypackage2"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:https://username:password@github.com/user/tag_repo.git",
-            DD_MAIN_PACKAGE_="mypackage",
+            DD_TAGS=(
+                "git.commit.sha:12345,"
+                "git.repository_url:https://username:password@github.com/user/tag_repo.git,"
+                "python_main_package:mypackage"
+            )
         )
     )
     def test_gitmetadata_from_ddtags_filtering_https(self):
@@ -166,16 +181,21 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from DD_TAGS
         assert s.get_tag("_dd.git.commit.sha") == "12345"
         assert s.get_tag("_dd.git.repository_url") == "https://github.com/user/tag_repo.git"
+        assert s.get_tag("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:ssh://username@github.com/user/env_repo.git",
+            DD_TAGS=(
+                "git.commit.sha:12345,"
+                "git.repository_url:ssh://username@github.com/user/env_repo.git,"
+                "python_main_package:mypackage"
+            ),
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="ssh://username@github.com/user/env_repo.git",
-            DD_MAIN_PACKAGE="mypackage",
+            DD_MAIN_PACKAGE="mypackage2",
         )
     )
     def test_gitmetadata_from_env_filtering_ssh(self):
@@ -187,14 +207,19 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from env variables
         assert s.get_tag("_dd.git.commit.sha") == "123456"
         assert s.get_tag("_dd.git.repository_url") == "ssh://github.com/user/env_repo.git"
+        assert s.get_tag("_dd.python_main_package") == "mypackage2"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:ssh://username@github.com/user/tag_repo.git",
-            DD_MAIN_PACKAGE_="mypackage",
+            DD_TAGS=(
+                "git.commit.sha:12345,"
+                "git.repository_url:ssh://username@github.com/user/tag_repo.git,"
+                "python_main_package:mypackage"
+            ),
         )
     )
     def test_gitmetadata_from_ddtags_filtering_ssh(self):
@@ -206,24 +231,33 @@ class GitMetadataTestCase(TracerTestCase):
         # must be from DD_TAGS
         assert s.get_tag("_dd.git.commit.sha") == "12345"
         assert s.get_tag("_dd.git.repository_url") == "ssh://github.com/user/tag_repo.git"
+        assert s.get_tag("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
+        assert s.get_tag("dd.python_main_package") is None
 
 
 def test_gitmetadata_caching(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/repo")
+    monkeypatch.setenv(
+        "DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/repo,python_main_package:test_package"
+    )
 
-    repository_url, commit_sha = gitmetadata.get_git_tags()
+    repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
     assert commit_sha == "12345"
     assert repository_url == "github.com/user/repo"
+    print(main_package)
+    assert main_package == "test_package"
 
     # set new values
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:1,git.repository_url:github.com/user/repo_new")
+    monkeypatch.setenv(
+        "DD_TAGS", "git.commit.sha:1,git.repository_url:github.com/user/repo_new,python_main_package:test_package_new"
+    )
 
-    repository_url, commit_sha = gitmetadata.get_git_tags()
+    repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
     # must have old values
     assert commit_sha == "12345"
     assert repository_url == "github.com/user/repo"
+    assert main_package == "test_package"

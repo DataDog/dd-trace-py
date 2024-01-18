@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds new tag `python_main_package` containing the name of the main package of the application.
+    profiling: Adds new tag `python_main_package` containing the name of the main package of the application.
+

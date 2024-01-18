@@ -462,39 +462,50 @@ def test_get_tags_precedence():
 def test_gitmetadata_ddtags(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
+    monkeypatch.setenv(
+        "DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package:my_package"
+    )
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "12345"
     assert tags["git.repository_url"] == "github.com/user/tag_repo"
+    assert tags["python_main_package"] == "my_package"
     gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_env(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
+    monkeypatch.setenv(
+        "DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package:my_package"
+    )
     monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
     monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
+    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package2")
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
 
     # must be from env variables
     assert tags["git.commit.sha"] == "123456"
     assert tags["git.repository_url"] == "github.com/user/env_repo"
+    assert tags["python_main_package"] == "my_package2"
     gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_disabled(monkeypatch):
     gitmetadata._GITMETADATA_TAGS = None
 
-    monkeypatch.setenv("DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo")
+    monkeypatch.setenv(
+        "DD_TAGS", "git.commit.sha:12345,git.repository_url:github.com/user/tag_repo,python_main_package:my_package"
+    )
     monkeypatch.setenv("DD_GIT_COMMIT_SHA", "123456")
     monkeypatch.setenv("DD_GIT_REPOSITORY_URL", "github.com/user/env_repo")
+    monkeypatch.setenv("DD_MAIN_PACKAGE", "my_package2")
     monkeypatch.setenv("DD_TRACE_GIT_METADATA_ENABLED", "false")
     tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
 
     # must not present
     assert "git.commit.sha" not in tags
     assert "git.repository_url" not in tags
+    assert "python_main_package" not in tags
     gitmetadata._GITMETADATA_TAGS = None
