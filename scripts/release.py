@@ -1,3 +1,4 @@
+from collections import namedtuple
 import json
 import os
 import re
@@ -49,98 +50,92 @@ Generate release notes for next patch version of 2.13: `BASE=2.13 PATCH=1 python
 Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 """  # noqa
 
+MAX_GH_RELEASE_NOTES_LENGTH = 125000
+ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
+DEFAULT_BRANCH = "main"
 
-def create_release_draft(dd_repo, base, rc, patch, latest_branch):
-    # make sure we're up to date
+
+def _ensure_current_checkout():
     subprocess.run("git fetch", shell=True, cwd=os.pardir)
 
+
+def _decide_next_release_number(base: str, candidate: bool = False) -> int:
+    """Return the next number to use as a patch or release candidate version, based on existing tags on the remote"""
+    search = r"v%s.0\.?rc((\d+$))" % base if candidate else r"v%s.((\d+))" % base
+    tags = dd_repo.get_tags()
+    latest_version = 0
+    for tag in tags:
+        try:
+            other_num = int(re.findall(search, tag.name)[0][0])
+        except (IndexError, ValueError, TypeError):
+            continue
+        if other_num > latest_version:
+            latest_version = other_num
+    return latest_version + 1
+
+
+def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
+    """Build a ReleaseParameters object representing the in-progress release candidate"""
+    # patch value should always be 0 if we're doing an RC
+    name = "%s.0" % (base)
+    new_rc_version = _decide_next_release_number(base, candidate=True)
+    release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
+    rn = clean_release_notes(generate_release_notes(release_branch))
+    return ReleaseParameters(release_branch, "%s.0rc%s" % (base, str(new_rc_version)), "v%s" % name, dd_repo, rn, True)
+
+
+def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
+    """Build a ReleaseParameters object representing the in-progress patch release"""
+    name = "%s.%s" % (base, str(_decide_next_release_number(base)))
+    release_notes = clean_release_notes(generate_release_notes(base))
+    return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
+
+
+def _get_minor_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
+    """Build a ReleaseParameters object representing the in-progress minor release"""
+    name = "%s.0" % base
+
+    rn_raw = generate_release_notes(base)
+    rn_sections_clean = create_release_notes_sections(rn_raw, base)
+    release_notes = ""
+    rn_key_order = [
+        "Prelude",
+        "New Features",
+        "Known Issues",
+        "Upgrade Notes",
+        "Deprecation Notes",
+        "Bug Fixes",
+        "Other Changes",
+    ]
+    for key in rn_key_order:
+        try:
+            release_notes += "### %s\n\n%s" % (key, rn_sections_clean[key])
+        except KeyError:
+            continue
+    return ReleaseParameters(base, name, "v%s" % name, dd_repo, release_notes, False)
+
+
+def create_release_draft(dd_repo, base, rc, patch):
+    _ensure_current_checkout()
+    args = (dd_repo, base, rc, patch)
     if rc:
-        # figure out the rc version we want
-        search = r"v%s.0\.?rc((\d+$))" % base
-        tags = dd_repo.get_tags()
-        latest_rc_version = 0
-        for tag in tags:
-            try:
-                other_rc_num = re.findall(search, tag.name)[0][0]
-                other_rc_num = int(other_rc_num)
-            except (IndexError, ValueError, TypeError):
-                continue
-            if other_rc_num > latest_rc_version:
-                latest_rc_version = other_rc_num
-        new_rc_version = latest_rc_version + 1
-        #  if this is the first rc for this base, we want to target the latest branch
-        if new_rc_version == 1:
-            name = "%s.0rc1" % base
-            tag = "v%s" % name
-            branch = latest_branch
-        # if this is the rc+1 for this base
-        else:
-            name = "%s.0rc%s" % (base, str(new_rc_version))
-            tag = "v%s" % name
-            branch = base
-        rn_raw = generate_rn(branch)
-        rn = clean_rn(rn_raw)
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=True)
-
-    # patch release
+        parameters = _get_rc_parameters(*args)
     elif patch:
-        # figure out the patch version we want
-        search = r"v%s.((\d+))" % base
-        tags = dd_repo.get_tags()
-        latest_patch_version = 0
-        for tag in tags:
-            try:
-                other_patch_num = re.findall(search, tag.name)[0][0]
-                other_patch_num = int(other_patch_num)
-            except (IndexError, ValueError, TypeError):
-                continue
-            if other_patch_num > latest_patch_version:
-                latest_patch_version = other_patch_num
-        new_patch_version = latest_patch_version + 1
-
-        name = "%s.%s" % (base, str(new_patch_version))
-        tag = "v%s" % name
-        rn_raw = generate_rn(base)
-        rn = clean_rn(rn_raw)
-        create_draft_release(branch=base, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
-
-    # official minor release
+        parameters = _get_patch_parameters(*args)
     else:
-        name = "%s.0" % base
-        tag = "v%s" % name
-        branch = base
+        parameters = _get_minor_parameters(*args)
 
-        rn_raw = generate_rn(branch)
-        rn_sections_clean = create_release_notes_sections(rn_raw, branch)
-        # combine the release note sections into a string in the correct order
-        rn = ""
-        rn_key_order = [
-            "Prelude",
-            "New Features",
-            "Known Issues",
-            "Upgrade Notes",
-            "Deprecation Notes",
-            "Bug Fixes",
-            "Other Changes",
-        ]
-        for key in rn_key_order:
-            try:
-                rn += "### %s\n\n%s" % (key, rn_sections_clean[key])
-            except KeyError:
-                continue
+    create_draft_release_github(parameters)
 
-        create_draft_release(branch=branch, name=name, tag=tag, dd_repo=dd_repo, rn=rn, prerelease=False)
-
-    return name, rn
+    return parameters.name, parameters.rn
 
 
-def clean_rn(rn_raw):
-    # remove all release notes generated,
-    # except for those that haven't been released yet, which are the ones we care about
+def clean_release_notes(rn_raw: str) -> str:
+    """removes everything from the given string except for release notes that haven't been released yet"""
     return rn_raw.decode().split("## v")[0].replace("\n## Unreleased\n", "", 1).replace("# Release Notes\n", "", 1)
 
 
-def generate_rn(branch):
+def generate_release_notes(branch: str) -> str:
     subprocess.check_output(
         "git checkout {branch} && \
             git pull origin {branch}".format(
@@ -161,7 +156,7 @@ def generate_rn(branch):
 
 def create_release_notes_sections(rn_raw, branch):
     # get anything in unreleased section in case there were updates since the last RC
-    unreleased = clean_rn(rn_raw)
+    unreleased = clean_release_notes(rn_raw)
     unreleased = break_into_release_sections(unreleased)
     try:
         unreleased_sections = dict(section.split("\n\n-") for section in unreleased)
@@ -200,43 +195,45 @@ def break_into_release_sections(rn):
     return [ele for ele in re.split(r"[^#](#)\1{2}[^#]", rn)[1:] if ele != "#"]
 
 
-def create_draft_release(
-    branch,
-    name,
-    tag,
-    rn,
-    prerelease,
-    dd_repo,
-):
-    base_branch = dd_repo.get_branch(branch=branch)
+def create_draft_release_github(release_parameters: ReleaseParameters):
+    base_branch = dd_repo.get_branch(branch=release_parameters.branch)
     print_release_notes = bool(os.getenv("PRINT"))
     if print_release_notes:
         print(
             """RELEASE NOTES INFO:\nName:%s\nTag:%s\nprerelease:%s\ntarget_commitish:%s\nmessage:%s
               """
-            % (name, tag, prerelease, base_branch, rn)
+            % (
+                release_parameters.name,
+                release_parameters.tag,
+                release_parameters.prerelease,
+                base_branch,
+                release_parameters.rn,
+            )
         )
     else:
         dd_repo.create_git_release(
-            name=name, tag=tag, prerelease=prerelease, draft=True, target_commitish=base_branch, message=rn
+            name=release_parameters.name,
+            tag=release_parameters.tag,
+            prerelease=release_parameters.prerelease,
+            draft=True,
+            target_commitish=base_branch,
+            message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
-    return name, rn
+    return release_parameters.name, release_parameters.rn
 
 
-def setup_gh():
-    # get dd-trace-py repo
+def get_ddtrace_repo():
     gh_token = os.getenv("GH_TOKEN")
     if not gh_token:
         raise ValueError(
             "We need a Github token to generate the release notes. Please follow the instructions in the script."
         )
-    g = Github(gh_token)
-    return g.get_repo(full_name_or_id="DataDog/dd-trace-py")
+    return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
-def create_notebook(dd_repo, name, rn, base, latest_branch):
+def create_notebook(dd_repo, name, rn, base):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
     if not dd_api_key or not dd_app_key:
@@ -254,7 +251,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     commit_hashes = (
         subprocess.check_output(
             'git log {last_version}..{latest_branch} --oneline | cut -d " " -f 1'.format(
-                last_version=last_version, latest_branch=latest_branch
+                last_version=last_version, latest_branch=DEFAULT_BRANCH
             ),
             shell=True,
             cwd=os.pardir,
@@ -272,8 +269,6 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
         except Exception:
             print("Couldn't get commit hash %s for notebook, please add this manually" % commit_hash)
 
-    # get list of authors for when we make the slack announcement
-    author_slack_handles = []
     prs_details = []
     # from each commit:
     # 1. get release note text
@@ -286,12 +281,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
             if filename.startswith("releasenotes/notes/"):
                 try:
                     # we need to make another api call to get ContentFile object so we can see what's in there
-                    rn_file_content = dd_repo.get_contents(filename).decoded_content.decode("utf8")
-                    # try to grab a good portion of the release note for us to use to insert in our reno release notes
-                    # this is a bit hacky, will only attach to one section if you have multiple sections
-                    # in a release note
-                    # (e.g. a features and a fix section):
-                    # for example: https://github.com/DataDog/dd-trace-py/blob/1.x/releasenotes/notes/asm-user-id-blocking-5048b1cef07c80fd.yaml # noqa
+                    rn_piece = dd_repo.get_contents(filename).decoded_content.decode("utf8")
                 except Exception:
                     print(
                         """File contents were not obtained for {file} in commit {commit}."""
@@ -299,40 +289,30 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
                     )
                     continue
                 try:
-                    rn_piece = re.findall(
-                        r"  - \|\n    ((.|\n)*)\n(((issues|features|upgrade|deprecations|fixes|other):\n)|.*)",
-                        rn_file_content,
-                    )[0][0].strip()
-                    rn_piece = re.sub("\n    ", " ", rn_piece)
-                    # if you use the pattern  \s\n\s\s\s\s (which you shouldn't)
-                    # then the sub above will leave a double space
-                    rn_piece = re.sub("  ", " ", rn_piece)
-                    rn_piece = re.sub("``", "`", rn_piece)
+                    # removes unwanted new lines, whitespace and characters from rn_file_content
+                    rn_piece = re.sub("[-|]", "", rn_piece)
+                    rn_piece = re.sub(r"\s+", " ", rn_piece.strip())
                 except Exception:
-                    continue
+                    print(f"Failed to format release note: {rn_piece}")
+
                 author = commit.author.name
                 if author:
                     author = author.split(" ")
                     author_slack = "@" + author[0] + "." + author[-1]
-                    author_slack_handles.append(author_slack)
                     author_dd = author_slack + "@datadoghq.com"
                 pr_num = re.findall(r"\(#(\d{4})\)", commit.commit.message)[0]
                 url = "https://github.com/DataDog/dd-trace-py/pull/{pr_num}".format(pr_num=pr_num)
-                prs_details.append({"author_dd": author_dd, "url": url, "rn_piece": rn_piece})
+                prs_details.append(
+                    {"author_slack": author_slack, "author_dd": author_dd, "url": url, "rn_piece": rn_piece}
+                )
 
-    # edit release notes to be put inside notebook
-    rn = rn.replace("\n-", "\n- [ ]")
-    for pr_details in prs_details:
-        rn_piece = pr_details["rn_piece"]
-        i = rn.rfind(rn_piece)
-        if i != -1:
-            e = i + len(rn_piece)
-            # check to make sure there was a match
-            rn = (
-                rn[:e]
-                + "\nPR:{pr}\nTester: {author_dd}".format(pr=pr_details["url"], author_dd=pr_details["author_dd"])
-                + rn[e:]
-            )
+    # Group PRs by release note scope (feature, fix, deprecation, etc)
+    # This is not necessary it just makes the notebook easier to read
+    prs_details = sorted(prs_details, key=lambda prd: prd["rn_piece"])
+    notebook_rns = ""
+    for pr_detail in prs_details:
+        notebook_rns += f"\n- [ ] {pr_detail['rn_piece']}\n  - PR:{pr_detail['url']},"
+        "Tester: {pr_detail['author_dd']}\n  - Findings: "
 
     # create the review notebook and add the release notes formatted for testing
     # get notebook template
@@ -349,12 +329,12 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     data = template_notebook.decode("utf8")
     data = json.loads(data)
     # change the text inside of our template to include release notes
-    data["data"]["attributes"]["cells"][1]["attributes"]["definition"]["text"] = (
-        "#  Release notes to test\n-[ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n\n%s\n<Tester> \n<PR>\n\n\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n\n\n"  # noqa
-        % (rn)
-    )
+    data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
+        "text"
+    ] = f"# Relenv \n - [ ] Relenv is checked: https://ddstaging.datadoghq.com/dashboard/h8c-888-v2e/python-reliability-env-dashboard \n# Release notes to test {notebook_rns}\n## Release Notes that will not be tested\n- <any release notes for PRs that don't need manual testing>\n"  # noqa
+
     # grab the latest commit id on the latest branch to mark the rc notebook with
-    main_branch = dd_repo.get_branch(branch=latest_branch)
+    main_branch = dd_repo.get_branch(branch=DEFAULT_BRANCH)
     commit_id = main_branch.commit
 
     # pull the cells out to be transferred into a new notebook
@@ -395,8 +375,7 @@ def create_notebook(dd_repo, name, rn, base, latest_branch):
     print("\nNotebook created at %s\n" % nb_url)
 
     # eliminate duplicates of handles for the slack messages
-    author_slack_handles = " ".join(set(author_slack_handles))
-
+    author_slack_handles = " ".join({pr_detail["author_slack"] for pr_detail in prs_details})
     print("Message to post in #apm-python-release once deployed to staging:\n")
     print(
         """It's time to test the {version} release candidate! The owners of pull requests with release notes in {version} are {author_slack_handles}.
@@ -428,18 +407,19 @@ if __name__ == "__main__":
     base = os.getenv("BASE")
     rc = bool(os.getenv("RC"))
     patch = bool(os.getenv("PATCH"))
-    latest_branch = base[0] + ".x"
 
     if base is None:
         raise ValueError("Need to specify the base version with envar e.g. BASE=2.10")
+    if ".x" in base:
+        raise ValueError("Base branch must be a fully qualified semantic version.")
 
-    dd_repo = setup_gh()
-    name, rn = create_release_draft(dd_repo, base, rc, patch, latest_branch)
+    dd_repo = get_ddtrace_repo()
+    name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if rc:
         if os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
-            create_notebook(dd_repo, name, rn, base, latest_branch)
+            create_notebook(dd_repo, name, rn, base)
         else:
             print(
                 (

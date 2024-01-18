@@ -1,11 +1,13 @@
 [[
   {
     "name": "trace.annotation",
-    "service": null,
+    "service": "",
     "resource": "_async_test_method",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "trace",
@@ -24,11 +26,13 @@
 [
   {
     "name": "trace.annotation",
-    "service": null,
+    "service": "",
     "resource": "_async_test_method2",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "trace",
@@ -47,11 +51,13 @@
 [
   {
     "name": "trace.annotation",
-    "service": null,
+    "service": "",
     "resource": "_Class.async_test_method",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "trace",
@@ -70,11 +76,13 @@
 [
   {
     "name": "trace.annotation",
-    "service": null,
+    "service": "",
     "resource": "_Class.async_test_method",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "trace",

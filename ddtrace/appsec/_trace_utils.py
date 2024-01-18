@@ -2,7 +2,6 @@ from typing import Optional
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -116,7 +115,8 @@ def track_user_login_success_event(
         return
 
     if (
-        login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
         and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
@@ -138,6 +138,13 @@ def track_user_login_failure_event(
     :param exists: a boolean indicating if the user exists in the system
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
+
+    if (
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
+    ):
+        user_id = _safe_userid(user_id)
 
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
@@ -204,7 +211,11 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
     span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
 
     for k, v in metadata.items():
-        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str(v))
+        if isinstance(v, bool):
+            str_v = "true" if v else "false"
+        else:
+            str_v = str(v)
+        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str_v)
         _asm_manual_keep(span)
 
 
@@ -332,4 +343,4 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
 
 core.on("django.login", _on_django_login)
-core.on("django.auth", _on_django_auth)
+core.on("django.auth", _on_django_auth, "user")

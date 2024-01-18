@@ -6,7 +6,6 @@ from unittest.case import SkipTest
 
 import mock
 import pytest
-import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -94,6 +93,23 @@ class SpanTestCase(TracerTestCase):
 
         assert s.get_tags() == dict(true="True", false="False")
         assert len(s.get_metrics()) == 0
+
+    def test_set_baggage_item(self):
+        s = Span(name="test.span")
+        s._set_baggage_item("custom.key", "123")
+        assert s._get_baggage_item("custom.key") == "123"
+
+    def test_baggage_propagation(self):
+        span1 = Span(name="test.span1")
+        span1._set_baggage_item("item1", "123")
+
+        span2 = Span(name="test.span2", context=span1.context)
+        span2._set_baggage_item("item2", "456")
+
+        assert span2._get_baggage_item("item1") == "123"
+        assert span2._get_baggage_item("item2") == "456"
+        assert span1._get_baggage_item("item1") == "123"
+        assert span1._get_baggage_item("item2") is None
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
@@ -210,6 +226,14 @@ class SpanTestCase(TracerTestCase):
         assert not s.get_tag(ERROR_MSG)
         assert not s.get_tag(ERROR_TYPE)
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
+
+    def test_custom_traceback_size(self):
+        tb_length_limit = 11
+        with override_global_config(dict(_span_traceback_max_size=tb_length_limit)):
+            s = Span("test.span")
+            s.set_traceback()
+            stack = s.get_tag(ERROR_STACK)
+            assert len(stack.splitlines()) == tb_length_limit * 2, "stacktrace should contain two lines per entry"
 
     def test_ctx_mgr(self):
         s = Span("bar")
@@ -343,7 +367,12 @@ class SpanTestCase(TracerTestCase):
         s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
         s2.context.sampling_priority = 1
 
-        link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "value2"}
+        link_attributes = {
+            "link.name": "s1_to_s2",
+            "link.kind": "scheduled_by",
+            "key1": "value2",
+            "key2": [True, 2, ["hello", 4, ["5", "6asda"]]],
+        }
         s1.link_span(s2.context, link_attributes)
 
         assert s1._links == [
@@ -355,6 +384,15 @@ class SpanTestCase(TracerTestCase):
                 attributes=link_attributes,
             )
         ]
+
+    # span links cannot have a span_id or trace_id value of 0 or less
+    def test_span_links_error_with_id_0(self):
+        with pytest.raises(ValueError) as exc_trace:
+            SpanLink(span_id=1, trace_id=0)
+        with pytest.raises(ValueError) as exc_span:
+            SpanLink(span_id=0, trace_id=1)
+        assert str(exc_span.value) == "span_id must be > 0. Value is 0"
+        assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
 
 
 @pytest.mark.parametrize(
@@ -602,7 +640,7 @@ def test_span_pprint():
     assert "resource='r'" in actual
     assert "type='web'" in actual
     assert "error=0" in actual
-    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
+    assert "tags={'t': 'v'}" in actual
     assert "metrics={'m': 1.0}" in actual
     assert re.search("id=[0-9]+", actual) is not None
     assert re.search("trace_id=[0-9]+", actual) is not None
@@ -624,7 +662,7 @@ def test_span_pprint():
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag("😌", "😌")
     actual = root._pprint()
-    assert ("tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+    assert "tags={'😌': '😌'}" in actual
 
     root = Span("test.span", service=object())
     actual = root._pprint()
@@ -643,6 +681,20 @@ def test_manual_context_usage():
     assert span1.context.sampling_priority == 1
 
 
+def test_set_exc_info_with_systemexit():
+    def get_exception_span():
+        span = Span("span1")
+        try:
+            sys.exit(0)
+        except SystemExit:
+            type_, value_, traceback_ = sys.exc_info()
+            span.set_exc_info(type_, value_, traceback_)
+        return span
+
+    exception_span = get_exception_span()
+    assert not exception_span.error
+
+
 def test_set_exc_info_with_unicode():
     def get_exception_span(exception):
         span = Span("span1")
@@ -655,7 +707,3 @@ def test_set_exc_info_with_unicode():
 
     exception_span = get_exception_span(Exception("DataDog/水"))
     assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
-
-    if six.PY3:
-        exception_span = get_exception_span(Exception("DataDog/水"))
-        assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
@@ -10,25 +10,33 @@ from .weak_randomness import WeakRandomness
 
 
 if TYPE_CHECKING:
-    from typing import Any
-    from typing import Callable
+    from typing import Any  # noqa:F401
+    from typing import Callable  # noqa:F401
 
 
-def ast_funcion(
+def ast_function(
     func,  # type: Callable
+    flag_added_args,  # type: Any
     *args,  # type: Any
     **kwargs,  # type: Any
 ):  # type: (...) -> Any
-    cls = getattr(func, "__self__", None)
+    instance = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""
-    if cls and func_name:
+    if instance is not None and func_name:
         try:
-            cls_name = cls.__class__.__name__
+            cls_name = instance.__class__.__name__
         except AttributeError:
             pass
 
-    if cls.__class__.__module__ == "random" and cls_name == "Random" and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS:
+    if flag_added_args > 0:
+        args = args[flag_added_args:]
+
+    if (
+        instance.__class__.__module__ == "random"
+        and cls_name == "Random"
+        and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
+    ):
         # Weak, run the analyzer
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakRandomness.vulnerability_type)
         _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)

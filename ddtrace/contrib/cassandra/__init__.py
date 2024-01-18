@@ -1,6 +1,6 @@
 """Instrument Cassandra to report Cassandra queries.
 
-``patch_all`` will automatically patch your Cluster instance to make it work.
+``import ddtrace.auto`` will automatically patch your Cluster instance to make it work.
 ::
 
     from ddtrace import Pin, patch

@@ -8,19 +8,19 @@ import struct
 import threading
 import time
 import typing
-from typing import DefaultDict
-from typing import Dict
-from typing import List
-from typing import NamedTuple
-from typing import Optional
-from typing import Union
+from typing import DefaultDict  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import NamedTuple  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
-import six
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -38,20 +38,8 @@ from .encoding import encode_var_int_64
 from .fnv import fnv1_64
 
 
-if six.PY3:
-
-    def gzip_compress(payload):
-        return gzip.compress(payload, 1)
-
-else:
-    import StringIO
-
-    def gzip_compress(payload):
-        compressed_data = StringIO.StringIO()
-        gzipper = gzip.GzipFile(fileobj=compressed_data, mode="wb", compresslevel=1)
-        gzipper.write(payload)
-        gzipper.close()
-        return compressed_data.getvalue()
+def gzip_compress(payload):
+    return gzip.compress(payload, 1)
 
 
 """
@@ -128,8 +116,8 @@ class DataStreamsProcessor(PeriodicService):
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
-        self._hostname = six.ensure_text(get_hostname())
-        self._service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
+        self._hostname = compat.ensure_text(get_hostname())
+        self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
@@ -207,7 +195,7 @@ class DataStreamsProcessor(PeriodicService):
             for aggr_key, stat_aggr in bucket.pathway_stats.items():
                 edge_tags, hash_value, parent_hash = aggr_key
                 serialized_bucket = {
-                    "EdgeTags": [six.ensure_text(tag) for tag in edge_tags.split(",")],
+                    "EdgeTags": [compat.ensure_text(tag) for tag in edge_tags.split(",")],
                     "Hash": hash_value,
                     "ParentHash": parent_hash,
                     "PathwayLatency": DDSketchProto.to_proto(stat_aggr.full_pathway_latency).SerializeToString(),
@@ -293,9 +281,9 @@ class DataStreamsProcessor(PeriodicService):
             "Hostname": self._hostname,
         }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
-            raw_payload["Env"] = six.ensure_text(config.env)
+            raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
-            raw_payload["Version"] = six.ensure_text(config.version)
+            raw_payload["Version"] = compat.ensure_text(config.version)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -344,7 +332,7 @@ class DataStreamsProcessor(PeriodicService):
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None, payload_size=0):
+    def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
         """
         type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
@@ -364,7 +352,7 @@ class DataStreamsProcessor(PeriodicService):
             # when producing
             payload_size += len(ctx.encode())
             payload_size += len(PROPAGATION_KEY)
-        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size)
+        ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
 
@@ -375,8 +363,8 @@ class DataStreamsCtx:
         self.pathway_start_sec = pathway_start_sec
         self.current_edge_start_sec = current_edge_start_sec
         self.hash = hash_value
-        self.service = six.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
-        self.env = six.ensure_text(config.env or "none")
+        self.service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
+        self.env = compat.ensure_text(config.env or "none")
         # loop detection logic
         self.previous_direction = ""
         self.closest_opposite_direction_hash = 0
@@ -398,15 +386,8 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        if six.PY3:
-
-            def get_bytes(s):
-                return bytes(s, encoding="utf-8")
-
-        else:
-
-            def get_bytes(s):
-                return bytes(s)
+        def get_bytes(s):
+            return bytes(s, encoding="utf-8")
 
         b = get_bytes(self.service) + get_bytes(self.env)
         for t in tags:
@@ -415,7 +396,13 @@ class DataStreamsCtx:
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
-        self, tags, now_sec=None, edge_start_sec_override=None, pathway_start_sec_override=None, payload_size=0
+        self,
+        tags,
+        now_sec=None,
+        edge_start_sec_override=None,
+        pathway_start_sec_override=None,
+        payload_size=0,
+        span=None,
     ):
         """
         type: (List[str], float, float, float) -> None
@@ -455,6 +442,8 @@ class DataStreamsCtx:
 
         parent_hash = self.hash
         hash_value = self._compute_hash(tags, parent_hash)
+        if span:
+            span.set_tag_str("pathway.hash", str(hash_value))
         edge_latency_sec = now_sec - self.current_edge_start_sec
         pathway_latency_sec = now_sec - self.pathway_start_sec
         self.hash = hash_value

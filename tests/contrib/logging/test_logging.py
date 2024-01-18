@@ -1,6 +1,5 @@
 import logging
 
-import pytest
 import six
 
 import ddtrace
@@ -14,7 +13,6 @@ from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
-from tests.utils import flaky
 
 
 logger = logging.getLogger()
@@ -102,7 +100,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="", version="", env=""):
+    def _test_logging(self, create_span, service="", version="", env="", bit_128_logging_enabled=False):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -116,7 +114,7 @@ class LoggingTestCase(TracerTestCase):
             trace_id = 0
             span_id = 0
             if span:
-                trace_id = span.trace_id
+                trace_id = span._trace_id_64bits if not bit_128_logging_enabled else span.trace_id
                 span_id = span.span_id
 
             assert output.startswith(
@@ -164,7 +162,8 @@ class LoggingTestCase(TracerTestCase):
             return span
 
         with self.override_global_config(dict(version="v1.666", env="test")):
-            self._test_logging(create_span=create_span, version="v1.666", env="test")
+            self._test_logging(create_span=create_span, version="v1.666", env="test", bit_128_logging_enabled=True)
+            # makes sense that this fails because _test_logging looks for the 64 bit trace id
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -198,8 +197,9 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @flaky(until=1704067200)
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion", _DD_TEST_TRACE_FLUSH_ENABLED="0")
+    )
     def test_log_DD_TAGS(self):
         def create_span():
             return self.tracer.trace("test.logging")
@@ -249,7 +249,6 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
     def test_log_strformat_style(self):
         def func():
             with self.tracer.trace("test.logging") as span:
@@ -267,7 +266,7 @@ class LoggingTestCase(TracerTestCase):
             lines = output.splitlines()
             assert (
                 "Hello! [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
-                    span.trace_id, span.span_id
+                    span._trace_id_64bits, span.span_id
                 )
                 == lines[0]
             )
@@ -278,10 +277,9 @@ class LoggingTestCase(TracerTestCase):
                 lines = output.splitlines()
                 expected = (
                     "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]"
-                ).format(span.trace_id, span.span_id)
+                ).format(span._trace_id_64bits, span.span_id)
                 assert expected == lines[0]
 
-    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
     def test_log_strformat_style_format(self):
         # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
         # records which does not properly configure `record.message` attribute
@@ -296,10 +294,10 @@ class LoggingTestCase(TracerTestCase):
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)
                 expected = "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
-                    span.trace_id, span.span_id
+                    span._trace_id_64bits, span.span_id
                 )
                 assert log == expected
 
                 assert not hasattr(record, "dd")
-                assert getattr(record, RECORD_ATTR_TRACE_ID) == str(span.trace_id)
+                assert getattr(record, RECORD_ATTR_TRACE_ID) == str(span._trace_id_64bits)
                 assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)

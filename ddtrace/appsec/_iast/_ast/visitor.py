@@ -4,11 +4,9 @@ from _ast import ImportFrom
 import ast
 import copy
 import sys
-from typing import Any
-from typing import List
-from typing import Set
-
-from six import iteritems
+from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -24,7 +22,7 @@ CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
 CODE_TYPE_SITE_PACKAGES = "site_packages"
 CODE_TYPE_STDLIB = "stdlib"
-TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_funcion"
+TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -150,7 +148,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
-        for _, v in iteritems(self.excluded_functions):
+        for _, v in self.excluded_functions.items():
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
@@ -353,6 +351,16 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
+    def _int_constant(self, from_node, value):
+        return ast.Constant(
+            lineno=from_node.lineno,
+            col_offset=from_node.col_offset,
+            end_lineno=getattr(from_node, "end_lineno", from_node.lineno),
+            end_col_offset=from_node.col_offset + 1,
+            value=value,
+            kind=None,
+        )
+
     def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
@@ -425,6 +433,8 @@ class AstVisitor(ast.NodeTransformer):
             func_name_node = func_member.id
             aspect = self._aspect_functions.get(func_name_node)
             if aspect:
+                # Send 0 as flag_added_args value
+                call_node.args.insert(0, self._int_constant(call_node, 0))
                 # Insert original function name as first parameter
                 call_node.args = self._add_original_function_as_arg(call_node, True)
                 # Substitute function call
@@ -455,9 +465,12 @@ class AstVisitor(ast.NodeTransformer):
                 # Move the Attribute.value to 'args'
                 new_arg = func_member.value
                 call_node.args.insert(0, new_arg)
+                # Send 1 as flag_added_args value
+                call_node.args.insert(0, self._int_constant(call_node, 1))
 
-                # Insert original method as first parameter (a.b.c.method)
-                call_node.args = self._add_original_function_as_arg(call_node, False)
+                # Insert None as first parameter instead of a.b.c.method
+                # to avoid unexpected side effects such as a.b.read(4).method
+                call_node.args.insert(0, self._none_constant(call_node))
 
                 # Create a new Name node for the replacement and set it as node.func
                 call_node.func = self._attr_node(call_node, aspect)
@@ -466,6 +479,8 @@ class AstVisitor(ast.NodeTransformer):
             elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
                 aspect = self._aspect_modules.get(method_name, None)
                 if aspect:
+                    # Send 0 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 0))
                     # Move the Function to 'args'
                     call_node.args.insert(0, call_node.func)
 
@@ -478,6 +493,8 @@ class AstVisitor(ast.NodeTransformer):
             if isinstance(call_node.func, ast.Name):
                 aspect = self._should_replace_with_taint_sink(call_node, True)
                 if aspect:
+                    # Send 0 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 0))
                     call_node.args = self._add_original_function_as_arg(call_node, False)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
                     self.ast_modified = call_modified = True
@@ -486,6 +503,8 @@ class AstVisitor(ast.NodeTransformer):
             elif isinstance(call_node.func, ast.Attribute):
                 aspect = self._should_replace_with_taint_sink(call_node, False)
                 if aspect:
+                    # Send 0 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 0))
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.args = self._add_original_function_as_arg(call_node, False)
                     call_node.func = self._attr_node(call_node, TAINT_SINK_FUNCTION_REPLACEMENT)
@@ -586,27 +605,9 @@ class AstVisitor(ast.NodeTransformer):
 
     def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
         """
-        Decompose multiple assignment into single ones and
-        check if any item in the targets list is if type Subscript and if
-        that's the case further decompose it to use a temp variable to
-        avoid assigning to a function call.
+        Add the ignore marks for left-side subscripts or list/tuples to avoid problems
+        later with the visit_Subscript node.
         """
-        # a = b = c
-        # __dd_tmp = c
-        # a = __dd_tmp
-
-        ret_nodes = []
-
-        if len(assign_node.targets) > 1:
-            # Multiple assignments, assign the value to a temporal variable
-            tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
-            assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
-            assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
-            ret_nodes.append(assign_to_tmp)
-            self.ast_modified = True
-        else:
-            assign_value = assign_node.value  # type: ignore
-
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
                 # We can't assign to a function call, which is anyway going to rewrite
@@ -619,22 +620,8 @@ class AstVisitor(ast.NodeTransformer):
                         element.avoid_convert = True  # type: ignore[attr-defined]
 
             # Create a normal assignment. This way we decompose multiple assignments
-            # like (a = b = c) into a = b and a = c so the transformation above
-            # is possible.
-            # Decompose it into a normal, not multiple, assignment
-            new_assign_value = copy.copy(assign_value)
-
-            new_target = copy.copy(target)
-
-            single_assign = self._assign_node(assign_node, [new_target], new_assign_value)
-
-            self.generic_visit(single_assign)
-            ret_nodes.append(single_assign)
-
-        if len(ret_nodes) == 1:
-            return ret_nodes[0]
-
-        return ret_nodes
+        self.generic_visit(assign_node)
+        return assign_node
 
     def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
         # del replaced_index(foo, bar) would fail so avoid converting the right hand side

@@ -1,11 +1,13 @@
 [[
   {
     "name": "should_not_send",
-    "service": null,
+    "service": "",
     "resource": "should_not_send",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
@@ -25,11 +27,13 @@
 [
   {
     "name": "should_send",
-    "service": null,
+    "service": "",
     "resource": "should_send",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",

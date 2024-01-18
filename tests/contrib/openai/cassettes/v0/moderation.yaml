@@ -1,0 +1,73 @@
+interactions:
+- request:
+    body: '{"input": "i want to kill them.", "model": "text-moderation-latest"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '68'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.2
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
+        "3.11.1", "platform": "macOS-13.6-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Fri Sep 15 13:41:28
+        PDT 2023; root:xnu-8796.141.3.700.8~1/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/moderations
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4xSYWvbMBD9nl8h/LlWTtLppOtPCF0LZYOxMYZwFMfg2EOWu47S/z7cJIMlTsiX
+        A929u/d0794WQhTNurgXxa5fp9I/dp+Nq0dcPX1Tj2sM/Pxl/P2yevi6Cp+Kuwm969exnRpyfM3l
+        9EohN31XAtAekeIwtnko7sX3hRBCvH1EIYpNG+o6Tmw5jfHumK5CjnWfmji1HMFCFEN8HcNEtQnt
+        8A8uRLENOZ4M+cimMAy72OXz2hDbTbkNaTczbU+z3DVdn4YLbMu8TTHk2DVdfT79penb2FVxWafw
+        a9tUsyQHAcumy3uJ1yBDTmM1bXVe0PGjt8k6VA6F99O9//k5VH26uHwtvWe21ipAi2gplu7cC5CW
+        0YDyij0oY4AuOQPSGQtGk/KA1gPxBZ+UBI1E3jFq643RKpZ8xTclHQIQIDEgWaVmlJ4sDKRCJEek
+        wGuHaNlft1VL6zUbBs/asTVo/+eYsdlI8qw1KSTH5NnHUsEtthtpyYO2aDSCIkQXS6VvuQOQjrRn
+        671WmolYz18FSGa0TiswoI3VfDyRxTH+WLz/BQAA//8DAK8bfCojBAAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 82a3adc32b200f4d-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 22 Nov 2023 19:46:29 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=PTgc_thelLAM8Lj0uTQC8FpX2u1pi7Jmxtyf1IIHDJA-1700682389-0-AR8a2Fg0xpx43gUSSEnBJJ594N8OjT9BVvcvB5P7ANQBIdlCnexS1INRclTgCGdKcqohEEZAP/2fiTqyT0dX/WM=;
+        path=/; expires=Wed, 22-Nov-23 20:16:29 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=Hp_oZZIzSDgiH5njkX17p.QFRWo5lPZK5V7jSb_zJfU-1700682389386-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '324'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - d468ab0db543a82c037a4f683726e151
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -32,7 +32,7 @@ Before v0.60.0, you must enable all deprecation warnings and filter the applicat
 
 .. _upgrade-0.x:
 
-Upgrade to 1.x
+Upgrade to 1.0
 **************
 
 Environment variables
@@ -51,7 +51,7 @@ Use the following patterns to identify the deprecated environment variables in a
 
 .. _upgrade-1.x:
 
-Upgrade to 2.x
+Upgrade to 2.0
 **************
 
 Environment variables

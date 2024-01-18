@@ -1,13 +1,22 @@
 import re
-from typing import Dict
-from typing import FrozenSet
-from typing import List
-from typing import Optional
-from typing import Text
-from typing import Tuple
-from typing import cast
+import sys
+from typing import Dict  # noqa:F401
+from typing import FrozenSet  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import cast  # noqa:F401
+
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # noqa:F401
+else:
+    from typing_extensions import Literal  # noqa:F401
+
 
 from ddtrace import config
+from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -19,7 +28,6 @@ from ..internal._tagset import TagsetMaxSizeDecodeError
 from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
-from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -43,6 +51,7 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
+_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
@@ -99,9 +108,16 @@ def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
         if header in headers:
-            return ensure_str(headers[header], errors="backslashreplace")
+            return ensure_text(headers[header], errors="backslashreplace")
 
     return default
+
+
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+    if context is not None:
+        for key, value in headers.items():
+            if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
+                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -151,6 +167,54 @@ class _DatadogMultiHeader:
         return key.startswith("_dd.p.")
 
     @staticmethod
+    def _get_tags_value(headers):
+        # type: (Dict[str, str]) -> Optional[str]
+        return _extract_header_value(
+            _POSSIBLE_HTTP_HEADER_TAGS,
+            headers,
+            default="",
+        )
+
+    @staticmethod
+    def _extract_meta(tags_value):
+        # Do not fail if the tags are malformed
+        try:
+            meta = {
+                k: v
+                for (k, v) in decode_tagset_string(tags_value).items()
+                if (
+                    k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
+                    and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+                )
+            }
+        except TagsetMaxSizeDecodeError:
+            meta = {
+                "_dd.propagation_error": "extract_max_size",
+            }
+            log.warning("failed to decode x-datadog-tags", exc_info=True)
+        except TagsetDecodeError:
+            meta = {
+                "_dd.propagation_error": "decoding_error",
+            }
+            log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
+        return meta
+
+    @staticmethod
+    def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
+        # combine highest and lowest order hex values to create a 128 bit trace_id
+        return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
+
+    @staticmethod
+    def _higher_order_is_valid(upper_64_bits: str) -> bool:
+        try:
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
+                raise ValueError
+        except ValueError:
+            return False
+
+        return True
+
+    @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
@@ -187,7 +251,7 @@ class _DatadogMultiHeader:
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
             # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
-            ensure_str(k): ensure_str(v)
+            ensure_text(k): ensure_text(v)
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
@@ -197,6 +261,7 @@ class _DatadogMultiHeader:
                 headers[_HTTP_HEADER_TAGS] = encode_tagset_values(
                     tags_to_encode, max_size=config._x_datadog_tags_max_length
                 )
+
             except TagsetMaxSizeEncodeError:
                 # We hit the max size allowed, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "inject_max_size"
@@ -238,48 +303,23 @@ class _DatadogMultiHeader:
         )
 
         meta = None
-        tags_value = _extract_header_value(
-            _POSSIBLE_HTTP_HEADER_TAGS,
-            headers,
-            default="",
-        )
-        if tags_value:
-            # Do not fail if the tags are malformed
-            try:
-                meta = {
-                    k: v
-                    for (k, v) in decode_tagset_string(tags_value).items()
-                    if (
-                        k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
-                        and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-                    )
-                }
-            except TagsetMaxSizeDecodeError:
-                meta = {
-                    "_dd.propagation_error": "extract_max_size",
-                }
-                log.warning("failed to decode x-datadog-tags", exc_info=True)
-            except TagsetDecodeError:
-                meta = {
-                    "_dd.propagation_error": "decoding_error",
-                }
-                log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
+        tags_value = _DatadogMultiHeader._get_tags_value(headers)
+        if tags_value:
+            meta = _DatadogMultiHeader._extract_meta(tags_value)
+
+        # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
+        # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
+        # Here we reconstruct the full 128 bit trace_id if 128-bit trace id generation is enabled.
         if meta and _HIGHER_ORDER_TRACE_ID_BITS in meta:
-            # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
-            # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
-            # Here we reconstruct the full 128 bit trace_id.
             trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
-            try:
-                if len(trace_id_hob_hex) != 16:
-                    raise ValueError("Invalid size")
-                # combine highest and lowest order hex values to create a 128 bit trace_id
-                trace_id = int(trace_id_hob_hex + "{:016x}".format(trace_id), 16)
-            except ValueError:
+            if _DatadogMultiHeader._higher_order_is_valid(trace_id_hob_hex):
+                if config._128_bit_trace_id_enabled:
+                    trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
+            else:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+                del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
-            # After the full trace id is reconstructed this tag is no longer required
-            del meta[_HIGHER_ORDER_TRACE_ID_BITS]
 
         # Try to parse values into their expected types
         try:
@@ -603,7 +643,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(tp):
-        # type: (str) -> Tuple[int, int, int]
+        # type: (str) -> Tuple[int, int, Literal[0,1]]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -642,7 +682,8 @@ class _TraceContext:
         # there's currently only one trace flag, which denotes sampling priority
         # was set to keep "01" or drop "00"
         # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-        sampling_priority = trace_flags & 0x1
+        # if statement is required to cast traceflags to a Literal
+        sampling_priority = 1 if trace_flags & 0x1 else 0  # type: Literal[0, 1]
 
         return trace_id, span_id, sampling_priority
 
@@ -715,15 +756,23 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
+            trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
-        origin = None
+
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
+    @staticmethod
+    def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
+        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        if meta is None:
+            meta = {}
+        origin = None
+        sampling_priority = trace_flag  # type: int
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -746,7 +795,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin = tracestate_values
                     meta.update(other_propagated_tags.items())
 
-                    sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
@@ -797,6 +846,50 @@ class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
     @staticmethod
+    def _extract_configured_contexts_avail(normalized_headers):
+        contexts = []
+        styles_w_ctx = []
+        for prop_style in config._propagation_style_extract:
+            propagator = _PROP_STYLES[prop_style]
+            context = propagator._extract(normalized_headers)
+            if context:
+                contexts.append(context)
+                styles_w_ctx.append(prop_style)
+        return contexts, styles_w_ctx
+
+    @staticmethod
+    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
+        primary_context = contexts[0]
+        links = []
+        for context in contexts[1:]:
+            style_w_ctx = styles_w_ctx[contexts.index(context)]
+            # encoding expects at least trace_id and span_id
+            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
+                links.append(
+                    SpanLink(
+                        context.trace_id,
+                        context.span_id,
+                        flags=1 if context.sampling_priority else 0,
+                        tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
+                        if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
+                        else None,
+                        attributes={
+                            "reason": "terminated_context",
+                            "context_headers": style_w_ctx,
+                        },
+                    )
+                )
+            # if trace_id matches and the propagation style is tracecontext
+            # add the tracestate to the primary context
+            elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
+                # extract and add the raw ts value to the primary_context
+                ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
+                if ts:
+                    primary_context._meta[W3C_TRACESTATE_KEY] = ts
+        primary_context._span_links = links
+        return primary_context
+
+    @staticmethod
     def inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
@@ -822,6 +915,10 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+            for key in span_context._baggage:
+                headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
@@ -835,6 +932,10 @@ class HTTPPropagator(object):
     def extract(headers):
         # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
+        For tracecontext propagation we extract tracestate headers for
+        propagation even if another propagation style is specified before tracecontext,
+        so as to always propagate other vendor's tracestate values by default.
+        This is skipped if the tracer is configured to take the first style it matches.
 
         Here is an example from a web endpoint::
 
@@ -853,15 +954,26 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
-
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            # loop through the extract propagation styles specified in order
-            for prop_style in config._propagation_style_extract:
-                propagator = _PROP_STYLES[prop_style]
-                context = propagator._extract(normalized_headers)  # type: ignore
-                if context is not None:
+            # tracer configured to extract first only
+            if config._propagation_extract_first:
+                # loop through the extract propagation styles specified in order, return whatever context we get first
+                for prop_style in config._propagation_style_extract:
+                    propagator = _PROP_STYLES[prop_style]
+                    context = propagator._extract(normalized_headers)  # type: ignore
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
+            # loop through all extract propagation styles
+            else:
+                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+
+                if contexts:
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
                     return context
 
         except Exception:

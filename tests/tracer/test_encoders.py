@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import contextlib
 import json
-import os
 import random
 import string
 import threading
@@ -15,7 +14,6 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
-import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.context import Context
@@ -23,11 +21,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
-from ddtrace.internal._encoding import EncodingValidationError
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.compat import msgpack_type
-from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
@@ -37,7 +32,6 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
-from tests.utils import override_global_config
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -132,7 +126,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         if value is None:
             return 0
 
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return self.string_table.index(value)
 
         if isinstance(value, dict):
@@ -186,7 +180,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -217,7 +211,7 @@ class TestEncoders(TestCase):
         items = json.loads(spans)["traces"]
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -225,7 +219,7 @@ class TestEncoders(TestCase):
         for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
-                assert isinstance(items[i][j]["span_id"], string_type)
+                assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
     def test_encode_traces_msgpack_v03(self):
@@ -255,7 +249,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, msgpack_type)
+        assert isinstance(spans, bytes)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -300,6 +294,36 @@ def decode(obj, reconstruct=True):
 
 def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
+
+
+def test_msgpack_encoding_after_an_exception_was_raised():
+    """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
+    # Encode a trace after a rollback/BufferFull occurs exception
+    rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
+    trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
+    rand_string = rands(size=20, chars=string.ascii_letters)
+    # trace only has one span
+    trace[0].set_tag_str("some_tag", rand_string)
+    try:
+        # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
+        # BufferFull is not raised since only one span is being encoded
+        rolledback_encoder.put(trace)
+    except BufferItemTooLarge:
+        pass
+    else:
+        pytest.fail("Encoding the trace did not overflow the trace buffer. We should increase the size of the span.")
+    # Successfully encode a small trace
+    small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
+    # Add a tag to the small trace that was previously encoded in the encoder's StringTable
+    small_trace[0].set_tag_str("previously_encoded_string", rand_string)
+    rolledback_encoder.put(small_trace)
+
+    # Encode a trace without triggering a rollback/BufferFull exception
+    ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
+    ref_encoder.put(small_trace)
+
+    # Ensure the two encoders have the same state
+    assert rolledback_encoder.encode() == ref_encoder.encode()
 
 
 @allencodings
@@ -418,6 +442,7 @@ def test_span_link_v04_encoding():
                     "link.kind": "link_kind",
                     "someval": 1,
                     "drop_me": "bye",
+                    "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
             )
         ],
@@ -446,6 +471,11 @@ def test_span_link_v04_encoding():
                 b"link.name": b"link_name",
                 b"link.kind": b"link_kind",
                 b"someval": b"1",
+                b"key_other.0": b"true",
+                b"key_other.1": b"2",
+                b"key_other.2.0": b"hello",
+                b"key_other.2.1": b"4",
+                b"key_other.2.2.0": b"5",
             },
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
@@ -463,11 +493,17 @@ def test_span_link_v05_encoding():
         context=Context(sampling_priority=1),
         links=[
             SpanLink(
-                trace_id=1,
-                span_id=2,
+                trace_id=(2**127) - 1,
+                span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
-                attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
+                attributes={
+                    "moon": "ears",
+                    "link.name": "link_name",
+                    "link.kind": "link_kind",
+                    "drop_me": "bye",
+                    "key2": ["false", 2, ["hello", 4, {"5"}]],
+                },
             )
         ],
     )
@@ -487,8 +523,9 @@ def test_span_link_v05_encoding():
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
+        b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
+        b'"link_kind", "key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
         b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
@@ -764,7 +801,6 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
-    from ddtrace.internal.compat import PY3
     import ddtrace.internal.encoding as encoding
     from ddtrace.span import Span
 
@@ -787,147 +823,6 @@ def test_json_encoder_traces_bytes():
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
 
-    if PY3:
-        assert "\\x80span.a" == span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\x80span.b" == span_c["name"]
-    else:
-        assert "\ufffdspan.a" == span_a["name"], span_a["name"]
-        assert "\x80span.b" == span_b["name"]
-        assert "\ufffdspan.b" == span_c["name"]
-
-
-@pytest.mark.skipif(
-    os.getenv("PYTHONOPTIMIZE", "").lower() in ("1", "t", "true"),
-    reason="Python optimize removes assertions from cython code",
-)
-def test_verifying_v05_payloads():
-    string_table_size = 4 * (1 << 12)
-    encoder = MsgpackEncoderV05(string_table_size, string_table_size)
-
-    # Ensure EncodingValidationError is not raised when trace fields are encoded as expected
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        traces = [[Span("name", "service", "resource", "type") for _ in range(5)] for _ in range(100)]
-        for trace in traces:
-            for s in trace:
-                s._meta = {
-                    "app": "ac_query",
-                    "language": "python",
-                    "key_for_long_string": "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1),
-                }
-                s._metrics = {
-                    "zqSCqAYiBgjmqYKoBiohcCKwCagB": 7,
-                    "_sampling_priority_v1": 0,
-                    "very_long_string_that_will_be_dropped" * int(string_table_size * 0.1): 1,
-                }
-
-        encoded = []
-        for trace in traces:
-            try:
-                encoder.put(trace)
-                encoded.append(trace)
-            except BufferFull:
-                pass
-        assert 0 < len(encoded) < len(traces), "Ensures BufferFull is raised and only a subset of traces are encoded"
-        assert encoder.encode()
-
-    # Ensure EncodingValidationError is raised when the encoded span name does not match the span name
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.name = "new_name"
-            encoder.encode()
-        assert "misencoded name: b'name'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded service does not match the span service
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.service = "new_service"
-            encoder.encode()
-        assert "misencoded service: b'service'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded resource does not match the span resource
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.resource = "new_resource"
-            encoder.encode()
-        assert "misencoded resource: b'resource'" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded duration does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.duration_ns = 55
-            encoder.encode()
-        assert "misencoded duration: 0" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded start does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", start=10)
-            encoder.put([og_span])
-            og_span.start_ns = 100000001
-            encoder.encode()
-        assert "misencoded start: 10" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded parent_id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", parent_id=1)
-            encoder.put([og_span])
-            og_span.parent_id = 2
-            encoder.encode()
-        assert "misencoded parent id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded trace id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", trace_id=1)
-            encoder.put([og_span])
-            og_span.trace_id = 2
-            encoder.encode()
-        assert "misencoded trace id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded span id does not match
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type", span_id=1)
-            encoder.put([og_span])
-            og_span.span_id = 2
-            encoder.encode()
-        assert "misencoded span id: 1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded tags do not match the span tag's
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            og_span._meta["hi"] = "tag"
-            encoder.put([og_span])
-            og_span._meta["hi"] = "new tag"
-            encoder.encode()
-        assert "misencoded tag: k=hi v=tag" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded metrics do not match the metrics set on the span
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            og_span._metrics["hi"] = 1
-            encoder.put([og_span])
-            og_span._metrics["hi"] = 2
-            encoder.encode()
-        assert "misencoded metric: k=hi v=1" in e.value.args[0]
-
-    # Ensure EncodingValidationError is raised when the encoded span type does not match the span type on the span
-    with override_global_config({"_trace_writer_log_err_payload": True}):
-        with pytest.raises(EncodingValidationError) as e:
-            og_span = Span("name", "service", "resource", "type")
-            encoder.put([og_span])
-            og_span.span_type = "new_span_type"
-            encoder.encode()
-        assert "misencoded span type: b'type'" in e.value.args[0]
+    assert "\\x80span.a" == span_a["name"]
+    assert "\x80span.b" == span_b["name"]
+    assert "\x80span.b" == span_c["name"]

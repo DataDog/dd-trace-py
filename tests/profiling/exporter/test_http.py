@@ -8,7 +8,6 @@ import threading
 import time
 
 import pytest
-import six
 from six.moves import BaseHTTPServer
 
 import ddtrace
@@ -83,10 +82,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         length = int(self.headers["Content-Length"])
         body = self.rfile.read(length)
         mmpart = b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n" + body
-        if six.PY2:
-            msg = email.parser.Parser().parsestr(mmpart)
-        else:
-            msg = email.parser.BytesParser().parsebytes(mmpart)
+        msg = email.parser.BytesParser().parsebytes(mmpart)
         if not msg.is_multipart():
             self.send_error(400, "No multipart")
             return
@@ -444,8 +440,8 @@ def test_get_tags_override(monkeypatch):
 @pytest.mark.skip(reason="Needs investigation about the segfaulting")
 @pytest.mark.subprocess(env=dict(DD_PROFILING_TAGS="mytag:baz"))
 def test_get_tags_legacy():
-    from ddtrace.internal.utils.formats import parse_tags_str  # noqa
-    from ddtrace.profiling.exporter import http  # noqa
+    from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+    from ddtrace.profiling.exporter import http  # noqa:F401
 
     # REVERTME: Investigating segfaults on CI
     # tags = parse_tags_str(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
@@ -472,6 +468,7 @@ def test_gitmetadata_ddtags(monkeypatch):
     # must be from env variables
     assert tags["git.commit.sha"] == "12345"
     assert tags["git.repository_url"] == "github.com/user/tag_repo"
+    gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_env(monkeypatch):
@@ -485,6 +482,7 @@ def test_gitmetadata_env(monkeypatch):
     # must be from env variables
     assert tags["git.commit.sha"] == "123456"
     assert tags["git.repository_url"] == "github.com/user/env_repo"
+    gitmetadata._GITMETADATA_TAGS = None
 
 
 def test_gitmetadata_disabled(monkeypatch):
@@ -499,3 +497,4 @@ def test_gitmetadata_disabled(monkeypatch):
     # must not present
     assert "git.commit.sha" not in tags
     assert "git.repository_url" not in tags
+    gitmetadata._GITMETADATA_TAGS = None

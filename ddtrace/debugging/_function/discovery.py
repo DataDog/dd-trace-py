@@ -1,10 +1,8 @@
 from collections import defaultdict
 from collections import deque
-from functools import partial
 from pathlib import Path
 
-from six import PY2
-
+from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
@@ -25,7 +23,6 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
@@ -39,21 +36,6 @@ FunctionContainerType = Union[type, property, classmethod, staticmethod, Tuple, 
 ContainerKey = Union[str, int, Type[staticmethod], Type[classmethod]]
 
 CONTAINER_TYPES = (type, property, classmethod, staticmethod)
-
-if PY < (3, 7):
-    # DEV: Prior to Python 3.7 the ``cell_content`` attribute of ``Cell``
-    # objects can only be mutated with the C API.
-    import ctypes
-
-    PyCell_Set = ctypes.pythonapi.PyCell_Set
-    PyCell_Set.argtypes = (ctypes.py_object, ctypes.py_object)
-    PyCell_Set.restype = ctypes.c_int
-
-    set_cell_contents = PyCell_Set
-else:
-
-    def set_cell_contents(cell, contents):  # type: ignore[misc]
-        cell.cell_contents = contents
 
 
 class FullyNamed(Protocol):
@@ -121,96 +103,6 @@ class ContainerIterator(Iterator, FullyNamedFunction):
     next = __next__
 
 
-UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
-
-
-def _undecorate(f: FunctionType, name: str, path: Path) -> FunctionType:
-    # Find the original function object from a decorated function. We use the
-    # expected function name to guide the search and pick the correct function.
-    # The recursion is needed in case of multiple decorators. We make it BFS
-    # to find the function as soon as possible.
-
-    def match(g):
-        return g.__code__.co_name == name and Path(g.__code__.co_filename).resolve() == path
-
-    if _isinstance(f, FunctionType) and match(f):
-        return f
-
-    seen_functions = {f}
-    q = deque([f])  # FIFO: use popleft and append
-
-    while q:
-        g = q.popleft()
-
-        # Look for a wrapped function. These attributes are generally used by
-        # the decorators provided by the standard library (e.g. partial)
-        for attr in ("__wrapped__", "func"):
-            try:
-                wrapped = object.__getattribute__(g, attr)
-                if _isinstance(wrapped, FunctionType) and wrapped not in seen_functions:
-                    if match(wrapped):
-                        return wrapped
-                    q.append(wrapped)
-                    seen_functions.add(wrapped)
-            except AttributeError:
-                pass
-
-        # A partial object is a common decorator. The function can either be the
-        # curried function, or it can appear as one of the arguments (e.g. the
-        # implementation of the wraps decorator).
-        if _isinstance(g, partial):
-            p = cast(partial, g)
-            if match(p.func):
-                return cast(FunctionType, p.func)
-            for arg in p.args:
-                if _isinstance(arg, FunctionType) and arg not in seen_functions:
-                    if match(arg):
-                        return arg
-                    q.append(arg)
-                    seen_functions.add(arg)
-            for arg in p.keywords.values():
-                if _isinstance(arg, FunctionType) and arg not in seen_functions:
-                    if match(arg):
-                        return arg
-                    q.append(arg)
-                    seen_functions.add(arg)
-
-        # Look for a closure (function decoration)
-        if _isinstance(g, FunctionType):
-            for c in (_.cell_contents for _ in (g.__closure__ or []) if _isinstance(_.cell_contents, FunctionType)):
-                if c not in seen_functions:
-                    if match(c):
-                        return c
-                    q.append(c)
-                    seen_functions.add(c)
-
-        # Look for a function attribute (method decoration)
-        # DEV: We don't recurse over arbitrary objects. We stop at the first
-        # depth level.
-        try:
-            for v in object.__getattribute__(g, "__dict__").values():
-                if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
-                    return v
-        except AttributeError:
-            # Maybe we have slots
-            try:
-                for v in (object.__getattribute__(g, _) for _ in object.__getattribute__(g, "__slots__")):
-                    if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
-                        return v
-            except AttributeError:
-                pass
-
-        # Last resort
-        try:
-            for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
-                if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
-                    return v
-        except AttributeError:
-            pass
-
-    return f
-
-
 def _local_name(name: str, f: FunctionType) -> str:
     func_name = f.__name__
     if func_name.startswith("__") and name.endswith(func_name):
@@ -248,9 +140,6 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
         seen_containers.add(id(c._container))
 
         for k, o in c:
-            if PY2 and _isinstance(o, UnboundMethodType):
-                o = o.__func__
-
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
             if code is not None:
                 local_name = _local_name(k, o) if isinstance(k, str) else o.__name__
@@ -267,7 +156,7 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
                         # try to retrieve any potentially decorated function so
                         # that we don't end up returning the decorator function
                         # instead of the original function.
-                        functions[fullname] = _undecorate(o, name, path) if name == k else o
+                        functions[fullname] = undecorated(o, name, path) if name == k else o
 
                 try:
                     if o.__closure__:
@@ -295,7 +184,7 @@ class FunctionDiscovery(defaultdict):
     """
 
     def __init__(self, module: ModuleType) -> None:
-        super(FunctionDiscovery, self).__init__(list)
+        super().__init__(list)
         self._module = module
         self._fullname_index = {}
 

@@ -13,7 +13,7 @@ def _appsec_rc_file_is_not_static():
 
 
 def _asm_feature_is_required():
-    flags = _appsec_rc_flags()
+    flags = _rc_capabilities()
     return Flags.ASM_ACTIVATION in flags or Flags.ASM_API_SECURITY_SAMPLE_RATE in flags
 
 
@@ -29,8 +29,6 @@ class Flags(enum.IntFlag):
     ASM_CUSTOM_BLOCKING_RESPONSE = 1 << 9
     ASM_TRUSTED_IPS = 1 << 10
     ASM_API_SECURITY_SAMPLE_RATE = 1 << 11
-    APM_TRACING_SAMPLE_RATE = 1 << 12
-    APM_TRACING_CUSTOM_TAGS = 1 << 15
 
 
 _ALL_ASM_BLOCKING = (
@@ -46,7 +44,7 @@ _ALL_ASM_BLOCKING = (
 )
 
 
-def _appsec_rc_flags(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
+def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
     tracer = ddtrace.tracer if test_tracer is None else test_tracer
     value = Flags(0)
     if ddtrace.config._remote_config_enabled:
@@ -56,8 +54,6 @@ def _appsec_rc_flags(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
             value |= _ALL_ASM_BLOCKING
         if asm_config._api_security_enabled:
             value |= Flags.ASM_API_SECURITY_SAMPLE_RATE
-    value |= Flags.APM_TRACING_SAMPLE_RATE
-    value |= Flags.APM_TRACING_CUSTOM_TAGS
     return value
 
 
@@ -77,5 +73,5 @@ def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> str
     ...
     256         -> 100000000        -> b'\x01\x00'          -> b'AQA='
     """
-    value = _appsec_rc_flags(test_tracer=test_tracer)
+    value = _rc_capabilities(test_tracer=test_tracer)
     return base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode()

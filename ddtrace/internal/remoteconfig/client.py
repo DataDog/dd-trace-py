@@ -1,25 +1,25 @@
 import base64
 from datetime import datetime
+import enum
 import hashlib
 import json
 import os
 import re
-import sys
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import Set
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 import uuid
 
 import attr
 import cattr
-import six
+from envier import En
 
 import ddtrace
-from ddtrace.appsec._capabilities import _appsec_rc_capabilities
+from ddtrace.appsec._capabilities import _rc_capabilities as appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
@@ -27,22 +27,37 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
-from ._pubsub import PubSub
+from ._pubsub import PubSub  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import MutableMapping
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import MutableMapping  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+
+class RemoteConfigClientConfig(En):
+    __prefix__ = "_dd.remote_configuration"
+
+    log_payloads = En.v(bool, "log_payloads", default=False)
+
+
+config = RemoteConfigClientConfig()
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
 
 
 class RemoteConfigError(Exception):
@@ -141,13 +156,6 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
-def _load_json(data):
-    # type: (Union[str, bytes]) -> Dict[str, Any]
-    if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
-        data = str(data, encoding="utf-8")
-    return json.loads(data)
-
-
 AppliedConfigType = Dict[str, ConfigMetadata]
 TargetsType = Dict[str, ConfigMetadata]
 
@@ -209,7 +217,7 @@ class RemoteConfigClient(object):
 
         def base64_to_struct(val, cls):
             raw = base64.b64decode(val)
-            obj = _load_json(raw)
+            obj = json.loads(raw)
             return self.converter.structure_attrs_fromdict(obj, cls)
 
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
@@ -220,6 +228,9 @@ class RemoteConfigClient(object):
         self._last_targets_version = 0
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
+
+    def _encode_capabilities(self, capabilities: enum.IntFlag) -> str:
+        return base64.b64encode(capabilities.to_bytes((capabilities.bit_length() + 7) // 8, "big")).decode()
 
     def renew_id(self):
         # called after the process is forked to declare a new id
@@ -243,6 +254,13 @@ class RemoteConfigClient(object):
             return True
         return False
 
+    def start_products(self, products_list):
+        # type: (list) -> None
+        for product_name in products_list:
+            pubsub_instance = self._products.get(product_name)
+            if pubsub_instance:
+                pubsub_instance.restart_subscriber()
+
     def unregister_product(self, product_name):
         # type: (str) -> None
         self._products.pop(product_name, None)
@@ -254,7 +272,7 @@ class RemoteConfigClient(object):
     def is_subscriber_running(self, pubsub_to_check):
         # type: (PubSub) -> bool
         for pubsub in self.get_pubsubs():
-            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.is_running:
+            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.status == ServiceStatus.RUNNING:
                 return True
         return False
 
@@ -267,10 +285,19 @@ class RemoteConfigClient(object):
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
             )  # noqa: G200
+
+            if config.log_payloads:
+                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
+
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data = resp.read()
+
+            if config.log_payloads:
+                log.debug(
+                    "[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8")
+                )  # noqa: G200
         except OSError as e:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
@@ -309,7 +336,7 @@ class RemoteConfigClient(object):
             )
 
         try:
-            return _load_json(raw)
+            return json.loads(raw)
         except Exception:
             raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
@@ -331,7 +358,9 @@ class RemoteConfigClient(object):
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
-
+        capabilities = (
+            appsec_rc_capabilities() | Capabilities.APM_TRACING_SAMPLE_RATE | Capabilities.APM_TRACING_CUSTOM_TAGS
+        )
         return dict(
             client=dict(
                 id=self.id,
@@ -339,7 +368,7 @@ class RemoteConfigClient(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
-                capabilities=_appsec_rc_capabilities(),
+                capabilities=self._encode_capabilities(capabilities),
             ),
             cached_target_files=self.cached_target_files,
         )

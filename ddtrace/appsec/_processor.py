@@ -137,11 +137,6 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-                if asm_config._api_security_enabled:
-                    with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
-                        processors = json.load(f_apisec)
-                        rules["processors"] = processors["processors"]
-                        rules["scanners"] = processors["scanners"]
                 self._update_actions(rules)
 
         except EnvironmentError as err:
@@ -366,12 +361,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
 
-            if waf_results and waf_results.data:
-                span.set_tag_str(
-                    APPSEC.JSON,
-                    '{"triggers":%s}'
-                    % (json.dumps(waf_results.data, sort_keys=True, indent=2, separators=(",", ": ")),),
-                )
+            _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
                 _set_waf_request_metrics()

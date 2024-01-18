@@ -1,6 +1,5 @@
 from itertools import count
 import os
-import sys
 import time
 from typing import Any
 from typing import Callable
@@ -8,8 +7,6 @@ from typing import Dict
 from typing import Iterable
 from typing import Optional
 from typing import Type
-
-import six
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
@@ -238,7 +235,7 @@ def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe
     try:
         return [build_probe(config)]
     except InvalidProbeConfiguration:
-        six.reraise(*sys.exc_info())
+        raise
     except Exception as e:
         status_logger.error(
             probe=Probe(probe_id=config["id"], version=config["version"], tags={}),
@@ -265,7 +262,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     """
 
     def __init__(self, data_connector, callback, name, status_logger):
-        super(DebuggerRemoteConfigSubscriber, self).__init__(data_connector, callback, name)
+        super().__init__(data_connector, callback, name)
         self._configs: Dict[str, Dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(
             time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
@@ -281,21 +278,21 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             self._send_status_update()
             self._status_timestamp = next(self._status_timestamp_sequence)
 
-        if not data:
-            # Nothing else to do.
-            return
+        if data:
+            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+            for metadata, config in zip(data["metadata"], data["config"]):
+                if metadata is None:
+                    log.debug(
+                        "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                        os.getpid(),
+                        os.getppid(),
+                    )
+                    continue
 
-        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-        for metadata, config in zip(data["metadata"], data["config"]):
-            if metadata is None:
-                log.debug(
-                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
-                    os.getpid(),
-                    os.getppid(),
-                )
-                continue
+                self._update_probes_for_config(metadata["id"], config)
 
-            self._update_probes_for_config(metadata["id"], config)
+        # Flush any probe status messages that migh have been generated
+        self._status_logger.flush()
 
     def _send_status_update(self):
         log.debug(

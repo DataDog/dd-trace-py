@@ -40,12 +40,6 @@ def engine():
 def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
-
     Pin.override(engine, tracer=tracer)
     ddtrace.tracer = tracer
     starlette_patch()

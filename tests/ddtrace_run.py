@@ -4,7 +4,7 @@ import sys
 
 # DEV: We must append to sys path before importing ddtrace_run
 sys.path.append(".")
-from ddtrace.commands import ddtrace_run  # noqa
+from ddtrace.commands import ddtrace_run  # noqa:E402
 
 
 os.environ["PYTHONPATH"] = "{}:{}".format(os.getenv("PYTHONPATH"), os.path.abspath("."))

@@ -33,6 +33,13 @@ def _base_rc_config(cfg):
     }
 
 
+def _deleted_rc_config():
+    return {
+        "metadata": [],
+        "config": [False],
+    }
+
+
 @pytest.mark.parametrize(
     "testcase",
     [
@@ -51,7 +58,7 @@ def _base_rc_config(cfg):
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
             "expected": {"_trace_sample_rate": 0.9},
-            "expected_source": {"_trace_sample_rate": "env"},
+            "expected_source": {"_trace_sample_rate": "env_var"},
         },
         {
             "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
@@ -69,7 +76,7 @@ def _base_rc_config(cfg):
         {
             "env": {"DD_LOGS_INJECTION": "true"},
             "expected": {"logs_injection": True},
-            "expected_source": {"logs_injection": "env"},
+            "expected_source": {"logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
@@ -82,7 +89,7 @@ def _base_rc_config(cfg):
             "expected": {
                 "trace_http_header_tags": {"X-Header-Tag-1": "header_tag_1", "X-Header-Tag-2": "header_tag_2"}
             },
-            "expected_source": {"trace_http_header_tags": "env"},
+            "expected_source": {"trace_http_header_tags": "env_var"},
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
@@ -93,7 +100,7 @@ def _base_rc_config(cfg):
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
             "expected": {"tags": {"key": "value", "key2": "value2"}},
-            "expected_source": {"tags": "env"},
+            "expected_source": {"tags": "env_var"},
         },
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
@@ -144,7 +151,7 @@ def test_remoteconfig_sampling_rate_user(run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 from ddtrace.sampler import DatadogSampler
-from tests.internal.test_settings import _base_rc_config
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
 with tracer.trace("test") as span:
     pass
@@ -175,6 +182,16 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": None}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.4}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.4
+
+config._handle_remoteconfig(_deleted_rc_config())
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
         """,
         env=env,
     )
@@ -194,9 +211,10 @@ with tracer.trace("test") as span:
 assert span.get_tag("team") == "apm"
 
 config._handle_remoteconfig(_base_rc_config({"tracing_tags": ["team:onboarding"]}))
+
 with tracer.trace("test") as span:
     pass
-assert span.get_tag("team") == "onboarding"
+assert span.get_tag("team") == "onboarding", span._meta
 
 config._handle_remoteconfig(_base_rc_config({"tracing_tags": None}))
 with tracer.trace("test") as span:
@@ -205,4 +223,4 @@ assert span.get_tag("team") == "apm"
         """,
         env=env,
     )
-    assert status == 0, err.decode("utf-8")
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"

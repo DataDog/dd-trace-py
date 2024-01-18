@@ -3,7 +3,8 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
@@ -22,11 +23,7 @@ def _get_path_traversal_module_functions():
                 yield module, function
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_path_traversal_open(iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
     file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
@@ -49,7 +46,6 @@ def test_path_traversal_open(iast_span_defaults):
     assert vulnerability.evidence.redacted is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "file_path",
     (
@@ -61,9 +57,6 @@ def test_path_traversal_open(iast_span_defaults):
     ),
 )
 def test_path_traversal_open_secure(file_path, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
     tainted_string = taint_pyobject(
@@ -74,15 +67,11 @@ def test_path_traversal_open_secure(file_path, iast_span_defaults):
     assert span_report is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "module, function",
     _get_path_traversal_module_functions(),
 )
 def test_path_traversal(module, function, iast_span_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
     file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
@@ -106,3 +95,25 @@ def test_path_traversal(module, function, iast_span_defaults):
     assert vulnerability.evidence.value is None
     assert vulnerability.evidence.pattern is None
     assert vulnerability.evidence.redacted is None
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_path_traversal_deduplication(num_vuln_expected, iast_span_deduplication_enabled):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
+    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
+
+    tainted_string = taint_pyobject(
+        file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
+    )
+
+    for _ in range(0, 5):
+        mod.pt_open(tainted_string)
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+
+    if num_vuln_expected == 0:
+        assert span_report is None
+    else:
+        assert span_report
+
+        assert len(span_report.vulnerabilities) == num_vuln_expected

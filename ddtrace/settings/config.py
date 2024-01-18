@@ -3,12 +3,13 @@ import multiprocessing
 import os
 import re
 import sys
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
@@ -28,6 +29,7 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -36,7 +38,7 @@ from .integration import IntegrationConfig
 
 
 if sys.version_info >= (3, 8):
-    from typing import Literal
+    from typing import Literal  # noqa:F401
 else:
     from typing_extensions import Literal
 
@@ -192,20 +194,22 @@ def get_error_ranges(error_range_str):
 
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
+_JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
-        # type: (str, Any, List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
-        self._default_value = default
+        self._env_value: _JSONType = None
+        self._code_value: _JSONType = None
+        self._rc_value: _JSONType = None
         if callable(default):
             self._default_value = default()
-        self._env_value = None
-        self._code_value = None
-        self._rc_value = None
+        else:
+            self._default_value = default
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
@@ -218,9 +222,11 @@ class _ConfigItem:
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
+        else:
+            raise ValueError("Invalid source: {}".format(source))
 
     def set_code(self, value):
-        # type: (Any) -> None
+        # type: (_JSONType) -> None
         self._code_value = value
 
     def unset_rc(self):
@@ -228,7 +234,7 @@ class _ConfigItem:
         self._rc_value = None
 
     def value(self):
-        # type: () -> Any
+        # type: () -> _JSONType
         if self._rc_value is not None:
             return self._rc_value
         if self._code_value is not None:
@@ -236,10 +242,6 @@ class _ConfigItem:
         if self._env_value is not None:
             return self._env_value
         return self._default_value
-
-    def telemetry_name(self):
-        # type: () -> str
-        return self._telemetry_name
 
     def source(self):
         # type: () -> _ConfigSource
@@ -320,9 +322,11 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(
-        512
-    )  # type: multiprocessing.Queue
+    _extra_services_queue = (
+        None
+        if in_aws_lambda()
+        else multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)
+    )  # type: multiprocessing.Queue | None
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -411,6 +415,8 @@ class Config(object):
         self._stats_agent_url = os.getenv("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT))
 
+        self._span_traceback_max_size = int(os.getenv("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", default=30))
+
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
@@ -419,6 +425,10 @@ class Config(object):
         self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
+
+        self.propagation_http_baggage_enabled = asbool(
+            os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
+        )
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
@@ -450,10 +460,11 @@ class Config(object):
 
         self._telemetry_enabled = asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True))
         self._telemetry_heartbeat_interval = float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
+        self._telemetry_dependency_collection = asbool(os.getenv("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True))
 
         self._runtime_metrics_enabled = asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED", False))
 
-        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", False))
+        self._128_bit_trace_id_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True))
 
         self._128_bit_trace_id_logging_enabled = asbool(os.getenv("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False))
 
@@ -473,6 +484,8 @@ class Config(object):
         propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
         if propagation_style_inject is not None:
             self._propagation_style_inject = propagation_style_inject
+
+        self._propagation_extract_first = asbool(os.getenv("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False))
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
@@ -518,6 +531,7 @@ class Config(object):
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
             os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
         )
+        self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
@@ -529,7 +543,11 @@ class Config(object):
 
         self.trace_methods = os.getenv("DD_TRACE_METHODS")
 
-    def __getattr__(self, name):
+        self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
+        self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
+        self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+
+    def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
 
@@ -539,6 +557,8 @@ class Config(object):
         return self._integration_configs[name]
 
     def _add_extra_service(self, service_name: str) -> None:
+        if self._extra_services_queue is None:
+            return
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
@@ -547,7 +567,8 @@ class Config(object):
 
     def _get_extra_services(self):
         # type: () -> set[str]
-
+        if self._extra_services_queue is None:
+            return set()
         try:
             while True:
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
@@ -578,7 +599,7 @@ class Config(object):
         :param dict settings: A dictionary that contains integration settings;
             to preserve immutability of these values, the dictionary is copied
             since it contains integration defaults.
-        param bool merge: Whether to merge any existing settings with those provided,
+        :param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
@@ -667,13 +688,15 @@ class Config(object):
 
     def _set_config_items(self, items):
         # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
+        item_names = []
         for key, value, origin in items:
+            item_names.append(key)
             self._config[key].set_value_source(value, origin)
+        if self._telemetry_enabled:
+            from ..internal.telemetry import telemetry_writer
 
-        from ..internal.telemetry import telemetry_writer
-
-        telemetry_writer.configs_changed(k for k, _, _ in items)
-        self._notify_subscribers([i[0] for i in items])
+            telemetry_writer.add_configs_changed(item_names)
+        self._notify_subscribers(item_names)
 
     def _reset(self):
         # type: () -> None
@@ -682,10 +705,6 @@ class Config(object):
     def _get_source(self, item):
         # type: (str) -> str
         return self._config[item].source()
-
-    def _config_item(self, name):
-        # type: (str) -> _ConfigItem
-        return self._config[name]
 
     def _remoteconfigPubSub(self):
         from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -706,29 +725,30 @@ class Config(object):
 
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
+        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
+            log.warning("unexpected RC payload %r", data)
+            return
+        if len(data["config"]) == 0:
+            log.warning("unexpected number of RC payloads %r", data)
+            return
 
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        if not data:
-            for item in self._config.values():
-                item.unset_rc()
-            return
-
         config = data["config"][0]
-        if "lib_config" not in config:
-            log.warning("unexpected RC payload %r", config)
-            return
-
-        lib_config = config["lib_config"]
         updated_items = []  # type: List[Tuple[str, Any]]
 
-        if "tracing_sampling_rate" in lib_config:
-            updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+        if not config:
+            for item in self._config:
+                updated_items.append((item, None))
+        else:
+            lib_config = config["lib_config"]
+            if "tracing_sampling_rate" in lib_config:
+                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
 
-        if "tracing_tags" in lib_config:
-            tags = lib_config["tracing_tags"]
-            if tags:
-                tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
-            updated_items.append(("tags", tags))
+            if "tracing_tags" in lib_config:
+                tags = lib_config["tracing_tags"]
+                if tags:
+                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                updated_items.append(("tags", tags))
 
         self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
 

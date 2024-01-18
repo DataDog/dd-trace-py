@@ -2,10 +2,10 @@
 import logging
 import os
 import typing
-from typing import List
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Type  # noqa:F401
+from typing import Union  # noqa:F401
 
 import attr
 
@@ -19,7 +19,7 @@ from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
+from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -28,8 +28,6 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
-
-from . import _asyncio
 
 
 LOG = logging.getLogger(__name__)
@@ -92,7 +90,8 @@ class Profiler(object):
         self._profiler.start()
 
     def __getattr__(
-        self, key  # type: str
+        self,
+        key,  # type: str
     ):
         # type: (...) -> typing.Any
         return getattr(self._profiler, key)
@@ -123,6 +122,7 @@ class _ProfilerInstance(service.Service):
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
+    _collectors_on_import = attr.ib(init=False, default=None, eq=False)
     _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
@@ -238,14 +238,11 @@ class _ProfilerInstance(service.Service):
             )
 
         if self._lock_collector_enabled:
-            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
-
-        if _asyncio.is_asyncio_available():
-
-            @ModuleWatchdog.after_module_imported("asyncio")
-            def _(_):
+            # These collectors require the import of modules, so we create them
+            # if their import is detected at runtime.
+            def start_collector(collector_class: Type) -> None:
                 with self._service_lock:
-                    col = asyncio.AsyncioLockCollector(r, tracer=self.tracer)
+                    col = collector_class(r, tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
@@ -259,6 +256,14 @@ class _ProfilerInstance(service.Service):
                             return
 
                     self._collectors.append(col)
+
+            self._collectors_on_import = [
+                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
@@ -321,6 +326,14 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
+        # Prevent doing more initialisation now that we are shutting down.
+        if self._lock_collector_enabled:
+            for module, hook in self._collectors_on_import:
+                try:
+                    ModuleWatchdog.unregister_module_hook(module, hook)
+                except ValueError:
+                    pass
+
         if self._scheduler is not None:
             self._scheduler.stop()
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop

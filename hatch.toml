@@ -1,3 +1,8 @@
+[env]
+requires = [
+    "hatch-containers==0.7.0",
+]
+
 [envs.lint]
 detached = true
 python = "3.10"
@@ -9,7 +14,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.4.0",
+    "envier==0.5.0",
     "types-attrs==19.1.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
@@ -24,8 +29,11 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
+black_check = [
+    "black --check {args:.}",
+]
 style = [
-    "black --check -q {args:.}",
+    "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
 ]
@@ -55,9 +63,29 @@ template = "docs"
 dev-mode = false
 python = "3.10"
 features = ["opentracing"]
+dependencies = [  # copied from library dependencies
+    "ddsketch>=2.0.1",
+    "protobuf>=3",
+    "attrs>=20",
+    "cattrs",
+    "six>=1.12.0",
+    "typing_extensions",
+    "xmltodict>=0.12",
+    "envier",
+    "opentelemetry-api>=1",
+    "opentracing>=2.0.0",
+    "bytecode",
+    "six>=1.12.0",
+]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
+    "sphinxcontrib-applehelp<1.0.8",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-htmlhelp<2.0.5",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-serializinghtml<1.1.10",
+    "sphinxcontrib-qthelp<1.0.7",
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
@@ -67,6 +95,8 @@ extra-dependencies = [
 pre-install-commands = [
     "scripts/docs/install.sh",
 ]
+[envs.docs.env-vars]
+DD_TRACE_ENABLED = "false"
 
 [envs.docs.scripts]
 build = [
@@ -113,3 +143,28 @@ extra-dependencies = [
 meta-testing = [
   "pytest {args} tests/meta"
 ]
+
+[envs.integration_test]
+template = "integration_test"
+extra-dependencies = [
+    "mock==5.0.1",
+    "pytest==7.2.2",
+    "pytest-mock==3.10.0",
+    "coverage==7.2.2",
+    "pytest-cov==4.0.0",
+    "opentracing==2.4.0",
+    "hypothesis==6.45.0",
+]
+
+[[envs.integration_test.matrix]]
+python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.integration_test.env-vars]
+_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
+DD_TESTING_RAISE = "1"
+DD_REMOTE_CONFIGURATION_ENABLED = "false"
+DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
+DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
+DD_CIVISIBILITY_ITR_ENABLED = "1"
+DD_PATCH_MODULES = "unittest:false"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"

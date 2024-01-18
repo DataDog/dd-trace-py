@@ -6,7 +6,7 @@ Enabling
 ~~~~~~~~
 
 The botocore integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
@@ -27,7 +27,16 @@ Configuration
 
    Can also be enabled with the ``DD_BOTOCORE_DISTRIBUTED_TRACING`` environment variable.
 
+    Example::
+
+        from ddtrace import config
+
+        # Enable distributed tracing
+        config.botocore['distributed_tracing'] = True
+
+
    Default: ``True``
+
 
 .. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']
 
@@ -77,12 +86,27 @@ Configuration
     Default: ``False``
 
 
-Example::
+.. py:data:: ddtrace.config.botocore['span_prompt_completion_sample_rate']
 
-    from ddtrace import config
+   Configure the sample rate for the collection of bedrock prompts and completions as span tags.
 
-    # Enable distributed tracing
-    config.botocore['distributed_tracing'] = True
+   Alternatively, you can set this option with the ``DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
+   variable.
+
+   Default: ``1.0``
+
+
+.. py:data:: (beta) ddtrace.config.botocore["span_char_limit"]
+
+   Configure the maximum number of characters for bedrock span tags for prompt/response text.
+
+   Text exceeding the maximum number of characters is truncated to the character limit
+   and has ``...`` appended to the end.
+
+   Alternatively, you can set this option with the ``DD_BEDROCK_SPAN_CHAR_LIMIT`` environment
+   variable.
+
+   Default: ``128``
 
 """
 
