@@ -259,7 +259,7 @@ with tracer.trace("test") as span:
 
 def test_remoteconfig_header_tags(run_python_code_in_subprocess):
     env = os.environ.copy()
-    env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-420:env_set_tag_name"})
+    env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -269,16 +269,16 @@ from tests.internal.test_settings import _base_rc_config
 with tracer.trace("test") as span:
     trace_utils.set_http_meta(span,
                               config.falcon,  # randomly chosen http integration config
-                              request_headers={"X-Header-Tag-420": "foobarbanana"})
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
 assert span.get_tag("header_tag_420") is None
-assert span.get_tag("env_set_tag_name") == "foobarbanana"
+assert span.get_tag("env_set_tag_name") == "helloworld"
 
 config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": ["X-Header-Tag-420:header_tag_420"]}))
 
 with tracer.trace("test_rc_override") as span2:
     trace_utils.set_http_meta(span2,
                               config.falcon,  # randomly chosen http integration config
-                              request_headers={"X-Header-Tag-420": "foobarbanana"})
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
 assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
 assert span2.get_tag("env_set_tag_name") is None
 
@@ -286,12 +286,9 @@ config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span3:
     trace_utils.set_http_meta(span3,
                               config.falcon,  # randomly chosen http integration config
-                              request_headers={"X-Header-Tag-420": "foobarbanana"})
-assert span3.get_tag("header_tag_420") is None
-assert span3.get_tag("env_set_tag_name") == "foobarbanana"
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
+assert span3.get_tag("header_tag_420") == "foobarbanana", span3._meta
         """,
         env=env,
     )
-    print(out)
-    print(err)
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"

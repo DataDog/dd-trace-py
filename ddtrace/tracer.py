@@ -282,7 +282,6 @@ class Tracer(object):
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
-        config._subscribe(["trace_http_header_tags"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
