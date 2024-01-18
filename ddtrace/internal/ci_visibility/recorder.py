@@ -189,11 +189,6 @@ class CIVisibility(Service):
             self._api_settings.itr_enabled,
             self._api_settings.skipping_enabled,
         )
-        log.info(
-            "Final settings: coverage collection: %s, test skipping: %s",
-            self._collect_coverage_enabled,
-            CIVisibility.test_skipping_enabled(),
-        )
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
@@ -507,6 +502,11 @@ class CIVisibility(Service):
         atexit.register(cls.disable)
 
         log.debug("%s enabled", cls.__name__)
+        log.info(
+            "Final settings: coverage collection: %s, test skipping: %s",
+            cls._instance._collect_coverage_enabled,
+            CIVisibility.test_skipping_enabled(),
+        )
 
     @classmethod
     def disable(cls):
