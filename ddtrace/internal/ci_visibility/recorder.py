@@ -266,8 +266,8 @@ class CIVisibility(Service):
 
     def _check_enabled_features(self):
         # type: () -> Tuple[bool, bool]
-        # DEV: Remove this ``if`` once ITR is in GA
         if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            log.warning("Datadog Intelligent Test Runner disabled by environment, disabling coverage and test skipping")
             return False, False
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
