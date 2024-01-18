@@ -33,6 +33,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -140,17 +141,7 @@ def override_global_config(values):
         "_telemetry_dependency_collection",
     ]
 
-    asm_config_keys = [
-        "_asm_enabled",
-        "_api_security_enabled",
-        "_api_security_sample_rate",
-        "_waf_timeout",
-        "_iast_enabled",
-        "_automatic_login_events_mode",
-        "_user_model_login_field",
-        "_user_model_email_field",
-        "_user_model_name_field",
-    ]
+    asm_config_keys = asm_config._asm_config_keys
 
     subscriptions = ddtrace.config._subscriptions
     ddtrace.config._subscriptions = []
