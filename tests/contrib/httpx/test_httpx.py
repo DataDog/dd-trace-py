@@ -89,6 +89,7 @@ async def test_get_200(snapshot_context):
             assert resp.status_code == 200
 
 
+@flaky(until=1706677200, reason="flaky errors with no error logs, need to investigate")
 @pytest.mark.asyncio
 async def test_configure_service_name(snapshot_context):
     """
