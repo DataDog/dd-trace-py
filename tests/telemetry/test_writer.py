@@ -85,7 +85,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
                     {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
@@ -101,7 +100,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_DEBUG", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "unknown", "value": False},
                     {
                         "name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP",
@@ -130,6 +128,10 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
                     {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
                     {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+                    {"name": "trace_enabled", "origin": "unknown", "value": "true"},
+                    {"name": "profiling_enabled", "origin": "default", "value": "false"},
+                    {"name": "data_streams_enabled", "origin": "default", "value": "false"},
+                    {"name": "appsec_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
@@ -165,6 +167,8 @@ import ddtrace.auto
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
     env["DD_PROFILING_ENABLED"] = "True"
+    env["DD_DATA_STREAMS_ENABLED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
@@ -223,7 +227,6 @@ import ddtrace.auto
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
-            {"name": "DD_PROFILING_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
             {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
@@ -264,6 +267,10 @@ import ddtrace.auto
             {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": True},
             {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
             {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+            {"name": "trace_enabled", "origin": "env_var", "value": "true"},
+            {"name": "profiling_enabled", "origin": "env_var", "value": "true"},
+            {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
+            {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
