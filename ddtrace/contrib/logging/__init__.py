@@ -24,7 +24,7 @@ There are a few ways to tell ddtrace to patch the ``logging`` module:
     from ddtrace import patch
     patch(logging=True)
 
-3. (beta) Set ``log_injection_enabled`` at runtime via the Datadog UI. 
+3. (beta) Set ``log_injection_enabled`` at runtime via the Datadog UI.
 
 
 Update Log Format
