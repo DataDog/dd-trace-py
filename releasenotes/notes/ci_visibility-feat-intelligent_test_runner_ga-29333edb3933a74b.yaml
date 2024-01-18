@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    CI Visibility: ``DD_CIVISIBILITY_ITR_ENABLED`` now defaults to true, and the Datadog API (configured via the
+    Datadog dashboard) now determines whether code coverage and test skipping are enabled.
