@@ -1,0 +1,60 @@
+from flask.testing import FlaskClient
+import pytest
+
+from ddtrace import Pin
+from ddtrace.contrib.flask import patch
+from ddtrace.contrib.flask import unpatch
+from tests.appsec.contrib_appsec import utils
+from tests.utils import TracerTestCase
+
+
+class DDFlaskTestClient(FlaskClient):
+    def __init__(self, *args, **kwargs):
+        super(DDFlaskTestClient, self).__init__(*args, **kwargs)
+
+    def open(self, *args, **kwargs):
+        # From pep-333: If an iterable returned by the application has a close() method,
+        # the server or gateway must call that method upon completion of the current request.
+        # FlaskClient does not align with this specification so we must do this manually.
+        # Closing the application iterable will finish the flask.request and flask.response
+        # spans.
+        res = super(DDFlaskTestClient, self).open(*args, **kwargs)
+        res.make_sequence()
+        if hasattr(res, "close"):
+            # Note - werkzeug>=2.0 (used in flask>=2.0) calls response.close() for non streamed responses:
+            # https://github.com/pallets/werkzeug/blame/b1911cd0a054f92fa83302cdb520d19449c0b87b/src/werkzeug/test.py#L1114
+            res.close()
+        return res
+
+
+class BaseFlaskTestCase(TracerTestCase):
+    def setUp(self):
+        super(BaseFlaskTestCase, self).setUp()
+
+        patch()
+
+        from tests.appsec.contrib_appsec.flask_app.app import app
+
+        self.app = app
+        self.app.test_client_class = DDFlaskTestClient
+        self.client = self.app.test_client()
+        Pin.override(self.app, tracer=self.tracer)
+
+    def tearDown(self):
+        super(BaseFlaskTestCase, self).tearDown()
+        # Unpatch Flask
+        unpatch()
+
+
+class Test_Django(utils.Contrib_TestClass_For_Threats):
+    SERVER_PORT = 8001
+
+    @pytest.fixture
+    def interface(self):
+        bftc = BaseFlaskTestCase()
+        bftc.setUp()
+        yield utils.Interface("flask", bftc.app, bftc.client)
+        bftc.tearDown()
+
+    def setup_class(cls):
+        pass
