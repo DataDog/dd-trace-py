@@ -471,7 +471,7 @@ def test_span_link_v04_encoding():
                 b"link.name": b"link_name",
                 b"link.kind": b"link_kind",
                 b"someval": b"1",
-                b"key_other.0": b"True",
+                b"key_other.0": b"true",
                 b"key_other.1": b"2",
                 b"key_other.2.0": b"hello",
                 b"key_other.2.1": b"4",
@@ -502,7 +502,7 @@ def test_span_link_v05_encoding():
                     "link.name": "link_name",
                     "link.kind": "link_kind",
                     "drop_me": "bye",
-                    "key2": [True, 2, ["hello", 4, {"5"}]],
+                    "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
             )
         ],
@@ -525,7 +525,7 @@ def test_span_link_v05_encoding():
     assert (
         encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
         b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
-        b'"link_kind", "key2.0": "True", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
+        b'"link_kind", "key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
         b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 

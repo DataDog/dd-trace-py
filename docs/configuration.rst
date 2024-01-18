@@ -242,7 +242,8 @@ The following environment variables for the tracer are supported:
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 
-         **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+         **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
+         **Note** Tag and resource values must be passed in upon span start, or else they will not be evaluated. There is work planned to improve this.
      version_added:
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
@@ -541,7 +542,10 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: |
-        Configures the ``CIVisibility`` service query the Datadog API to enable the Datadog Intelligent Test Runner.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
+        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
+        ``false`` will skip querying the API and disable code coverage
+        collection and test skipping.
      version_added:
         v1.13.0:
 
