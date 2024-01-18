@@ -1,4 +1,5 @@
 from collections import defaultdict
+import contextlib
 from ctypes import c_int
 import json
 import multiprocessing
@@ -37,6 +38,22 @@ TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
 TEST_SHA_2 = "b3672ea5cbc584124728c48a443825d2940e0eee"
 
 
+@contextlib.contextmanager
+def _dummy_noop_git_client():
+    with mock.patch.multiple(
+        CIVisibilityGitClient,
+        _get_repository_url=mock.Mock(return_value="https://testrepo.url:1245/reporepo.git"),
+        _is_shallow_repository=mock.Mock(return_value=True),
+        _get_latest_commits=mock.Mock(return_value=["latest1", "latest2"]),
+        _search_commits=mock.Mock(return_value=["latest1", "searched1", "searched2"]),
+        _get_filtered_revisions=mock.Mock(return_value=""),
+        upload_git_metadata=mock.Mock(return_value=None),
+        metadata_upload_finished=mock.Mock(return_value=True),
+        wait_for_metadata_upload_status=mock.Mock(return_value=METADATA_UPLOAD_STATUS.SUCCESS),
+    ):
+        yield
+
+
 def test_filters_test_spans():
     trace_filter = TraceCiVisibilityFilter(tags={"hello": "world"}, service="test-service")
     root_test_span = Span(name="span1", span_type="test")
@@ -66,7 +83,7 @@ def test_ci_visibility_service_enable():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ):
+    ), _dummy_noop_git_client():
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
@@ -88,8 +105,9 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+            DD_CIVISIBILITY_ITR_ENABLED="0",
         )
-    ):
+    ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         with _patch_dummy_writer():
             _do_request.return_value = Response(
@@ -111,9 +129,8 @@ def test_ci_visibility_service_settings_timeout(_do_request):
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
-    ):
+    ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
@@ -132,9 +149,8 @@ def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_fea
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
-    ):
+    ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._test_suites_to_skip == []
@@ -147,9 +163,10 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
         )
-    ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+    ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         _do_request.return_value = Response(
             status=200,
@@ -163,6 +180,25 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
 
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
+@pytest.mark.parametrize("agentless_enabled", [False, True])
+def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agentless_enabled):
+    agentless_enabled_str = "1" if agentless_enabled else "0"
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED=agentless_enabled_str,
+            DD_CIVISIBILITY_ITR_ENABLED="0",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._code_coverage_enabled_by_api is False
+        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        _do_request.assert_not_called()
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
 def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_request):
     with override_env(
         dict(
@@ -170,7 +206,7 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ):
+    ), _dummy_noop_git_client():
         _do_request.return_value = Response(
             status=404,
             body='{"errors": ["Not found"]}',
@@ -182,7 +218,7 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
 
 
 def test_ci_visibility_service_disable():
-    with override_env(dict(DD_API_KEY="foobar.baz")):
+    with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client():
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
@@ -222,82 +258,6 @@ def test_repository_name_not_extracted_warning():
 
 
 DUMMY_RESPONSE = Response(status=200, body='{"data": [{"type": "commit", "id": "%s", "attributes": {}}]}' % TEST_SHA_1)
-
-
-@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_git_client_worker_agentless(_do_request, git_repo):
-    _do_request.return_value = Response(
-        status=200,
-        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
-        '{"code_coverage":true,"tests_skipping":true}}}',
-    )
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APPLICATION_KEY="banana",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_SITE="datadoghq.com",
-        )
-    ):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            start_time = time.time()
-            with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-                "ddtrace.internal.ci_visibility.recorder._get_git_repo"
-            ) as ggr:
-                original = ddtrace.internal.ci_visibility.git_client.RESPONSE
-                ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
-                ggr.return_value = git_repo
-                CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-                assert CIVisibility._instance._git_client is not None
-                assert CIVisibility._instance._git_client._worker is not None
-                assert CIVisibility._instance._git_client._base_url == "https://api.datadoghq.com/api/v2/git"
-                CIVisibility.disable()
-    shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
-    assert (
-        time.time() - start_time <= shutdown_timeout + 0.1
-    ), "CIVisibility.disable() should not block for longer than tracer timeout"
-    ddtrace.internal.ci_visibility.git_client.RESPONSE = original
-
-
-@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_git_client_worker_evp_proxy(_do_request, git_repo):
-    _do_request.return_value = Response(
-        status=200,
-        body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
-        '{"code_coverage":true,"tests_skipping":true}}}',
-    )
-    with override_env(
-        dict(
-            DD_API_KEY="foobar.baz",
-            DD_APPLICATION_KEY="banana",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
-        )
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-    ):
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            start_time = time.time()
-            with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-                "ddtrace.internal.ci_visibility.recorder._get_git_repo"
-            ) as ggr:
-                original = ddtrace.internal.ci_visibility.git_client.RESPONSE
-                ddtrace.internal.ci_visibility.git_client.RESPONSE = DUMMY_RESPONSE
-                ggr.return_value = git_repo
-                CIVisibility.enable(tracer=dummy_tracer, service="test-service")
-                assert CIVisibility._instance._git_client is not None
-                assert CIVisibility._instance._git_client._worker is not None
-                assert CIVisibility._instance._git_client._base_url == "http://localhost:8126/evp_proxy/v2/api/v2/git"
-                CIVisibility.disable()
-    shutdown_timeout = dummy_tracer.SHUTDOWN_TIMEOUT
-    assert (
-        time.time() - start_time <= shutdown_timeout + 0.1
-    ), "CIVisibility.disable() should not block for longer than tracer timeout"
-    ddtrace.internal.ci_visibility.git_client.RESPONSE = original
 
 
 def test_git_client_get_repository_url(git_repo):
@@ -543,7 +503,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ):
+    ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
@@ -559,7 +519,7 @@ def test_civisibilitywriter_evp_proxy_url():
         )
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-    ):
+    ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
@@ -662,7 +622,7 @@ class TestCheckEnabledFeatures:
                 "runtime.name": "RPython",
                 "runtime.version": "11.5.2",
             }
-            mock_civisibility._git_client = mock.MagicMock(spec=CIVisibilityGitClient)
+            mock_civisibility._git_client = mock.Mock(spec=CIVisibilityGitClient)
 
         return mock_civisibility
 
@@ -820,10 +780,10 @@ class TestCheckEnabledFeatures:
     @pytest.mark.parametrize(
         "second_do_request_side_effect",
         [
-            [TimeoutError],
-            [Response(status=200, body="} this is bad JSON")],
-            [Response(status=200, body='{"not correct key": "not correct value"}')],
-            [Response(status=600, body="Only status code matters here")],
+            TimeoutError,
+            Response(status=200, body="} this is bad JSON"),
+            Response(status=200, body='{"not correct key": "not correct value"}'),
+            Response(status=600, body="Only status code matters here"),
         ],
     )
     def test_civisibility_check_enabled_features_any_api_error_disables_itr(
@@ -852,27 +812,6 @@ class TestCheckEnabledFeatures:
 
             assert mock_do_request.call_count == expected_call_count
             assert enabled_features == _CIVisibilitySettings(False, False, False, False)
-
-
-@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request")
-def test_civisibility_check_enabled_features_itr_disabled_request_not_called(_do_request):
-    with override_env(
-        dict(
-            DD_API_KEY="foo.bar",
-            DD_APP_KEY="foobar.baz",
-            DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
-            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-        )
-    ):
-        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
-        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
-        CIVisibility.enable()
-
-        _do_request.assert_not_called()
-        assert CIVisibility._instance._api_settings.coverage_enabled is False
-        assert CIVisibility._instance._api_settings.skipping_enabled is False
-
-        CIVisibility.disable()
 
 
 def test_run_protocol_unshallow_git_ge_227():
@@ -1000,7 +939,7 @@ class TestUploadGitMetadata:
     def test_upload_git_metadata_upload_value_error_fails(self, api_key, requests_mode):
         with mock.patch.object(CIVisibilityGitClient, "_upload_packfiles", return_value=True):
             git_client = CIVisibilityGitClient(api_key, requests_mode)
-            git_client._worker = mock.MagicMock(spec=multiprocessing.Process)
+            git_client._worker = mock.Mock(spec=multiprocessing.Process)
             git_client._worker.exitcode = 0
             git_client.upload_git_metadata()
             with pytest.raises(ValueError):
@@ -1010,7 +949,7 @@ class TestUploadGitMetadata:
     def test_upload_git_metadata_upload_timeout_raises_timeout(self, api_key, requests_mode):
         with mock.patch.object(CIVisibilityGitClient, "upload_git_metadata", lambda *args, **kwargs: time.sleep(3)):
             git_client = CIVisibilityGitClient(api_key, requests_mode)
-            git_client._worker = mock.MagicMock(spec=multiprocessing.Process)
+            git_client._worker = mock.Mock(spec=multiprocessing.Process)
             git_client._worker.exitcode = None
             git_client.upload_git_metadata()
             with pytest.raises(TimeoutError):
@@ -1175,7 +1114,7 @@ class TestFetchTestsToSkip:
                 "runtime.name": "RPython",
                 "runtime.version": "11.5.2",
             }
-            _civisibility._git_client = mock.MagicMock(spec=CIVisibilityGitClient)
+            _civisibility._git_client = mock.Mock(spec=CIVisibilityGitClient)
             _civisibility._git_client.wait_for_metadata_upload_status.return_value = METADATA_UPLOAD_STATUS.SUCCESS
 
             yield _civisibility
@@ -1418,7 +1357,6 @@ def test_fetch_tests_to_skip_custom_configurations():
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="1",
             DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
             DD_SERVICE="test-service",
             DD_ENV="test-env",
@@ -1449,7 +1387,7 @@ def test_fetch_tests_to_skip_custom_configurations():
             "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
             "git.commit.sha": "mytestcommitsha1234",
         },
-    ), mock.patch(
+    ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder._do_request",
         return_value=Response(
             status=200,
