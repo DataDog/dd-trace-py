@@ -13,22 +13,13 @@ def config():
 
 
 def _base_rc_config(cfg):
-    lib_config = {
-        "tracing_sampling_rate": None,
-        "log_injection_enabled": None,
-        "tracing_header_tags": None,
-        "tracing_tags": None,
-        "data_streams_enabled": None,
-    }
-    lib_config.update(cfg)
-
     return {
         "metadata": [],
         "config": [
             {
                 "action": "enable",
                 "service_target": {"service": None, "env": None},
-                "lib_config": lib_config,
+                "lib_config": cfg,
             }
         ],
     }
@@ -118,7 +109,7 @@ def _deleted_rc_config():
         },
     ],
 )
-def test_settings(testcase, config, monkeypatch):
+def test_settings_asdf(testcase, config, monkeypatch):
     for env_name, env_value in testcase.get("env", {}).items():
         monkeypatch.setenv(env_name, env_value)
         config._reset()
@@ -126,7 +117,7 @@ def test_settings(testcase, config, monkeypatch):
     for code_name, code_value in testcase.get("code", {}).items():
         setattr(config, code_name, code_value)
 
-    rc_items = testcase.get("rc", {}).items()
+    rc_items = testcase.get("rc", {})
     if rc_items:
         config._handle_remoteconfig(_base_rc_config(rc_items), None)
 
@@ -163,7 +154,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.2
 
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": None}))
+config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
@@ -179,7 +170,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.4
 
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": None}))
+config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
@@ -217,7 +208,7 @@ with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "onboarding", span._meta
 
-config._handle_remoteconfig(_base_rc_config({"tracing_tags": None}))
+config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "apm"
