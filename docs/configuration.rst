@@ -542,7 +542,10 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: |
-        Configures the ``CIVisibility`` service query the Datadog API to enable the Datadog Intelligent Test Runner.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
+        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
+        ``false`` will skip querying the API and disable code coverage
+        collection and test skipping.
      version_added:
         v1.13.0:
 
@@ -602,6 +605,23 @@ The following environment variables for the tracer are supported:
          The maximum length of a traceback included in a span.
       version_added:
          v2.3.0:
+
+   DD_BOTOCORE_PROPAGATION_ENABLED:
+      type: Boolean
+      default: False
+      description: |
+         Enables trace context propagation connecting producer and consumer spans within a single trace for AWS SQS, SNS, and Kinesis messaging services.
+      version_added:
+         v2.6.0:
+
+   DD_BOTOCORE_EMPTY_POLL_ENABLED:
+      type: Boolean
+      default: True
+      description: |
+         Enables creation of consumer span when AWS SQS and AWS Kinesis ``poll()`` operations return no records. When disabled, no consumer span is created
+         if no records are returned.
+      version_added:
+         v2.6.0:
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
