@@ -727,17 +727,31 @@ class Config(object):
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
                 if tags:
-                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                    tags = self._format_tags(lib_config["tracing_tags"])
                 base_rc_config["tags"] = tags
 
             if "tracing_header_tags" in lib_config:
-                header_tags = lib_config["tracing_header_tags"]
-                if header_tags:
-                    header_tags = {k: v for k, v in [t.split(":") for t in header_tags]}
-                base_rc_config["trace_http_header_tags"] = header_tags
-                self.http = HttpConfig(header_tags=header_tags)
+                tags = lib_config["tracing_header_tags"]
+                if tags:
+                    tags = self._format_tags(lib_config["tracing_header_tags"])
+                base_rc_config["trace_http_header_tags"] = tags
 
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+        self._handle_remoteconfig_header_tags(base_rc_config)
+
+    def _handle_remoteconfig_header_tags(self, base_rc_config):
+        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
+        header_tags_conf = self._config["trace_http_header_tags"]
+        env_headers = header_tags_conf._env_value or {}
+        code_headers = header_tags_conf._code_value or {}
+        non_rc_header_tags = {**code_headers, **env_headers}
+        selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
+        self.http = HttpConfig(header_tags=selected_header_tags)
+
+    def _format_tags(self, tags):
+        if not tags:
+            return {}
+        return {k: v for k, v in [t.split(":") for t in tags]}
 
     def enable_remote_configuration(self):
         # type: () -> None
