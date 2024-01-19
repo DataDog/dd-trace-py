@@ -168,3 +168,47 @@ DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec_threats_django]
+template = "appsec_threats_django"
+dependencies = [
+    "setuptools",
+    "pytest",
+    "pytest-coverage",
+    "requests",
+    "hypothesis",
+    "django=={matrix:django}"
+]
+pre-install-commands = [
+    "echo python",
+    "python -m ensurepip --upgrade"
+]
+
+[envs.appsec_threats_django.scripts]
+test = [
+    "echo Python{matrix:python} Django{matrix:django}",
+    "pip freeze",
+    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
+]
+
+
+# python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
+[[envs.appsec_threats_django.matrix]]
+python = ["3.7", "3.9"]
+django = ["2.*"]
+
+[[envs.appsec_threats_django.matrix]]
+python = ["3.7", "3.9", "3.10"]
+django = ["3.*"]
+
+[[envs.appsec_threats_django.matrix]]
+python = ["3.8", "3.10"]
+django = ["4.0.*"]
+
+[[envs.appsec_threats_django.matrix]]
+python = ["3.8", "3.10", "3.11"]
+django = ["4.2.*"]
+
+[[envs.appsec_threats_django.matrix]]
+python = ["3.10", "3.11"]
+django = ["5.*"]

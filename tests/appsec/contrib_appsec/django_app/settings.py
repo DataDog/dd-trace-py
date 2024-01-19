@@ -20,17 +20,6 @@ ALLOWED_HOSTS = [
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DATABASES = {
-    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
-    "postgres": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "postgres",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "127.0.0.1",
-        "PORT": 5432,
-    },
-}
 
 django_cache = "django_redis.cache.RedisCache"
 if django.VERSION >= (4, 0, 0):

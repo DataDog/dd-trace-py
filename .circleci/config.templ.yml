@@ -463,6 +463,13 @@ jobs:
           pattern: 'appsec_integrations'
           snapshot: true
 
+  appsec_threats_django:
+    <<: *machine_executor
+    steps:
+      - run_hatch_env_test:
+          pattern: 'appsec_threats_django'
+          snapshot: true
+
   aws_lambda:
     <<: *machine_executor
     steps:

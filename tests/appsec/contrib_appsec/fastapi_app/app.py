@@ -34,7 +34,6 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
-    async_condition = asyncio.Condition()
 
     @app.get("/")
     async def read_homepage():  # noqa: B008

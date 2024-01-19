@@ -29,7 +29,10 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         return response.status_code
 
     def headers(self, response):
-        return response.headers
+        if django.VERSION >= (3, 0, 0):
+            return response.headers
+        # Django 2.x
+        return {k: v[1] for k, v in response._headers.items()}
 
     def body(self, response):
         return response.content.decode("utf-8")
