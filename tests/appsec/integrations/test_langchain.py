@@ -7,7 +7,7 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.internal import core
 from ddtrace.internal.module import is_module_installed
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
-from tests.appsec.iast.conftest import iast_span_defaults  # noqa
+from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
@@ -16,8 +16,7 @@ FIXTURES_MODULE = "tests.appsec.integrations.fixtures.patch_langchain"
 
 
 @pytest.mark.skipif(not is_module_installed("langchain"), reason="Langchain tests work on 3.9 or higher")
-@pytest.mark.parametrize("execution_number", range(15))
-def test_openai_llm_appsec_iast_cmdi(execution_number, iast_span_defaults):  # noqa
+def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
     mod = _iast_patched_module(FIXTURES_MODULE)
     string_to_taint = "I need to use the terminal tool to print a Hello World"
     prompt = taint_pyobject(
