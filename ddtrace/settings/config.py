@@ -737,6 +737,7 @@ class Config(object):
                 base_rc_config["trace_http_header_tags"] = tags
 
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+        # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
 
     def _handle_remoteconfig_header_tags(self, base_rc_config):
