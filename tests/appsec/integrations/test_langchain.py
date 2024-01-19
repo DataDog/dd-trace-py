@@ -24,7 +24,8 @@ def is_langchain_installed():
 
 
 @pytest.mark.skipif(not is_langchain_installed(), reason="Langchain tests work on 3.9 or higher")
-def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa
+@pytest.mark.parametrize("execution_number", range(15))
+def test_openai_llm_appsec_iast_cmdi(execution_number, iast_span_defaults):  # noqa
     mod = _iast_patched_module(FIXTURES_MODULE)
     string_to_taint = "I need to use the terminal tool to print a Hello World"
     prompt = taint_pyobject(
