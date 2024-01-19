@@ -91,10 +91,12 @@ def _deleted_rc_config():
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
-            "rc": {"tracing_header_tags": "X-Header-Tag-69:header_tag_69,X-Header-Tag-70:header_tag_70"},
+            "rc": {"tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]},
             "code": {"trace_http_header_tags": {"header": "value"}},
-            "expected": {"trace_http_header_tags": {"header": "value"}},
-            "expected_source": {"trace_http_header_tags": "rc"},
+            "expected": {
+                "trace_http_header_tags": {"X-Header-Tag-69": "header_tag_69", "X-Header-Tag-70": "header_tag_70"}
+            },
+            "expected_source": {"trace_http_header_tags": "remote_config"},
         },
         {
             "env": {"DD_TAGS": "key:value,key2:value2"},
