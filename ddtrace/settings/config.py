@@ -735,7 +735,7 @@ class Config(object):
                 base_rc_config["tags"] = tags
 
             if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])
+                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
 
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
