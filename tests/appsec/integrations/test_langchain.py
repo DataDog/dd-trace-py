@@ -4,8 +4,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
-from ddtrace.bootstrap.sitecustomize import is_module_installed
 from ddtrace.internal import core
+from ddtrace.internal.module import is_module_installed
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa
 from tests.appsec.iast.iast_utils import get_line_and_hash
