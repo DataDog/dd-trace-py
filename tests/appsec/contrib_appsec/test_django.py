@@ -2,6 +2,7 @@ import os
 
 import django
 from django.conf import settings
+from django.test.client import Client
 import pytest
 
 from ddtrace.contrib.django import patch
@@ -9,17 +10,26 @@ from tests.appsec.contrib_appsec import utils
 
 
 class Test_Django(utils.Contrib_TestClass_For_Threats):
-    SERVER_PORT = 8000
-
     @pytest.fixture
     def interface(self):
-        from django.test.client import Client
-
-        client = Client("http://localhost:%d" % self.SERVER_PORT)
-        yield utils.Interface("django", django, client)
-
-    def setup_class(cls):
-        os.environ["DJANGO_SETTINGS_MODULE"] = "tests.contrib.django.django_app.settings"
+        os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
         settings.DEBUG = False
-        patch()
         django.setup()
+        patch()
+        client = Client("http://localhost:%d" % self.SERVER_PORT)
+        interface = utils.Interface("django", django, client)
+        with utils.test_tracer() as tracer:
+            interface.tracer = tracer
+            with utils.post_tracer(interface):
+                yield interface
+        # unpatch failing in this case
+        # unpatch()
+
+    def status(self, response):
+        return response.status_code
+
+    def headers(self, response):
+        return response.headers
+
+    def body(self, response):
+        return response.content.decode("utf-8")

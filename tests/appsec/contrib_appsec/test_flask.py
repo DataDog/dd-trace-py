@@ -46,15 +46,24 @@ class BaseFlaskTestCase(TracerTestCase):
         unpatch()
 
 
-class Test_Django(utils.Contrib_TestClass_For_Threats):
-    SERVER_PORT = 8001
-
+class Test_Flask(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
     def interface(self):
         bftc = BaseFlaskTestCase()
         bftc.setUp()
-        yield utils.Interface("flask", bftc.app, bftc.client)
+        interface = utils.Interface("flask", bftc.app, bftc.client)
+        with utils.test_tracer() as tracer:
+            interface.tracer = tracer
+            with utils.post_tracer(interface):
+                yield interface
+
         bftc.tearDown()
 
-    def setup_class(cls):
-        pass
+    def status(self, response):
+        return response.status_code
+
+    def headers(self, response):
+        return response.headers
+
+    def body(self, response):
+        return response.data.decode("utf-8")

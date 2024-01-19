@@ -1,25 +1,42 @@
-import os
-
-import django
-from django.conf import settings
 import pytest
 
-from ddtrace.contrib.django import patch
+import ddtrace
+from ddtrace.contrib.fastapi import patch as fastapi_patch
+from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from tests.appsec.contrib_appsec import utils
+from tests.appsec.contrib_appsec.fastapi_app.app import get_app
 
 
-class Test_Django(utils.Contrib_TestClass_For_Threats):
-    SERVER_PORT = 8000
-
+class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self):
-        from django.test.client import Client
+    def interface(self, tracer):
+        import fastapi
+        from fastapi.testclient import TestClient
 
-        client = Client("http://localhost:%d" % self.SERVER_PORT)
-        yield utils.Interface("fastapi", django, client)
+        fastapi_patch()
+        # for fastapi, test tracer needs to be set before the app is created
+        # contrary to other frameworks
+        with utils.test_tracer() as tracer:
+            application = get_app()
 
-    def setup_class(cls):
-        os.environ["DJANGO_SETTINGS_MODULE"] = "tests.contrib.django.django_app.settings"
-        settings.DEBUG = False
-        patch()
-        django.setup()
+            @application.middleware("http")
+            async def traced_middlware(request, call_next):
+                with ddtrace.tracer.trace("traced_middlware"):
+                    response = await call_next(request)
+                    return response
+
+            client = TestClient(get_app(), base_url="http://localhost:%d" % self.SERVER_PORT)
+            interface = utils.Interface("fastapi", fastapi, client)
+            interface.tracer = tracer
+            with utils.post_tracer(interface):
+                yield interface
+            fastapi_unpatch()
+
+    def status(self, response):
+        return response.status_code
+
+    def headers(self, response):
+        return response.headers
+
+    def body(self, response):
+        return response.text
