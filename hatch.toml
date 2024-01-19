@@ -181,8 +181,8 @@ dependencies = [
     "django=={matrix:django}"
 ]
 pre-install-commands = [
-    "pip freeze",
-    "python -m ensurepip --upgrade"
+    "python -m ensurepip --upgrade",
+    "pip freeze"
 ]
 
 [envs.appsec_threats_django.scripts]
