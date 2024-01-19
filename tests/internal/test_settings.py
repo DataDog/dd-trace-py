@@ -285,6 +285,17 @@ with tracer.trace("test_rc_override") as span2:
                               request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
 assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
 assert span2.get_tag("env_set_tag_name") is None
+
+config.http._reset()
+config._header_tag_name.invalidate()
+config._handle_remoteconfig(_base_rc_config({}))
+
+with tracer.trace("test") as span3:
+    trace_utils.set_http_meta(span3,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
+assert span3.get_tag("header_tag_420") is None
+assert span3.get_tag("env_set_tag_name") == "helloworld"
         """,
         env=env,
     )
