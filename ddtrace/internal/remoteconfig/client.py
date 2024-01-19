@@ -363,9 +363,9 @@ class RemoteConfigClient(object):
         capabilities = (
             appsec_rc_capabilities()
             | Capabilities.APM_TRACING_SAMPLE_RATE
+            | Capabilities.APM_TRACING_LOGS_INJECTION
             | Capabilities.APM_TRACING_CUSTOM_TAGS
             | Capabilities.APM_TRACING_ENABLED
-            | Capabilities.APM_TRACING_LOGS_INJECTION
         )
         return dict(
             client=dict(
