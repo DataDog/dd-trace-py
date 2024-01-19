@@ -57,6 +57,7 @@ config = RemoteConfigClientConfig()
 
 class Capabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_LOGS_INJECTION = 1 << 13
     APM_TRACING_CUSTOM_TAGS = 1 << 15
     APM_TRACING_ENABLED = 1 << 19
 
@@ -364,6 +365,7 @@ class RemoteConfigClient(object):
             | Capabilities.APM_TRACING_SAMPLE_RATE
             | Capabilities.APM_TRACING_CUSTOM_TAGS
             | Capabilities.APM_TRACING_ENABLED
+            | Capabilities.APM_TRACING_LOGS_INJECTION
         )
         return dict(
             client=dict(

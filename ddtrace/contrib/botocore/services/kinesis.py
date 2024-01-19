@@ -14,11 +14,13 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
 from ....ext import http
+from ....internal.compat import time_ns
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
+from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
 from ..utils import get_pathway
 from ..utils import set_patched_api_call_span_tags
@@ -134,15 +136,47 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        span_type=SpanTypes.HTTP,
-    ) as span:
-        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+    message_received = False
+    func_run = False
+    func_run_err = None
+    child_of = None
+    start_ns = None
+    result = None
 
-        if args:
-            if config.botocore["distributed_tracing"]:
+    if operation == "GetRecords":
+        try:
+            start_ns = time_ns()
+            func_run = True
+            result = original_func(*args, **kwargs)
+        except Exception as e:
+            func_run_err = e
+        if result is not None and "Records" in result and len(result["Records"]) >= 1:
+            message_received = True
+            if config.botocore.propagation_enabled:
+                child_of = extract_DD_context(result["Records"])
+
+    """
+    We only want to create a span for the following cases:
+        - not func_run: The function is not `getRecords` and we need to run it
+        - func_run and message_received: Received a message when polling
+        - config.empty_poll_enabled: We want to trace empty poll operations
+    """
+    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
+        with pin.tracer.start_span(
+            trace_operation,
+            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            span_type=SpanTypes.HTTP,
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+            activate=True,
+        ) as span:
+            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+
+            # we need this since we may have ran the wrapped operation before starting the span
+            # we need to ensure the span start time is correct
+            if start_ns is not None and func_run:
+                span.start_ns = start_ns
+
+            if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
                         inject_trace_to_kinesis_stream(
@@ -157,25 +191,30 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
-        try:
-            result = original_func(*args, **kwargs)
+            try:
+                if not func_run:
+                    result = original_func(*args, **kwargs)
 
-            if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
-                try:
-                    record_data_streams_path_for_kinesis_stream(pin, params, result, span)
-                except Exception:
-                    log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
+                if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
+                    try:
+                        record_data_streams_path_for_kinesis_stream(pin, params, result, span)
+                    except Exception:
+                        log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
-            set_response_metadata_tags(span, result)
-            return result
+                # raise error if it was encountered before the span was started
+                if func_run_err:
+                    raise func_run_err
 
-        except botocore.exceptions.ClientError as e:
-            # `ClientError.response` contains the result, so we can still grab response metadata
-            set_response_metadata_tags(span, e.response)
+                set_response_metadata_tags(span, result)
+                return result
 
-            # If we have a status code, and the status code is not an error,
-            #   then ignore the exception being raised
-            status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                span._ignore_exception(botocore.exceptions.ClientError)
-            raise
+            except botocore.exceptions.ClientError as e:
+                # `ClientError.response` contains the result, so we can still grab response metadata
+                set_response_metadata_tags(span, e.response)
+
+                # If we have a status code, and the status code is not an error,
+                #   then ignore the exception being raised
+                status_code = span.get_tag(http.STATUS_CODE)
+                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+                    span._ignore_exception(botocore.exceptions.ClientError)
+                raise

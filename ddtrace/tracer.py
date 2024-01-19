@@ -280,6 +280,7 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+        config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
@@ -1070,9 +1071,11 @@ class Tracer(object):
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
-        elif "tags" in items:
+
+        if "tags" in items:
             self._tags = cfg.tags.copy()
-        elif "_tracing_enabled" in items:
+
+        if "_tracing_enabled" in items:
             if self.enabled:
                 if cfg._tracing_enabled is False:
                     self.enabled = False
@@ -1080,3 +1083,13 @@ class Tracer(object):
                 # the product specification says not to allow tracing to be re-enabled remotely at runtime
                 if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                     self.enabled = True
+
+        if "logs_injection" in items:
+            if config.logs_injection:
+                from ddtrace.contrib.logging import patch
+
+                patch()
+            else:
+                from ddtrace.contrib.logging import unpatch
+
+                unpatch()

@@ -12,6 +12,9 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.internal.agent import get_stats_url
+from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
@@ -31,10 +34,13 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
+from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import inject_trace_to_sqs_or_sns_batch_message
 from .services.sqs import inject_trace_to_sqs_or_sns_message
 from .services.sqs import patched_sqs_api_call
+from .services.stepfunctions import inject_trace_to_stepfunction_input
+from .services.stepfunctions import patched_stepfunction_api_call
 from .utils import inject_trace_to_client_context
 from .utils import inject_trace_to_eventbridge_detail
 from .utils import set_patched_api_call_span_tags
@@ -59,8 +65,12 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "span_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
+        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
     },
 )
 
@@ -75,7 +85,8 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
+    botocore._datadog_integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
+    wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin(service="aws").onto(botocore.parsers.ResponseParser)
@@ -109,8 +120,8 @@ def patched_lib_fn(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
 
-def patched_api_call(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
+@with_traced_module
+def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
@@ -132,6 +143,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         "params": params,
         "pin": pin,
         "trace_operation": trace_operation,
+        "integration": botocore._datadog_integration,
     }
 
     if endpoint_name == "kinesis":
@@ -149,6 +161,18 @@ def patched_api_call(original_func, instance, args, kwargs):
             args=args,
             kwargs=kwargs,
             function_vars=function_vars,
+        )
+    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
+        return patched_bedrock_api_call(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            function_vars=function_vars,
+        )
+    elif endpoint_name == "states":
+        return patched_stepfunction_api_call(
+            original_func=original_func, instance=instance, args=args, kwargs=kwargs, function_vars=function_vars
         )
     else:
         # this is the default patched api call
@@ -218,6 +242,16 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                             trace_operation,
                             cloud_provider="aws",
                             cloud_service="sns",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "states" and (
+                        operation == "StartExecution" or operation == "StartSyncExecution"
+                    ):
+                        inject_trace_to_stepfunction_input(params, span)
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="stepfunctions",
                             direction=SpanDirection.OUTBOUND,
                         )
                 except Exception:

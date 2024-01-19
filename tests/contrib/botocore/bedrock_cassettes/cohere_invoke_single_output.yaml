@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain
+      is?", "temperature": 0.9, "p": 1.0, "k": 0, "max_tokens": 10, "stop_sequences":
+      [], "stream": false, "num_generations": 1}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '195'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgyMjIwWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        YWZhYTQ1NjEtZTdhMS00ZDg2LTlkMDItYmRmNjRkZmY4YzMy
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/cohere.command-light-text-v14/invoke
+  response:
+    body:
+      string: '{"generations":[{"finish_reason":"MAX_TOKENS","id":"e9b9cff2-2404-4bc2-82ec-e18c424849f7","text":"
+        A Large Language Model (LLM) chain refers"}],"id":"909434da-e64a-4ccd-8c11-c97793dc3746","prompt":"\n\nHuman:
+        %s\n\nAssistant: Can you explain what a LLM chain is?"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '264'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 08 Jan 2024 18:22:21 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '20'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '277'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '10'
+      x-amzn-RequestId:
+      - 909434da-e64a-4ccd-8c11-c97793dc3746
+    status:
+      code: 200
+      message: OK
+version: 1

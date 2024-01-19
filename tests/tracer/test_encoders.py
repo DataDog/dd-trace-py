@@ -442,6 +442,7 @@ def test_span_link_v04_encoding():
                     "link.kind": "link_kind",
                     "someval": 1,
                     "drop_me": "bye",
+                    "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
             )
         ],
@@ -463,18 +464,23 @@ def test_span_link_v04_encoding():
     assert b"span_links" in decoded_span
     assert decoded_span[b"span_links"] == [
         {
-            b"trace_id": b"00000000000001c8",
-            b"span_id": b"0000000000000002",
+            b"trace_id": 456,
+            b"span_id": 2,
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
                 b"link.kind": b"link_kind",
                 b"someval": b"1",
+                b"key_other.0": b"true",
+                b"key_other.1": b"2",
+                b"key_other.2.0": b"hello",
+                b"key_other.2.1": b"4",
+                b"key_other.2.2.0": b"5",
             },
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1,
-            b"trace_id_high": b"000000000000007b",
+            b"trace_id_high": 123,
         }
     ]
 
@@ -491,7 +497,13 @@ def test_span_link_v05_encoding():
                 span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
-                attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
+                attributes={
+                    "moon": "ears",
+                    "link.name": "link_name",
+                    "link.kind": "link_kind",
+                    "drop_me": "bye",
+                    "key2": ["false", 2, ["hello", 4, {"5"}]],
+                },
             )
         ],
     )
@@ -513,7 +525,8 @@ def test_span_link_v05_encoding():
     assert (
         encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
         b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
-        b'"link_kind"}, "dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
+        b'"link_kind", "key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
 

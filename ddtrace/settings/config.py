@@ -513,7 +513,7 @@ class Config(object):
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
@@ -718,26 +718,26 @@ class Config(object):
 
         # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        updated_items = []  # type: List[Tuple[str, Any]]
+        base_rc_config = {n: None for n in self._config}
 
-        if not config:
-            for item in self._config:
-                updated_items.append((item, None))
-        else:
+        if config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
-                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
+
+            if "log_injection_enabled" in lib_config:
+                base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
 
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
                 if tags:
                     tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
-                updated_items.append(("tags", tags))
+                base_rc_config["tags"] = tags
 
             if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                updated_items.append(("_tracing_enabled", asbool(lib_config["tracing_enabled"])))
+                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])
 
-        self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
+        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
     def enable_remote_configuration(self):
         # type: () -> None
