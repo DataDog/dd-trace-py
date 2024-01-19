@@ -185,6 +185,10 @@ pre-install-commands = [
     "pip freeze"
 ]
 
+
+[env.appsec_threats_django.env-vars]
+CC = "gcc"
+
 [envs.appsec_threats_django.scripts]
 test = [
     "echo Python{matrix:python} Django{matrix:django}",
