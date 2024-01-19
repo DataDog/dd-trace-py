@@ -3,6 +3,8 @@ from typing import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal.utils.cache import cachedmethod
+
 from ..internal.logger import get_logger
 from ..internal.utils.http import normalize_header_name
 
@@ -25,6 +27,7 @@ class HttpConfig(object):
         self._header_tags = {}
         self._header_tag_name.invalidate()
 
+    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         if not self._header_tags:
