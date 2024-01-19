@@ -472,7 +472,7 @@ def test_span_link_v04_encoding():
         {
             b"trace_id": 3,
             b"span_id": 4,
-            b"flags": 0 | (-1 << 31),
+            b"flags": 0 | (1 << 31),
         },
         {
             b"trace_id": 456,
@@ -490,7 +490,7 @@ def test_span_link_v04_encoding():
             },
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
-            b"flags": 1 | (-1 << 31),
+            b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
         },
     ]
