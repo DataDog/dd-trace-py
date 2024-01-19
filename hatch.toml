@@ -173,6 +173,7 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 template = "appsec_threats_django"
 dependencies = [
     "setuptools",
+    "cython",
     "pytest",
     "pytest-coverage",
     "requests",
@@ -180,7 +181,7 @@ dependencies = [
     "django=={matrix:django}"
 ]
 pre-install-commands = [
-    "echo python",
+    "pip freeze",
     "python -m ensurepip --upgrade"
 ]
 
