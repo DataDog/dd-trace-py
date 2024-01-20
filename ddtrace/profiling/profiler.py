@@ -28,6 +28,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
+from ddtrace.profiling import _threading
 
 
 LOG = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class _ProfilerInstance(service.Service):
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+    # torch_events = []
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -225,6 +227,7 @@ class _ProfilerInstance(service.Service):
             },
             default_max_events=config.max_events,
         )
+        # self._recorder.add_pytorch_profiler(self.torch_events)
 
         self._collectors = []
 
@@ -301,6 +304,50 @@ class _ProfilerInstance(service.Service):
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
+
+    def handle_torch_trace(self, prof):
+        NANOS_PER_MICROSECOND = 1e3
+        print("handle torch trace was called")
+        if self._export_libdd_enabled is False:
+            print("libdd needs to be enabled with DD_PROFILING_EXPORT_LIBDD_ENABLED=true")
+            return
+        kineto_events = prof.profiler.kineto_results.events()
+        assert len(kineto_events) > 0
+        trace_start_ns = prof.profiler.kineto_results.trace_start_us() * NANOS_PER_MICROSECOND
+        for i, e in enumerate(prof.events()):
+            device_name = "cuda " + str(e.device_index)
+            end_time_ns = int(trace_start_ns + e.time_range.end * NANOS_PER_MICROSECOND)
+            event_duration = e.time_range.elapsed_us() * 1000  # convert us -> ns
+            if str(e.device_type).startswith("DeviceType.CUDA") and i % 10 == 0:
+                # gpu time sample
+                ddup.start_sample(1)
+                ddup.push_gputime(event_duration, 1)
+                ddup.push_gpu_device_name(device_name)
+                ddup.push_end_timestamp_ns(end_time_ns)
+                ddup.push_threadinfo(
+                    e.thread, _threading.get_thread_native_id(e.thread), _threading.get_thread_name(e.thread)
+                )
+                ddup.push_frame(e.name, "", 0, -1)
+                ddup.flush_sample()
+
+            if e.flops is not None and e.flops > 0:
+                # gpu flops sample
+                ddup.start_sample(1)
+                ddup.push_gpu_flops(e.flops, 1)
+                ddup.push_gpu_device_name(device_name)
+                ddup.push_frame(e.name, "", 0, -1)
+                ddup.flush_sample()
+
+            if e.flops is not None and e.cuda_memory_usage > 0:
+                # gpu mem sample
+                ddup.start_sample(1)
+                ddup.push_gpu_mem(e.cuda_memory_usage, 1)
+                ddup.push_gpu_device_name(device_name)
+                ddup.push_frame(e.name, "", 0, -1)
+                ddup.flush_sample()
+
+    def add_pytorch_profiler(self, torch_prof):
+        torch_prof.on_trace_ready = self.handle_torch_trace
 
     def _start_service(self):
         # type: (...) -> None

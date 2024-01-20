@@ -290,6 +290,16 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
         val_idx.cpu_time = get_value_idx("cpu-time", "nanoseconds");
         val_idx.cpu_count = get_value_idx("cpu-samples", "count");
     }
+    if (type_mask & ProfileType::GPUTime) {
+        val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
+        val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+    }
+    if (type_mask & ProfileType::GPUMemory) {
+        val_idx.gpu_space = get_value_idx("gpu-space", "bytes");
+    }
+    if (type_mask & ProfileType::GPUFlops) {
+        val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
+    }
     if (type_mask & ProfileType::Wall) {
         val_idx.wall_time = get_value_idx("wall-time", "nanoseconds");
         val_idx.wall_count = get_value_idx("wall-samples", "count");
@@ -501,6 +511,46 @@ Profile::push_cputime(int64_t cputime, int64_t count)
 }
 
 bool
+Profile::push_gputime(int64_t gputime, int64_t count)
+{
+    // NB all push-type operations return bool for semantic uniformity,
+    // even if they can't error.  This should promote generic code.
+    if (type_mask & ProfileType::GPUTime) {
+        values[val_idx.gpu_time] += gputime * count;
+        values[val_idx.gpu_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu" << std::endl;
+    return false;
+}
+
+bool
+Profile::push_gpu_mem(int64_t gpu_mem, int64_t count)
+{
+    // NB all push-type operations return bool for semantic uniformity,
+    // even if they can't error.  This should promote generic code.
+    if (type_mask & ProfileType::GPUMemory) {
+        values[val_idx.gpu_space] += gpu_mem * count;
+        return true;
+    }
+    std::cout << "bad push gpu memory" << std::endl;
+    return false;
+}
+
+bool
+Profile::push_gpu_flops(int64_t gpu_flops, int64_t count)
+{
+    // NB all push-type operations return bool for semantic uniformity,
+    // even if they can't error.  This should promote generic code.
+    if (type_mask & ProfileType::GPUFlops) {
+        values[val_idx.gpu_flops] += gpu_flops * count;
+        return true;
+    }
+    std::cout << "bad push gpu flops" << std::endl;
+    return false;
+}
+
+bool
 Profile::push_walltime(int64_t walltime, int64_t count)
 {
     if (type_mask & ProfileType::Wall) {
@@ -658,6 +708,26 @@ bool
 Profile::push_class_name(std::string_view class_name)
 {
     if (!push_label(ExportLabelKey::class_name, class_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Profile::push_gpu_device_name(std::string_view device_name)
+{
+    if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Profile::push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    if (!push_label(ExportLabelKey::end_timestamp_ns, end_timestamp_ns)) {
         std::cout << "bad push" << std::endl;
         return false;
     }

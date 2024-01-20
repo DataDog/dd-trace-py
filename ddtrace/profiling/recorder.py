@@ -75,11 +75,17 @@ class Recorder(object):
                 q = self.events[event_type]
                 q.extend(events)
 
+    # def add_pytorch_profiler(self, torch_events):
+    #     self.torch_events = torch_events 
+
     def _get_deque_for_event_type(self, event_type):
         return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
 
     def _reset_events(self):
         self.events = _defaultdictkey(self._get_deque_for_event_type)
+
+    # def get_torch_events(self):
+    #     return self.torch_events
 
     def reset(self):
         """Reset the recorder.

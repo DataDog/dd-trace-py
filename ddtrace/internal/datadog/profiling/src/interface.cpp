@@ -305,3 +305,35 @@ ddup_upload()
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
 }
+
+void
+ddup_push_gputime(int64_t gputime, int64_t count)
+{
+    g_profile->push_gputime(gputime, count);
+}
+
+void
+ddup_push_gpu_mem(int64_t gpu_mem, int64_t count)
+{
+    g_profile->push_gpu_mem(gpu_mem, count);
+}
+
+void
+ddup_push_gpu_flops(int64_t gpu_flops, int64_t count)
+{
+    g_profile->push_gpu_flops(gpu_flops, count);
+}
+
+void
+ddup_push_gpu_device_name(const char *device_name)
+{
+    if (!device_name || !*device_name)
+        return;
+    g_profile->push_gpu_device_name(device_name);
+}
+
+void
+ddup_push_end_timestamp_ns(uint64_t end_timestamp_ns)
+{
+    g_profile->push_end_timestamp_ns(end_timestamp_ns);
+}
