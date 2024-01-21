@@ -70,14 +70,15 @@ tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
-# LLM Obs
+# MLObs
 ddtrace/internal/llmobs/                            @DataDog/ml-observability
 ddtrace/contrib/openai                              @DataDog/ml-observability
 ddtrace/contrib/langchain                           @DataDog/ml-observability
 ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
 tests/contrib/openai                                @DataDog/ml-observability
 tests/contrib/langchain                             @DataDog/ml-observability
-tests/contrib/botocore                              @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
+tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python

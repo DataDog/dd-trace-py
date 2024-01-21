@@ -252,6 +252,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": "~=3.0",
+                        "langchain": "==0.0.354",
+                        "langchain_experimental": "==0.0.47",
                     },
                 ),
             ],
@@ -332,11 +334,7 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={
-                "msgpack": [latest],
-                "coverage": latest,
-                "pytest-randomly": latest,
-            },
+            pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -403,6 +401,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "vcrpy": latest,
                 "pytest-randomly": latest,
+                "python-json-logger": "==2.0.7",
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
