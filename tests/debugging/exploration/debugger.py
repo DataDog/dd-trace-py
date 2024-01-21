@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
@@ -17,6 +16,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
@@ -51,9 +51,9 @@ def from_editable_install(module: ModuleType) -> bool:
     if o is None:
         return False
     return (
-        is_relative_to(o, CWD)
+        o.is_relative_to(CWD)
         and not any(_.stem.startswith("test") for _ in o.parents)
-        and (config.venv is None or not is_relative_to(o, config.venv))
+        and (config.venv is None or not o.is_relative_to(config.venv))
     )
 
 

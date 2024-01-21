@@ -1,11 +1,11 @@
 import os
+import pathlib
 
 import mock
 import pytest
 
 from ddtrace.internal import packages
 from ddtrace.internal.packages import get_distributions
-from ddtrace.internal.packages import pathlib
 
 
 def test_get_distributions():

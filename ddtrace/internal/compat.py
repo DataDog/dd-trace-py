@@ -396,3 +396,71 @@ except ImportError:
     @contextmanager  # type: ignore[no-redef]
     def nullcontext(enter_result=None):
         yield enter_result
+
+
+if PYTHON_VERSION_INFO >= (3, 9):
+    from functools import singledispatchmethod
+elif PYTHON_VERSION_INFO >= (3, 8):
+    # This fix was not backported to 3.8
+    # https://github.com/python/cpython/issues/83860
+    from functools import singledispatchmethod
+
+    def _register(self, cls, method=None):
+        if hasattr(cls, "__func__"):
+            setattr(cls, "__annotations__", cls.__func__.__annotations__)
+        return self.dispatcher.register(cls, func=method)
+
+    singledispatchmethod.register = _register  # type: ignore[assignment]
+else:
+    from functools import singledispatch
+    from functools import update_wrapper
+
+    class singledispatchmethod:  # type: ignore[no-redef]
+        """Single-dispatch generic method descriptor.
+
+        Supports wrapping existing descriptors and handles non-descriptor
+        callables as instance methods.
+        """
+
+        def __init__(self, func):
+            if not callable(func) and not hasattr(func, "__get__"):
+                raise TypeError(f"{func!r} is not callable or a descriptor")
+
+            self.dispatcher = singledispatch(func)
+            self.func = func
+
+        def register(self, cls, method=None):
+            if hasattr(cls, "__func__"):
+                setattr(cls, "__annotations__", cls.__func__.__annotations__)
+            return self.dispatcher.register(cls, func=method)
+
+        def __get__(self, obj, cls=None):
+            def _method(*args, **kwargs):
+                method = self.dispatcher.dispatch(args[0].__class__)
+                return method.__get__(obj, cls)(*args, **kwargs)
+
+            _method.__isabstractmethod__ = self.__isabstractmethod__
+            _method.register = self.register
+            update_wrapper(_method, self.func)
+            return _method
+
+        @property
+        def __isabstractmethod__(self):
+            return getattr(self.func, "__isabstractmethod__", False)
+
+
+if PYTHON_VERSION_INFO >= (3, 9):
+    from pathlib import Path
+else:
+    from pathlib import Path
+
+    # Taken from Python 3.9. This is not implemented in older versions of Python
+    def is_relative_to(self, other):
+        """Return True if the path is relative to another path or False."""
+        try:
+            self.relative_to(other)
+            return True
+        except ValueError:
+            return False
+
+    Path.is_relative_to = is_relative_to  # type: ignore[assignment]

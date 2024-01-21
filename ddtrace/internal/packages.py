@@ -1,23 +1,19 @@
 import logging
 import os
-from pathlib import Path
 import sysconfig
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
 
-try:
-    import pathlib  # noqa: F401
-except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
-
-
 LOG = logging.getLogger(__name__)
 
+if t.TYPE_CHECKING:
+    import pathlib  # noqa
 
 try:
     fspath = os.fspath
@@ -48,11 +44,10 @@ except AttributeError:
                 raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
         if isinstance(path_repr, (str, bytes)):
             return path_repr
-        else:
-            raise TypeError(
-                "expected {}.__fspath__() to return str or bytes, "
-                "not {}".format(path_type.__name__, type(path_repr).__name__)
-            )
+        raise TypeError(
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
+        )
 
 
 # We don't store every file of every package but filter commonly used extensions

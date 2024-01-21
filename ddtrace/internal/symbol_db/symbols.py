@@ -2,7 +2,6 @@ from dataclasses import asdict
 from dataclasses import dataclass
 import dis
 from enum import Enum
-from functools import singledispatchmethod
 import http
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
@@ -21,6 +20,7 @@ from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal import packages
 from ddtrace.internal.agent import get_trace_url
+from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
