@@ -180,8 +180,11 @@ class Snapshot(LogSignal):
             return
 
         _locals = []
-        if exc_info[1] is None:
+        _, exc, _ = exc_info
+        if exc is None:
             _locals.append(("@return", retval))
+        else:
+            _locals.append(("@exception", exc))
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
