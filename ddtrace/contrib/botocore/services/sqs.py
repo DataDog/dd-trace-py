@@ -12,12 +12,14 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
 from ....ext import http
+from ....internal.compat import time_ns
 from ....internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
 from ....propagation.http import HTTPPropagator
+from ..utils import extract_DD_context
 from ..utils import extract_trace_context_json
 from ..utils import get_pathway
 from ..utils import get_queue_name
@@ -141,93 +143,138 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        span_type=SpanTypes.HTTP,
-    ) as span:
-        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+    message_received = False
+    func_run = False
+    func_run_err = None
+    child_of = None
+    start_ns = None
+    result = None
 
-        if config.botocore["distributed_tracing"]:
-            try:
-                if endpoint_name == "sqs" and operation == "SendMessage":
-                    inject_trace_to_sqs_or_sns_message(
-                        params,
-                        span,
-                        endpoint_service=endpoint_name,
-                        pin=pin,
-                        data_streams_enabled=config._data_streams_enabled,
-                    )
-                    span.name = schematize_cloud_messaging_operation(
-                        trace_operation,
-                        cloud_provider="aws",
-                        cloud_service="sqs",
-                        direction=SpanDirection.OUTBOUND,
-                    )
-                if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                    inject_trace_to_sqs_or_sns_batch_message(
-                        params,
-                        span,
-                        endpoint_service=endpoint_name,
-                        pin=pin,
-                        data_streams_enabled=config._data_streams_enabled,
-                    )
-                    span.name = schematize_cloud_messaging_operation(
-                        trace_operation,
-                        cloud_provider="aws",
-                        cloud_service="sqs",
-                        direction=SpanDirection.OUTBOUND,
-                    )
-                if endpoint_name == "sqs" and operation == "ReceiveMessage":
-                    span.name = schematize_cloud_messaging_operation(
-                        trace_operation,
-                        cloud_provider="aws",
-                        cloud_service="sqs",
-                        direction=SpanDirection.INBOUND,
-                    )
-            except Exception:
-                log.warning("Unable to inject trace context", exc_info=True)
+    if operation == "ReceiveMessage":
+        # Ensure we have Datadog MessageAttribute enabled
+        if "MessageAttributeNames" not in params:
+            params.update({"MessageAttributeNames": ["_datadog"]})
+        elif "_datadog" not in params["MessageAttributeNames"]:
+            params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+
         try:
-            if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
-                queue_name = get_queue_name(params)
+            start_ns = time_ns()
+            func_run = True
+            # run the function before in order to extract possible parent context before starting span
+            result = original_func(*args, **kwargs)
+        except Exception as e:
+            func_run_err = e
+        if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
+            message_received = True
+            if config.botocore.propagation_enabled:
+                child_of = extract_DD_context(result["Messages"])
 
-                if "MessageAttributeNames" not in params:
-                    params.update({"MessageAttributeNames": ["_datadog"]})
-                elif "_datadog" not in params["MessageAttributeNames"]:
-                    params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+    """
+    We only want to create a span for the following cases:
+        - not func_run: The function is not `ReceiveMessage` and we need to run it
+        - func_run and message_received: Received a message when polling
+        - config.empty_poll_enabled: We want to trace empty poll operations
+    """
+    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
+        with pin.tracer.start_span(
+            trace_operation,
+            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            span_type=SpanTypes.HTTP,
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+            activate=True,
+        ) as span:
+            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
-                result = original_func(*args, **kwargs)
+            # we need this since we may have ran the wrapped operation before starting the span
+            # we need to ensure the span start time is correct
+            if start_ns is not None and func_run:
+                span.start_ns = start_ns
 
-                set_response_metadata_tags(span, result)
-
+            if args and config.botocore["distributed_tracing"]:
                 try:
-                    if "Messages" in result:
-                        for message in result["Messages"]:
-                            # try to extract trace context from the request
-                            context_json = extract_trace_context_json(message)
-                            if context_json is None:
-                                log.debug("DataStreams did not handle message: %r", message)
-
-                            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-                            ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
-                            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], span=span)
-
+                    if endpoint_name == "sqs" and operation == "SendMessage":
+                        inject_trace_to_sqs_or_sns_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="sqs",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
+                        inject_trace_to_sqs_or_sns_batch_message(
+                            params,
+                            span,
+                            endpoint_service=endpoint_name,
+                            pin=pin,
+                            data_streams_enabled=config._data_streams_enabled,
+                        )
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="sqs",
+                            direction=SpanDirection.OUTBOUND,
+                        )
+                    if endpoint_name == "sqs" and operation == "ReceiveMessage":
+                        span.name = schematize_cloud_messaging_operation(
+                            trace_operation,
+                            cloud_provider="aws",
+                            cloud_service="sqs",
+                            direction=SpanDirection.INBOUND,
+                        )
                 except Exception:
-                    log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
+                    log.warning("Unable to inject trace context", exc_info=True)
+            try:
+                if endpoint_name == "sqs" and operation == "ReceiveMessage" and config._data_streams_enabled:
+                    queue_name = get_queue_name(params)
 
-                return result
-            else:
-                result = original_func(*args, **kwargs)
+                    if "MessageAttributeNames" not in params:
+                        params.update({"MessageAttributeNames": ["_datadog"]})
+                    elif "_datadog" not in params["MessageAttributeNames"]:
+                        params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
-                set_response_metadata_tags(span, result)
-                return result
-        except botocore.exceptions.ClientError as e:
-            # `ClientError.response` contains the result, so we can still grab response metadata
-            set_response_metadata_tags(span, e.response)
+                    if not func_run:
+                        result = original_func(*args, **kwargs)
 
-            # If we have a status code, and the status code is not an error,
-            #   then ignore the exception being raised
-            status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                span._ignore_exception(botocore.exceptions.ClientError)
-            raise
+                    set_response_metadata_tags(span, result)
+
+                    try:
+                        if "Messages" in result:
+                            for message in result["Messages"]:
+                                # try to extract trace context from the request
+                                context_json = extract_trace_context_json(message)
+                                if context_json is None:
+                                    log.debug("DataStreams did not handle message: %r", message)
+
+                                pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
+                                ctx = pin.tracer.data_streams_processor.decode_pathway_b64(pathway)
+                                ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], span=span)
+
+                    except Exception:
+                        log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
+
+                    # raise error if it was encountered before the span was started
+                    if func_run_err:
+                        raise func_run_err
+                    return result
+                else:
+                    if not func_run:
+                        result = original_func(*args, **kwargs)
+
+                    set_response_metadata_tags(span, result)
+                    return result
+            except botocore.exceptions.ClientError as e:
+                # `ClientError.response` contains the result, so we can still grab response metadata
+                set_response_metadata_tags(span, e.response)
+
+                # If we have a status code, and the status code is not an error,
+                #   then ignore the exception being raised
+                status_code = span.get_tag(http.STATUS_CODE)
+                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+                    span._ignore_exception(botocore.exceptions.ClientError)
+                raise
