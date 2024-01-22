@@ -1,3 +1,8 @@
+[env]
+requires = [
+    "hatch-containers==0.7.0",
+]
+
 [envs.lint]
 detached = true
 python = "3.10"
@@ -9,7 +14,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.4.0",
+    "envier==0.5.0",
     "types-attrs==19.1.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
@@ -75,6 +80,12 @@ dependencies = [  # copied from library dependencies
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
+    "sphinxcontrib-applehelp<1.0.8",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-htmlhelp<2.0.5",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-serializinghtml<1.1.10",
+    "sphinxcontrib-qthelp<1.0.7",
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",
@@ -84,6 +95,8 @@ extra-dependencies = [
 pre-install-commands = [
     "scripts/docs/install.sh",
 ]
+[envs.docs.env-vars]
+DD_TRACE_ENABLED = "false"
 
 [envs.docs.scripts]
 build = [

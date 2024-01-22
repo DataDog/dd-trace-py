@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING
-from typing import Union  # noqa
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
@@ -13,9 +13,9 @@ from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa:F401
 
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 DBM_PARENT_SERVICE_NAME_KEY = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"
@@ -77,7 +77,7 @@ class _DBM_Propagator(object):
         service_name_key = db_span.service
         if peer_service_enabled:
             db_name = db_span.get_tags().get("db.name")
-            service_name_key = compat.ensure_str(db_name) if db_name else db_span.service
+            service_name_key = compat.ensure_text(db_name) if db_name else db_span.service
 
         dbm_tags = {
             DBM_PARENT_SERVICE_NAME_KEY: dd_config.service,

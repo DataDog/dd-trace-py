@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "createFile",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -20,6 +22,8 @@
       "openai.request.method": "POST",
       "openai.request.purpose": "fine-tune",
       "openai.request.user_provided_filename": "dummy_training_file.jsonl",
+      "openai.response.bytes": "1431",
+      "openai.response.created_at": "1685649224",
       "openai.response.filename": "dummy_training_file.jsonl",
       "openai.response.id": "file-l48KgWVF75Tz2HLqLrcUdBPi",
       "openai.response.purpose": "fine-tune",
@@ -33,8 +37,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.bytes": 1431,
-      "openai.response.created_at": 1685649224,
       "process_id": 7557
     },
     "duration": 4993198,

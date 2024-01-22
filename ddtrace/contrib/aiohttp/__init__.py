@@ -30,6 +30,12 @@ Global Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.aiohttp_client['split_by_domain']
+
+   Whether or not to use the domain name of requests as the service name.
+
+   Default: ``False``
+
 
 Server
 ******

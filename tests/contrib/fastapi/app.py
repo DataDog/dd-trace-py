@@ -1,6 +1,5 @@
 import asyncio
 from tempfile import NamedTemporaryFile
-import time
 from typing import Optional
 
 from fastapi import BackgroundTasks
@@ -34,13 +33,19 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
+    async_condition = asyncio.Condition()
 
     @app.get("/")
-    async def read_homepage(sleep: str = Header(...)):  # noqa: B008
-        if sleep == "True":
-            time.sleep(2)
-            return {"Homepage Read": "Sleep"}
-        return {"Homepage Read": "Success"}
+    async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
+        async with async_condition:
+            if sleep:
+                await async_condition.wait()
+                return {"Homepage Read": "Sleep"}
+            else:
+                try:
+                    return {"Homepage Read": "Success"}
+                finally:
+                    async_condition.notify_all()
 
     @app.get("/items/{item_id}", response_model=Item)
     async def read_item(item_id: str, x_token: str = Header(...)):  # noqa: B008

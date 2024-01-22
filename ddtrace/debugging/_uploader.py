@@ -27,9 +27,9 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, encoder: BufferedEncoder, interval: Optional[float] = None) -> None:
-        super(LogsIntakeUploaderV1, self).__init__(interval or di_config.upload_flush_interval)
-        self._encoder = encoder
+    def __init__(self, queue: BufferedEncoder, interval: Optional[float] = None) -> None:
+        super().__init__(interval or di_config.upload_flush_interval)
+        self._queue = queue
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
@@ -84,9 +84,9 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
     def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""
-        count = self._encoder.count
+        count = self._queue.count
         if count:
-            payload = self._encoder.encode()
+            payload = self._queue.flush()
             if payload is not None:
                 try:
                     self._write_with_backoff(payload)

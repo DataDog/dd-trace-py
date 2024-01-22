@@ -28,13 +28,8 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
-if sys.version_info >= (3, 0):
-    from urllib.error import HTTPError
-    from urllib.request import urlretrieve
-else:
-    from urllib import urlretrieve
-
-    from urllib2 import HTTPError
+from urllib.error import HTTPError
+from urllib.request import urlretrieve
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -48,13 +43,17 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.0"
+LIBDDWAF_VERSION = "1.15.1"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
 )
 
 LIBDATADOG_PROF_VERSION = "v3.0.0"
+
+# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+if CURRENT_OS == "Darwin":
+    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -95,21 +94,12 @@ def load_module_from_project_file(mod_name, fname):
     """
     fpath = os.path.join(HERE, fname)
 
-    if sys.version_info >= (3, 5):
-        import importlib.util
+    import importlib.util
 
-        spec = importlib.util.spec_from_file_location(mod_name, fpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    elif sys.version_info >= (3, 3):
-        from importlib.machinery import SourceFileLoader
-
-        return SourceFileLoader(mod_name, fpath).load_module()
-    else:
-        import imp
-
-        return imp.load_source(mod_name, fpath)
+    spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def is_64_bit_python():
@@ -323,8 +313,7 @@ class CMakeBuild(build_ext):
 
         if not DEBUG_COMPILE:
             try:
-                if not DEBUG_COMPILE:
-                    self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
                 raise
@@ -389,7 +378,7 @@ class CMakeBuild(build_ext):
             print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
             if not ext.permissive_build:
                 raise
-        except Exception as e:
+        except Exception:
             print("WARNING: An error occurred while building the CMake extension.")
             raise
 
@@ -480,7 +469,7 @@ else:
     else:
         debug_compile_args = []
 
-if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
+if not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -550,7 +539,9 @@ def get_ddup_ext():
 
 bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
+    "bytecode>=0.15.0; python_version>='3.12'",
 ]
 
 setup(
@@ -632,7 +623,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
     ext_modules=ext_modules
     + cythonize(
         [
