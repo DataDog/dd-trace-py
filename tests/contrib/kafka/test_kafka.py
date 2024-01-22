@@ -556,7 +556,6 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
 
-@flaky(1735812000)
 def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
     def _read_single_message(consumer):
         message = None
@@ -586,11 +585,11 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 2
 
 
 @flaky(until=1704067200)
