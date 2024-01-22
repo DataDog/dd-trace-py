@@ -62,10 +62,26 @@ vectorstore_classes = (
     "AwaDB",
 )
 
+agent_output_parser_classes = {
+    "chat": {"output_parser": "ChatOutputParser"},
+    "conversational": {"output_parser": "ConvoOutputParser"},
+    "conversational_chat": {"output_parser": "ConvoOutputParser"},
+    "mrkl": {"output_parser": "MRKLOutputParser"},
+    "output_parsers": {
+        "json": "JSONAgentOutputParser",
+        "openai_functions": "OpenAIFunctionsAgentOutputParser",
+        "react_json_single_input": "ReActJsonSingleInputOutputParser",
+        "react_single_input": "ReActSingleInputOutputParser",
+        "self_ask": "SelfAskOutputParser",
+        "xml": "XMLAgentOutputParser",
+    },
+    "react": {"output_parser": "ReActOutputParser"},
+    "self_ask_with_search": {"output_parser": "SelfAskOutputParser"},
+    "structured_chat": {"output_parser": "StructuredChatOutputParser"},
+}
+
 API_KEY = "langchain.request.api_key"
-PROVIDER = "langchain.request.provider"
 MODEL = "langchain.request.model"
-TYPE = "langchain.request.type"
 COMPLETION_TOKENS = "langchain.tokens.completion_tokens"
 PROMPT_TOKENS = "langchain.tokens.prompt_tokens"
 TOTAL_COST = "langchain.tokens.total_cost"
