@@ -172,7 +172,6 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 [envs.appsec_threats_django]
 template = "appsec_threats_django"
 dependencies = [
-    "setuptools",
     "pytest",
     "pytest-coverage",
     "requests",
@@ -183,7 +182,6 @@ pre-install-commands = [
     "python -m ensurepip --upgrade",
     "pip install -U pip",
     "pip install -U setuptools",    
-    "pip freeze"
 ]
 
 
@@ -192,7 +190,6 @@ CC = "gcc"
 
 [envs.appsec_threats_django.scripts]
 test = [
-    "echo Python{matrix:python} Django{matrix:django}",
     "pip freeze",
     "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]

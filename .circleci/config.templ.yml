@@ -269,6 +269,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: "Store Test Agent Supported Integrations Data"
           command: |
@@ -468,6 +472,8 @@ jobs:
 
   appsec_threats_django:
     <<: *machine_executor
+    docker:
+      - image: *ddtrace_dev_image
     steps:
       - run_hatch_env_test:
           env: 'appsec_threats_django'
