@@ -91,10 +91,18 @@ def _deleted_rc_config():
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
-            "rc": {"tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]},
+            "rc": {
+                "tracing_header_tags": [
+                    {"header": "X-Header-Tag-69", "tag_name": "header_tag_69"},
+                    {"header": "X-Header-Tag-70", "tag_name": ""},
+                ]
+            },
             "code": {"trace_http_header_tags": {"header": "value"}},
             "expected": {
-                "trace_http_header_tags": {"X-Header-Tag-69": "header_tag_69", "X-Header-Tag-70": "header_tag_70"}
+                "trace_http_header_tags": {
+                    "X-Header-Tag-69": "header_tag_69",
+                    "X-Header-Tag-70": "",
+                }
             },
             "expected_source": {"trace_http_header_tags": "remote_config"},
         },
@@ -277,7 +285,7 @@ assert span.get_tag("env_set_tag_name") == "helloworld"
 
 config.http._reset()
 config._header_tag_name.invalidate()
-config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": ["X-Header-Tag-420:header_tag_420"]}))
+config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
 
 with tracer.trace("test_rc_override") as span2:
     trace_utils.set_http_meta(span2,
