@@ -1,5 +1,5 @@
 """
-Trace queries and data streams monitoring to aws api done via botocore client
+Trace queries monitoring to aws api done via botocore client
 """
 import base64
 import json
@@ -17,7 +17,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import aws
 from ...ext import http
-from ...internal.compat import parse
 from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils.formats import deep_getattr

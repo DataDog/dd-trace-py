@@ -140,9 +140,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                        inject_trace_to_kinesis_stream(
-                            params, span
-                        )
+                        inject_trace_to_kinesis_stream(params, span)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",

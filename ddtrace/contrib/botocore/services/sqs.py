@@ -198,13 +198,16 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
             try:
-                    if not func_run:
-                        core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
-                        result = original_func(*args, **kwargs)
-                        core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+                if not func_run:
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+                    result = original_func(*args, **kwargs)
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                    set_response_metadata_tags(span, result)
-                    return result
+                set_response_metadata_tags(span, result)
+                # raise error if it was encountered before the span was started
+                if func_run_err:
+                    raise func_run_err
+                return result
             except botocore.exceptions.ClientError as e:
                 # `ClientError.response` contains the result, so we can still grab response metadata
                 set_response_metadata_tags(span, e.response)
