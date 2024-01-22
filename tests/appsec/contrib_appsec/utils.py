@@ -31,17 +31,18 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
-    def test_healthcheck(self, interface: Interface, root_span):
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
-        with override_global_config(dict(_asm_enabled=True)):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
             from ddtrace.settings.asm import config as asm_config
 
-            assert asm_config._asm_enabled
-            assert root_span().get_tag("http.status_code") == "200"
+            assert asm_config._asm_enabled is asm_enabled
+            assert get_tag("http.status_code") == "200"
             assert self.headers(response)["content-type"] == "text/html; charset=utf-8"
 
 

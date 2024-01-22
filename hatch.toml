@@ -173,7 +173,6 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 template = "appsec_threats_django"
 dependencies = [
     "setuptools",
-    "cython",
     "pytest",
     "pytest-coverage",
     "requests",
