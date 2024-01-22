@@ -144,19 +144,11 @@ class _ImportHookChainedLoader:
 
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
-        if hasattr(loader, "create_module"):
+        # A missing loader is generally an indication of a namespace package.
+        if loader is None or hasattr(loader, "create_module"):
             self.create_module = self._create_module
-        if hasattr(loader, "exec_module"):
+        if loader is None or hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
-
-    def __getattribute__(self, name):
-        if name == "__class__":
-            # Make isinstance believe that self is also an instance of
-            # type(self.loader). This is required, e.g. by some tools, like
-            # slotscheck, that can handle known loaders only.
-            return self.loader.__class__
-
-        return super(_ImportHookChainedLoader, self).__getattribute__(name)
 
     def __getattr__(self, name):
         # Proxy any other attribute access to the underlying loader.
@@ -165,6 +157,16 @@ class _ImportHookChainedLoader:
     def add_callback(self, key, callback):
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
+
+    def call_back(self, module: ModuleType) -> None:
+        if module.__name__ == "pkg_resources":
+            # DEV: pkg_resources support to prevent errors such as
+            # NotImplementedError: Can't perform this operation for unregistered
+            # loader type
+            module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
+
+        for callback in self.callbacks.values():
+            callback(module)
 
     def load_module(self, fullname):
         # type: (str) -> Optional[ModuleType]
@@ -176,8 +178,7 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
         return module
 
@@ -222,8 +223,7 @@ class _ImportHookChainedLoader:
             else:
                 self.loader.exec_module(module)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
 
 class BaseModuleWatchdog(abc.ABC):
@@ -405,7 +405,6 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 # For now we take the more expensive route of building a list of
                 # the current values, which might be incomplete.
                 return modules_with_origin(list(sys.modules.values()))
-
         return self._om
 
     def after_import(self, module):

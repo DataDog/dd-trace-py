@@ -7,25 +7,30 @@ from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
-from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+
+from ddtrace.appsec._iast import _is_iast_enabled
+
+
+try:
+    from langchain.callbacks.openai_info import get_openai_token_cost_for_model
+except ImportError:
+    from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
 from pydantic import SecretStr
 
 from ddtrace import config
-from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
 from ddtrace.contrib.langchain.constants import API_KEY
 from ddtrace.contrib.langchain.constants import COMPLETION_TOKENS
 from ddtrace.contrib.langchain.constants import MODEL
 from ddtrace.contrib.langchain.constants import PROMPT_TOKENS
-from ddtrace.contrib.langchain.constants import PROVIDER
 from ddtrace.contrib.langchain.constants import TOTAL_COST
-from ddtrace.contrib.langchain.constants import TYPE
+from ddtrace.contrib.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.agent import get_stats_url
+from ddtrace.internal.llmobs.integrations import LangChainIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -53,88 +58,11 @@ config._add(
         "logs_enabled": asbool(os.getenv("DD_LANGCHAIN_LOGS_ENABLED", False)),
         "metrics_enabled": asbool(os.getenv("DD_LANGCHAIN_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        # FIXME: llmobs_prompt_completion_sample_rate does not currently work as the langchain integration doesn't
-        #  send LLMObs payloads. This is a placeholder for when we do.
-        "llmobs_prompt_completion_sample_rate": float(
-            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
         "_api_key": os.getenv("DD_API_KEY"),
     },
 )
-
-
-class _LangChainIntegration(BaseLLMIntegration):
-    _integration_name = "langchain"
-
-    def __init__(self, config, stats_url, site, api_key):
-        super().__init__(config, stats_url, site, api_key)
-
-    def _set_base_span_tags(self, span, interface_type="", provider=None, model=None, api_key=None):
-        # type: (Span, str, Optional[str], Optional[str], Optional[str]) -> None
-        """Set base level tags that should be present on all LangChain spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
-        if provider is not None:
-            span.set_tag_str(PROVIDER, provider)
-        if model is not None:
-            span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
-            else:
-                span.set_tag_str(API_KEY, api_key)
-
-    @classmethod
-    def _logs_tags(cls, span):
-        # type: (Span) -> str
-        api_key = span.get_tag(API_KEY) or ""
-        tags = "env:%s,version:%s,%s:%s,%s:%s,%s:%s,%s:%s" % (  # noqa: E501
-            (config.env or ""),
-            (config.version or ""),
-            PROVIDER,
-            (span.get_tag(PROVIDER) or ""),
-            MODEL,
-            (span.get_tag(MODEL) or ""),
-            TYPE,
-            (span.get_tag(TYPE) or ""),
-            API_KEY,
-            api_key,
-        )
-        return tags
-
-    @classmethod
-    def _metrics_tags(cls, span):
-        # type: (Span) -> list
-        provider = span.get_tag(PROVIDER) or ""
-        api_key = span.get_tag(API_KEY) or ""
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "%s:%s" % (PROVIDER, provider),
-            "%s:%s" % (MODEL, span.get_tag(MODEL) or ""),
-            "%s:%s" % (TYPE, span.get_tag(TYPE) or ""),
-            "%s:%s" % (API_KEY, api_key),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags.append("%s:%s" % (ERROR_TYPE, err_type))
-        return tags
-
-    def record_usage(self, span, usage):
-        # type: (Span, Dict[str, Any]) -> None
-        if not usage or self._config.metrics_enabled is False:
-            return
-        for token_type in ("prompt", "completion", "total"):
-            num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
-            if not num_tokens:
-                continue
-            self.metric(span, "dist", "tokens.%s" % token_type, num_tokens)
-        total_cost = span.get_metric(TOTAL_COST)
-        if total_cost:
-            self.metric(span, "incr", "tokens.total_cost", total_cost)
 
 
 def _extract_model_name(instance):
@@ -555,7 +483,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if isinstance(embeddings, list) and isinstance(embeddings[0], list):
+        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
             for idx, embedding in enumerate(embeddings):
                 span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
         else:
@@ -596,6 +524,8 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
+        if _is_iast_enabled():
+            taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -743,27 +673,12 @@ def patch():
         return
     langchain._datadog_patch = True
 
-    #  TODO: How do we test this? Can we mock out the metric/logger/sampler?
-    ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", config.langchain._api_key)
-
     Pin().onto(langchain)
-    integration = _LangChainIntegration(
+    integration = LangChainIntegration(
         config=config.langchain,
         stats_url=get_stats_url(),
-        site=ddsite,
-        api_key=ddapikey,
     )
     langchain._datadog_integration = integration
-
-    if config.langchain.logs_enabled:
-        if not ddapikey:
-            raise ValueError(
-                "DD_API_KEY is required for sending logs from the LangChain integration."
-                " The LangChain integration can be disabled by setting the ``DD_TRACE_LANGCHAIN_ENABLED``"
-                " environment variable to False."
-            )
-        integration.start_log_writer()
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
@@ -804,6 +719,19 @@ def patch():
                     "langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
                 )
 
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+
+        def wrap_output_parser(module, parser):
+            # Ensure not double patched
+            if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
+                wrap(module, "%s.parse" % parser, taint_parser_output)
+
+        try:
+            with_agent_output_parser(wrap_output_parser)
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. langchain wrap_output_parser. {}".format(e))
+
 
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
@@ -834,3 +762,69 @@ def unpatch():
                 unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")
+
+
+def taint_outputs(instance, inputs, outputs):
+    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    try:
+        ranges = None
+        for key in filter(lambda x: x in inputs, instance.input_keys):
+            input_val = inputs.get(key)
+            if input_val:
+                ranges = get_tainted_ranges(input_val)
+                if ranges:
+                    break
+
+        if ranges:
+            source = ranges[0].source
+            for key in filter(lambda x: x in outputs, instance.output_keys):
+                output_value = outputs[key]
+                outputs[key] = taint_pyobject(output_value, source.name, source.value, source.origin)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
+
+
+def taint_parser_output(func, instance, args, kwargs):
+    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    result = func(*args, **kwargs)
+    try:
+        try:
+            from langchain_core.agents import AgentAction
+            from langchain_core.agents import AgentFinish
+        except ImportError:
+            from langchain.agents import AgentAction
+            from langchain.agents import AgentFinish
+        ranges = get_tainted_ranges(args[0])
+        if ranges:
+            source = ranges[0].source
+            if isinstance(result, AgentAction):
+                result.tool_input = taint_pyobject(result.tool_input, source.name, source.value, source.origin)
+            elif isinstance(result, AgentFinish) and "output" in result.return_values:
+                values = result.return_values
+                values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. langchain taint_parser_output. {}".format(e))
+
+    return result
+
+
+def with_agent_output_parser(f):
+    import langchain.agents
+
+    queue = [(langchain.agents, agent_output_parser_classes)]
+
+    while len(queue) > 0:
+        module, current = queue.pop(0)
+        if isinstance(current, str):
+            if hasattr(module, current):
+                f(module, current)
+        elif isinstance(current, dict):
+            for name, value in current.items():
+                if hasattr(module, name):
+                    queue.append((getattr(module, name), value))

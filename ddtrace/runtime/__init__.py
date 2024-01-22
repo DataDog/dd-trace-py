@@ -1,7 +1,5 @@
 from typing import Optional  # noqa:F401
 
-import six
-
 import ddtrace.internal.runtime.runtime_metrics
 
 
@@ -13,7 +11,7 @@ class _RuntimeMetricsStatus(type):
         return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
 
 
-class RuntimeMetrics(six.with_metaclass(_RuntimeMetricsStatus)):
+class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
     """
     Runtime metrics service API.
 

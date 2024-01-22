@@ -43,6 +43,17 @@ def mock_logs():
 
 def _completion_record():
     return {
+        "ddtags": [
+            "version:",
+            "env:",
+            "service:",
+            "src:integration",
+            "dd.trace_id:1234567890",
+            "dd.span_id:1234567890",
+            "ml_obs.request.model:ada",
+            "ml_obs.request.model_provider:openai",
+            "ml_obs.request.error:0",
+        ],
         "type": "completion",
         "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
         "timestamp": 1681852797000,
@@ -59,13 +70,25 @@ def _completion_record():
                     "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, "
                     "led by mathematician Alan Turing."
                 }
-            ]
+            ],
+            "durations": [1.234],
         },
     }
 
 
 def _chat_completion_record():
     return {
+        "ddtags": [
+            "version:",
+            "env:",
+            "service:",
+            "src:integration",
+            "dd.trace_id:1234567890",
+            "dd.span_id:1234567890",
+            "ml_obs.request.model:gpt-3.5-turbo",
+            "ml_obs.request.model_provider:openai",
+            "ml_obs.request.error:0",
+        ],
         "type": "chat",
         "id": "chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu",
         "timestamp": 1681853029000,
@@ -87,7 +110,8 @@ def _chat_completion_record():
                     "and your quest will not go unnoticed",
                     "role": "assistant",
                 }
-            ]
+            ],
+            "durations": [2.345],
         },
     }
 
@@ -172,12 +196,20 @@ def test_send_timed_records(mock_logs):
     llmobs_writer.enqueue(_completion_record())
     llmobs_writer.enqueue(_completion_record())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 2, INTAKE_ENDPOINT)])
-
-    llmobs_writer.enqueue(_chat_completion_record())
+    mock_logs.debug.assert_has_calls(
+        [
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+        ]
+    )
     mock_logs.reset_mock()
+    llmobs_writer.enqueue(_chat_completion_record())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
+    mock_logs.debug.assert_has_calls(
+        [
+            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
+        ]
+    )
 
 
 def test_send_on_exit(mock_logs, run_python_code_in_subprocess):

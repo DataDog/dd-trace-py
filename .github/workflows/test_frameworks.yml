@@ -24,7 +24,7 @@ jobs:
           export PATHS=$(git diff --name-only HEAD ${{ github.event.pull_request.base.sha }})
           python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/test_frameworks.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
-  
+
   bottle-testsuite-0_12_19:
     runs-on: ubuntu-latest
     needs: needs-run
@@ -284,7 +284,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Test
         if: needs.needs-run.outputs.outcome == 'success'
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
+        # https://github.com/tiangolo/fastapi/pull/10876
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
@@ -379,7 +380,7 @@ jobs:
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
         run: pytest -k 'not test_pool_timeout'
 
-  mako-testsuite-1_1_4:
+  mako-testsuite-1_3_0:
     runs-on: ubuntu-latest
     needs: needs-run
     env:
@@ -401,7 +402,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sqlalchemy/mako
-          ref: rel_1_1_4
+          ref: rel_1_3_0
           path: mako
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success'
@@ -467,6 +468,10 @@ jobs:
       - name: Pin urllib3
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install urllib3==1.26.15
+      # with trio 0.24.0 we are seeing AttributeErrors, pinning while investigating root issue.
+      - name: Pin trio
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install trio==0.23.2
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
@@ -515,7 +520,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
       - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success' 
+        if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   asyncpg-testsuite-0_27_0:
@@ -589,7 +594,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: |
           . ../ddtrace/.github/workflows/setup-tox.sh py39
-          
+
           pip install -e .
           pytest -p no:warnings -k "not test_import" tests/
 

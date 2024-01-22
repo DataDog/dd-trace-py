@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Tracer  # noqa:F401
     from ddtrace.settings import Config  # noqa:F401
 
-from six.moves.urllib.parse import quote
+from urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
@@ -109,31 +109,44 @@ class _DDWSGIMiddlewareBase(object):
             call_key="req_span",
         ) as ctx:
             if core.get_item(HTTP_REQUEST_BLOCKED):
-                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 start_response(str(status), headers)
                 closing_iterable = [content]
                 not_blocked = False
 
             def blocked_view():
-                status, headers, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], ""
                 return content, status, headers
 
-            core.dispatch("wsgi.block_decided", blocked_view)
+            core.dispatch("wsgi.block_decided", (blocked_view,))
 
             if not_blocked:
-                core.dispatch("wsgi.request.prepare", ctx, start_response)
+                core.dispatch("wsgi.request.prepare", (ctx, start_response))
                 try:
                     closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
                 except BaseException:
-                    core.dispatch("wsgi.app.exception", ctx)
+                    core.dispatch("wsgi.app.exception", (ctx,))
                     raise
                 else:
-                    core.dispatch("wsgi.app.success", ctx, closing_iterable)
+                    core.dispatch("wsgi.app.success", (ctx, closing_iterable))
                 if core.get_item(HTTP_REQUEST_BLOCKED):
-                    _, _, content = core.dispatch("wsgi.block.started", ctx, construct_url)[0][0]
+                    _, _, content = core.dispatch_with_results(
+                        "wsgi.block.started", (ctx, construct_url)
+                    ).status_headers_content.value or (None, None, "")
                     closing_iterable = [content]
 
-            return core.dispatch("wsgi.request.complete", ctx, closing_iterable, self.app_is_iterator)[0][0]
+            result = core.dispatch_with_results(
+                "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
+            ).traced_iterable
+            return result.value if result else []
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         # type: (Callable, Span, Span, str, Dict, Any) -> None
@@ -251,7 +264,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         url = construct_url(environ)
         request_headers = parsed_headers if parsed_headers is not None else get_request_headers(environ)
-        core.dispatch("wsgi.request.prepared", self, req_span, url, request_headers, environ)
+        core.dispatch("wsgi.request.prepared", (self, req_span, url, request_headers, environ))
 
     def _response_span_modifier(self, resp_span, response):
-        core.dispatch("wsgi.response.prepared", resp_span, response)
+        core.dispatch("wsgi.response.prepared", (resp_span, response))

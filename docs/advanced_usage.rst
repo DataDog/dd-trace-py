@@ -404,7 +404,8 @@ For a selected set of integrations, it is possible to store http headers from bo
 
 The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
 
-Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
+This configuration can be provided both at the global level and at the integration level in your application code, or it
+can be set via the Datadog UI (UI functionality in beta as of version 2.5.0).
 
 Examples::
 
@@ -691,3 +692,19 @@ Example with uWSGI ini file:
 .. code-block:: bash
 
   uwsgi --ini uwsgi.ini
+
+Specifying Log Level
+--------------------
+
+``ddtrace`` uses a Python Logger instance called "ddtrace" to submit its log output. You can configure this
+logger instance independently from other loggers in your program's logger hierarchy. This is useful when you
+have configured your application's root logger to a verbose output level and you don't want to see verbose
+logs from ``ddtrace``.
+
+The following example illustrates how to reduce the verbosity of ``ddtrace`` log output when verbose logging is
+in use at the root level:
+
+.. code-block:: python
+
+    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger("ddtrace").setLevel(logging.WARNING)

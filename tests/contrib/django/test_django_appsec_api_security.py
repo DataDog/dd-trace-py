@@ -3,11 +3,11 @@ import base64
 import gzip
 import json
 
+import pytest
+
 from ddtrace.appsec import _constants
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
-from tests.appsec.appsec.test_processor import RULES_SRB
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -115,51 +115,32 @@ def test_api_security(client, test_spans, tracer):
             assert equal_with_meta(api, expected_value), name
 
 
-def test_api_security_with_srb(client, test_spans, tracer):
+@pytest.mark.parametrize("parse_response_body", [False, True])
+@pytest.mark.parametrize(
+    ["name", "expected_value"],
+    [
+        ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
+        (
+            "_dd.appsec.s.req.headers",
+            [{"user-agent": [8], "content-length": [8], "content-type": [8]}],
+        ),
+        ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
+        ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
+        ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
+        ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
+        ("_dd.appsec.s.res.body", [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
+    ],
+)
+def test_api_security_with_srb(client, test_spans, tracer, parse_response_body, name, expected_value):
     """Test if srb is still working as expected with api security activated"""
 
     with override_global_config(
-        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
-    ), override_env({"DD_APPSEC_RULES": RULES_SRB}):
-        payload = {"key": "secret", "ids": [0, 1, 2, 3]}
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
-            payload=payload,
-            cookies={"secret": "a1b2c3d4e5f6"},
-            content_type="application/json",
+        dict(
+            _asm_enabled=True,
+            _api_security_enabled=True,
+            _api_security_sample_rate=1.0,
+            _api_security_parse_response_body=parse_response_body,
         )
-        assert response.status_code == 403
-        loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
-
-        assert asm_config._api_security_enabled
-
-        for name, expected_value in [
-            ("_dd.appsec.s.req.body", [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
-            (
-                "_dd.appsec.s.req.headers",
-                [{"content-length": [8], "content-type": [8]}],
-            ),
-            ("_dd.appsec.s.req.cookies", [{"secret": [8]}]),
-            ("_dd.appsec.s.req.query", [{"y": [8], "x": [8]}]),
-            ("_dd.appsec.s.req.params", [{"year": [4], "month": [8]}]),
-            ("_dd.appsec.s.res.headers", [{"content-type": [8]}]),
-            ("_dd.appsec.s.res.body", [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]),
-        ]:
-            value = root_span.get_tag(name)
-            assert value, name
-            api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
-            assert equal_with_meta(api, expected_value), name
-
-
-def test_api_security_deactivated(client, test_spans, tracer):
-    """Test if blocking is still working as expected with api security deactivated"""
-
-    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)), override_env(
-        {_constants.API_SECURITY.SAMPLE_RATE: "1.0", "DD_APPSEC_RULES": RULES_SRB}
     ):
         payload = {"key": "secret", "ids": [0, 1, 2, 3]}
         root_span, response = _aux_appsec_get_root_span(
@@ -170,12 +151,45 @@ def test_api_security_deactivated(client, test_spans, tracer):
             payload=payload,
             cookies={"secret": "a1b2c3d4e5f6"},
             content_type="application/json",
+            headers={"HTTP_USER_AGENT": "dd-test-scanner-log-block"},
         )
         assert response.status_code == 403
         loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["ua0-600-56x"]
 
-        assert not asm_config._api_security_enabled
+        assert asm_config._api_security_enabled
+
+        value = root_span.get_tag(name)
+        if not parse_response_body and name == "_dd.appsec.s.res.body":
+            assert value is None, "response body should not be parsed with DD_API_SECURITY_PARSE_RESPONSE_BODY=false"
+        else:
+            assert value, name
+            api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+            assert equal_with_meta(api, expected_value), name
+
+
+@pytest.mark.parametrize(["enable", "rate"], [(False, 1.0), (True, 0.0)])
+def test_api_security_deactivated(client, test_spans, tracer, enable, rate):
+    """Test if blocking is still working as expected with api security deactivated"""
+
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=enable, _api_security_sample_rate=rate)):
+        payload = {"key": "secret", "ids": [0, 1, 2, 3]}
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/path-params/2022/path_param/?y=0&x=1&y=xtrace",
+            payload=payload,
+            cookies={"secret": "a1b2c3d4e5f6"},
+            content_type="application/json",
+            headers={"HTTP_USER_AGENT": "dd-test-scanner-log-block"},
+        )
+        assert response.status_code == 403
+        loaded = json.loads(root_span.get_tag(_constants.APPSEC.JSON))
+        assert [t["rule"]["id"] for t in loaded["triggers"]] == ["ua0-600-56x"]
+
+        assert asm_config._api_security_enabled is enable
+        assert asm_config._api_security_sample_rate == rate
 
         for name in [
             "_dd.appsec.s.req.body",

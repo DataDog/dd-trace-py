@@ -234,13 +234,14 @@ def test_200_multi_query_string(client, tracer, test_spans):
 
 
 def test_create_item_success(client, tracer, test_spans):
+    _id = "aawlieufghai3w4uhfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDog"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 200
-    assert response.json() == {"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"}
+    assert response.json() == {"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"}
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -263,10 +264,11 @@ def test_create_item_success(client, tracer, test_spans):
 
 
 def test_create_item_bad_token(client, tracer, test_spans):
+    _id = "iughq8374yfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDoged"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
@@ -566,7 +568,7 @@ def test_w_patch_starlette(client, tracer, test_spans):
 
 @snapshot()
 def test_subapp_snapshot(snapshot_client):
-    response = snapshot_client.get("/sub-app/hello/name")
+    response = snapshot_client.get("/sub-app/hello/foo")
     assert response.status_code == 200
 
 
@@ -575,7 +577,7 @@ def test_subapp_w_starlette_patch_snapshot(snapshot_client):
     # Test that patching starlette doesn't affect the spans generated
     patch_starlette()
     try:
-        response = snapshot_client.get("/sub-app/hello/name")
+        response = snapshot_client.get("/sub-app/hello/foo")
         assert response.status_code == 200
     finally:
         unpatch_starlette()

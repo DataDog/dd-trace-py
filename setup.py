@@ -43,7 +43,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.0"
+LIBDDWAF_VERSION = "1.15.1"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -539,7 +539,9 @@ def get_ddup_ext():
 
 bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
+    "bytecode>=0.15.0; python_version>='3.12'",
 ]
 
 setup(
@@ -621,7 +623,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
     ext_modules=ext_modules
     + cythonize(
         [

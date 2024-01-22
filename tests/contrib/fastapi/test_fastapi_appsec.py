@@ -1,5 +1,6 @@
 import json
 
+import fastapi
 from fastapi import Request
 from fastapi.responses import PlainTextResponse
 from fastapi.testclient import TestClient
@@ -8,6 +9,7 @@ import pytest
 import ddtrace
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._handlers import _on_asgi_request_parse_body
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.ext import http
@@ -117,6 +119,49 @@ def test_ipblock_match_403_json(app, client, tracer, test_spans):
         assert root_span.get_tag("appsec.blocked") == "true"
 
 
+# Core Instrumentation
+
+
+@pytest.fixture
+def setup_core_ok_after_test():
+    yield
+    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+
+
+@pytest.mark.usefixtures("setup_core_ok_after_test")
+def test_core_callback_request_body(app, client, tracer, test_spans):
+    @app.get("/index.html")
+    @app.post("/index.html")
+    async def test_route(request: Request):
+        body = await request._receive()
+        return PlainTextResponse(body["body"])
+
+    # test if asgi middleware is ok without any callback registered
+    core.reset_listeners(event_id="asgi.request.parse.body")
+
+    payload, content_type = '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json"
+
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer, asm_enabled=True)
+        resp = client.post(
+            "/index.html?args=test",
+            data=payload,
+            headers={"Content-Type": content_type},
+        )
+        assert resp.status_code == 200
+        assert get_response_body(resp) == '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+    with override_global_config(dict(_asm_enabled=True)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html?args=test",
+            data=payload,
+            headers={"Content-Type": content_type},
+        )
+        assert resp.status_code == 200
+        assert get_response_body(resp) == '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+
+
 # Request Blocking on Request
 
 
@@ -142,9 +187,14 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
     # other values must not be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/index.html?toto=ytrace")
+        resp = client.get("/index.html?toto=ytrac%65")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok: ytrace"
+    # same encoded value must be blocked
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get("/index.html?toto=xtrac%65")
+        assert resp.status_code == 403
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
@@ -254,29 +304,32 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
 
 
 def test_request_suspicious_request_block_match_cookies(app, client, tracer, test_spans):
-    @app.get("/")
-    def test_route():
-        return PlainTextResponse("OK")
+    @app.get("/test_cookies", response_class=PlainTextResponse)
+    def test_route(response: fastapi.Response):
+        response.status_code = fastapi.status.HTTP_201_CREATED
+        return "OK Cookie"
 
     # value jdfoSDGFkivRG_234 must be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFkivRG_234"})
-        assert resp.status_code == 403
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234 45"})
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
+        assert resp.status_code == 403
         root_span = get_root_span(test_spans)
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
     # other value must not be blocked
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFHappykivRG_234"})
-        assert resp.status_code == 200
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFHappykivRG_234"})
+        assert resp.status_code == 201
+        assert get_response_body(resp) == "OK Cookie"
     # appsec disabled must not block
     with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
-        resp = client.get("/", cookies={"keyname": "jdfoSDGFkivRG_234"})
-        assert resp.status_code == 200
+        resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234"})
+        assert resp.status_code == 201
+        assert get_response_body(resp) == "OK Cookie"
 
 
 def test_request_suspicious_request_block_match_path_params(app, client, tracer, test_spans):

@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import pickle
 
 import pytest
 
@@ -12,6 +13,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._utils import get_wsgi_header
+from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
@@ -53,6 +55,17 @@ def test_inject(tracer):  # noqa: F811
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
+        ctx._set_baggage_item("key1", "val1")
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+            assert headers[_HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
 
 
 @pytest.mark.subprocess(
@@ -257,6 +270,7 @@ def test_extract(tracer):  # noqa: F811
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.test=value,any=tag",
+        "ot-baggage-key1": "value1",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -281,6 +295,24 @@ def test_extract(tracer):  # noqa: F811
                 "_dd.origin": "synthetics",
                 "_dd.p.test": "value",
             }
+
+
+def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
+    with override_global_config(dict(propagation_http_baggage_enabled=True)):
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "ot-baggage-key1": "value1",
+        }
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span._get_baggage_item("key1") == "value1"
+            with tracer.trace("child_span") as child_span:
+                assert child_span._get_baggage_item("key1") == "value1"
 
 
 @pytest.mark.subprocess(
@@ -946,7 +978,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
@@ -1385,7 +1417,21 @@ EXTRACT_FIXTURES = [
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
-            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+            "meta": {
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+            },
+            "span_links": [
+                SpanLink(
+                    trace_id=13088165645273925489,
+                    span_id=5678,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                )
+            ],
         },
     ),
     (
@@ -1404,6 +1450,29 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "span_links": [
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=11744061942159299346,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3multi"},
+                ),
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                ),
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=67667974448284343,
+                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+                ),
+            ],
         },
     ),
     (
@@ -1420,6 +1489,29 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "span_links": [
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=11744061942159299346,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3multi"},
+                ),
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=16453819474850114513,
+                    tracestate=None,
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "b3"},
+                ),
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=67667974448284343,
+                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+                ),
+            ],
         },
     ),
     (
@@ -1578,7 +1670,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE]},
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
@@ -1591,6 +1683,15 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "span_links": [
+                SpanLink(
+                    trace_id=TRACE_ID,
+                    span_id=67667974448284343,
+                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                    flags=1,
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
+                )
+            ],
         },
     ),
     (
@@ -1621,7 +1722,10 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 67667974448284343,
             "sampling_priority": 2,
             "dd_origin": "rum",
-            "tracestate": "dd=s:2;o:rum",
+            "meta": {
+                "tracestate": "dd=s:2;o:rum",
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+            },
         },
     ),
 ]
@@ -1632,40 +1736,22 @@ def test_propagation_extract_env(name, styles, headers, expected_context, run_py
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
-
+import pickle
+from ddtrace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-
 context = HTTPPropagator.extract({!r})
-if context is None:
-    print("null")
-else:
-    if context._meta.get("tracestate"):
-        print(json.dumps({{
-        "trace_id": context.trace_id,
-        "span_id": context.span_id,
-        "sampling_priority": context.sampling_priority,
-        "dd_origin": context.dd_origin,
-        "tracestate": context._meta.get("tracestate")
-        }}))
-    else:
-        print(json.dumps({{
-        "trace_id": context.trace_id,
-        "span_id": context.span_id,
-        "sampling_priority": context.sampling_priority,
-        "dd_origin": context.dd_origin,
-        }}))
+expected_context = Context(**pickle.loads({!r}))
+assert context == expected_context, f"Expected {{expected_context}} but got {{context}}"
     """.format(
-        headers
+        headers,
+        pickle.dumps(expected_context),
     )
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-
-    result = json.loads(stdout.decode())
-    assert result == expected_context
 
 
 @pytest.mark.parametrize("name,styles,headers,expected_context", EXTRACT_FIXTURES)
@@ -1680,8 +1766,9 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
             if not expected_context.get("tracestate"):
                 assert context == Context(**expected_context)
             else:
-                tracestate = expected_context.pop("tracestate")
-                assert context == Context(**expected_context, meta={"tracestate": tracestate})
+                copied_expectation = expected_context.copy()
+                tracestate = copied_expectation.pop("tracestate")
+                assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
 
 
 EXTRACT_OVERRIDE_FIXTURES = [
@@ -1782,7 +1869,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ],
         ALL_HEADERS,
         Context(
-            trace_id=171395628812617415352188477958425669623,
+            trace_id=TRACE_ID,
             span_id=67667974448284343,
             meta={
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
@@ -1812,7 +1899,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             span_id=67667974448284343,
             meta={
                 "traceparent": "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
-                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
@@ -1841,7 +1928,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ],
         ALL_HEADERS,
         Context(
-            trace_id=171395628812617415352188477958425669623,
+            trace_id=TRACE_ID,
             span_id=67667974448284343,
             meta={
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
@@ -1880,21 +1967,21 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
-                    trace_id=171395628812617415352188477958425669623,
+                    trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 ),
                 SpanLink(
-                    trace_id=171395628812617415352188477958425669623,
+                    trace_id=TRACE_ID,
                     span_id=16453819474850114513,
                     tracestate=None,
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "b3"},
                 ),
                 SpanLink(
-                    trace_id=171395628812617415352188477958425669623,
+                    trace_id=TRACE_ID,
                     span_id=11744061942159299346,
                     tracestate=None,
                     flags=1,

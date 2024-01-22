@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 13700571859906052169,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.base_service": ""
     },
