@@ -16,6 +16,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+import tests.appsec.rules as rules
 from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -27,19 +28,6 @@ try:
 except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
-RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
-RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
-RULES_SRB = os.path.join(ROOT_DIR, "rules-suspicious-requests.json")
-RULES_SRBCA = os.path.join(ROOT_DIR, "rules-suspicious-requests-custom-actions.json")
-RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.json")
-RULES_SRB_METHOD = os.path.join(ROOT_DIR, "rules-suspicious-requests-get.json")
-RULES_BAD_VERSION = os.path.join(ROOT_DIR, "rules-bad_version.json")
-
-RESPONSE_CUSTOM_JSON = os.path.join(ROOT_DIR, "response-custom.json")
-RESPONSE_CUSTOM_HTML = os.path.join(ROOT_DIR, "response-custom.html")
 
 
 @pytest.fixture
@@ -53,11 +41,6 @@ def _enable_appsec(tracer):
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     return tracer
-
-
-class Config(object):
-    def __init__(self):
-        self.is_header_tracing_configured = False
 
 
 def test_transform_headers():
@@ -87,14 +70,14 @@ def test_enable(tracer_appsec):
 
 
 def test_enable_custom_rules():
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
-    assert processor.rules == RULES_GOOD_PATH
+    assert processor.rules == rules.RULES_GOOD_PATH
 
 
-@pytest.mark.parametrize("rule,exc", [(RULES_MISSING_PATH, IOError), (RULES_BAD_PATH, ValueError)])
+@pytest.mark.parametrize("rule,exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
     # with override_env(dict(DD_APPSEC_RULES=rule)):
     #     with pytest.raises(exc):
@@ -131,7 +114,7 @@ def test_header_attack(tracer_appsec):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
                 span,
-                Config(),
+                rules.Config(),
                 request_headers={
                     "User-Agent": "Arachni/v1",
                     "user-agent": "aa",
@@ -149,7 +132,7 @@ def test_headers_collection(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(
             span,
-            Config(),
+            rules.Config(),
             raw_uri="http://example.com/.git",
             status_code="404",
             request_headers={
@@ -175,6 +158,7 @@ def test_headers_collection(tracer_appsec):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -199,6 +183,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -216,37 +201,30 @@ def test_appsec_body_no_collection_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
 
 
-class _IP:
-    BLOCKED = "8.8.4.4"  # actively blocked
-    MONITORED = "8.8.5.5"  # on the pass list should never been blocked but still monitored
-    BYPASS = "8.8.6.6"  # on the pass list, should bypass all security
-    DEFAULT = "1.1.1.1"  # default behaviour
-
-
 def test_ip_block(tracer):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
-        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
+        with _asm_request_context.asm_request_context_manager(rules._IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
 
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
-            assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
+            assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
             assert core.get_item("http.request.blocked", span)
 
 
-@pytest.mark.parametrize("ip", [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT])
+@pytest.mark.parametrize("ip", [rules._IP.MONITORED, rules._IP.BYPASS, rules._IP.DEFAULT])
 def test_ip_not_block(tracer, ip):
-    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)), override_global_config(dict(_asm_enabled=True)):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(ip, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
 
             assert core.get_item("http.request.remote_ip", span) == ip
@@ -261,7 +239,7 @@ def test_ip_update_rules_and_block(tracer):
                 "rules_data": [
                     {
                         "data": [
-                            {"value": _IP.BLOCKED},
+                            {"value": rules._IP.BLOCKED},
                         ],
                         "id": "blocked_ips",
                         "type": "ip_with_expiration",
@@ -269,14 +247,14 @@ def test_ip_update_rules_and_block(tracer):
                 ]
             }
         )
-        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
+        with _asm_request_context.asm_request_context_manager(rules._IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
 
-                assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
+                assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
                 assert core.get_item("http.request.blocked", span)
 
 
@@ -288,7 +266,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 "rules_data": [
                     {
                         "data": [
-                            {"expiration": 1662804872, "value": _IP.BLOCKED},
+                            {"expiration": 1662804872, "value": rules._IP.BLOCKED},
                         ],
                         "id": "blocked_ips",
                         "type": "ip_with_expiration",
@@ -296,14 +274,14 @@ def test_ip_update_rules_expired_no_block(tracer):
                 ]
             }
         )
-        with _asm_request_context.asm_request_context_manager(_IP.BLOCKED, {}):
+        with _asm_request_context.asm_request_context_manager(rules._IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
 
-            assert core.get_item("http.request.remote_ip", span) == _IP.BLOCKED
+            assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
             assert core.get_item("http.request.blocked", span) is None
 
 
@@ -312,6 +290,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -332,12 +311,13 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta._dd.appsec.event_rules.errors",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
     with override_global_config(dict(_asm_enabled=True)):
-        with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
+        with override_env(dict(DD_APPSEC_RULES=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"))):
             _enable_appsec(tracer)
             with _asm_request_context.asm_request_context_manager(), tracer.trace(
                 "test", service="test", span_type=SpanTypes.WEB
@@ -427,7 +407,7 @@ def test_obfuscation_parameter_value_unconfigured_not_matching(tracer_appsec):
     tracer = tracer_appsec
 
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
+        set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -440,7 +420,7 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
     tracer = tracer_appsec
 
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+        set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -456,7 +436,7 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+            set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
         assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -472,7 +452,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
         _enable_appsec(tracer)
 
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            set_http_meta(span, Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
+            set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
 
         assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -482,8 +462,8 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 
 
 def test_ddwaf_run():
-    with open(RULES_GOOD_PATH) as rules:
-        rules_json = json.loads(rules.read())
+    with open(rules.RULES_GOOD_PATH) as rule_set:
+        rules_json = json.loads(rule_set.read())
         _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
             "server.request.query": {},
@@ -502,8 +482,8 @@ def test_ddwaf_run():
 
 
 def test_ddwaf_run_timeout():
-    with open(RULES_GOOD_PATH) as rules:
-        rules_json = json.loads(rules.read())
+    with open(rules.RULES_GOOD_PATH) as rule_set:
+        rules_json = json.loads(rule_set.read())
         _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
@@ -518,8 +498,8 @@ def test_ddwaf_run_timeout():
 
 
 def test_ddwaf_info():
-    with open(RULES_GOOD_PATH) as rules:
-        rules_json = json.loads(rules.read())
+    with open(rules.RULES_GOOD_PATH) as rule_set:
+        rules_json = json.loads(rule_set.read())
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
@@ -530,8 +510,8 @@ def test_ddwaf_info():
 
 
 def test_ddwaf_info_with_2_errors():
-    with open(os.path.join(ROOT_DIR, "rules-with-2-errors.json")) as rules:
-        rules_json = json.loads(rules.read())
+    with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json")) as rule_set:
+        rules_json = json.loads(rule_set.read())
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
@@ -546,8 +526,8 @@ def test_ddwaf_info_with_2_errors():
 
 
 def test_ddwaf_info_with_3_errors():
-    with open(os.path.join(ROOT_DIR, "rules-with-3-errors.json")) as rules:
-        rules_json = json.loads(rules.read())
+    with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json")) as rule_set:
+        rules_json = json.loads(rule_set.read())
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
@@ -558,7 +538,7 @@ def test_ddwaf_info_with_3_errors():
 
 def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
     tracer = tracer_appsec
-    config = Config()
+    config = rules.Config()
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.WARNING), mock.patch(
@@ -595,7 +575,7 @@ def test_ddwaf_info_with_json_decode_errors(tracer_appsec, caplog):
 def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
     tracer = tracer_appsec
 
-    config = Config()
+    config = rules.Config()
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
@@ -633,7 +613,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
 def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
     tracer = tracer_appsec
 
-    config = Config()
+    config = rules.Config()
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
