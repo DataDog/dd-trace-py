@@ -28,6 +28,13 @@ from typing import Optional
 
 import attr
 
+from ddtrace.internal.utils.formats import flatten_key_value
+
+
+def _id_not_zero(self, attribute, value):
+    if not value > 0:
+        raise ValueError(f"{attribute.name} must be > 0. Value is {value}")
+
 
 @attr.s
 class SpanLink:
@@ -44,8 +51,8 @@ class SpanLink:
     value is either a string, bool, number or an array of primitive type values.
     """
 
-    trace_id = attr.ib(type=int)
-    span_id = attr.ib(type=int)
+    trace_id = attr.ib(type=int, validator=_id_not_zero)
+    span_id = attr.ib(type=int, validator=_id_not_zero)
     tracestate = attr.ib(type=Optional[str], default=None)
     flags = attr.ib(type=Optional[int], default=None)
     attributes = attr.ib(type=dict, default=dict())
@@ -75,11 +82,23 @@ class SpanLink:
 
     def to_dict(self):
         d = {
-            "trace_id": self.trace_id,
-            "span_id": self.span_id,
+            "trace_id": "{:032x}".format(self.trace_id),
+            "span_id": "{:016x}".format(self.span_id),
         }
         if self.attributes:
-            d["attributes"] = {k: str(v) for k, v in self.attributes.items()}
+            d["attributes"] = {}
+            for k, v in self.attributes.items():
+                # flatten all values with the type list, tuple and set
+                for k1, v1 in flatten_key_value(k, v).items():
+                    # convert all values to string
+                    if isinstance(v1, str):
+                        d["attributes"][k1] = v1
+                    elif isinstance(v1, bool):
+                        # convert bool to lowercase string to be consistent with json encoding
+                        d["attributes"][k1] = str(v1).lower()
+                    else:
+                        d["attributes"][k1] = str(v1)
+
         if self._dropped_attributes > 0:
             d["dropped_attributes_count"] = self._dropped_attributes
         if self.tracestate:

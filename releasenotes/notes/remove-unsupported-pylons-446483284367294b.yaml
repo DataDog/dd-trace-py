@@ -1,0 +1,8 @@
+---
+  upgrade:
+  - ".. _remove-unsupported-pylons:
+
+
+    This removes the ``pylons`` integration, which does not support Python 3.
+
+    "

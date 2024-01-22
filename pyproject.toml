@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2; python_version>='3.7'"]
+requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "ddtrace"
 dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
-# license-files = { paths = ["LICENSE.BSD3"] }
+license = { text = "LICENSE.BSD3" }
 requires-python = ">=3.7"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
@@ -230,6 +230,7 @@ select = [
     "A",
     "D",
     "E",
+    "F",
     "G",
     "I",
     "W",

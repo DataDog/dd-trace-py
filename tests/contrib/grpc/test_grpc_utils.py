@@ -50,11 +50,40 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
             1234,
             [
                 mock.call("grpc.host", "localhost"),
+                mock.call("peer.hostname", "localhost"),
                 mock.call("network.destination.port", "1234"),
                 mock.call("span.kind", "client"),
             ],
         ),
-        ("localhost", None, [mock.call("grpc.host", "localhost"), mock.call("span.kind", "client")]),
+        (
+            "localhost",
+            None,
+            [
+                mock.call("grpc.host", "localhost"),
+                mock.call("peer.hostname", "localhost"),
+                mock.call("span.kind", "client"),
+            ],
+        ),
+        (
+            "127.0.0.1",
+            1234,
+            [
+                mock.call("grpc.host", "127.0.0.1"),
+                mock.call("network.destination.ip", "127.0.0.1"),
+                mock.call("network.destination.port", "1234"),
+                mock.call("span.kind", "client"),
+            ],
+        ),
+        (
+            "::1",
+            1234,
+            [
+                mock.call("grpc.host", "::1"),
+                mock.call("network.destination.ip", "::1"),
+                mock.call("network.destination.port", "1234"),
+                mock.call("span.kind", "client"),
+            ],
+        ),
         (None, 1234, [mock.call("network.destination.port", "1234"), mock.call("span.kind", "client")]),
         (None, None, [mock.call("span.kind", "client")]),
     ],

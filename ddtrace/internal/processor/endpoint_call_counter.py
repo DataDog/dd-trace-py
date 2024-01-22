@@ -4,9 +4,9 @@ import attr
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.span import Span
+from ddtrace.span import Span  # noqa:F401
 
 
 EndpointCountsType = typing.Dict[str, int]
@@ -31,7 +31,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
         if not self._enabled:
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:
-            resource = ensure_str(span.resource, errors="backslashreplace")
+            resource = ensure_text(span.resource, errors="backslashreplace")
             with self._endpoint_counts_lock:
                 self.endpoint_counts[resource] = self.endpoint_counts.get(resource, 0) + 1
 

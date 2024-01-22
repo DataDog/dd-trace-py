@@ -1,5 +1,5 @@
 from importlib import import_module
-from typing import List
+from typing import List  # noqa:F401
 
 from ddtrace import config
 from ddtrace._tracing import _limits

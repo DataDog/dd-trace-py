@@ -6,6 +6,7 @@
             "pyproject.toml"
         ],
         "$harness": [
+            "docker/*",
             "riotfile.py",
             "scripts/ddtest",
             "scripts/run-test-suite",
@@ -52,7 +53,6 @@
         "contrib": [
             "ddtrace/contrib/__init__.py",
             "ddtrace/contrib/trace_utils.py",
-            "ddtrace/contrib/_trace_utils_llm.py",
             "ddtrace/contrib/trace_utils_async.py",
             "ddtrace/ext/__init__.py",
             "ddtrace/ext/http.py",
@@ -68,7 +68,6 @@
         "redis": [
             "ddtrace/contrib/rediscluster/*",
             "ddtrace/contrib/redis/*",
-            "ddtrace/contrib/aioredis/*",
             "ddtrace/contrib/aredis/*",
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/contrib/trace_utils_redis.py",
@@ -407,6 +406,14 @@
             "@appsec_iast",
             "tests/appsec/iast/*"
         ],
+        "appsec_iast_tdd_propagation": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast_tdd_propagation/*"
+        ],
         "appsec_iast_memcheck": [
             "@bootstrap",
             "@core",
@@ -415,6 +422,15 @@
             "@appsec_iast",
             "tests/appsec/iast/*",
             "tests/appsec/iast_memcheck/*"
+        ],
+        "appsec_iast_packages": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "tests/appsec/iast/*",
+            "tests/appsec/iast_packages/*"
         ],
         "appsec_integrations": [
             "@bootstrap",
@@ -470,6 +486,7 @@
             "@tracing",
             "@contrib",
             "@openai",
+            "@requests",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -1039,15 +1056,6 @@
             "@pg",
             "tests/contrib/aiopg/*"
         ],
-        "aioredis": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@redis",
-            "tests/contrib/aioredis/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
-        ],
         "aredis": [
             "@bootstrap",
             "@core",
@@ -1167,6 +1175,7 @@
             "@tracing",
             "@contrib",
             "@langchain",
+            "@requests",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]

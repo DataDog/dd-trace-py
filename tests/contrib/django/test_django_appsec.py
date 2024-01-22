@@ -4,14 +4,12 @@ import logging
 
 import pytest
 
-from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.internal import core
-from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
@@ -418,7 +416,7 @@ def test_request_ipblock_403(client, test_spans, tracer):
             headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_USER_AGENT": "fooagent"},
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(http.STATUS_CODE) == "403"
@@ -442,7 +440,7 @@ def test_request_ipblock_403_html(client, test_spans, tracer):
             client, test_spans, tracer, url="/", headers={"HTTP_X_REAL_IP": _IP.BLOCKED, "HTTP_ACCEPT": "text/html"}
         )
         assert result.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else BLOCKED_RESPONSE_HTML
+        as_bytes = bytes(BLOCKED_RESPONSE_HTML, "utf-8")
         assert result.content == as_bytes
         assert root.get_tag("actor.ip") == _IP.BLOCKED
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/html"
@@ -471,7 +469,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
         )
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
@@ -501,7 +499,7 @@ def test_request_userblock_403(client, test_spans, tracer):
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _BLOCKED_USER
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
         assert result.content == as_bytes
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
@@ -516,7 +514,7 @@ def test_request_suspicious_request_block_match_method(client, test_spans, trace
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
@@ -541,7 +539,7 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-002"]
@@ -557,7 +555,7 @@ def test_request_suspicious_request_block_match_uri(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/we_should_block")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-010"]
@@ -570,7 +568,7 @@ def test_request_suspicious_request_block_match_path_params(client, test_spans, 
             client, test_spans, tracer, url="/appsec/path-params/2022/AiKfOeRcvG45/"
         )
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
@@ -591,7 +589,7 @@ def test_request_suspicious_request_block_match_query_value(client, test_spans, 
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="index.html?toto=xtrace")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-001"]
@@ -612,7 +610,7 @@ def test_request_suspicious_request_block_match_header(client, test_spans, trace
             client, test_spans, tracer, url="/", headers={"HTTP_USER_AGENT": "01972498723465"}
         )
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
@@ -668,7 +666,7 @@ def test_request_suspicious_request_block_match_body(client, test_spans, tracer)
                 )
                 if appsec and blocked:
                     assert response.status_code == 403, (payload, content_type, blocked, appsec)
-                    as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+                    as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
                     assert response.content == as_bytes
                     loaded = json.loads(root_span.get_tag(APPSEC.JSON))
                     assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-003"]
@@ -681,7 +679,7 @@ def test_request_suspicious_request_block_match_response_code(client, test_spans
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/do_not_exist.php")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
@@ -702,7 +700,7 @@ def test_request_suspicious_request_block_match_request_cookie(client, test_span
             client, test_spans, tracer, url="", cookies={"mytestingcookie_key": "jdfoSDGFkivRG_234"}
         )
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
@@ -725,7 +723,7 @@ def test_request_suspicious_request_block_match_response_headers(client, test_sp
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/response-header/")
         assert response.status_code == 403
-        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else BLOCKED_RESPONSE_JSON
+        as_bytes = bytes(BLOCKED_RESPONSE_JSON, "utf-8")
         assert response.content == as_bytes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
@@ -1030,3 +1028,23 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         assert login_span.get_tag(user.ID) == "fred2"
         assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == "safe"
+
+
+# nested events
+def test_nested_appsec_events(client, test_spans, tracer):
+    # activate two monitoring rules, once on request and the other on response.
+    # check if they are both triggered and merged correctly
+    with override_global_config(dict(_asm_enabled=True)):
+        root_span, response = _aux_appsec_get_root_span(
+            client, test_spans, tracer, url="/config.php", headers={"HTTP_USER_AGENT": "Arachni/v1.5.1"}
+        )
+        assert response.status_code == 404
+        appsec_json = root_span.get_tag(APPSEC.JSON)
+        assert appsec_json
+        loaded = json.loads(appsec_json)
+        assert "triggers" in loaded
+        rules = loaded["triggers"]
+        assert len(rules) == 2
+        assert any(r["rule"]["id"] == "ua0-600-12x" for r in rules)
+        assert any(r["rule"]["id"] == "nfd-000-001" for r in rules)
+        assert all("span_id" in r for r in rules)

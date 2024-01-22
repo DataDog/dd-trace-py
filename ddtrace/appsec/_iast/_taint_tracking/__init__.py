@@ -12,6 +12,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
+    from ._native.aspect_format import _format_aspect
     from ._native.aspect_helpers import parse_params
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
@@ -31,19 +32,21 @@ if _is_python_version_supported():
     from ._native.taint_tracking import origin_to_str
     from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ._native.taint_tracking import set_ranges
+    from ._native.taint_tracking import copy_ranges_from_strings
+    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
     from ._native.taint_tracking import shift_taint_range
     from ._native.taint_tracking import shift_taint_ranges
     from ._native.taint_tracking import str_to_origin
     from ._native.taint_tracking import taint_range as TaintRange
 
     new_pyobject_id = ops.new_pyobject_id
+    set_ranges_from_values = ops.set_ranges_from_values
     is_pyobject_tainted = is_tainted
 
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
     from typing import List
-    from typing import Optional
     from typing import Tuple
     from typing import Union
 
@@ -58,6 +61,8 @@ __all__ = [
     "TaintRange",
     "get_ranges",
     "set_ranges",
+    "copy_ranges_from_strings",
+    "copy_and_shift_ranges_from_strings",
     "are_all_text_all_ranges",
     "shift_taint_range",
     "shift_taint_ranges",
@@ -73,6 +78,7 @@ __all__ = [
     "str_to_origin",
     "origin_to_str",
     "common_replace",
+    "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
     "num_objects_tainted",
@@ -89,16 +95,17 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject
 
-    pyobject_newid = new_pyobject_id(pyobject)
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8")
+    if isinstance(source_name, OriginType):
+        source_name = origin_to_str(source_name)
+
     if isinstance(source_value, (bytes, bytearray)):
         source_value = str(source_value, encoding="utf8")
     if source_origin is None:
         source_origin = OriginType.PARAMETER
-    source = Source(source_name, source_value, source_origin)
-    pyobject_range = TaintRange(0, len(pyobject), source)
-    set_ranges(pyobject_newid, [pyobject_range])
+
+    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
     _set_metric_iast_executed_source(source_origin)
     return pyobject_newid
 

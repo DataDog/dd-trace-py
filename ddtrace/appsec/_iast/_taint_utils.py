@@ -1,13 +1,147 @@
 #!/usr/bin/env python3
 from collections import abc
+from typing import Any
+from typing import List
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
 DBAPI_PREFIXES = ("django-",)
 
 log = get_logger(__name__)
+
+
+# Non Lazy Tainting
+
+
+# don't use dataclass that can create circular import problems here
+# @dataclasses.dataclass
+class _DeepTaintCommand:
+    def __init__(
+        self,
+        pre: bool,
+        source_key: str,
+        obj: Any,
+        store_struct: Union[list, dict],
+        key: Optional[List[str]] = None,
+        struct: Optional[Union[list, dict]] = None,
+        is_key: bool = False,
+    ):
+        self.pre = pre
+        self.source_key = source_key
+        self.obj = obj
+        self.store_struct = store_struct
+        self.key = key
+        self.struct = struct
+        self.is_key = is_key
+
+    def store(self, value):
+        if isinstance(self.store_struct, list):
+            self.store_struct.append(value)
+        elif isinstance(self.store_struct, dict):
+            key = self.key[0] if self.key else None
+            self.store_struct[key] = value
+        else:
+            raise ValueError(f"store_struct of type {type(self.store_struct)}")
+
+    def post(self, struct):
+        return self.__class__(False, self.source_key, self.obj, self.store_struct, self.key, struct)
+
+
+def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
+    if initial_object.__class__ is wanted_object.__class__:
+        return wanted_object
+    #### custom tailor actions
+    wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
+    if wanted_type == ("builtins", "tuple"):
+        return tuple(wanted_object)
+    # Django
+    if wanted_type == ("django.http.request", "HttpHeaders"):
+        res = initial_object.__class__({})
+        res._store = {k.lower(): (k, v) for k, v in wanted_object.items()}
+        return res
+    if wanted_type == ("django.http.request", "QueryDict"):
+        res = initial_object.__class__()
+        for k, v in wanted_object.items():
+            dict.__setitem__(res, k, v)
+        return res
+    # Flask 2+
+    if wanted_type == ("werkzeug.datastructures.structures", "ImmutableMultiDict"):
+        return initial_object.__class__(wanted_object)
+    # Flask 1
+    if wanted_type == ("werkzeug.datastructures", "ImmutableMultiDict"):
+        return initial_object.__class__(wanted_object)
+
+    # if the class is unknown, return the initial object
+    # this may prevent interned string to be tainted but ensure
+    # that normal behavior of the code is not changed.
+    return initial_object
+
+
+def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
+    """taint any structured object
+    use a queue like mechanism to avoid recursion
+    Best effort: mutate mutable structures and rebuild immutable ones if possible
+    """
+    from ._taint_tracking import is_pyobject_tainted
+    from ._taint_tracking import taint_pyobject
+
+    if not main_obj:
+        return main_obj
+
+    main_res = []
+    try:
+        # fifo contains tuple (pre/post:bool, source key, object to taint,
+        # key to use, struct to store result, struct to )
+        stack = [_DeepTaintCommand(True, source_key, main_obj, main_res)]
+        while stack:
+            command = stack.pop()
+            if command.pre:  # first processing of the object
+                if not command.obj:
+                    command.store(command.obj)
+                elif isinstance(command.obj, (str, bytes, bytearray)):
+                    if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
+                        new_obj = taint_pyobject(
+                            pyobject=command.obj,
+                            source_name=command.source_key,
+                            source_value=command.obj,
+                            source_origin=source_key if command.is_key else source_value,
+                        )
+                        command.store(new_obj)
+                    else:
+                        command.store(command.obj)
+                elif isinstance(command.obj, abc.Mapping):
+                    res = {}
+                    stack.append(command.post(res))
+                    # use dict fondamental enumeration if possible to bypass any override of custom classes
+                    iterable = dict.items(command.obj) if isinstance(command.obj, dict) else command.obj.items()
+                    todo = []
+                    for k, v in list(iterable):
+                        key_store = []
+                        todo.append(_DeepTaintCommand(True, k, k, key_store, is_key=True))
+                        todo.append(_DeepTaintCommand(True, k, v, res, key_store))
+                    stack.extend(reversed(todo))
+                elif isinstance(command.obj, abc.Sequence):
+                    res = []
+                    stack.append(command.post(res))
+                    todo = [_DeepTaintCommand(True, command.source_key, v, res) for v in command.obj]
+                    stack.extend(reversed(todo))
+                else:
+                    command.store(command.obj)
+            else:
+                command.store(build_new_tainted_object_from_generic_object(command.obj, command.struct))
+    except BaseException:
+        log.debug("taint_structure error", exc_info=True)
+        pass
+    finally:
+        return main_res[0] if main_res else main_obj
+
+
+# Lazy Tainting
 
 
 def _is_tainted_struct(obj):
@@ -402,3 +536,13 @@ def check_tainted_args(args, kwargs, tracer, integration_name, method):
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 
     return False
+
+
+if asm_config._iast_lazy_taint:
+    # redefining taint_structure to use lazy object if required
+
+    def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):  # noqa: F811
+        if isinstance(main_obj, abc.Mapping):
+            return LazyTaintDict(main_obj, source_key, source_value, override_pyobject_tainted)
+        elif isinstance(main_obj, abc.Sequence):
+            return LazyTaintList(main_obj, source_key, source_value, override_pyobject_tainted)

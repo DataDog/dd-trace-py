@@ -8,12 +8,15 @@ from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext as OtelSpanContext
 from opentelemetry.trace import get_current_span
 from opentelemetry.trace import set_span_in_context
+from opentelemetry.trace.span import TraceFlags
+from opentelemetry.trace.span import TraceState
 
 from ddtrace import tracer as ddtracer
 from ddtrace.context import Context as DDContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.opentelemetry._span import Span
-from ddtrace.provider import BaseContextProvider as DDBaseContextProvider
+from ddtrace.propagation.http import _TraceContext
+from ddtrace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
 from ddtrace.span import Span as DDSpan
 
 
@@ -32,8 +35,9 @@ class DDRuntimeContext:
             if isinstance(otel_span, Span):
                 self._ddcontext_provider.activate(otel_span._ddspan)
             elif isinstance(otel_span, OtelSpan):
-                trace_id, span_id, *_ = otel_span.get_span_context()
-                ddcontext = DDContext(trace_id, span_id)
+                trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
+                trace_state = ts.to_header() if ts else None
+                ddcontext = _TraceContext._get_context(trace_id, span_id, tf, trace_state)
                 self._ddcontext_provider.activate(ddcontext)
             else:
                 log.error(
@@ -58,7 +62,9 @@ class DDRuntimeContext:
             span = Span(ddactive)
             context = set_span_in_context(span, context)
         elif isinstance(ddactive, DDContext):
-            span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True)
+            tf = TraceFlags.SAMPLED if ddactive._traceflags == "01" else TraceFlags.DEFAULT
+            ts = TraceState.from_header([ddactive._tracestate])
+            span_context = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, True, tf, ts)
             span = OtelNonRecordingSpan(span_context)
             context = set_span_in_context(span, context)
         return context

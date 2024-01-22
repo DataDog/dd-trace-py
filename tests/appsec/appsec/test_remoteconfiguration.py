@@ -2,7 +2,6 @@ import base64
 import hashlib
 import json
 import os
-import sys
 import time
 
 import mock
@@ -31,6 +30,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.appsec.test_processor import ROOT_DIR
 from tests.appsec.appsec.test_processor import Config
+from tests.appsec.utils import Either
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -402,7 +402,6 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_multiple_targets_file_same_product(
@@ -454,7 +453,6 @@ def test_load_multiple_targets_file_same_product(
     disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_config_and_remove_targets_file_same_product(
@@ -548,7 +546,6 @@ def test_load_new_config_and_remove_targets_file_same_product(
         disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
@@ -641,7 +638,6 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
     disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_worker, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
@@ -716,7 +712,6 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
     disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_config_worker, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
@@ -788,7 +783,6 @@ def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_co
     disable_appsec_rc()
 
 
-@pytest.mark.skipif(sys.version_info[:2] < (3, 6), reason="Mock return order is different in python <= 3.5")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_1click_activation")
 @mock.patch("ddtrace.appsec._remoteconfiguration._appsec_rules_data")
 def test_load_new_empty_config_and_remove_targets_file_same_product(
@@ -860,7 +854,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._poll_data()
 
         mock_appsec_rules_data.assert_called_with(
-            {"asm": {"enabled": True}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
+            {"asm": {"enabled": Either(True, None)}, "data": [{"x": 1}], "data2": [{"y": 2}]}, None
         )
         mock_appsec_rules_data.reset_mock()
 
@@ -877,7 +871,9 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"x": 1}], "data2": []}, None)
+        mock_appsec_rules_data.assert_called_with(
+            {"asm": {"enabled": Either(True, None)}, "data": [{"x": 1}], "data2": []}, None
+        )
     disable_appsec_rc()
 
 
@@ -997,7 +993,6 @@ def test_rc_rules_data_error_empty(tracer):
         assert not _appsec_rules_data(config, tracer)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="Python 2 is handling that test differently")
 def test_rc_rules_data_error_ddwaf(tracer):
     with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")

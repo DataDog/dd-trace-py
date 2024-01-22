@@ -1,11 +1,13 @@
 [[
   {
     "name": "openai.request",
-    "service": null,
+    "service": "",
     "resource": "retrieveModel",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -22,9 +24,6 @@
       "openai.response.id": "curie",
       "openai.response.owned_by": "openai",
       "openai.response.parent": "None",
-      "openai.response.permission.group": "None",
-      "openai.response.permission.id": "modelperm-oPaljeveTjEIDbhDjzFiyf4V",
-      "openai.response.permission.organization": "*",
       "openai.response.root": "curie",
       "openai.user.api_key": "sk-...key>",
       "runtime-id": "e3412e4f1afe4767a615b30fc1c0f91d"
@@ -34,14 +33,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.permission.allow_create_engine": 0,
-      "openai.response.permission.allow_fine_tuning": 0,
-      "openai.response.permission.allow_logprobs": 1,
-      "openai.response.permission.allow_sampling": 1,
-      "openai.response.permission.allow_search_indices": 0,
-      "openai.response.permission.allow_view": 1,
-      "openai.response.permission.created": 1675106503,
-      "openai.response.permission.is_blocking": 0,
       "process_id": 7557
     },
     "duration": 5465877,

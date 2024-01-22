@@ -3,16 +3,15 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import List
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
 
 import pytest
 import six
 
 from ddtrace.contrib.flask.patch import flask_version
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
@@ -114,6 +113,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -129,7 +129,6 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _IP.BLOCKED, "ACCEPT": "text/html"})
     assert resp.status_code == 403
@@ -143,6 +142,7 @@ def test_flask_ipblock_match_403(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -158,7 +158,6 @@ def test_flask_ipblock_match_403(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_ipblock_match_403_json(flask_client):
     resp = flask_client.get("/", headers={"X-Real-Ip": _IP.BLOCKED})
     assert resp.status_code == 403
@@ -172,6 +171,7 @@ def test_flask_ipblock_match_403_json(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -186,7 +186,6 @@ def test_flask_ipblock_match_403_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_userblock_match_403_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _BLOCKED_USER)
     assert resp.status_code == 403
@@ -200,6 +199,7 @@ def test_flask_userblock_match_403_json(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -214,7 +214,6 @@ def test_flask_userblock_match_403_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_userblock_match_200_json(flask_client):
     resp = flask_client.get("/checkuser/%s" % _ALLOWED_USER)
     assert resp.status_code == 200
@@ -224,6 +223,7 @@ def test_flask_userblock_match_200_json(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -238,7 +238,6 @@ def test_flask_userblock_match_200_json(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_ossystem(flask_client):
     resp = flask_client.get("/executions/ossystem")
     assert resp.status_code == 200
@@ -249,6 +248,7 @@ def test_flask_processexec_ossystem(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -264,7 +264,6 @@ def test_flask_processexec_ossystem(flask_client):
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_osspawn(flask_client):
     resp = flask_client.get("/executions/osspawn")
     assert resp.status_code == 200
@@ -275,6 +274,7 @@ def test_flask_processexec_osspawn(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -289,7 +289,6 @@ def test_flask_processexec_osspawn(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_subprocesscommunicateshell(flask_client):
     resp = flask_client.get("/executions/subcommunicateshell")
     assert resp.status_code == 200
@@ -300,6 +299,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.flask.version",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
@@ -314,7 +314,6 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
     variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 @pytest.mark.parametrize("flask_env_arg", (flask_appsec_good_rules_env,))
-@pytest.mark.skipif(PY2, reason="Python2 + flask +  + subprocesses + pytest is known to hang")
 def test_flask_processexec_subprocesscommunicatenoshell(flask_client):
     resp = flask_client.get("/executions/subcommunicatenoshell")
     assert resp.status_code == 200

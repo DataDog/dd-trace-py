@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import chain
+import linecache
 import os
 from pathlib import Path
 import sys
@@ -21,8 +22,8 @@ from ddtrace import config as ddconfig
 from ddtrace.debugging._async import dd_coroutine_wrapper
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
-from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
+from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
@@ -47,7 +48,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.metric_sample import MetricSample
-from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
@@ -100,7 +100,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
         cls._locations.add(str(origin))
 
-        super(DebuggerModuleWatchdog, cls).register_origin_hook(origin, hook)
+        super().register_origin_hook(origin, hook)
 
     @classmethod
     def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
@@ -110,7 +110,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
             # Nothing to unregister.
             return
 
-        return super(DebuggerModuleWatchdog, cls).unregister_origin_hook(origin, hook)
+        return super().unregister_origin_hook(origin, hook)
 
     @classmethod
     def register_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
@@ -125,7 +125,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
         cls._locations.add(module_name)
 
-        super(DebuggerModuleWatchdog, cls).register_module_hook(module_name, hook)
+        super().register_module_hook(module_name, hook)
 
     @classmethod
     def unregister_module_hook(cls, module_name: str, hook: ModuleHookType) -> None:
@@ -135,7 +135,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
             # Nothing to unregister.
             return
 
-        return super(DebuggerModuleWatchdog, cls).unregister_module_hook(module_name, hook)
+        return super().unregister_module_hook(module_name, hook)
 
     @classmethod
     def on_run_module(cls, module: ModuleType) -> None:
@@ -220,23 +220,20 @@ class Debugger(Service):
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self, tracer: Optional[Tracer] = None) -> None:
-        super(Debugger, self).__init__()
+        super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
         service_name = di_config.service_name
 
-        self._encoder = BatchJsonEncoder(
-            item_encoders={
-                LogSignal: LogSignalJsonEncoder(service_name),
-                str: str,
-            },
+        self._signal_queue = SignalQueue(
+            encoder=LogSignalJsonEncoder(service_name),
             on_full=self._on_encoder_buffer_full,
         )
-        status_logger = self.__logger__(service_name, self._encoder)
+        self._status_logger = status_logger = self.__logger__(service_name)
 
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
-        self._uploader = self.__uploader__(self._encoder)
-        self._collector = self.__collector__(self._encoder)
+        self._uploader = self.__uploader__(self._signal_queue)
+        self._collector = self.__collector__(self._signal_queue)
         self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
@@ -323,7 +320,7 @@ class Debugger(Service):
             self._collector.push(signal)
 
         except Exception:
-            log.error("Failed to execute debugger probe hook", exc_info=True)
+            log.error("Failed to execute probe hook", exc_info=True)
 
     def _dd_debugger_wrapper(self, wrappers: Dict[str, FunctionProbe]) -> Wrapper:
         """Debugger wrapper.
@@ -429,11 +426,19 @@ class Debugger(Service):
             assert line is not None  # nosec
             functions = FunctionDiscovery.from_module(module).at_line(line)
             if not functions:
-                message = "Cannot inject probe %s: no functions at line %d within source file %s" % (
-                    probe.probe_id,
-                    line,
-                    origin(module),
-                )
+                module_origin = str(origin(module))
+                if linecache.getline(module_origin, line):
+                    # The source actually has a line at the given line number
+                    message = (
+                        f"Cannot install probe {probe.probe_id}: "
+                        f"function at line {line} within source file {module_origin} "
+                        "is likely decorated with an unsupported decorator."
+                    )
+                else:
+                    message = (
+                        f"Cannot install probe {probe.probe_id}: "
+                        f"no functions at line {line} within source file {module_origin} found"
+                    )
                 log.error(message)
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
@@ -550,10 +555,9 @@ class Debugger(Service):
                 assert probe.module is not None and probe.func_qname is not None  # nosec
                 function = FunctionDiscovery.from_module(module).by_name(probe.func_qname)
             except ValueError:
-                message = "Cannot inject probe %s: no function '%s' in module %s" % (
-                    probe.probe_id,
-                    probe.func_qname,
-                    probe.module,
+                message = (
+                    f"Cannot install probe {probe.probe_id}: no function '{probe.func_qname}' in module {probe.module}"
+                    "found (note: if the function exists, it might be decorated with an unsupported decorator)"
                 )
                 self._probe_registry.set_error(probe, "NoFunctionInModule", message)
                 log.error(message)

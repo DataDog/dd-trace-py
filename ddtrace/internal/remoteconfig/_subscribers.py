@@ -1,5 +1,5 @@
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
@@ -7,12 +7,12 @@ from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Optional
+    from typing import Callable  # noqa:F401
+    from typing import Optional  # noqa:F401
 
-    from ddtrace import Tracer
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-    from ddtrace.internal.remoteconfig._connectors import SharedDataType
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
+    from ddtrace.internal.remoteconfig._connectors import SharedDataType  # noqa:F401
 
 
 log = get_logger(__name__)

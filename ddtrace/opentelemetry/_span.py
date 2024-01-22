@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import TYPE_CHECKING
 
 from opentelemetry.trace import Span as OtelSpan
@@ -14,19 +13,20 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import flatten_key_value
+from ddtrace.internal.utils.formats import is_sequence
 
 
 if TYPE_CHECKING:
-    from typing import Callable
-    from typing import Mapping
-    from typing import Optional
-    from typing import Union
+    from typing import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from opentelemetry.util.types import Attributes
-    from opentelemetry.util.types import AttributeValue
+    from opentelemetry.util.types import Attributes  # noqa:F401
+    from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace.internal.compat import NumericType
-    from ddtrace.span import Span as DDSpan
+    from ddtrace.internal.compat import NumericType  # noqa:F401
+    from ddtrace.span import Span as DDSpan  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -161,6 +161,10 @@ class Span(OtelSpan):
             _ddmap(self._ddspan, ddattribute, value)
             return
 
+        if is_sequence(value):
+            for k, v in flatten_key_value(key, value).items():
+                self._ddspan.set_tag(k, v)
+            return
         self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):

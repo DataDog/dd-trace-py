@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    botocore: Adds optional feature to propagate context between producers and consumers for AWS SQS, AWS SNS, and AWS Kinesis via `DD_BOTOCORE_PROPAGATION_ENABLED`
+    environment variable. Adds optional feature to disable tracing of AWS SQS `poll()` operation and AWS Kinesis 'get_records()' operation when no data is consumed via 
+    `DD_BOTOCORE_EMPTY_POLL_ENABLED` environment variable.
