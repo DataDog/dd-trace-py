@@ -235,7 +235,7 @@ commands:
           at: .
       - restore_cache:
           keys:
-            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - setup_hatch
       - when:
           condition:
