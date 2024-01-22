@@ -196,7 +196,7 @@ What do I do when my pull request has failing tests unrelated to my changes?
 The test suite is not completely reliable. There are usually some tests that can fail without any of their code paths being
 changed. This slows down development because most tests are required to pass for pull requests to be merged.
 
-The ``tests/utils`` module provides the [``@flaky`` decorator](https://github.com/DataDog/dd-trace-py/blob/623f2df4de802563a463acc4d3c000dbc742e3d3/tests/utils.py#L1285) to enable contributors to handle this situation. As a contributor,
+The ``tests/utils`` module provides the ```@flaky`` decorator <https://github.com/DataDog/dd-trace-py/blob/623f2df4de802563a463acc4d3c000dbc742e3d3/tests/utils.py#L1285>`_ to enable contributors to handle this situation. As a contributor,
 when you notice a test failure that is unrelated to the changes you've made, you can add the ``@flaky`` decorator to that test.
 This will cause the test's result not to count as a failure during pre-merge checks.
 
