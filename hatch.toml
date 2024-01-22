@@ -181,7 +181,7 @@ dependencies = [
     "django=={matrix:django}"
 ]
 pre-install-commands = [
-    "sudo apt install clang",
+    "sudo apt install --fix-missing clang",
     "python -m ensurepip --upgrade",
     "pip install -U pip",
     "pip install -U setuptools",    
