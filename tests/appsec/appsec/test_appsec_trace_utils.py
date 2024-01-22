@@ -5,7 +5,6 @@ import pytest
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
-import ddtrace.appsec.rules as rules
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
@@ -17,6 +16,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
+import tests.appsec.rules as rules
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
