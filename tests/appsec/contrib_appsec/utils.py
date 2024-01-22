@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import json
 from typing import Dict
+from urllib.parse import urlencode
 
 import pytest
 
@@ -8,7 +9,7 @@ import ddtrace
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
-from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -98,7 +99,7 @@ class Contrib_TestClass_For_Threats:
             assert cookies == {"mytestingcookie_key": "mytestingcookie_value"}
 
     def test_request_cookies_attack(self, interface: Interface, root_span, get_tag):
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies={"attack": "1' or '1' = '1'"})
             assert self.status(response) == 200
@@ -109,6 +110,25 @@ class Contrib_TestClass_For_Threats:
             assert len(json_payload["triggers"]) == 1
             assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
             assert cookies == {"attack": "1' or '1' = '1'"}
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_request_body_urlencoded(self, interface: Interface, root_span, get_tag, asm_enabled):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            response = interface.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
+            assert self.status(response)  # == 200
+
+            body = core.get_item("http.request.body", span=root_span())
+            if asm_enabled:
+                assert body in [
+                    {"mytestingbody_key": "mytestingbody_value"},
+                    {"mytestingbody_key": ["mytestingbody_value"]},
+                ]
+            else:
+                assert body is None
+
+            assert get_tag(APPSEC.JSON) is None
 
 
 @contextmanager

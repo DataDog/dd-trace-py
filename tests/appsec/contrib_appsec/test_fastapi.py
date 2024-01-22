@@ -26,6 +26,19 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                     return response
 
             client = TestClient(get_app(), base_url="http://localhost:%d" % self.SERVER_PORT)
+
+            initial_post = client.post
+
+            def patch_post(*args, **kwargs):
+                if "content_type" in kwargs:
+                    headers = kwargs.get("headers", {})
+                    headers["Content-Type"] = kwargs["content_type"]
+                    kwargs["headers"] = headers
+                    del kwargs["content_type"]
+                return initial_post(*args, **kwargs)
+
+            client.post = patch_post
+
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
             with utils.post_tracer(interface):
