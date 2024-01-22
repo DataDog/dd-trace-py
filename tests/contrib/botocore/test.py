@@ -18,6 +18,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+from moto import mock_stepfunctions
 import pytest
 
 from tests.utils import get_128_bit_trace_id_from_headers
@@ -578,6 +579,124 @@ class BotocoreTest(TracerTestCase):
             assert trace_in_message is False
 
     @mock_sqs
+    def test_sqs_send_message_distributed_tracing_on(self):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            spans = self.get_spans()
+            assert spans
+            produce_span = spans[0]
+            assert len(spans) == 1
+            assert produce_span.get_tag("aws.region") == "us-east-1"
+            assert produce_span.get_tag("region") == "us-east-1"
+            assert produce_span.get_tag("aws.operation") == "SendMessage"
+            assert produce_span.get_tag("params.MessageBody") is None
+            assert produce_span.get_tag("component") == "botocore"
+            assert produce_span.get_tag("span.kind"), "client"
+            assert_is_measured(produce_span)
+            assert_span_http_status_code(produce_span, 200)
+            assert produce_span.service == "test-botocore-tracing.sqs"
+            assert produce_span.resource == "sqs.sendmessage"
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["All"],
+                WaitTimeSeconds=5,
+            )
+            assert len(response["Messages"]) == 1
+            trace_in_message = "MessageAttributes" in response["Messages"][0]
+            assert trace_in_message is True
+
+            spans = self.get_spans()
+            assert spans
+            consume_span = spans[1]
+            assert len(spans) == 2
+
+            assert consume_span.parent_id == produce_span.span_id
+            assert consume_span.trace_id == produce_span.trace_id
+
+    def test_distributed_tracing_sns_to_sqs_works(self):
+        # DEV: We want to mock time to ensure we only create a single bucket
+        self._test_distributed_tracing_sns_to_sqs(False)
+
+    @mock.patch.object(sys.modules["ddtrace.contrib.botocore.services.sqs"], "_encode_data")
+    def test_distributed_tracing_sns_to_sqs_raw_delivery(self, mock_encode):
+        """
+        Moto doesn't currently handle raw delivery message handling quite correctly.
+        In the real world, AWS will encode data for us. Moto does not.
+
+        So, we patch our code here to encode the data
+        """
+
+        def _moto_compatible_encode(trace_data):
+            return base64.b64encode(json.dumps(trace_data).encode("utf-8"))
+
+        mock_encode.side_effect = _moto_compatible_encode
+        self._test_distributed_tracing_sns_to_sqs(True)
+
+    @mock_sns
+    @mock_sqs
+    def _test_distributed_tracing_sns_to_sqs(self, raw_message_delivery):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            with mock.patch("time.time") as mt:
+                mt.return_value = 1642544540
+
+                sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
+
+                topic = sns.create_topic(Name="testTopic")
+
+                topic_arn = topic["TopicArn"]
+                sqs_url = self.sqs_test_queue["QueueUrl"]
+                url_parts = sqs_url.split("/")
+                sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
+                subscription = sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+
+                if raw_message_delivery:
+                    sns.set_subscription_attributes(
+                        SubscriptionArn=subscription["SubscriptionArn"],
+                        AttributeName="RawMessageDelivery",
+                        AttributeValue="true",
+                    )
+
+                Pin.get_from(sns).clone(tracer=self.tracer).onto(sns)
+                Pin.get_from(self.sqs_client).clone(tracer=self.tracer).onto(self.sqs_client)
+
+                sns.publish(TopicArn=topic_arn, Message="test")
+
+                # get SNS messages via SQS
+                response = self.sqs_client.receive_message(QueueUrl=self.sqs_test_queue["QueueUrl"], WaitTimeSeconds=2)
+
+                # clean up resources
+                sns.delete_topic(TopicArn=topic_arn)
+
+                spans = self.get_spans()
+                assert spans
+                publish_span = spans[0]
+                assert len(spans) == 3
+                assert publish_span.get_tag("aws.region") == "us-east-1"
+                assert publish_span.get_tag("region") == "us-east-1"
+                assert publish_span.get_tag("aws.operation") == "Publish"
+                assert publish_span.get_tag("params.MessageBody") is None
+                assert publish_span.get_tag("component") == "botocore"
+                assert publish_span.get_tag("span.kind"), "client"
+                assert_is_measured(publish_span)
+                assert_span_http_status_code(publish_span, 200)
+                assert publish_span.service == "aws.sns"
+                assert publish_span.resource == "sns.publish"
+
+                assert len(response["Messages"]) == 1
+                if raw_message_delivery:
+                    trace_in_message = "MessageAttributes" in response["Messages"][0]
+                else:
+                    trace_in_message = "MessageAttributes" in response["Messages"][0]["Body"]
+                assert trace_in_message is True
+
+                consume_span = spans[1]
+
+                assert consume_span.parent_id == publish_span.span_id
+                assert consume_span.trace_id == publish_span.trace_id
+
+    @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
         message_attributes = {
@@ -885,6 +1004,61 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == DEFAULT_SPAN_SERVICE_NAME
         assert spans[2].name == "aws.sqs.receive"
 
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="lincoln",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln", input='{"baz":1}'
+        )
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_array_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="miller",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(
+            stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller", input='["one", "two", "three"]'
+        )
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller")
+
+    @mock_stepfunctions
+    def test_stepfunctions_send_start_execution_trace_injection_with_true_input(self):
+        sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        sf.create_state_machine(
+            name="hobart",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::012345678901:role/DummyRole",
+        )
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sf)
+        sf.start_execution(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart", input="true")
+        # I've tried to find a way to make Moto show me the input to the execution, but can't get that to work.
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.name == "states.command"  # This confirms our patch is working
+        sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:hobart")
+
     def _test_kinesis_client(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -944,6 +1118,26 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
 
     @mock_kinesis
+    def test_kinesis_distributed_tracing_on(self):
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            # dict -> json string
+            data = json.dumps({"json": "string"})
+
+            self._test_kinesis_put_record_trace_injection("json_string", data)
+
+            spans = self.get_spans()
+            assert spans
+
+            for span in spans:
+                if span.get_tag("aws.operation") == "PutRecord":
+                    produce_span = span
+                elif span.get_tag("aws.operation") == "GetRecords":
+                    consume_span = span
+
+            assert consume_span.parent_id == produce_span.span_id
+            assert consume_span.trace_id == produce_span.trace_id
+
+    @mock_kinesis
     def test_unpatch(self):
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(kinesis)
@@ -991,7 +1185,9 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1066,7 +1262,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1118,7 +1316,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1189,7 +1389,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1862,6 +2064,14 @@ class BotocoreTest(TracerTestCase):
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
+    def test_propagation_enabled_env_override(self):
+        assert config.botocore.propagation_enabled is True
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
+    def test_propagation_enabled_env_override_false(self):
+        assert config.botocore.propagation_enabled is False
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
     def test_invoke_legacy_context_env_override(self):
         assert config.botocore.invoke_with_legacy_context is True
@@ -2167,69 +2377,98 @@ class BotocoreTest(TracerTestCase):
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_no_message_attributes(self):
-        region = "us-east-1"
-        sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
+        with self.override_config("botocore", dict(distributed_tracing=True, propagation_enabled=True)):
+            region = "us-east-1"
+            sns = self.session.create_client("sns", region_name=region, endpoint_url="http://localhost:4566")
 
-        topic = sns.create_topic(Name="testTopic")
+            topic = sns.create_topic(Name="testTopic")
 
-        topic_arn = topic["TopicArn"]
-        sqs_url = self.sqs_test_queue["QueueUrl"]
-        url_parts = sqs_url.split("/")
-        sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
-        sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            topic_arn = topic["TopicArn"]
+            sqs_url = self.sqs_test_queue["QueueUrl"]
+            url_parts = sqs_url.split("/")
+            sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
+            sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
-        entries = [
-            {
-                "Id": "1",
-                "Message": "ironmaiden",
-            },
-            {
-                "Id": "2",
-                "Message": "megadeth",
-            },
-        ]
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sns)
+            Pin.get_from(sns).clone(tracer=self.tracer).onto(self.sqs_client)
+            entries = [
+                {
+                    "Id": "1",
+                    "Message": "ironmaiden",
+                },
+                {
+                    "Id": "2",
+                    "Message": "megadeth",
+                },
+            ]
 
-        sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
-        spans = self.get_spans()
+            sns.publish_batch(TopicArn=topic_arn, PublishBatchRequestEntries=entries)
 
-        # get SNS messages via SQS
-        response = self.sqs_client.receive_message(
-            QueueUrl=self.sqs_test_queue["QueueUrl"],
-            MessageAttributeNames=["_datadog"],
-            WaitTimeSeconds=2,
-        )
+            # get SNS messages via SQS
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+                MaxNumberOfMessages=2,
+            )
 
-        # clean up resources
-        sns.delete_topic(TopicArn=topic_arn)
+            spans = self.get_spans()
 
-        # check if the appropriate span was generated
-        assert spans
-        span = spans[0]
-        assert len(spans) == 2
-        assert span.get_tag("aws.region") == region
-        assert span.get_tag("region") == region
-        assert span.get_tag("aws.operation") == "PublishBatch"
-        assert span.get_tag("params.MessageBody") is None
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
-        assert span.resource == "sns.publishbatch"
+            # check if the appropriate span was generated
+            assert spans
+            span = spans[0]
+            assert len(spans) == 2
+            assert span.get_tag("aws.region") == region
+            assert span.get_tag("region") == region
+            assert span.get_tag("aws.operation") == "PublishBatch"
+            assert span.get_tag("params.MessageBody") is None
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.sns"
+            assert span.resource == "sns.publishbatch"
 
-        # receive message using SQS and ensure headers are present
-        assert len(response["Messages"]) == 1
-        msg = response["Messages"][0]
-        assert msg is not None
-        msg_body = json.loads(msg["Body"])
-        msg_str = msg_body["Message"]
-        assert msg_str == "ironmaiden"
-        msg_attr = msg_body["MessageAttributes"]
-        assert msg_attr.get("_datadog") is not None
-        headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
-        assert headers is not None
-        assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+            # receive messages using SQS and ensure headers are present
+            assert len(response["Messages"]) == 2
+            msg_1 = response["Messages"][0]
+            assert msg_1 is not None
 
+            msg_body = json.loads(msg_1["Body"])
+            msg_str = msg_body["Message"]
+            assert msg_str == "ironmaiden"
+            msg_attr = msg_body["MessageAttributes"]
+            assert msg_attr.get("_datadog") is not None
+            headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+            assert headers is not None
+            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+            msg_2 = response["Messages"][1]
+            assert msg_2 is not None
+
+            msg_body = json.loads(msg_2["Body"])
+            msg_str = msg_body["Message"]
+            assert msg_str == "megadeth"
+            msg_attr = msg_body["MessageAttributes"]
+            assert msg_attr.get("_datadog") is not None
+            headers = json.loads(base64.b64decode(msg_attr["_datadog"]["Value"]))
+            assert headers is not None
+            assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+            consume_span = spans[1]
+
+            assert consume_span.get_tag("aws.operation") == "ReceiveMessage"
+
+            assert consume_span.parent_id == span.span_id
+            assert consume_span.trace_id == span.trace_id
+
+            # clean up resources
+            sns.delete_topic(TopicArn=topic_arn)
+
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Skipping for older py versions whose latest supported boto versions don't have sns.publish_batch",
+    )
     @mock_sns
     @mock_sqs
     def test_sns_send_message_batch_trace_injection_with_message_attributes(self):
@@ -2564,141 +2803,149 @@ class BotocoreTest(TracerTestCase):
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
-        # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        records = self._kinesis_generate_records(data, 2)
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            # (dict -> json string)[]
+            data = json.dumps({"json": "string"})
+            records = self._kinesis_generate_records(data, 2)
+            client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_records_trace_injection("data_streams", records, client=client, enable_stream_arn=True)
+            self._test_kinesis_put_records_trace_injection(
+                "data_streams", records, client=client, enable_stream_arn=True
+            )
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
 
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        1711768390031028072,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        1711768390031028072,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            data = json.dumps({"json": "string"})
+            client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
+            self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
-        )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        614755353881974019,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        614755353881974019,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):
