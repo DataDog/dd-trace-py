@@ -229,6 +229,9 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      threads:
+        type: integer
+        default: 1
     steps:
       - checkout
       - attach_workspace:
@@ -257,7 +260,7 @@ commands:
             - run:
                 name: Run tests
                 command: |
-                  hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n 1 -I {} hatch run {}:test
+                  hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n << parameters.threads >> -I {} hatch run {}:test
       - when:
           condition:
             and:
@@ -478,6 +481,7 @@ jobs:
       - run_hatch_env_test:
           env: 'appsec_threats_django'
           snapshot: false
+          threads: 12
 
   aws_lambda:
     <<: *machine_executor
