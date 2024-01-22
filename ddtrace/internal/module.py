@@ -132,6 +132,10 @@ def find_loader(fullname):
     return getattr(find_spec(fullname), "loader", None)
 
 
+def is_module_installed(module_name):
+    return find_loader(module_name) is not None
+
+
 def is_namespace_spec(spec: ModuleSpec) -> bool:
     return spec.origin is None and spec.submodule_search_locations is not None
 
