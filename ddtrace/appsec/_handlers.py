@@ -145,9 +145,11 @@ def _on_request_span_modifier(
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:
-            if content_type == "application/json" or content_type == "text/json":
+            if content_type in ("application/json", "text/json"):
                 if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                     req_body = request.json
+                elif request.data is None:
+                    req_body = None
                 else:
                     req_body = json.loads(request.data.decode("UTF-8"))
             elif content_type in ("application/xml", "text/xml"):
