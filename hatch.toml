@@ -184,7 +184,6 @@ pre-install-commands = [
     "python -m ensurepip --upgrade",
     "pip install -U pip",
     "pip install -U setuptools",    
-    "pip install -U cython",    
     "pip freeze"
 ]
 
