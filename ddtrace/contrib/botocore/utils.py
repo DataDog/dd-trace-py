@@ -40,35 +40,6 @@ def get_json_from_str(data_str):
     return None, data_obj
 
 
-def get_queue_name(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-    Return the name of the queue given the params
-    """
-    queue_url = params["QueueUrl"]
-    url = parse.urlparse(queue_url)
-    return url.path.rsplit("/", 1)[-1]
-
-
-def get_pathway(pin, endpoint_service, dsm_identifier, span=None):
-    # type: (Pin, str, str, Span) -> str
-    """
-    :pin: patch info for the botocore client
-    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
-    :dsm_identifier: the identifier for the topic/queue/stream/etc
-    Set the data streams monitoring checkpoint and return the encoded pathway
-    """
-    path_type = "type:{}".format(endpoint_service)
-    if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-
-    pathway = pin.tracer.data_streams_processor.set_checkpoint(
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type], span=span
-    )
-    return pathway.encode_b64()
-
-
 def get_kinesis_data_object(data):
     # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
     """
