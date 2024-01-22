@@ -284,7 +284,7 @@ ddup_upload()
 {
     if (!is_initialized) {
         // Rationalize return for interface
-        std::cout << "libdd uploader called before initialization" << std::cout;
+        std::cerr << "libdd uploader called before initialization" << std::endl;
         return false;
     }
 
