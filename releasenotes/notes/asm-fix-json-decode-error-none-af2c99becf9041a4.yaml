@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where an exception would be logged while parsing an empty body JSON request.
