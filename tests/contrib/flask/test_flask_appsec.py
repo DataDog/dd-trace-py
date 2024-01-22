@@ -264,14 +264,20 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_body_json_empty_body_does_not_log_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
             self._aux_appsec_prepare_tracer()
-            self.client.post("/", data="", content_type="application/json")
+            self.client.get("/", content_type="application/json")
             assert "Failed to parse request body" not in self._caplog.text
 
-    def test_flask_body_json_bad_logs_warning(self):
+    def test_flask_body_json_bad_logs_debug(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="not valid json", content_type="application/json")
             assert "Failed to parse request body" in self._caplog.text
+
+    def test_flask_body_json_bad_logs_not_warning(self):
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_asm_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            self.client.post("/", data="not valid json", content_type="application/json")
+            assert "Failed to parse request body" not in self._caplog.text
 
     def test_flask_body_xml_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
