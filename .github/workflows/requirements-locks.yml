@@ -2,7 +2,7 @@ name: Test Requirements Lockfiles Check
 on:
   push:
     branches:
-      - 1.x
+      - main
   pull_request:
     types: [opened, reopened, synchronize]
 jobs:
