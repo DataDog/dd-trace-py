@@ -471,7 +471,7 @@ jobs:
           snapshot: true
 
   appsec_threats_django:
-    <<: *machine_executor
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
     steps:
