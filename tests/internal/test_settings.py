@@ -90,6 +90,15 @@ def _deleted_rc_config():
             "expected_source": {"trace_http_header_tags": "code"},
         },
         {
+            "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
+            "rc": {"tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]},
+            "code": {"trace_http_header_tags": {"header": "value"}},
+            "expected": {
+                "trace_http_header_tags": {"X-Header-Tag-69": "header_tag_69", "X-Header-Tag-70": "header_tag_70"}
+            },
+            "expected_source": {"trace_http_header_tags": "remote_config"},
+        },
+        {
             "env": {"DD_TAGS": "key:value,key2:value2"},
             "expected": {"tags": {"key": "value", "key2": "value2"}},
             "expected_source": {"tags": "env_var"},
@@ -109,7 +118,7 @@ def _deleted_rc_config():
         },
     ],
 )
-def test_settings_asdf(testcase, config, monkeypatch):
+def test_settings_parametrized(testcase, config, monkeypatch):
     for env_name, env_value in testcase.get("env", {}).items():
         monkeypatch.setenv(env_name, env_value)
         config._reset()
@@ -248,3 +257,46 @@ with tracer.trace("test") as span:
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled
+
+
+def test_remoteconfig_header_tags(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from ddtrace.contrib import trace_utils
+from tests.internal.test_settings import _base_rc_config
+
+with tracer.trace("test") as span:
+    trace_utils.set_http_meta(span,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
+assert span.get_tag("header_tag_420") is None
+assert span.get_tag("env_set_tag_name") == "helloworld"
+
+config.http._reset()
+config._header_tag_name.invalidate()
+config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": ["X-Header-Tag-420:header_tag_420"]}))
+
+with tracer.trace("test_rc_override") as span2:
+    trace_utils.set_http_meta(span2,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
+assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
+assert span2.get_tag("env_set_tag_name") is None
+
+config.http._reset()
+config._header_tag_name.invalidate()
+config._handle_remoteconfig(_base_rc_config({}))
+
+with tracer.trace("test") as span3:
+    trace_utils.set_http_meta(span3,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
+assert span3.get_tag("header_tag_420") is None
+assert span3.get_tag("env_set_tag_name") == "helloworld"
+        """,
+        env=env,
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
