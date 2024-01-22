@@ -16,7 +16,19 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         settings.DEBUG = False
         django.setup()
         patch()
-        client = Client("http://localhost:%d" % self.SERVER_PORT)
+        client = Client(
+            f"http://localhost:{self.SERVER_PORT}",
+            SERVER_NAME=f"localhost:{self.SERVER_PORT}",
+        )
+        initial_get = client.get
+
+        def patch_get(*args, **kwargs):
+            if "cookies" in kwargs:
+                client.cookies.load(kwargs["cookies"])
+                kwargs.pop("cookies")
+            return initial_get(*args, **kwargs)
+
+        client.get = patch_get
         interface = utils.Interface("django", django, client)
         with utils.test_tracer() as tracer:
             interface.tracer = tracer

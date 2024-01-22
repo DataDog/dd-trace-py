@@ -50,8 +50,22 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
     def interface(self):
         bftc = BaseFlaskTestCase()
+
         bftc.setUp()
+        bftc.app.config["SERVER_NAME"] = f"localhost:{self.SERVER_PORT}"
         interface = utils.Interface("flask", bftc.app, bftc.client)
+
+        initial_get = bftc.client.get
+
+        def patch_get(*args, **kwargs):
+            if "cookies" in kwargs:
+                for k, v in kwargs["cookies"].items():
+                    bftc.client.set_cookie(bftc.app.config["SERVER_NAME"], k, v)
+                kwargs.pop("cookies")
+            return initial_get(*args, **kwargs)
+
+        bftc.client.get = patch_get
+
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
             with utils.post_tracer(interface):
