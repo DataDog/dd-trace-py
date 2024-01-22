@@ -270,7 +270,7 @@ commands:
       - store_artifacts:
           path: test-results
       - save_cache:
-          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
             - ./latest-success-commit
       - run:
