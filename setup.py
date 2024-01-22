@@ -317,7 +317,11 @@ class CMakeBuild(build_ext):
                     return
                 raise
             except Exception as e:
-                print("WARNING: An error occurred while building the CMake extension {}.".format(ext.name))
+                print(
+                    "WARNING: An error occurred while building the CMake extension {}, {}.".format(
+                        ext.name, e.returncode
+                    )
+                )
                 if ext.optional:
                     return
                 raise
