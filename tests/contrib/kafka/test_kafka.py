@@ -239,15 +239,14 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_message(producer, consumer, tombstone, kafka_topic):
-    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
-        if tombstone:
-            producer.produce(kafka_topic, key=KEY)
-        else:
-            producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll(1.0)
+    if tombstone:
+        producer.produce(kafka_topic, key=KEY)
+    else:
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    message = None
+    while message is None:
+        message = consumer.poll(1.0)
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
