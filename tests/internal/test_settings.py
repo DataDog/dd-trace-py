@@ -285,7 +285,8 @@ assert span.get_tag("env_set_tag_name") == "helloworld"
 
 config.http._reset()
 config._header_tag_name.invalidate()
-config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
+config._handle_remoteconfig(_base_rc_config({"tracing_header_tags":
+    [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
 
 with tracer.trace("test_rc_override") as span2:
     trace_utils.set_http_meta(span2,
