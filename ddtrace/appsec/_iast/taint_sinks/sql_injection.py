@@ -5,7 +5,7 @@ import six
 
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
-from .._utils import _scrub_get_tokens_positions, _has_to_scrub
+from .._utils import _scrub_get_tokens_positions, _has_to_scrub, _is_numeric
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ._base import VulnerabilityBase
@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 _TEXT_TOKENS_REGEXP = re.compile(r'\b\w+\b')
 _INSIDE_QUOTES_REGEXP = re.compile(r'[\"\']([^"\']*?)[\"\']')
 _INSIDE_QUOTES_REGEXP = re.compile(r'''(['"])(.*?)\1''')
-
 
 @oce.register
 class SqlInjection(VulnerabilityBase):
@@ -55,7 +54,6 @@ class SqlInjection(VulnerabilityBase):
                 return {"value": value, "source": source}
             return {"value": value}
         new_valueparts = []
-        print("JJJ vuln: %s" % vuln)
         print("JJJ original valueParts:\n%s" % vuln.evidence.valueParts)
 
         from sqlparse import parse, tokens
@@ -79,26 +77,52 @@ class SqlInjection(VulnerabilityBase):
                     tokens.Literal.String.Symbol,
                     tokens.Literal.Number.Integer,
                     tokens.Literal.Number.Float,
+                    tokens.Literal.Number.Hexadecimal,
                     tokens.Comment.Single,
-                    tokens.Comment.Multiline
+                    tokens.Comment.Multiline,
+                    tokens.Name,
                 }:
-                    # Add the previous text
-                    if item.ttype == tokens.Literal.String.Single or (item.ttype == tokens.Literal.String.Symbol and "'" in str(item)):
+                    redact_fully = False
+                    add_later = None
+                    sitem = str(item)
+
+                    if _is_numeric(sitem):
+                        redact_fully = True
+                        print("JJJ XXX is numeric: %s" % sitem)
+                    elif item.ttype == tokens.Literal.String.Single or (item.ttype == tokens.Literal.String.Symbol and "'" in str(item)):
                         out.append("'")
                         add_later = "'"
-                        str_item = str(item).replace("'", "")
+                        str_item = sitem.replace("'", "")
+                        if _is_numeric(str_item):
+                            redact_fully = True
                     elif item.ttype == tokens.Literal.String.Double or (item.ttype == tokens.Literal.String.Symbol and '"' in str(item)):
                         out.append('"')
                         add_later = '"'
-                        str_item = str(item).replace('"', "")
+                        str_item = sitem.replace('"', "")
+                        if _is_numeric(str_item):
+                            redact_fully = True
+                    elif item.ttype == tokens.Comment.Single:
+                        out.append("--")
+                        add_later = ""
+                        redact_fully = True
+                    elif item.ttype == tokens.Comment.Multiline:
+                        out.append("/*")
+                        add_later = "*/"
+                        redact_fully = True
+                    elif item.ttype in (tokens.Number.Integer, tokens.Number.Float, tokens.Number.Hexadecimal):
+                        redact_fully = True
                     else:
-                        add_later = None
-                        str_item = str(item)
+                        out.append(sitem)
+                        continue
 
                     if len(out):
                         new_valueparts.append(_maybe_with_source(source, ''.join(out)))
-                    # JJJ remove quotes
-                    new_valueparts.append(_maybe_with_source(source, str_item))
+
+                    if redact_fully:
+                        # Comments are totally redacted
+                        new_valueparts.append({"redacted": True})
+                    else:
+                        new_valueparts.append(_maybe_with_source(source, str_item))
 
                     if add_later:
                         out = [add_later]
@@ -121,7 +145,7 @@ class SqlInjection(VulnerabilityBase):
         len_parts = len(new_valueparts)
         while idx < len_parts:
             value = new_valueparts[idx].get("value")
-            if value and _has_to_scrub(value) and idx < (len_parts - 1):
+            if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx+1]:
                 # Scrub the value, which is the next one
                 # JJJ check source and ranges
                 new_valueparts[idx+1] = {"redacted": True}

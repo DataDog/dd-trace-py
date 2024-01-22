@@ -9,7 +9,6 @@ import attr
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-
 if TYPE_CHECKING:
     from typing import Any
     from typing import List
@@ -37,17 +36,33 @@ def _is_iast_enabled():
 # Used to cache the compiled regular expression
 _SOURCE_NAME_SCRUB = None
 _SOURCE_VALUE_SCRUB = None
+_SOURCE_NUMERAL_SCRUB = None
 
 
 def _has_to_scrub(s):  # type: (str) -> bool
     global _SOURCE_NAME_SCRUB
     global _SOURCE_VALUE_SCRUB
+    global _SOURCE_NUMERAL_SCRUB
+    print("JJJ Scrub %s?" % s)
 
     if _SOURCE_NAME_SCRUB is None:
         _SOURCE_NAME_SCRUB = re.compile(asm_config._iast_redaction_name_pattern)
+        print("JJJ source name scrub: %s" % _SOURCE_NAME_SCRUB)
         _SOURCE_VALUE_SCRUB = re.compile(asm_config._iast_redaction_value_pattern)
+        print("JJJ source value scrub: %s" % _SOURCE_VALUE_SCRUB)
+        _SOURCE_NUMERAL_SCRUB = re.compile(asm_config._iast_redaction_numeral_pattern)
 
-    return _SOURCE_NAME_SCRUB.match(s) is not None or _SOURCE_VALUE_SCRUB.match(s) is not None
+    return _SOURCE_NAME_SCRUB.match(s) is not None or _SOURCE_VALUE_SCRUB.match(s) is not None or \
+        _SOURCE_NUMERAL_SCRUB.match(s) is not None
+
+
+def _is_numeric(s):
+    global _SOURCE_NUMERAL_SCRUB
+
+    if _SOURCE_NUMERAL_SCRUB is None:
+        _SOURCE_NUMERAL_SCRUB = re.compile(asm_config._iast_redaction_numeral_pattern)
+
+    return _SOURCE_NUMERAL_SCRUB.match(s) is not None
 
 
 _REPLACEMENTS = string.ascii_letters

@@ -146,6 +146,7 @@ class VulnerabilityBase(Operation):
         # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
 
+        print("JJJ XXX sources from report: %s" % sources)
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug(
@@ -246,42 +247,37 @@ class VulnerabilityBase(Operation):
         found = False
         already_scrubbed = {}
 
+        print("JJJ report.sources before: %s" % report.sources)
+        sources_values_to_scrubbed = {}
+
         for source in report.sources:
+            print("JJJ source: %s" % source)
             # Join them so we only run the regexps once for each source
             # joined_fields = "%s%s" % (source.name, source.value)
-            if _has_to_scrub(source.name):
+            if _has_to_scrub(source.name) or _has_to_scrub(source.value):
                 scrubbed = _scrub(source.value, has_range=True)
                 already_scrubbed[source.value] = scrubbed
                 source.redacted = True
-                source.value = None
+                sources_values_to_scrubbed[source.value] = scrubbed
+                source.value = scrubbed
+                print("JJJ source scrubbed: %s" % scrubbed)
 
+        print("JJJ report.sources after: %s" % report.sources)
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
-            cls._custom_edit_valueparts(vuln)
 
-            # Check if some valueParts match a scrubbed source
             for part in vuln.evidence.valueParts:
-                value = part.get("value")
-                if value and part["value"] in already_scrubbed_set:
+                part_value = part.get("value")
+                if not part_value:
+                    continue
+
+                if part_value in already_scrubbed_set:
+                    print("JJJ XXX %s in already_scrubbed_set" % part_value)
                     part["pattern"] = already_scrubbed[part["value"]]
                     part["redacted"] = True
                     del part["value"]
 
-        #     for part in vuln.evidence.valueParts:
-        #         if part["value"] in already_scrubbed_set:
-        #             part["pattern"] = already_scrubbed[part["value"]]
-        #             part["redacted"] = True
-        #             del part["value"]
-        #         elif _has_to_scrub(part["value"]):
-        #             part["pattern"] = _scrub(part["value"], has_range=True)
-        #             part["redacted"] = True
-        #             del part["value"]
-
-            # Give specific classes a change to edit the valueParts
-
-
-
-
+            cls._custom_edit_valueparts(vuln)
 
         # vulns_to_text = {}
         #

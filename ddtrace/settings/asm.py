@@ -35,7 +35,7 @@ class ASMConfig(Env):
         str,
         "DD_IAST_REDACTION_NAME_PATTERN",
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
-        + r"public_?|access_?|secret_?)key(?:_?id)?|token|username|last.name|consumer_?(?:id|key|secret)|"
+        + r"public_?|access_?|secret_?)key(?:_?id)?|token|username|user_id|last.name|consumer_?(?:id|key|secret)|"
         + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
     )
     _iast_redaction_value_pattern = Env.var(
@@ -45,6 +45,11 @@ class ASMConfig(Env):
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
-
+    _iast_redaction_numeral_pattern = Env.var(
+        str,
+        "DD_IAST_REDACTION_VALUE_NUMERAL",
+        default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
+        + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$"
+    )
 
 config = ASMConfig()
