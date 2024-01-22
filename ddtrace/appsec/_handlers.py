@@ -148,7 +148,7 @@ def _on_request_span_modifier(
             if content_type in ("application/json", "text/json"):
                 if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                     req_body = request.json
-                elif request.data is None:
+                elif request.data is None or request.data == b"":
                     req_body = None
                 else:
                     req_body = json.loads(request.data.decode("UTF-8"))

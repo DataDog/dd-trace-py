@@ -213,6 +213,14 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(APPSEC.JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
+    def test_flask_body_json_empty(self):
+        with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            self.client.get("/", content_type="application/json")
+            assert "Failed to parse request body" not in self._caplog.text
+            root_span = self.pop_spans()[0]
+            assert root_span.get_tag(APPSEC.JSON) is None
+
     def test_flask_body_json_attack(self):
         with override_global_config(dict(_asm_enabled=True)):
             self._aux_appsec_prepare_tracer()
@@ -253,11 +261,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert "triggers" in json.loads(root_span.get_tag(APPSEC.JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
-    def test_flask_body_json_empty_body_logs_warning(self):
+    def test_flask_body_json_empty_body_does_not_log_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/json")
-            assert "Failed to parse request body" in self._caplog.text
+            assert "Failed to parse request body" not in self._caplog.text
 
     def test_flask_body_json_bad_logs_warning(self):
         with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)):
