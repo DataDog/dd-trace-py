@@ -488,7 +488,7 @@ if __name__ == "__main__":
     )
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
-    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "false"
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
@@ -516,7 +516,7 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
-    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "false"
+    env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
