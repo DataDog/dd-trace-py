@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
