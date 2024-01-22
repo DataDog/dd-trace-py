@@ -4,12 +4,11 @@ from envier import Env
 
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import formats
 
-
-MAIN_PACKAGE = "python_main_package"
 
 _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
 
@@ -45,27 +44,28 @@ def _get_tags_from_env(config):
     commit_sha = config.commit_sha
     main_package = config.main_package
 
+    # Previously, the repository URL and commit SHA were derived from the DD_TAGS environment variable.
+    # This approach was for backward compatibility before the introduction of DD_GIT_REPOSITORY_URL
+    # and DD_GIT_COMMIT_SHA environment variables.
     tags = formats.parse_tags_str(config.tags)
     if not repository_url:
         repository_url = tags.get(REPOSITORY_URL, "")
     if not commit_sha:
         commit_sha = tags.get(COMMIT_SHA, "")
-    if not main_package:
-        main_package = tags.get(MAIN_PACKAGE, "")
     filtered_git_url = _filter_sensitive_info(repository_url)
     if type(filtered_git_url) != str:
         return "", commit_sha, main_package
     return filtered_git_url, commit_sha, main_package
 
 
-def _get_tags_from_package(config):
-    # type: (GitMetadataConfig) -> typing.Tuple[str, str]
+def _get_tags_from_package(main_package):
+    # type: (str) -> typing.Tuple[str, str]
     """
     Extracts git metadata from python package's medatada field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     Returns tuple (repository_url, commit_sha)
     """
-    if not config.main_package:
+    if not main_package:
         return "", ""
     try:
         try:
@@ -74,7 +74,7 @@ def _get_tags_from_package(config):
             import importlib_metadata  # type: ignore[no-redef]
 
         source_code_link = ""
-        for val in importlib_metadata.metadata(config.main_package).get_all("Project-URL"):
+        for val in importlib_metadata.metadata(main_package).get_all("Project-URL"):
             capt_val = val.split(", ")
             if len(capt_val) > 1 and capt_val[0] == "source_code_link":
                 source_code_link = capt_val[1].strip()
@@ -107,8 +107,9 @@ def get_git_tags():
         if config.enabled:
             repository_url, commit_sha, main_package = _get_tags_from_env(config)
             log.debug("git tags from env: %s %s %s", repository_url, commit_sha, main_package)
-            if not repository_url or not commit_sha:
-                pkg_repository_url, pkg_commit_sha = _get_tags_from_package(config)
+            if main_package and (not repository_url or not commit_sha):
+                # trying to extract repo URL and/or commit sha from the main package
+                pkg_repository_url, pkg_commit_sha = _get_tags_from_package(main_package)
                 log.debug("git tags from package: %s %s", pkg_repository_url, pkg_commit_sha)
                 if not repository_url:
                     repository_url = pkg_repository_url

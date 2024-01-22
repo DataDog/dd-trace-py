@@ -16,6 +16,7 @@ import attr
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
 from ddtrace.internal import compat
@@ -72,7 +73,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if commit_sha:
             tags[COMMIT_SHA] = commit_sha
         if main_package:
-            tags[gitmetadata.MAIN_PACKAGE] = main_package
+            tags[MAIN_PACKAGE] = main_package
         return tags
 
     def __attrs_post_init__(self):
