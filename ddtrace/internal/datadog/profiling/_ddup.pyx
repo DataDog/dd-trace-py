@@ -16,9 +16,11 @@ LOG = get_logger(__name__)
 # Library readiness state (for logging, mostly)
 cdef bint _quiet = False
 
+
 def is_quiet():
     global _quiet
     return _quiet
+
 
 IF UNAME_SYSNAME == "Linux":
     cdef extern from "exporter.hpp":
@@ -106,7 +108,6 @@ IF UNAME_SYSNAME == "Linux":
                 ddup_config_user_tag(key, val)
         if not ddup_init():
             LOG.error("Failed to start collector, disabling (%s)", get_err())
-
 
     def start_sample(nframes: int) -> None:
         if not ddup_start_sample(nframes):
