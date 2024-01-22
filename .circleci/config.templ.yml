@@ -477,7 +477,7 @@ jobs:
     steps:
       - run_hatch_env_test:
           env: 'appsec_threats_django'
-          snapshot: true
+          snapshot: false
 
   aws_lambda:
     <<: *machine_executor
