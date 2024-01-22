@@ -373,7 +373,7 @@ jobs:
             - attach_workspace:
                 at: .
             - run: pip install -r ci/coverage/requirements.txt
-            - run: ls -hal *.coverage
+            - run: ls -hal *.coverage 2>/dev/null || true
             # Combine all job coverage reports into one
             - run: coverage combine *.coverage
             # Upload coverage report to Codecov
@@ -435,6 +435,12 @@ jobs:
           pattern: 'appsec_iast$'
           snapshot: true
           docker_services: "postgres"
+
+  appsec_iast_tdd_propagation:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_tdd_propagation'
 
   appsec_iast_memcheck:
     <<: *machine_executor

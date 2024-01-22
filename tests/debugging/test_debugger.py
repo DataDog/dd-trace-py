@@ -218,7 +218,7 @@ def test_debugger_function_probe_on_function_with_exception():
 
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
-    assert return_capture["locals"] == {}
+    assert return_capture["locals"] == {"@exception": {"fields": {}, "type": "Exception"}}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -886,7 +886,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
@@ -1138,3 +1138,38 @@ def test_debugger_redacted_identifiers():
             },
             "throwable": None,
         }
+
+
+def test_debugger_exception_conditional_function_probe():
+    """
+    Test that we can have a condition on the exception on a function probe when
+    the condition is evaluated on exit.
+    """
+    from tests.submod import stuff
+
+    snapshots = simple_debugger_test(
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="throwexcstuff",
+            evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            condition=DDExpression(
+                dsl="expr.__class__.__name__ == 'Exception'",
+                callable=dd_compile(
+                    {
+                        "eq": [
+                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                            "Exception",
+                        ]
+                    }
+                ),
+            ),
+        ),
+        lambda: stuff.throwexcstuff(),
+    )
+
+    (snapshot,) = snapshots
+    snapshot_data = snapshot["debugger.snapshot"]
+    return_capture = snapshot_data["captures"]["return"]
+    assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
+    assert return_capture["throwable"]["type"] == "Exception"

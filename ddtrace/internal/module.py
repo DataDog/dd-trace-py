@@ -132,6 +132,10 @@ def find_loader(fullname):
     return getattr(find_spec(fullname), "loader", None)
 
 
+def is_module_installed(module_name):
+    return find_loader(module_name) is not None
+
+
 def is_namespace_spec(spec: ModuleSpec) -> bool:
     return spec.origin is None and spec.submodule_search_locations is not None
 
@@ -144,9 +148,10 @@ class _ImportHookChainedLoader:
 
         self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
-        if hasattr(loader, "create_module"):
+        # A missing loader is generally an indication of a namespace package.
+        if loader is None or hasattr(loader, "create_module"):
             self.create_module = self._create_module
-        if hasattr(loader, "exec_module"):
+        if loader is None or hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
 
     def __getattr__(self, name):
@@ -156,6 +161,16 @@ class _ImportHookChainedLoader:
     def add_callback(self, key, callback):
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
+
+    def call_back(self, module: ModuleType) -> None:
+        if module.__name__ == "pkg_resources":
+            # DEV: pkg_resources support to prevent errors such as
+            # NotImplementedError: Can't perform this operation for unregistered
+            # loader type
+            module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
+
+        for callback in self.callbacks.values():
+            callback(module)
 
     def load_module(self, fullname):
         # type: (str) -> Optional[ModuleType]
@@ -167,8 +182,7 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
         return module
 
@@ -213,8 +227,7 @@ class _ImportHookChainedLoader:
             else:
                 self.loader.exec_module(module)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
 
 class BaseModuleWatchdog(abc.ABC):

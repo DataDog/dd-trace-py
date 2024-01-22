@@ -14,7 +14,6 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
-import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.context import Context
@@ -24,8 +23,6 @@ from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.compat import msgpack_type
-from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
@@ -129,7 +126,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         if value is None:
             return 0
 
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return self.string_table.index(value)
 
         if isinstance(value, dict):
@@ -183,7 +180,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -214,7 +211,7 @@ class TestEncoders(TestCase):
         items = json.loads(spans)["traces"]
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, string_type)
+        assert isinstance(spans, str)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -222,7 +219,7 @@ class TestEncoders(TestCase):
         for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
-                assert isinstance(items[i][j]["span_id"], string_type)
+                assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
     def test_encode_traces_msgpack_v03(self):
@@ -252,7 +249,7 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        assert isinstance(spans, msgpack_type)
+        assert isinstance(spans, bytes)
         assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -434,6 +431,8 @@ def test_span_link_v04_encoding():
     span = Span(
         "s1",
         links=[
+            SpanLink(trace_id=1, span_id=2),
+            SpanLink(trace_id=3, span_id=4, flags=0),
             SpanLink(
                 trace_id=(123 << 64) + 456,
                 span_id=2,
@@ -445,13 +444,14 @@ def test_span_link_v04_encoding():
                     "link.kind": "link_kind",
                     "someval": 1,
                     "drop_me": "bye",
+                    "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
-            )
+            ),
         ],
     )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[0]._drop_attribute("drop_me")
+    span._links[2]._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -466,6 +466,15 @@ def test_span_link_v04_encoding():
     assert b"span_links" in decoded_span
     assert decoded_span[b"span_links"] == [
         {
+            b"trace_id": 1,
+            b"span_id": 2,
+        },
+        {
+            b"trace_id": 3,
+            b"span_id": 4,
+            b"flags": 0 | (1 << 31),
+        },
+        {
             b"trace_id": 456,
             b"span_id": 2,
             b"attributes": {
@@ -473,12 +482,17 @@ def test_span_link_v04_encoding():
                 b"link.name": b"link_name",
                 b"link.kind": b"link_kind",
                 b"someval": b"1",
+                b"key_other.0": b"true",
+                b"key_other.1": b"2",
+                b"key_other.2.0": b"hello",
+                b"key_other.2.1": b"4",
+                b"key_other.2.2.0": b"5",
             },
             b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
-            b"flags": 1,
+            b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
-        }
+        },
     ]
 
 
@@ -489,19 +503,26 @@ def test_span_link_v05_encoding():
         "s1",
         context=Context(sampling_priority=1),
         links=[
+            SpanLink(trace_id=16, span_id=17),
             SpanLink(
-                trace_id=1,
-                span_id=2,
+                trace_id=(2**127) - 1,
+                span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
-                attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
-            )
+                attributes={
+                    "moon": "ears",
+                    "link.name": "link_name",
+                    "link.kind": "link_kind",
+                    "drop_me": "bye",
+                    "key2": ["false", 2, ["hello", 4, {"5"}]],
+                },
+            ),
         ],
     )
 
-    assert span._links
+    assert len(span._links) == 2
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[0]._drop_attribute("drop_me")
+    span._links[1]._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -514,9 +535,13 @@ def test_span_link_v05_encoding():
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
+        encoded_span_meta[b"_dd.span_links"] == b"["
+        b'{"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"}, '
+        b'{"trace_id": "7fffffffffffffffffffffffffffffff", "span_id": "ffffffffffffffff", '
+        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
+        b'"key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
+        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}'
+        b"]"
     )
 
 

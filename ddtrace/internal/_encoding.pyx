@@ -569,10 +569,19 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         for link in span_links:
             # SpanLink.to_dict() returns all serializable span link fields
+            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
             d = link.to_dict()
             # Encode 128 bit trace ids usings two 64bit integers
-            d["trace_id_high"] = d["trace_id"] >> 64
-            d["trace_id"] = MAX_UINT_64BITS & d["trace_id"]
+            tid = int(d["trace_id"][:16], 16)
+            if tid > 0:
+                d["trace_id_high"] = tid
+            d["trace_id"] = int(d["trace_id"][16:], 16)
+            # span id should be uint64 in v0.4 (it is hex in v0.5)
+            d["span_id"] = int(d["span_id"], 16)
+            if "flags" in d:
+                # If traceflags set, the high bit (bit 31) should be set to 1 (uint32).
+                # This helps us distinguish between when the sample decision is zero or not set
+                d["flags"] = d["flags"] | (1 << 31)
 
             ret = msgpack_pack_map(&self.pk, len(d))
             if ret != 0:
