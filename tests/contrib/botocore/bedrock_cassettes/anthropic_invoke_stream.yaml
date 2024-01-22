@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: '{"prompt": "\n\nHuman: %s\n\nAssistant: What makes you better than Chat-GPT
+      or LLAMA?", "temperature": 0.9, "top_p": 1, "top_k": 250, "max_tokens_to_sample":
+      50, "stop_sequences": ["\n\nHuman:"]}'
+    headers:
+      Content-Length:
+      - '195'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgyMzA4Wg==
+      X-Amzn-Bedrock-Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MmIyYzcyY2EtYTBiMS00YzkzLTgyNGQtMjA1MGVlZjBjNzQ1
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-instant-v1/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAABawAAAEuhktKICzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SmpiMjF3YkdWMGFXOXVJ
+        am9pSWl3aWMzUnZjRjl5WldGemIyNGlPaUp6ZEc5d1gzTmxjWFZsYm1ObElpd2ljM1J2Y0NJNkls
+        eHVYRzVJZFcxaGJqb2lMQ0poYldGNmIyNHRZbVZrY205amF5MXBiblp2WTJGMGFXOXVUV1YwY21s
+        amN5STZleUpwYm5CMWRGUnZhMlZ1UTI5MWJuUWlPakkxTENKdmRYUndkWFJVYjJ0bGJrTnZkVzUw
+        SWpvMExDSnBiblp2WTJGMGFXOXVUR0YwWlc1amVTSTZNalkyTENKbWFYSnpkRUo1ZEdWTVlYUmxi
+        bU41SWpveU5qWjlmUT09In0vrYXC
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Mon, 08 Jan 2024 18:23:09 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - 710b14d5-164f-460d-bfc6-d3b31e794691
+    status:
+      code: 200
+      message: OK
+version: 1
