@@ -209,4 +209,4 @@ test. It is, however, a short-term fix that you should not consider to be a perm
 Using ``@flaky`` comes with the responsibility of maintaining the test suite's coverage over the library. If you're in the habit
 of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
 finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
-suite's coverage meaningfully broad while benefitting from skipping tests.
+suite's coverage meaningfully broad while skipping tests.
