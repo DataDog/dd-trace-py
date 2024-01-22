@@ -58,36 +58,63 @@ class SqlInjection(VulnerabilityBase):
         print("JJJ vuln: %s" % vuln)
         print("JJJ original valueParts:\n%s" % vuln.evidence.valueParts)
 
+        from sqlparse import parse, tokens
+
         for part in vuln.evidence.valueParts:
+            source = part.get("source")
             value = part.get("value")
 
             if not value or part.get("redacted"):
                 new_valueparts.append(part)
                 continue
 
-            """
-            parsed = sqlparser.parse(value).flatten()
-            sio = StringIO()
+            parsed = parse(value)[0].flatten()
+            out = []
             for item in parsed:
-                if item.type in (Token.Literal.String, Token.Literal.Number, Token.Comment):
+                print("JJJ parsed item: %s" % str(item))
+                print("JJJ parsed item type: %s" % str(item.ttype))
+                if item.ttype in {
+                    tokens.Literal.String.Single,
+                    tokens.Literal.String.Double,
+                    tokens.Literal.String.Symbol,
+                    tokens.Literal.Number.Integer,
+                    tokens.Literal.Number.Float,
+                    tokens.Comment.Single,
+                    tokens.Comment.Multiline
+                }:
                     # Add the previous text
-                    if len(sio):
-                        new_valueparts.append(sio.to_text())
-                    # Add this one as one valuepart
-                    new_valueparts.append(part)
+                    if item.ttype == tokens.Literal.String.Single or (item.ttype == tokens.Literal.String.Symbol and "'" in str(item)):
+                        out.append("'")
+                        add_later = "'"
+                        str_item = str(item).replace("'", "")
+                    elif item.ttype == tokens.Literal.String.Double or (item.ttype == tokens.Literal.String.Symbol and '"' in str(item)):
+                        out.append('"')
+                        add_later = '"'
+                        str_item = str(item).replace('"', "")
+                    else:
+                        add_later = None
+                        str_item = str(item)
+
+                    if len(out):
+                        new_valueparts.append(_maybe_with_source(source, ''.join(out)))
+                    # JJJ remove quotes
+                    new_valueparts.append(_maybe_with_source(source, str_item))
+
+                    if add_later:
+                        out = [add_later]
+                    else:
+                        out = []
                 else:
-                    sio.add(value)
-            """
+                    print("JJJ adding to out: %s" % str(item))
+                    out.append(str(item))
+
+            if len(out):
+                new_valueparts.append(_maybe_with_source(source, ''.join(out)))
+            print("JJJ new_valueparts2: %s" % new_valueparts)
+
             print("JJJ part: %s" % part)
-            prev = 0
-            source = part.get("source")
-            for token in _INSIDE_QUOTES_REGEXP.finditer(value):
-                # JJJ copy source if exists!
-                print("JJJ token: %s" % token)
-                new_valueparts.append(_maybe_with_source(source, value[prev:token.start(2)]))
-                new_valueparts.append(_maybe_with_source(source, value[token.start(2):token.end(2)]))
-                prev = token.end(2)
-            new_valueparts.append(_maybe_with_source(source, value[prev:]))
+
+        print("JJJ new valueparts: %s" % new_valueparts)
 
         # Scrub as needed
         idx = 0
