@@ -23,7 +23,7 @@ def index():
 
 
 @app.route("/asm/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/asm/<int:param_int>/<string:param_str>/")
+@app.route("/asm/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
 def multi_view(param_int=0, param_str=""):
     query_params = request.args.to_dict()
     body = {

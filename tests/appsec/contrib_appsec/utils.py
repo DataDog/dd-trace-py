@@ -178,6 +178,53 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert str_json is None, "asm JSON tag in root span"
 
+    @pytest.mark.parametrize(
+        ("content_type"),
+        [
+            ("application/x-www-form-urlencoded"),
+            ("application/json"),
+            ("text/xml"),
+        ],
+    )
+    def test_request_body_bad(self, caplog, interface: Interface, root_span, get_tag, content_type):
+        # Ensure no crash when body is not parsable
+        import logging
+
+        with caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
+        ):
+            self.update_tracer(interface)
+            payload = '{"attack": "bad_payload",}</attack>&='
+            response = interface.client.post("/asm/", data=payload, content_type=content_type)
+            assert response.status_code == 200
+            # do not work with urlencoded or fastapi for now
+            # assert "Failed to parse request body" in caplog.text
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_request_path_params(self, interface: Interface, root_span, asm_enabled):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            path_params = core.get_item("http.request.path_params", span=root_span())
+            if asm_enabled:
+                assert path_params["param_str"] == "abc"
+                assert int(path_params["param_int"]) == 137
+            else:
+                assert path_params is None
+
+    def test_useragent(self, interface: Interface, root_span, get_tag):
+        if interface.name == "fastapi":
+            raise pytest.skip("fastapi does not seem to report user-agent")
+
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers={"HTTP_USER_AGENT": "test/1.2.3"})
+            assert self.status(response) == 200
+            assert get_tag(http.USER_AGENT) == "test/1.2.3"
+
 
 @contextmanager
 def test_tracer():

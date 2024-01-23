@@ -37,13 +37,13 @@ def get_app():
     @app.get("/asm/{param_int:int}/{param_str:str}/")
     @app.post("/asm/{param_int:int}/{param_str:str}/")
     async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
-        query_params = request.query_params
+        query_params = dict(request.query_params)
         body = {
             "path_params": {"param_int": param_int, "param_str": param_str},
             "query_params": query_params,
             "headers": dict(request.headers),
             "cookies": dict(request.cookies),
-            "body": request.body.decode("utf-8"),
+            "body": (await request.body()).decode("utf-8"),
             "method": request.method,
         }
         status = int(query_params.get("status", "200"))

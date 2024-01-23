@@ -23,10 +23,14 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         initial_get = client.get
 
         def patch_get(*args, **kwargs):
+            headers = {}
             if "cookies" in kwargs:
                 client.cookies.load(kwargs["cookies"])
                 kwargs.pop("cookies")
-            return initial_get(*args, **kwargs)
+            if "headers" in kwargs:
+                headers = kwargs["headers"]
+                kwargs.pop("headers")
+            return initial_get(*args, **kwargs, **headers)
 
         client.get = patch_get
         interface = utils.Interface("django", django, client)
