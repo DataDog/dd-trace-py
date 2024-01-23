@@ -23,6 +23,10 @@ class Interface:
 
 
 class Contrib_TestClass_For_Threats:
+    """
+    Factorized test class for threats tests on all supported frameworks
+    """
+
     SERVER_PORT = 8000
 
     @pytest.fixture
@@ -45,6 +49,7 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
+        # you can disable any test in a framework like that:
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
         with override_global_config(dict(_asm_enabled=asm_enabled)):
@@ -117,7 +122,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
             response = interface.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
-            assert self.status(response)  # == 200
+            assert self.status(response)  # == 200 Have to add end points in each framework application.
 
             body = core.get_item("http.request.body", span=root_span())
             if asm_enabled:
