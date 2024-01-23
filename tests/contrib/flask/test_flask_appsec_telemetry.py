@@ -6,9 +6,8 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from tests.appsec.appsec.test_processor import _IP
-from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
+import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -25,9 +24,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
 
     def test_telemetry_metrics_block(self):
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
-            resp = self.client.get("/", headers={"X-Real-Ip": _IP.BLOCKED})
+            resp = self.client.get("/", headers={"X-Real-Ip": rules._IP.BLOCKED})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
                 assert resp.text == BLOCKED_RESPONSE_JSON
