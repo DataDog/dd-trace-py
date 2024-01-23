@@ -385,6 +385,21 @@ class SpanTestCase(TracerTestCase):
             )
         ]
 
+    def test_init_with_span_links(self):
+        links = [
+            SpanLink(trace_id=1, span_id=10),
+            SpanLink(trace_id=1, span_id=20),
+            SpanLink(trace_id=2, span_id=30, flags=0),
+            SpanLink(trace_id=2, span_id=30, flags=1),
+        ]
+        s = Span(name="test.span", links=links)
+
+        assert len(s._links) == 3
+        assert s.get_link(10) == links[0]
+        assert s.get_link(20) == links[1]
+        # duplicate links are overwritten (last one wins)
+        assert s.get_link(30) == links[3]
+
     # span links cannot have a span_id or trace_id value of 0 or less
     def test_span_links_error_with_id_0(self):
         with pytest.raises(ValueError) as exc_trace:
