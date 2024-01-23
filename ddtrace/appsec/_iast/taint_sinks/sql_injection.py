@@ -58,6 +58,8 @@ class SqlInjection(VulnerabilityBase):
 
         from sqlparse import parse, tokens
 
+        in_singleline_comment = False
+
         for part in vuln.evidence.valueParts:
             source = part.get("source")
             value = part.get("value")
@@ -68,7 +70,21 @@ class SqlInjection(VulnerabilityBase):
 
             parsed = parse(value)[0].flatten()
             out = []
+
             for item in parsed:
+                print("JJJ XXX in_singleline_comment: %s" % in_singleline_comment)
+                if item.ttype == tokens.Whitespace.Newline:
+                    print("JJJ XXX end of singleline comment")
+                    in_singleline_comment = False
+
+                elif in_singleline_comment:
+                    # Skip all tokens after a -- comment until newline
+                    print("JJJ XXX skipping because prev was SingleLine Comment")
+                    continue
+
+                else:
+                    print("JJJ XXX other case, in_singleline_comment: %s" % in_singleline_comment)
+
                 print("JJJ parsed item: %s" % str(item))
                 print("JJJ parsed item type: %s" % str(item.ttype))
                 if item.ttype in {
@@ -105,6 +121,8 @@ class SqlInjection(VulnerabilityBase):
                         out.append("--")
                         add_later = ""
                         redact_fully = True
+                        print("JJJ XXX setting in_singleline_comment to True")
+                        in_singleline_comment = True
                     elif item.ttype == tokens.Comment.Multiline:
                         out.append("/*")
                         add_later = "*/"
