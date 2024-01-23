@@ -14,7 +14,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.5.0",
+    "envier==0.5.1",
     "types-attrs==19.1.0",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
