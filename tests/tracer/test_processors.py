@@ -24,15 +24,6 @@ from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceTagsProcessor
-from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
-from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
-from ddtrace.internal.processor.truncator import MAX_META_KEY_LENGTH
-from ddtrace.internal.processor.truncator import MAX_META_VALUE_LENGTH
-from ddtrace.internal.processor.truncator import MAX_METRIC_KEY_LENGTH
-from ddtrace.internal.processor.truncator import MAX_RESOURCE_NAME_LENGTH
-from ddtrace.internal.processor.truncator import MAX_TYPE_LENGTH
-from ddtrace.internal.processor.truncator import NormalizeSpanProcessor
-from ddtrace.internal.processor.truncator import TruncateSpanProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from tests.utils import DummyTracer
@@ -344,34 +335,6 @@ def test_trace_128bit_processor(trace_id):
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
-
-
-def test_span_truncator():
-    """TruncateSpanProcessor truncates information in spans"""
-    span = Span("span1", resource="x" * (MAX_RESOURCE_NAME_LENGTH + 10))
-    span.set_metric("m" * (MAX_METRIC_KEY_LENGTH + 10), 1)
-    span.set_tag("t" * (MAX_META_KEY_LENGTH + 10), "v" * (MAX_META_VALUE_LENGTH + 10))
-
-    TruncateSpanProcessor().on_span_finish(span)
-
-    tags = span.get_tags()
-    metrics = span.get_metrics()
-
-    assert span.resource == "x" * MAX_RESOURCE_NAME_LENGTH
-    assert tags["t" * MAX_META_KEY_LENGTH] == "v" * MAX_META_VALUE_LENGTH
-    assert metrics["m" * MAX_METRIC_KEY_LENGTH] == 1
-
-
-def test_span_normalizator():
-    """NormalizeSpanProcessor adds missing information to spans"""
-    span = Span("", span_type="x" * (MAX_TYPE_LENGTH + 10))
-
-    NormalizeSpanProcessor().on_span_finish(span)
-
-    assert span.service == DEFAULT_SERVICE_NAME
-    assert span.name == DEFAULT_SPAN_NAME
-    assert span.resource == DEFAULT_SPAN_NAME
-    assert span.span_type == "x" * MAX_TYPE_LENGTH
 
 
 def test_span_creation_metrics():
