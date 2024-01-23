@@ -22,6 +22,14 @@ class Interface:
         self.client = client
 
 
+def payload_to_xml(payload: Dict[str, str]) -> str:
+    return "".join(f"<{k}>{v}</{k}>" for k, v in payload.items())
+
+
+def payload_to_plain_text(payload: Dict[str, str]) -> str:
+    return "\n".join(f"{k}={v}" for k, v in payload.items())
+
+
 class Contrib_TestClass_For_Threats:
     """
     Factorized test class for threats tests on all supported frameworks
@@ -94,46 +102,81 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert not core.get_item("http.request.query", span=root_span())
 
-    def test_request_cookies(self, interface: Interface, root_span, get_tag):
-        with override_global_config(dict(_asm_enabled=True)):
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("cookies", "attack"),
+        [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
+    )
+    def test_request_cookies(self, interface: Interface, root_span, get_tag, asm_enabled, cookies, attack):
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
+        ):
             self.update_tracer(interface)
-            response = interface.client.get("/", cookies={"mytestingcookie_key": "mytestingcookie_value"})
+            response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
-            cookies = dict(core.get_item("http.request.cookies", span=root_span()))
-            assert get_tag(APPSEC.JSON) is None
-            assert cookies == {"mytestingcookie_key": "mytestingcookie_value"}
-
-    def test_request_cookies_attack(self, interface: Interface, root_span, get_tag):
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
-            self.update_tracer(interface)
-            response = interface.client.get("/", cookies={"attack": "1' or '1' = '1'"})
-            assert self.status(response) == 200
-            cookies = dict(core.get_item("http.request.cookies", span=root_span()))
+            if asm_enabled:
+                cookies_parsed = dict(core.get_item("http.request.cookies", span=root_span()))
+                assert cookies_parsed == cookies
+            else:
+                assert core.get_item("http.request.cookies", span=root_span()) is None
             str_json = get_tag(APPSEC.JSON)
-            assert str_json is not None, "no JSON tag in root span"
-            json_payload = json.loads(str_json)
-            assert len(json_payload["triggers"]) == 1
-            assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
-            assert cookies == {"attack": "1' or '1' = '1'"}
+            if asm_enabled and attack:
+                assert str_json is not None, "no JSON tag in root span"
+                json_payload = json.loads(str_json)
+                assert len(json_payload["triggers"]) == 1
+                assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
+            else:
+                assert str_json is None, f"asm JSON tag in root span: asm_enabled={asm_enabled}, attack={attack}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    def test_request_body_urlencoded(self, interface: Interface, root_span, get_tag, asm_enabled):
+    @pytest.mark.parametrize(
+        ("encode_payload", "content_type"),
+        [
+            (urlencode, "application/x-www-form-urlencoded"),
+            (json.dumps, "application/json"),
+            (payload_to_xml, "text/xml"),
+            (payload_to_plain_text, "text/plain"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("payload_struct", "attack"),
+        [({"mytestingbody_key": "mytestingbody_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
+    )
+    def test_request_body(
+        self,
+        interface: Interface,
+        root_span,
+        get_tag,
+        asm_enabled,
+        encode_payload,
+        content_type,
+        payload_struct,
+        attack,
+    ):
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
-            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-            response = interface.client.post("/asm/", data=payload, content_type="application/x-www-form-urlencoded")
+            payload = encode_payload(payload_struct)
+            response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
 
             body = core.get_item("http.request.body", span=root_span())
-            if asm_enabled:
+            if asm_enabled and content_type != "text/plain":
                 assert body in [
-                    {"mytestingbody_key": "mytestingbody_value"},
-                    {"mytestingbody_key": ["mytestingbody_value"]},
+                    payload_struct,
+                    {k: [v] for k, v in payload_struct.items()},
                 ]
             else:
-                assert body is None
+                assert not body  # DEV: Flask send {} for text/plain with asm
 
-            assert get_tag(APPSEC.JSON) is None
+            str_json = get_tag(APPSEC.JSON)
+
+            if asm_enabled and attack and content_type != "text/plain":
+                assert str_json is not None, "no JSON tag in root span"
+                json_payload = json.loads(str_json)
+                assert len(json_payload["triggers"]) == 1
+                assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
+            else:
+                assert str_json is None, "asm JSON tag in root span"
 
 
 @contextmanager
