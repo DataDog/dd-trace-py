@@ -24,7 +24,7 @@ from ddtrace import config  # noqa:F401
 from ddtrace._logger import _configure_log_injection
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
-from ddtrace.internal.module import find_loader  # noqa:F401
+from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
@@ -45,10 +45,6 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
             "import ddtrace.auto before calling gevent.monkey.patch_all().",
             RuntimeWarning,
         )
-
-
-def is_module_installed(module_name):
-    return find_loader(module_name) is not None
 
 
 def cleanup_loaded_modules():
