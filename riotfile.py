@@ -110,14 +110,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            name="scripts",
-            command="python -m doctest {cmdargs} "
-            "scripts/get-target-milestone.py "
-            "scripts/needs_testrun.py "
-            "tests/suitespec.py",
-        ),
-        Venv(
-            pys=["3"],
             name="meta-testing",
             command="pytest {cmdargs} tests/meta",
         ),
@@ -252,6 +244,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": "~=3.0",
+                        "langchain": "==0.0.354",
+                        "langchain_experimental": "==0.0.47",
                     },
                 ),
             ],
