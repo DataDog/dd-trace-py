@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    span: Add getter and setter for span links
+    span: Adds a public api for setting and getting span links
