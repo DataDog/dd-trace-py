@@ -178,8 +178,11 @@ class BaseLLMIntegration:
         return []
 
     def metric(self, span: Span, kind: str, name: str, val: Any, tags: Optional[List[str]] = None) -> None:
-        """Set a metric using the context from the given span."""
-        if not self.metrics_enabled or self._statsd is None:
+        """
+        Set a metric using the context from the given span.
+        Does not send metrics if llmobs is enabled, as llmobs emits the same metrics as the integration.
+        """
+        if not self.metrics_enabled or self._statsd is None or self.llmobs_enabled:
             return
         metric_tags = self._metrics_tags(span)
         if tags:

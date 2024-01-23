@@ -371,11 +371,12 @@ def _patched_convert(openai, integration):
             v = headers.get("x-ratelimit-limit-requests")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.requests", int(v))
+                span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
         if headers.get("x-ratelimit-limit-tokens"):
             v = headers.get("x-ratelimit-limit-tokens")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.tokens", int(v))
-
+                span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
         # Gauge and set span info for remaining requests and tokens
         if headers.get("x-ratelimit-remaining-requests"):
             v = headers.get("x-ratelimit-remaining-requests")

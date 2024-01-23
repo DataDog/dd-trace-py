@@ -136,6 +136,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         #  so we need to deduplicate and send unique prompt-response records if n > 1.
         for i in range(n):
             unique_choices = choices[i::n]
+            # OpenAI only returns the aggregate token count for the entire response if n>1. This means we can only
+            #  provide a rough estimate of the number of tokens used for each completion by taking the average.
+            prompt_tokens = int(resp.usage.prompt_tokens / len(choices))
+            completion_tokens = int(resp.usage.completion_tokens / len(choices))
             attrs_dict = {
                 "type": "completion",
                 "id": resp.id,
@@ -146,10 +150,19 @@ class OpenAIIntegration(BaseLLMIntegration):
                     "prompts": prompt,
                     "temperature": kwargs.get("temperature"),
                     "max_tokens": kwargs.get("max_tokens"),
+                    "prompt_tokens": [prompt_tokens for _ in unique_choices],
                 },
                 "output": {
                     "completions": [{"content": choice.text} for choice in unique_choices],
                     "durations": [now - span.start for _ in unique_choices],
+                    "completion_tokens": [completion_tokens for _ in unique_choices],
+                    "total_tokens": [prompt_tokens + completion_tokens for _ in unique_choices],
+                    "rate_limit_requests": [
+                        span.get_metric("openai.organization.ratelimit.requests.limit") for _ in unique_choices
+                    ],
+                    "rate_limit_tokens": [
+                        span.get_metric("openai.organization.ratelimit.tokens.limit") for _ in unique_choices
+                    ],
                 },
             }
             self.llm_record(span, attrs_dict)
@@ -169,6 +182,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 content = choice.message.function_call.arguments
             elif getattr(choice.message, "tool_calls", None):
                 content = choice.message.tool_calls.function.arguments
+            # OpenAI only returns the aggregate token count for the entire response if n>1. This means we can only
+            #  provide a rough estimate of the number of tokens used for each completion by taking the average.
+            prompt_tokens = int(resp.usage.prompt_tokens / len(choices))
+            completion_tokens = int(resp.usage.completion_tokens / len(choices))
             attrs_dict = {
                 "type": "chat",
                 "id": resp.id,
@@ -179,6 +196,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                     "messages": [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in messages],
                     "temperature": kwargs.get("temperature"),
                     "max_tokens": kwargs.get("max_tokens"),
+                    "prompt_tokens": [prompt_tokens],
                 },
                 "output": {
                     "completions": [
@@ -188,6 +206,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                         }
                     ],
                     "durations": [now - span.start],
+                    "completion_tokens": [completion_tokens],
+                    "total_tokens": [prompt_tokens + completion_tokens],
+                    "rate_limit_requests": [span.get_metric("openai.organization.ratelimit.requests.limit")],
+                    "rate_limit_tokens": [span.get_metric("openai.organization.ratelimit.tokens.limit")],
                 },
             }
             self.llm_record(span, attrs_dict)

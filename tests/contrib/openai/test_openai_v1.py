@@ -551,6 +551,17 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
         assert not mock_metrics.mock_calls
 
 
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True, llmobs_enabled=True)])
+def test_metrics_not_sent_if_llmobs_enabled(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
+    """Ensure no metrics are sent if llmobs is enabled."""
+    with openai_vcr.use_cassette("completion.yaml"):
+        client = openai.OpenAI()
+        client.completions.create(
+            model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+        )
+    assert not mock_metrics.mock_calls
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
@@ -1961,10 +1972,19 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": ", relax!” I said to my laptop"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -1976,10 +1996,19 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": " (1"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2049,10 +2078,19 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[0].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2064,10 +2102,19 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[1].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2134,12 +2181,17 @@ def test_llmobs_chat_completion_function_call(
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
                         "temperature": None,
                         "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
                     },
                     "output": {
                         "completions": [
                             {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
                         ],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),

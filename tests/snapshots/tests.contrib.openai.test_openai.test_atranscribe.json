@@ -36,6 +36,7 @@
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "openai.organization.ratelimit.requests.remaining": 49,
+      "openai.organization.ratelimit.requests.limit": 50,
       "process_id": 7755
     },
     "duration": 1346656,
