@@ -26,8 +26,9 @@ def check_uwsgi(worker_callback=None, atexit=None):
     except ImportError:
         return
 
-    if not uwsgi.opt.get("enable-threads"):
-        raise uWSGIConfigError("enable-threads option must be set to true")
+    if not (uwsgi.opt.get("enable-threads") or int(uwsgi.opt.get("threads") or 0)):
+        msg = "enable-threads option must be set to true, or a positive number of threads must be set"
+        raise uWSGIConfigError(msg)
 
     # If uwsgi has more than one process, it is running in prefork operational mode: uwsgi is going to fork multiple
     # sub-processes.
