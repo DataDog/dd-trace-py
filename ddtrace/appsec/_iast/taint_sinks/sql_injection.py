@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from .reporter import Vulnerability
 
+from sqlparse import parse, tokens
 
 _TEXT_TOKENS_REGEXP = re.compile(r'\b\w+\b')
 _INSIDE_QUOTES_REGEXP = re.compile(r'[\"\']([^"\']*?)[\"\']')
@@ -54,9 +55,7 @@ class SqlInjection(VulnerabilityBase):
                 return {"value": value, "source": source}
             return {"value": value}
         new_valueparts = []
-        print("JJJ original valueParts:\n%s" % vuln.evidence.valueParts)
 
-        from sqlparse import parse, tokens
 
         in_singleline_comment = False
 
@@ -72,21 +71,13 @@ class SqlInjection(VulnerabilityBase):
             out = []
 
             for item in parsed:
-                print("JJJ XXX in_singleline_comment: %s" % in_singleline_comment)
                 if item.ttype == tokens.Whitespace.Newline:
-                    print("JJJ XXX end of singleline comment")
                     in_singleline_comment = False
 
                 elif in_singleline_comment:
                     # Skip all tokens after a -- comment until newline
-                    print("JJJ XXX skipping because prev was SingleLine Comment")
                     continue
 
-                else:
-                    print("JJJ XXX other case, in_singleline_comment: %s" % in_singleline_comment)
-
-                print("JJJ parsed item: %s" % str(item))
-                print("JJJ parsed item type: %s" % str(item.ttype))
                 if item.ttype in {
                     tokens.Literal.String.Single,
                     tokens.Literal.String.Double,
@@ -104,7 +95,6 @@ class SqlInjection(VulnerabilityBase):
 
                     if _is_numeric(sitem):
                         redact_fully = True
-                        print("JJJ XXX is numeric: %s" % sitem)
                     elif item.ttype == tokens.Literal.String.Single or (item.ttype == tokens.Literal.String.Symbol and "'" in str(item)):
                         out.append("'")
                         add_later = "'"
@@ -121,7 +111,6 @@ class SqlInjection(VulnerabilityBase):
                         out.append("--")
                         add_later = ""
                         redact_fully = True
-                        print("JJJ XXX setting in_singleline_comment to True")
                         in_singleline_comment = True
                     elif item.ttype == tokens.Comment.Multiline:
                         out.append("/*")
@@ -147,16 +136,10 @@ class SqlInjection(VulnerabilityBase):
                     else:
                         out = []
                 else:
-                    print("JJJ adding to out: %s" % str(item))
                     out.append(str(item))
 
             if len(out):
                 new_valueparts.append(_maybe_with_source(source, ''.join(out)))
-            print("JJJ new_valueparts2: %s" % new_valueparts)
-
-            print("JJJ part: %s" % part)
-
-        print("JJJ new valueparts: %s" % new_valueparts)
 
         # Scrub as needed
         idx = 0
@@ -165,12 +148,10 @@ class SqlInjection(VulnerabilityBase):
             value = new_valueparts[idx].get("value")
             if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx+1]:
                 # Scrub the value, which is the next one
-                # JJJ check source and ranges
                 new_valueparts[idx+1] = {"redacted": True}
                 idx += 2
                 continue
             idx += 1
 
         vuln.evidence.valueParts = new_valueparts
-        print("JJJ new valueParts:\n%s" % new_valueparts)
 

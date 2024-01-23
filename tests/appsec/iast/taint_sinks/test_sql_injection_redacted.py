@@ -29,11 +29,6 @@ from tests.utils import override_env
 def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
     env = {"_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
     with override_env(env):
-        print("\nJJJ evidence_input: %s" % evidence_input)
-        print("JJJ sources expected: %s" % sources_expected)
-        print("JJJ vulnerabilities expected: %s" % vulnerabilities_expected)
-        if evidence_input["ranges"][0]["iinfo"]["parameterName"] == "secret":
-            a = 1
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
             [
@@ -50,8 +45,6 @@ def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_
 
         assert is_pyobject_tainted(tainted_object)
 
-        print("JJJ tainted_object: %s" % tainted_object)
-        print("JJJ tainted object ranges: %s" % get_tainted_ranges(tainted_object))
         SqlInjection.report(tainted_object)
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
@@ -60,50 +53,8 @@ def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_
         vulnerability = list(span_report.vulnerabilities)[0]
 
         assert vulnerability.type == VULN_SQL_INJECTION
-        print("JJJ evidence.valueParts: %s" % vulnerability.evidence.valueParts)
-        print("JJJ expected valueParts: %s" % vulnerabilities_expected["evidence"]["valueParts"])
-        # JJJ also check sources!
         assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
 
-
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-# @pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SQL_INJECTION)))
-def test_sqli_redaction_suite_JJJ(iast_span_defaults):
-    evidence_input = {'value': "select * from users where username = 'john'", 'ranges': [{'start': 38, 'end': 42, 'iinfo': {'type': 'http.request.parameter', 'parameterName': 'username', 'parameterValue': 'john'}}]}
-    sources_expected = {'origin': 'http.request.parameter', 'name': 'username', 'redacted': True, 'pattern': 'abcd'}
-    vulnerabilities_expected = {'type': 'SQL_INJECTION', 'evidence': {'valueParts': [{'value': "select * from users where username = '"}, {'source': 0, 'redacted': True, 'pattern': 'abcd'}, {'value': "'"}]}}
-    print("\nJJJ evidence_input: %s" % evidence_input)
-    print("JJJ sources expected: %s" % sources_expected)
-    print("JJJ vulnerabilities expected: %s" % vulnerabilities_expected)
-    tainted_object = _taint_pyobject_multiranges(
-        evidence_input["value"],
-        [
-            (
-                input_ranges["iinfo"]["parameterName"],
-                input_ranges["iinfo"]["parameterValue"],
-                str_to_origin(input_ranges["iinfo"]["type"]),
-                input_ranges["start"],
-                input_ranges["end"] - input_ranges["start"],
-            )
-            for input_ranges in evidence_input["ranges"]
-        ],
-    )
-
-    assert is_pyobject_tainted(tainted_object)
-
-    print("JJJ tainted_object: %s" % tainted_object)
-    print("JJJ tainted object ranges: %s" % get_tainted_ranges(tainted_object))
-    SqlInjection.report(tainted_object)
-
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-    assert span_report
-
-    vulnerability = list(span_report.vulnerabilities)[0]
-
-    assert vulnerability.type == VULN_SQL_INJECTION
-    print("JJJ evidence.valueParts: %s" % vulnerability.evidence.valueParts)
-    print("JJJ expected valueParts: %s" % vulnerabilities_expected["evidence"]["valueParts"])
-    assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_redacted_report_no_match():
