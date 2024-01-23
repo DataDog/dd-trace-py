@@ -21,7 +21,7 @@ class BedrockIntegration(BaseLLMIntegration):
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
             "source:integration",
-            "request.model:%s" % (span.get_tag("bedrock.request.model") or ""),
+            "model:%s" % (span.get_tag("bedrock.request.model") or ""),
             "model_provider:%s" % (span.get_tag("bedrock.request.model_provider") or ""),
             "error:%d" % span.error,
         ]
