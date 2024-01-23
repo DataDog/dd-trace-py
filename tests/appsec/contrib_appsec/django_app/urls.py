@@ -5,6 +5,8 @@ from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.http import FileResponse
 from django.http import HttpResponse
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from ddtrace import tracer
 
@@ -15,13 +17,29 @@ if django.VERSION < (4, 0, 0):
 else:
     from django.urls import re_path as handler
 
+if django.VERSION >= (2, 0, 0):
+    from django.urls import path
+else:
+    from django.conf.urls import url as path
+
 
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 
 
-def path_view(request):
-    return HttpResponse(status=200)
+@csrf_exempt
+def multi_view(request, param_int=0, param_str=""):
+    query_params = request.GET.dict()
+    body = {
+        "path_params": {"param_int": param_int, "param_str": param_str},
+        "query_params": query_params,
+        "headers": dict(request.headers),
+        "cookies": dict(request.COOKIES),
+        "body": request.body.decode("utf-8"),
+        "method": request.method,
+    }
+    status = int(query_params.get("status", "200"))
+    return JsonResponse(body, status=status)
 
 
 def send_file(request):
@@ -51,4 +69,14 @@ def shutdown(request):
 
 urlpatterns = [
     handler(r"^$", healthcheck),
+    handler(r"^asm/?$", multi_view),
 ]
+
+if django.VERSION >= (2, 0, 0):
+    urlpatterns += [
+        path("asm/<int:param_int>/<str:param_str>/", multi_view, name="multi_view"),
+    ]
+else:
+    urlpatterns += [
+        path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)/$", multi_view, name="multi_view"),
+    ]

@@ -1,14 +1,9 @@
-import asyncio
-from tempfile import NamedTemporaryFile
 from typing import Optional
 
-from fastapi import BackgroundTasks
 from fastapi import FastAPI
-from fastapi import Header
-from fastapi import HTTPException
-from fastapi.responses import FileResponse
+from fastapi import Request
 from fastapi.responses import HTMLResponse
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
@@ -39,82 +34,34 @@ def get_app():
     async def read_homepage():  # noqa: B008
         return HTMLResponse("ok ASM", 200)
 
-    @app.get("/items/{item_id}", response_model=Item)
-    async def read_item(item_id: str, x_token: str = Header(...)):  # noqa: B008
-        if x_token != fake_secret_token:
-            raise HTTPException(status_code=401, detail="Invalid X-Token header")
-        if item_id not in fake_db:
-            raise HTTPException(status_code=404, detail="Item not found")
-        return fake_db[item_id]
+    @app.get("/asm/{param_int:int}/{param_str:str}/")
+    @app.post("/asm/{param_int:int}/{param_str:str}/")
+    async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
+        query_params = request.query_params
+        body = {
+            "path_params": {"param_int": param_int, "param_str": param_str},
+            "query_params": query_params,
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies),
+            "body": request.body.decode("utf-8"),
+            "method": request.method,
+        }
+        status = int(query_params.get("status", "200"))
+        return JSONResponse(body, status_code=status)
 
-    @app.post("/items/", response_model=Item)
-    async def create_item(item: Item, x_token: str = Header(...)):  # noqa: B008
-        if x_token != fake_secret_token:
-            raise HTTPException(status_code=401, detail="Invalid X-Token header")
-        if item.id in fake_db:
-            raise HTTPException(status_code=400, detail="Item already exists")
-        fake_db[item.id] = item
-        return item
-
-    @app.get("/users/{userid:str}")
-    async def get_user(userid: str, x_token: str = Header(...)):  # noqa: B008
-        if x_token != fake_secret_token:
-            raise HTTPException(status_code=401, detail="Invalid X-Token header")
-        if userid not in fake_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        return fake_db[userid]
-
-    @app.get("/users/{userid:str}/info")
-    async def get_user_info(userid: str, x_token: str = Header(...)):  # noqa: B008
-        if x_token != fake_secret_token:
-            raise HTTPException(status_code=401, detail="Invalid X-Token header")
-        if userid not in fake_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"User Info": "Here"}
-
-    @app.get("/users/{userid:str}/{attribute:str}")
-    async def get_user_attribute(userid: str, attribute: str, x_token: str = Header(...)):  # noqa: B008
-        if x_token != fake_secret_token:
-            raise HTTPException(status_code=401, detail="Invalid X-Token header")
-        if userid not in fake_db:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"User Attribute": fake_db[userid].get(attribute, "Fake Attribute")}
-
-    @app.get("/500")
-    async def error():
-        """
-        An example error. Switch the `debug` setting to see either tracebacks or 500 pages.
-        """
-        raise RuntimeError("Server error")
-
-    @app.get("/stream")
-    async def stream():
-        def stream_response():
-            yield b"streaming"
-
-        return StreamingResponse(stream_response())
-
-    @app.get("/file")
-    async def file():
-        with NamedTemporaryFile(delete=False) as fp:
-            fp.write(b"Datadog says hello!")
-            fp.flush()
-            return FileResponse(fp.name)
-
-    async def custom_task():
-        await asyncio.sleep(1)
-
-    @app.get("/asynctask")
-    async def asynctask(bg_tasks: BackgroundTasks):
-        bg_tasks.add_task(custom_task)
-        return "task added"
-
-    subapp = FastAPI()
-
-    @subapp.get("/hello/{name}")
-    def hello():
-        return {"Greeting": "Hello"}
-
-    app.mount("/sub-app", subapp)
+    @app.get("/asm/")
+    @app.post("/asm/")
+    async def multi_view_no_param(request: Request):  # noqa: B008
+        query_params = dict(request.query_params)
+        body = {
+            "path_params": {"param_int": 0, "param_str": ""},
+            "query_params": query_params,
+            "headers": dict(request.headers),
+            "cookies": dict(request.cookies),
+            "body": (await request.body()).decode("utf-8"),
+            "method": request.method,
+        }
+        status = int(query_params.get("status", "200"))
+        return JSONResponse(body, status_code=status)
 
     return app
