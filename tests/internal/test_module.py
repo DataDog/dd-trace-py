@@ -465,3 +465,17 @@ def test_module_watchdog_pkg_resources_support():
     import pkg_resources as p
 
     p.resource_listdir("namespace_test.ns_module", ".")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        PYTHONPATH=os.pathsep.join((str(Path(__file__).parent), os.environ.get("PYTHONPATH", ""))),
+    ),
+)
+def test_module__pkg_resources_support():
+    # Test that we can access resource files with pkg_resources without raising
+    # an exception.
+    import pkg_resources as p
+
+    p.resource_listdir("tests.internal", "")
