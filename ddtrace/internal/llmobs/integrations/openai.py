@@ -102,7 +102,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
             "source:integration",
-            "request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "model:%s" % (span.get_tag("openai.request.model") or ""),
             "model_provider:openai",
             "error:%d" % span.error,
         ]

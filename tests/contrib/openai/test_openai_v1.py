@@ -1944,7 +1944,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         "env:",
         "service:",
         "source:integration",
-        "request.model:%s" % model,
+        "model:{}".format(model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2032,7 +2032,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         "env:",
         "service:",
         "source:integration",
-        "request.model:%s" % model,
+        "model:{}".format(model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2113,7 +2113,7 @@ def test_llmobs_chat_completion_function_call(
         "env:",
         "service:",
         "source:integration",
-        "request.model:%s" % model,
+        "model:{}".format(model),
         "model_provider:openai",
         "error:0",
     ]
