@@ -476,7 +476,7 @@ def test_span_link_v04_encoding():
         },
         {
             b"trace_id": 456,
-            b"span_id": 2,
+            b"span_id": 6,
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
