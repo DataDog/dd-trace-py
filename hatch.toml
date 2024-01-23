@@ -222,6 +222,7 @@ dependencies = [
     "requests",
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
+    "Werkzeug{matrix:werkzeug:}",
     "flask=={matrix:flask}"
 ]
 
@@ -242,6 +243,7 @@ markupsafe = ["==1.*"]
 [[envs.appsec_threats_flask.matrix]]
 python = ["3.7", "3.9"]
 flask = ["2.1.*"]
+werkzeug = ["<3.0"]
 
 [[envs.appsec_threats_flask.matrix]]
 python = ["3.8", "3.9", "3.11"]

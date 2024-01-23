@@ -1,3 +1,4 @@
+import flask
 from flask.testing import FlaskClient
 import pytest
 
@@ -6,6 +7,9 @@ from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
+
+
+FLASK_VERSION = tuple(int(v) for v in flask.__version__.split("."))
 
 
 class DDFlaskTestClient(FlaskClient):
@@ -60,7 +64,10 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
         def patch_get(*args, **kwargs):
             if "cookies" in kwargs:
                 for k, v in kwargs["cookies"].items():
-                    bftc.client.set_cookie(bftc.app.config["SERVER_NAME"], k, v)
+                    if FLASK_VERSION < (2, 3, 0):
+                        bftc.client.set_cookie(bftc.app.config["SERVER_NAME"], k, v)
+                    else:
+                        bftc.client.set_cookie(k, v)
                 kwargs.pop("cookies")
             return initial_get(*args, **kwargs)
 
