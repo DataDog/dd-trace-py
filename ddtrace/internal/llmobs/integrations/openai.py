@@ -101,10 +101,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "src:integration",
-            "ml_obs.request.model:%s" % (span.get_tag("openai.request.model") or ""),
-            "ml_obs.request.model_provider:openai",
-            "ml_obs.request.error:%d" % span.error,
+            "source:integration",
+            "request.model:%s" % (span.get_tag("openai.request.model") or ""),
+            "model_provider:openai",
+            "error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
         if err_type:
