@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    span: Add getter and setter for span links

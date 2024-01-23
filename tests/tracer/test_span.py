@@ -375,7 +375,7 @@ class SpanTestCase(TracerTestCase):
         }
         s1.link_span(s2.context, link_attributes)
 
-        assert s1._links == [
+        assert s1.get_link(1) == [
             SpanLink(
                 trace_id=2,
                 span_id=1,
