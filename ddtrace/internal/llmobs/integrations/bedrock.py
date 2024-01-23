@@ -20,10 +20,10 @@ class BedrockIntegration(BaseLLMIntegration):
             "version:%s" % (config.version or ""),
             "env:%s" % (config.env or ""),
             "service:%s" % (span.service or ""),
-            "src:integration",
-            "ml_obs.request.model:%s" % (span.get_tag("bedrock.request.model") or ""),
-            "ml_obs.request.model_provider:%s" % (span.get_tag("bedrock.request.model_provider") or ""),
-            "ml_obs.request.error:%d" % span.error,
+            "source:integration",
+            "request.model:%s" % (span.get_tag("bedrock.request.model") or ""),
+            "model_provider:%s" % (span.get_tag("bedrock.request.model_provider") or ""),
+            "error:%d" % span.error,
         ]
         err_type = span.get_tag("error.type")
         if err_type:

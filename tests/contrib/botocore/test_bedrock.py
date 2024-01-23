@@ -405,10 +405,10 @@ class TestLLMObsBedrock:
             "version:",
             "env:",
             "service:aws.bedrock-runtime",
-            "src:integration",
-            "ml_obs.request.model:%s" % span.get_tag("bedrock.request.model"),
-            "ml_obs.request.model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
-            "ml_obs.request.error:0",
+            "source:integration",
+            "request.model:%s" % span.get_tag("bedrock.request.model"),
+            "model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
+            "error:0",
         ]
         expected_llmobs_writer_calls = [mock.call.start()]
         for _ in range(n_output):
@@ -574,10 +574,10 @@ class TestLLMObsBedrock:
             "version:",
             "env:",
             "service:aws.bedrock-runtime",
-            "src:integration",
-            "ml_obs.request.model:%s" % span.get_tag("bedrock.request.model"),
-            "ml_obs.request.model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
-            "ml_obs.request.error:1",
+            "source:integration",
+            "request.model:%s" % span.get_tag("bedrock.request.model"),
+            "model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
+            "error:1",
             "error_type:%s" % span.get_tag("error.type"),
         ]
         expected_llmobs_writer_calls = [
