@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include <cxxabi.h>
 #include <execinfo.h>
-#include <thread>
 #include <unistd.h>
 
 // State
@@ -283,7 +282,8 @@ ddup_flush_sample()
 bool
 ddup_set_runtime_id(const char* id, size_t sz)
 {
-    return set_err(g_uploader->set_runtime_id(std::string_view(id, sz)), g_profile->errmsg);
+    if (id && *id)
+        return set_err(g_uploader->set_runtime_id(std::string_view(id, sz)), g_profile->errmsg);
 }
 
 bool
