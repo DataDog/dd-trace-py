@@ -192,8 +192,8 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
     ), _dummy_noop_git_client():
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._code_coverage_enabled_by_api is False
-        assert CIVisibility._instance._test_skipping_enabled_by_api is False
+        assert CIVisibility._instance._api_settings.coverage_enabled is False
+        assert CIVisibility._instance._api_settings.skipping_enabled is False
         _do_request.assert_not_called()
         CIVisibility.disable()
 
