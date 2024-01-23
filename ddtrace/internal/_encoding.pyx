@@ -876,7 +876,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_links = ""
         if span._links:
-            span_links = json_dumps([link.to_dict() for link in span._links])
+            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
 
         ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:
