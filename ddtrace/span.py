@@ -557,7 +557,7 @@ class Span(object):
 
         if span_id in self._links:
             log.debug(
-                "span %s already linked to span %s. Overwriting existing link: %s",
+                "Span %d already linked to span %d. Overwriting existing link: %s",
                 self.span_id,
                 span_id,
                 str(self._links[span_id]),
