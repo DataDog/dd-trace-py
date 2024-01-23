@@ -1,10 +1,15 @@
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import field
 import dis
 from enum import Enum
 import http
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
+from inspect import isasyncgenfunction
+from inspect import iscoroutinefunction
+from inspect import isgeneratorfunction
+from inspect import signature
 from itertools import chain
 from itertools import islice
 from itertools import tee
@@ -136,7 +141,7 @@ class Scope:
     symbols: t.List[Symbol]
     scopes: t.List["Scope"]
 
-    # TODO: language-specific field (super-classes, function type, etc.)
+    language_specifics: dict = field(default_factory=dict)
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -277,6 +282,12 @@ class Scope:
             end_line=end_line,
             symbols=symbols,
             scopes=scopes,
+            language_specifics={
+                "mro": [
+                    f"{object.__getattribute__(_, '__module__')}:{object.__getattribute__(_, '__qualname__')}"
+                    for _ in obj.mro()
+                ],
+            },
         )
 
     @_get_from.register
@@ -327,17 +338,43 @@ class Scope:
         # that this comes from a function scope, so we override the type.
         code_scope.scope_type = ScopeType.FUNCTION
 
+        # Get the signature of the function in JSON format
+        code_scope.language_specifics = {
+            "signature": str(signature(f)),
+        }
+
+        function_type = None
+        if isasyncgenfunction(f):
+            function_type = "asyncgen"
+        elif isgeneratorfunction(f):
+            function_type = "generator"
+        elif iscoroutinefunction(f):
+            function_type = "coroutine"
+
+        if function_type is not None:
+            code_scope.language_specifics["function_type"] = function_type
+
         return code_scope
 
     @_get_from.register
     @classmethod
     def _(cls, method: classmethod, data: ScopeData):
-        return cls._get_from(method.__func__, data)
+        scope = cls._get_from(method.__func__, data)
+
+        if scope is not None:
+            scope.language_specifics["method_type"] = "class"
+
+        return scope
 
     @_get_from.register
     @classmethod
     def _(cls, method: staticmethod, data: ScopeData):
-        return cls._get_from(method.__func__, data)
+        scope = cls._get_from(method.__func__, data)
+
+        if scope is not None:
+            scope.language_specifics["method_type"] = "static"
+
+        return scope
 
     @_get_from.register
     @classmethod
@@ -363,6 +400,7 @@ class Scope:
             end_line=SOF,
             symbols=[],
             scopes=[t.cast(Scope, cls._get_from(_, data)) for _ in (pr.fget, pr.fset, pr.fdel) if _ is not None],
+            language_specifics={"method_type": "property"},
         )
 
     # TODO: support for singledispatch

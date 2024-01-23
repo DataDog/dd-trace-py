@@ -42,7 +42,7 @@ def test_symbols_class():
         def baz():
             pass
 
-        def gen(n=10):
+        def gen(n: int = 10):
             yield from range(n)
 
         async def coro(b):
@@ -59,6 +59,13 @@ def test_symbols_class():
     (class_scope,) = scope.scopes
     assert class_scope.name == "Sym"
 
+    assert class_scope.language_specifics == {
+        "mro": [
+            "tests.internal.symbol_db.test_symbols:test_symbols_class.<locals>.Sym",
+            "builtins:object",
+        ]
+    }
+
     (field,) = (s for s in class_scope.symbols if s.symbol_type == SymbolType.FIELD)
     assert field.name == "_foo"
 
@@ -69,6 +76,20 @@ def test_symbols_class():
         "coro",
         "foo",
         "gen",
+    }
+
+    assert next(_ for _ in class_scope.scopes if _.name == "gen").language_specifics == {
+        "signature": "(n: int = 10)",
+        "function_type": "generator",
+    }
+
+    assert next(_ for _ in class_scope.scopes if _.name == "foo").language_specifics == {
+        "method_type": "property",
+    }
+
+    assert next(_ for _ in class_scope.scopes if _.name == "bar").language_specifics == {
+        "method_type": "class",
+        "signature": "(cls)",
     }
 
 
@@ -160,6 +181,7 @@ def test_symbols_to_json():
             }
         ],
         "scopes": [],
+        "language_specifics": {},
     }
 
 
