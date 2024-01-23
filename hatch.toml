@@ -169,6 +169,9 @@ DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
+
+## ASM Django
+
 [envs.appsec_threats_django]
 template = "appsec_threats_django"
 dependencies = [
@@ -178,15 +181,6 @@ dependencies = [
     "hypothesis",
     "django=={matrix:django}"
 ]
-pre-install-commands = [
-    "python -m ensurepip --upgrade",
-    "pip install -U pip",
-    "pip install -U setuptools",    
-]
-
-
-[env.appsec_threats_django.env-vars]
-CC = "gcc"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -194,8 +188,9 @@ test = [
     "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
-
 # python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml 
 [[envs.appsec_threats_django.matrix]]
 python = ["3.7", "3.9"]
 django = ["2.*"]
@@ -215,3 +210,74 @@ django = ["4.2.*"]
 [[envs.appsec_threats_django.matrix]]
 python = ["3.10", "3.11"]
 django = ["5.*"]
+
+
+## ASM Flask
+
+[envs.appsec_threats_flask]
+template = "appsec_threats_flask"
+dependencies = [
+    "pytest",
+    "pytest-coverage",
+    "requests",
+    "hypothesis",
+    "flask=={matrix:flask}"
+]
+
+[envs.appsec_threats_flask.scripts]
+test = [
+    "pip freeze",
+    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+]
+
+# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml 
+[[envs.appsec_threats_flask.matrix]]
+python = ["3.7", "3.9"]
+flask = ["1.*"]
+
+[[envs.appsec_threats_flask.matrix]]
+python = ["3.7", "3.9"]
+flask = ["2.1.*"]
+
+[[envs.appsec_threats_flask.matrix]]
+python = ["3.8", "3.9", "3.11"]
+flask = ["2.3.*"]
+
+[[envs.appsec_threats_flask.matrix]]
+python = ["3.8", "3.10", "3.11"]
+flask = ["3.0.*"]
+
+## ASM FastAPI
+
+[envs.appsec_threats_fastapi]
+template = "appsec_threats_fastapi"
+dependencies = [
+    "pytest",
+    "pytest-coverage",
+    "requests",
+    "hypothesis",
+    "fastapi=={matrix:fastapi}"
+]
+
+[envs.appsec_threats_fastapi.scripts]
+test = [
+    "pip freeze",
+    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+]
+
+# python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml 
+[[envs.appsec_threats_fastapi.matrix]]
+python = ["3.7", "3.9", "3.11"]
+fastapi = ["0.86.*"]
+
+[[envs.appsec_threats_fastapi.matrix]]
+python = ["3.7", "3.9", "3.11"]
+fastapi = ["0.94.*"]
+
+[[envs.appsec_threats_fastapi.matrix]]
+python = ["3.8", "3.10", "3.11"]
+fastapi = ["0.*"]

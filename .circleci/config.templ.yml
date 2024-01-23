@@ -479,6 +479,26 @@ jobs:
       - run_hatch_env_test:
           env: 'appsec_threats_django'
           snapshot: false
+  
+  appsec_threats_flask:
+    parallelism: 10
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_flask'
+          snapshot: false
+
+  appsec_threats_fastapi:
+    parallelism: 9
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_fastapi'
+          snapshot: false
 
   aws_lambda:
     <<: *machine_executor
