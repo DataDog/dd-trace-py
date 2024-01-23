@@ -2036,7 +2036,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
 
     spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
-    assert spans[0][0]._links == [
+    assert spans[0][0].get_link(5678) == [
         SpanLink(
             trace_id=13088165645273925489,
             span_id=5678,

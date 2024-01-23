@@ -567,7 +567,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        for link in span_links:
+        for _, link in span_links.items():
             # SpanLink.to_dict() returns all serializable span link fields
             # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
             d = link.to_dict()
