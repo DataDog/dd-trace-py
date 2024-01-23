@@ -164,10 +164,6 @@ def traced_handler(wrapped, instance, args, kwargs):
 
 @with_traced_module
 def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
-    pin = Pin.get_from(module)
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
     task = get_argument_value(args, kwargs, 0, "func")
     current_span = pin.tracer.current_span()
 
