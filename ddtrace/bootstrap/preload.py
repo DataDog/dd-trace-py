@@ -43,7 +43,10 @@ log = get_logger(__name__)
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
-    import ddtrace.profiling.auto  # noqa: F401
+    try:
+        import ddtrace.profiling.auto  # noqa: F401
+    except Exception:
+        log.error("failed to enable profiling", exc_info=True)
 
 if di_config.enabled or ed_config.enabled:
     from ddtrace.debugging import DynamicInstrumentation
