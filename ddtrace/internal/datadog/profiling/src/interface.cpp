@@ -284,6 +284,7 @@ ddup_set_runtime_id(const char* id, size_t sz)
 {
     if (id && *id)
         return set_err(g_uploader->set_runtime_id(std::string_view(id, sz)), g_profile->errmsg);
+    return false;
 }
 
 bool
