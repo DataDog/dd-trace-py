@@ -375,15 +375,49 @@ class SpanTestCase(TracerTestCase):
         }
         s1.link_span(s2.context, link_attributes)
 
-        assert s1._links == [
-            SpanLink(
-                trace_id=2,
-                span_id=1,
-                tracestate="dd=s:1,congo=t61rcWkgMzE",
-                flags=1,
-                attributes=link_attributes,
-            )
+        assert s1._link.get(s2.span_id) == SpanLink(
+            trace_id=s2.trace_id,
+            span_id=s2.span_id,
+            tracestate="dd=s:1,congo=t61rcWkgMzE",
+            flags=1,
+            attributes=link_attributes,
+        )
+
+    def test_init_with_span_links(self):
+        links = [
+            SpanLink(trace_id=1, span_id=10),
+            SpanLink(trace_id=1, span_id=20),
+            SpanLink(trace_id=2, span_id=30, flags=0),
+            SpanLink(trace_id=2, span_id=30, flags=1),
         ]
+        s = Span(name="test.span", links=links)
+
+        assert len(s._links) == 3
+        assert s._links.get(10) == links[0]
+        assert s._links.get(20) == links[1]
+        # duplicate links are overwritten (last one wins)
+        assert s._links.get(30) == links[3]
+
+    def test_set_span_link(self):
+        s = Span(name="test.span")
+        s.set_link(trace_id=1, span_id=10)
+        s.set_link(trace_id=1, span_id=20)
+        s.set_link(trace_id=2, span_id=30, flags=0)
+
+        with mock.patch("ddtrace.span.log") as log:
+            s.set_link(trace_id=2, span_id=30, flags=1)
+        log.debug.assert_called_once_with(
+            "Span %d already linked to span %d. Overwriting existing link: %s",
+            s.span_id,
+            30,
+            mock.ANY,
+        )
+
+        assert len(s._links) == 3
+        assert s._links.get(10) == SpanLink(trace_id=1, span_id=10)
+        assert s._links.get(20) == SpanLink(trace_id=1, span_id=20)
+        # duplicate links are overwritten (last one wins)
+        assert s._links.get(30) == SpanLink(trace_id=2, span_id=30, flags=1)
 
     # span links cannot have a span_id or trace_id value of 0 or less
     def test_span_links_error_with_id_0(self):
