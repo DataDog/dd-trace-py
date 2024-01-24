@@ -47,8 +47,11 @@ async def _on_asgi_request_parse_body(receive, headers):
 
         content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
-            if content_type == "application/json" or content_type == "text/json":
-                req_body = json.loads(body.decode())
+            if content_type in ("application/json", "text/json"):
+                if body is None or body == b"":
+                    req_body = None
+                else:
+                    req_body = json.loads(body.decode())
             elif content_type in ("application/xml", "text/xml"):
                 req_body = xmltodict.parse(body)
             elif content_type == "text/plain":
@@ -92,9 +95,11 @@ def _on_request_span_modifier(
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:
-            if content_type == "application/json" or content_type == "text/json":
+            if content_type in ("application/json", "text/json"):
                 if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                     req_body = request.json
+                elif request.data is None or request.data == b"":
+                    req_body = None
                 else:
                     req_body = json.loads(request.data.decode("UTF-8"))
             elif content_type in ("application/xml", "text/xml"):
@@ -114,7 +119,7 @@ def _on_request_span_modifier(
             xmltodict.expat.ExpatError,
             xmltodict.ParsingInterrupted,
         ):
-            log.warning("Failed to parse request body", exc_info=True)
+            log.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
