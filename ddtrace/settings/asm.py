@@ -49,7 +49,8 @@ class ASMConfig(Env):
         str,
         "DD_IAST_REDACTION_VALUE_NUMERAL",
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
-        + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$"
+        + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+
 
 config = ASMConfig()

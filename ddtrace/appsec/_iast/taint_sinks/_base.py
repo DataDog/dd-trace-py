@@ -256,7 +256,6 @@ class VulnerabilityBase(Operation):
 
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
-
             for part in vuln.evidence.valueParts:
                 part_value = part.get("value")
                 if not part_value:

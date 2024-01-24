@@ -5,7 +5,9 @@ import six
 
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
-from .._utils import _scrub_get_tokens_positions, _has_to_scrub, _is_numeric
+from .._utils import _has_to_scrub
+from .._utils import _is_numeric
+from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SQL_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ._base import VulnerabilityBase
@@ -17,11 +19,14 @@ if TYPE_CHECKING:
 
     from .reporter import Vulnerability
 
-from sqlparse import parse, tokens
+from sqlparse import parse
+from sqlparse import tokens
 
-_TEXT_TOKENS_REGEXP = re.compile(r'\b\w+\b')
+
+_TEXT_TOKENS_REGEXP = re.compile(r"\b\w+\b")
 _INSIDE_QUOTES_REGEXP = re.compile(r'[\"\']([^"\']*?)[\"\']')
-_INSIDE_QUOTES_REGEXP = re.compile(r'''(['"])(.*?)\1''')
+_INSIDE_QUOTES_REGEXP = re.compile(r"""(['"])(.*?)\1""")
+
 
 @oce.register
 class SqlInjection(VulnerabilityBase):
@@ -54,8 +59,8 @@ class SqlInjection(VulnerabilityBase):
             if source is not None:
                 return {"value": value, "source": source}
             return {"value": value}
-        new_valueparts = []
 
+        new_valueparts = []
 
         in_singleline_comment = False
 
@@ -95,13 +100,17 @@ class SqlInjection(VulnerabilityBase):
 
                     if _is_numeric(sitem):
                         redact_fully = True
-                    elif item.ttype == tokens.Literal.String.Single or (item.ttype == tokens.Literal.String.Symbol and "'" in str(item)):
+                    elif item.ttype == tokens.Literal.String.Single or (
+                        item.ttype == tokens.Literal.String.Symbol and "'" in str(item)
+                    ):
                         out.append("'")
                         add_later = "'"
                         str_item = sitem.replace("'", "")
                         if _is_numeric(str_item):
                             redact_fully = True
-                    elif item.ttype == tokens.Literal.String.Double or (item.ttype == tokens.Literal.String.Symbol and '"' in str(item)):
+                    elif item.ttype == tokens.Literal.String.Double or (
+                        item.ttype == tokens.Literal.String.Symbol and '"' in str(item)
+                    ):
                         out.append('"')
                         add_later = '"'
                         str_item = sitem.replace('"', "")
@@ -123,7 +132,7 @@ class SqlInjection(VulnerabilityBase):
                         continue
 
                     if len(out):
-                        new_valueparts.append(_maybe_with_source(source, ''.join(out)))
+                        new_valueparts.append(_maybe_with_source(source, "".join(out)))
 
                     if redact_fully:
                         # Comments are totally redacted
@@ -139,19 +148,18 @@ class SqlInjection(VulnerabilityBase):
                     out.append(str(item))
 
             if len(out):
-                new_valueparts.append(_maybe_with_source(source, ''.join(out)))
+                new_valueparts.append(_maybe_with_source(source, "".join(out)))
 
         # Scrub as needed
         idx = 0
         len_parts = len(new_valueparts)
         while idx < len_parts:
             value = new_valueparts[idx].get("value")
-            if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx+1]:
+            if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx + 1]:
                 # Scrub the value, which is the next one
-                new_valueparts[idx+1] = {"redacted": True}
+                new_valueparts[idx + 1] = {"redacted": True}
                 idx += 2
                 continue
             idx += 1
 
         vuln.evidence.valueParts = new_valueparts
-

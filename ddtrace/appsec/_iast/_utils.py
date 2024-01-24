@@ -9,6 +9,7 @@ import attr
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+
 if TYPE_CHECKING:
     from typing import Any
     from typing import List
@@ -49,8 +50,11 @@ def _has_to_scrub(s):  # type: (str) -> bool
         _SOURCE_VALUE_SCRUB = re.compile(asm_config._iast_redaction_value_pattern)
         _SOURCE_NUMERAL_SCRUB = re.compile(asm_config._iast_redaction_numeral_pattern)
 
-    return _SOURCE_NAME_SCRUB.match(s) is not None or _SOURCE_VALUE_SCRUB.match(s) is not None or \
-        _SOURCE_NUMERAL_SCRUB.match(s) is not None
+    return (
+        _SOURCE_NAME_SCRUB.match(s) is not None
+        or _SOURCE_VALUE_SCRUB.match(s) is not None
+        or _SOURCE_NUMERAL_SCRUB.match(s) is not None
+    )
 
 
 def _is_numeric(s):

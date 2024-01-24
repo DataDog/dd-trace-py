@@ -1,11 +1,11 @@
 import copy
 
 import pytest
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
@@ -17,15 +17,20 @@ from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
 
 
 if python_supported_by_iast():
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking import str_to_origin
     from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
     from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
-    from ddtrace.appsec._iast._taint_tracking import str_to_origin, get_tainted_ranges, is_pyobject_tainted
 
 from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env
 
+
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-@pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SQL_INJECTION)))
+@pytest.mark.parametrize(
+    "evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SQL_INJECTION))
+)
 def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
     env = {"_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
     with override_env(env):
