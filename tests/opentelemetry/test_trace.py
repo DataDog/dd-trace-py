@@ -84,14 +84,14 @@ def test_otel_start_span_with_span_links(oteltracer):
         pass
 
     # assert that span3 has the expected links
-    links = span3._ddspan._links
-    assert len(links) == 2
-    for i, span_context, attributes in ((0, span1_context, attributes1), (1, span2_context, attributes2)):
-        assert links[i].trace_id == span_context.trace_id
-        assert links[i].span_id == span_context.span_id
-        assert links[i].tracestate == span_context.trace_state.to_header()
-        assert links[i].flags == span_context.trace_flags
-        assert links[i].attributes == attributes
+    ddspan3 = span3._ddspan
+    for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
+        link = ddspan3.get_link(span_context.span_id)
+        assert link.trace_id == span_context.trace_id
+        assert link.span_id == span_context.span_id
+        assert link.tracestate == span_context.trace_state.to_header()
+        assert link.flags == span_context.trace_flags
+        assert link.attributes == attributes
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
