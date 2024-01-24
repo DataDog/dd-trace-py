@@ -86,9 +86,12 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(return_value=(True, False))
+        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+            return_value=_CIVisibilitySettings(True, False, False, True)
+        )
         class CoverageTestCase(unittest.TestCase):
             def test_cov(self):
                 from lib_fn import lib_fn
@@ -120,9 +123,12 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
-        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(return_value=(True, False))
+        ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
+            return_value=_CIVisibilitySettings(True, False, False, True)
+        )
         class CoverageTestCase(unittest.TestCase):
             def test_cov(self):
                 from lib_fn import lib_fn
@@ -153,10 +159,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
                 import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -191,10 +198,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -229,10 +237,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -268,10 +277,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -311,10 +321,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -359,10 +370,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
             import unittest
             import ddtrace
             from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+            from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
             from unittest import mock
             from unittest.mock import Mock
             ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-                return_value=(True, True)
+                return_value=_CIVisibilitySettings(True, True, False, True)
             )
             ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
             ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
@@ -411,10 +423,11 @@ class UnittestSnapshotTestCase(TracerTestCase):
         import unittest
         import ddtrace
         from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+        from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
         from unittest import mock
         from unittest.mock import Mock
         ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features = Mock(
-            return_value=(True, True)
+            return_value=_CIVisibilitySettings(True, True, False, True)
         )
         ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip = Mock()
         ddtrace.internal.ci_visibility.recorder.CIVisibility._tests_to_skip = {
