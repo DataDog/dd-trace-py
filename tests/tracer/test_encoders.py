@@ -490,8 +490,8 @@ def test_span_link_v05_encoding():
         context=Context(sampling_priority=1),
         links=[
             SpanLink(
-                trace_id=1,
-                span_id=2,
+                trace_id=(2**127) - 1,
+                span_id=(2**64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
                 attributes={"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", "drop_me": "bye"},
@@ -514,9 +514,9 @@ def test_span_link_v05_encoding():
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": 1, "span_id": 2, '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
+        encoded_span_meta[b"_dd.span_links"] == b'[{"trace_id": "7fffffffffffffffffffffffffffffff", '
+        b'"span_id": "ffffffffffffffff", "attributes": {"moon": "ears", "link.name": "link_name", "link.kind": '
+        b'"link_kind"}, "dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}]'
     )
 
 

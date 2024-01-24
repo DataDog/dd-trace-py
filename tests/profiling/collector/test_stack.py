@@ -22,7 +22,8 @@ from ddtrace.profiling.collector import stack_event
 from . import test_collector
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 12)
 
 
 def func1():
