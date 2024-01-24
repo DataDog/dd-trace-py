@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import kombu
+import mock
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -7,11 +8,15 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
 from ..config import RABBITMQ_CONFIG
+
+
+DSM_TEST_PATH_HEADER_SIZE = 20
 
 
 class TestKombuPatch(TracerTestCase):
@@ -261,3 +266,85 @@ class TestKombuSchematization(TracerTestCase):
         assert spans[1].service == "parentsvc"
         # Consumer span should have global service
         assert spans[2].service == "mysvc"
+
+
+class TestKombuDsm(TracerTestCase):
+    def setUp(self):
+        super(TestKombuDsm, self).setUp()
+
+        self.conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
+        self.conn.connect()
+        self.producer = self.conn.Producer()
+        Pin.override(self.producer, tracer=self.tracer)
+
+        self.patcher = mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        )
+        self.patcher.start()
+        from ddtrace.internal.datastreams import data_streams_processor
+
+        self.processor = data_streams_processor()
+        self.processor.stop()
+
+        patch()
+
+    def tearDown(self):
+        self.patcher.stop()
+        unpatch()
+        super(TestKombuDsm, self).tearDown()
+
+    def _publish_consume(self, message={"hello": "world"}, exchange="dsm_tests"):
+        results = []
+
+        def process_message(body, message):
+            results.append(body)
+            message.ack()
+
+        task_queue = kombu.Queue("tasks", kombu.Exchange(exchange), routing_key=exchange)
+        to_publish = message
+        self.producer.publish(
+            to_publish, exchange=task_queue.exchange, routing_key=task_queue.routing_key, declare=[task_queue]
+        )
+
+        with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
+            Pin.override(consumer, service="kombu-patch", tracer=self.tracer)
+            self.conn.drain_events(timeout=2)
+
+        self.assertEqual(results[0], to_publish)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_data_streams_basic(self):
+        self._publish_consume()
+        buckets = self.processor._buckets
+        assert len(buckets) == 1
+        first = list(buckets.values())[0].pathway_stats
+
+        in_tags = ",".join(["direction:in", "exchange:dsm_tests", "type:rabbitmq"])
+
+        out_tags = ",".join(["direction:out", "exchange:dsm_tests", "type:rabbitmq"])
+        assert first[(out_tags, 8905938472957361368, 0)].full_pathway_latency._count == 1
+        assert first[(out_tags, 8905938472957361368, 0)].edge_latency._count == 1
+
+        assert first[(in_tags, 8482285510735033937, 8905938472957361368)].full_pathway_latency._count == 1
+
+        assert first[(in_tags, 8482285510735033937, 8905938472957361368)].edge_latency._count == 1
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
+    )
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_data_streams_payload(self):
+        for payload, payload_size in [({"key": "test"}, 15), ({"key2": "你"}, 18)]:
+            expected_payload_size = payload_size
+            expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+            expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
+            self.processor._buckets.clear()
+            self._publish_consume(message=payload)
+            buckets = self.processor._buckets
+            assert len(buckets) == 1
+
+            first = list(buckets.values())[0].pathway_stats
+            for _bucket_name, bucket in first.items():
+                assert bucket.payload_size._count >= 1
+                assert bucket.payload_size._sum == expected_payload_size
