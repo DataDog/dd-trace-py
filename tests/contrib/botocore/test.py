@@ -1185,7 +1185,9 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1260,7 +1262,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1312,7 +1316,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1383,7 +1389,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -2795,141 +2803,149 @@ class BotocoreTest(TracerTestCase):
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
-        # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        records = self._kinesis_generate_records(data, 2)
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            # (dict -> json string)[]
+            data = json.dumps({"json": "string"})
+            records = self._kinesis_generate_records(data, 2)
+            client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_records_trace_injection("data_streams", records, client=client, enable_stream_arn=True)
+            self._test_kinesis_put_records_trace_injection(
+                "data_streams", records, client=client, enable_stream_arn=True
+            )
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
 
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        1711768390031028072,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        1711768390031028072,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            data = json.dumps({"json": "string"})
+            client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
+            self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
-        )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        614755353881974019,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        614755353881974019,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):

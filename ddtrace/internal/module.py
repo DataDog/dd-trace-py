@@ -132,6 +132,10 @@ def find_loader(fullname):
     return getattr(find_spec(fullname), "loader", None)
 
 
+def is_module_installed(module_name):
+    return find_loader(module_name) is not None
+
+
 def is_namespace_spec(spec: ModuleSpec) -> bool:
     return spec.origin is None and spec.submodule_search_locations is not None
 
@@ -237,6 +241,12 @@ class BaseModuleWatchdog(abc.ABC):
     def __init__(self):
         # type: () -> None
         self._finding = set()  # type: Set[str]
+
+        # DEV: pkg_resources support to prevent errors such as
+        # NotImplementedError: Can't perform this operation for unregistered
+        pkg_resources = sys.modules.get("pkg_resources")
+        if pkg_resources is not None:
+            pkg_resources.register_loader_type(_ImportHookChainedLoader, pkg_resources.DefaultProvider)
 
     def _add_to_meta_path(self):
         # type: () -> None
@@ -369,9 +379,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
     def __init__(self):
         # type: () -> None
+        super().__init__()
+
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
         self._om = None  # type: Optional[Dict[str, ModuleType]]
-        self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
     @property
