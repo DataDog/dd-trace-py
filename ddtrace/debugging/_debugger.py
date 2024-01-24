@@ -47,8 +47,10 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
 from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
@@ -319,6 +321,9 @@ class Debugger(Service):
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
             self._collector.push(signal)
 
+            if signal.state is SignalState.DONE:
+                self._probe_registry.set_emitting(probe)
+
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
 
@@ -341,7 +346,7 @@ class Debugger(Service):
             thread = threading.current_thread()
             trace_context = self._tracer.current_trace_context()
 
-            open_contexts = []
+            open_contexts: List[SignalContext] = []
             signal: Optional[Signal] = None
             for probe in wrappers.values():
                 if isinstance(probe, MetricFunctionProbe):
@@ -403,6 +408,9 @@ class Debugger(Service):
 
             for context in open_contexts:
                 context.exit(retval, exc_info, end_time - start_time)
+                signal = context.signal
+                if signal.state is SignalState.DONE:
+                    self._probe_registry.set_emitting(signal.probe)
 
             exc = exc_info[1]
             if exc is not None:

@@ -631,7 +631,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-def test_probe_status_logging(remote_config_worker):
+def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
@@ -641,6 +641,7 @@ def test_probe_status_logging(remote_config_worker):
                 source_file="tests/submod/stuff.py",
                 line=36,
                 condition=None,
+                rate=float("inf"),
             ),
             create_snapshot_function_probe(
                 probe_id="line-probe-error",
@@ -650,18 +651,22 @@ def test_probe_status_logging(remote_config_worker):
             ),
         )
 
+        # Call the function multiple times to ensure that we emit only once.
+        for _ in range(10):
+            stuff.Stuff().instancestuff(42)
+
         logger = d.probe_status_logger
 
         def count_status(queue):
             return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1, "EMITTING": 1})
 
         d.log_probe_status()
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 2, "EMITTING": 2})
 
         d.log_probe_status()
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 3, "EMITTING": 3})
 
 
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
