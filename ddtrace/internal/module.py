@@ -242,6 +242,12 @@ class BaseModuleWatchdog(abc.ABC):
         # type: () -> None
         self._finding = set()  # type: Set[str]
 
+        # DEV: pkg_resources support to prevent errors such as
+        # NotImplementedError: Can't perform this operation for unregistered
+        pkg_resources = sys.modules.get("pkg_resources")
+        if pkg_resources is not None:
+            pkg_resources.register_loader_type(_ImportHookChainedLoader, pkg_resources.DefaultProvider)
+
     def _add_to_meta_path(self):
         # type: () -> None
         sys.meta_path.insert(0, self)  # type: ignore[arg-type]
@@ -373,9 +379,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
     def __init__(self):
         # type: () -> None
+        super().__init__()
+
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
         self._om = None  # type: Optional[Dict[str, ModuleType]]
-        self._finding = set()  # type: Set[str]
         self._pre_exec_module_hooks = []  # type: List[Tuple[PreExecHookCond, PreExecHookType]]
 
     @property

@@ -435,7 +435,7 @@ def test_span_link_v04_encoding():
             SpanLink(trace_id=3, span_id=4, flags=0),
             SpanLink(
                 trace_id=(123 << 64) + 456,
-                span_id=2,
+                span_id=6,
                 tracestate="congo=t61rcWkgMzE",
                 flags=1,
                 attributes={
@@ -451,7 +451,7 @@ def test_span_link_v04_encoding():
     )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[2]._drop_attribute("drop_me")
+    span.get_link(6)._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -476,7 +476,7 @@ def test_span_link_v04_encoding():
         },
         {
             b"trace_id": 456,
-            b"span_id": 2,
+            b"span_id": 6,
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
@@ -522,7 +522,7 @@ def test_span_link_v05_encoding():
 
     assert len(span._links) == 2
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[1]._drop_attribute("drop_me")
+    span.get_link((2**64) - 1)._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
