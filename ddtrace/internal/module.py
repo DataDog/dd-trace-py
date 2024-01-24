@@ -152,15 +152,6 @@ class _ImportHookChainedLoader:
         if loader is None or hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module
 
-    def __getattribute__(self, name):
-        if name == "__class__":
-            # Make isinstance believe that self is also an instance of
-            # type(self.loader). This is required, e.g. by some tools, like
-            # slotscheck, that can handle known loaders only.
-            return self.loader.__class__
-
-        return super(_ImportHookChainedLoader, self).__getattribute__(name)
-
     def __getattr__(self, name):
         # Proxy any other attribute access to the underlying loader.
         return getattr(self.loader, name)
