@@ -620,6 +620,8 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
+# Ignoring span link attributes until values are
+# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been traced but excluded from span duration"""
