@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: handle a potential system error that may be raised when running
+    a Celery-based application with CPython 3.11.
