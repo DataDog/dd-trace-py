@@ -85,6 +85,20 @@ def snapshot_client(snapshot_app):
         yield test_client
 
 
+@pytest.fixture
+def snapshot_app_with_tracer(tracer):
+    fastapi_patch()
+    application = app.get_app()
+    yield application
+    fastapi_unpatch()
+
+
+@pytest.fixture
+def snapshot_client_with_tracer(snapshot_app_with_tracer):
+    with TestClient(snapshot_app_with_tracer) as test_client:
+        yield test_client
+
+
 def assert_serialize_span(serialize_span):
     assert serialize_span.service == "fastapi"
     assert serialize_span.name == "fastapi.serialize_response"
@@ -606,9 +620,10 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-def test_background_task(client, tracer, test_spans):
-    """Tests if background tasks have been excluded from span duration"""
-    response = client.get("/asynctask")
+@snapshot(ignores=["meta._dd.span_links"])
+def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
+    """Tests if background tasks have been traced but excluded from span duration"""
+    response = snapshot_client_with_tracer.get("/asynctask")
     assert response.status_code == 200
     assert response.json() == "task added"
     spans = test_spans.pop_traces()
