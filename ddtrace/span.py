@@ -562,7 +562,6 @@ class Span(object):
                 span_id,
                 str(self._links[span_id]),
             )
-            
         self._links[span_id] = SpanLink(
             trace_id=trace_id,
             span_id=span_id,

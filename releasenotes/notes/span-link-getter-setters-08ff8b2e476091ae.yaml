@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    span: Adds a public api for setting span links
