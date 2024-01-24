@@ -110,14 +110,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            name="scripts",
-            command="python -m doctest {cmdargs} "
-            "scripts/get-target-milestone.py "
-            "scripts/needs_testrun.py "
-            "tests/suitespec.py",
-        ),
-        Venv(
-            pys=["3"],
             name="meta-testing",
             command="pytest {cmdargs} tests/meta",
         ),
@@ -185,6 +177,35 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_tdd_propagation",
+            pys=select_pys(min_version="3.11", max_version="3.11"),
+            command="pytest --no-cov tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "flask": "~=3.0",
+                "sqlalchemy": "~=2.0.23",
+                "pony": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
+                "peewee": latest,
+                "requests": latest,
+                "six": ">=1.12.0",
+                "envier": "==0.5.0",
+                "cattrs": "<23.1.1",
+                "ddsketch": ">=2.0.1",
+                "protobuf": ">=3",
+                "attrs": ">=20",
+                "typing_extensions": latest,
+                "xmltodict": ">=0.12",
+                "opentelemetry-api": ">=1",
+                "opentracing": ">=2.0.0",
+                "bytecode": latest,
+            },
+            env={
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_integrations",
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
@@ -223,6 +244,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": "~=3.0",
+                        "langchain": "==0.0.354",
+                        "langchain_experimental": "==0.0.47",
                     },
                 ),
             ],
@@ -303,11 +326,7 @@ venv = Venv(
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
-            pkgs={
-                "msgpack": [latest],
-                "coverage": latest,
-                "pytest-randomly": latest,
-            },
+            pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     name="integration-latest",
@@ -374,6 +393,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "vcrpy": latest,
                 "pytest-randomly": latest,
+                "python-json-logger": "==2.0.7",
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
@@ -1312,12 +1332,19 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pys=select_pys(min_version="3.7"),
             pkgs={
                 "moto[all]": latest,
                 "botocore": latest,
                 "pytest-randomly": latest,
             },
+            venvs=[
+                Venv(
+                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={"vcrpy": latest},
+                ),
+                Venv(pys="3.7"),
+            ],
         ),
         Venv(
             name="mongoengine",

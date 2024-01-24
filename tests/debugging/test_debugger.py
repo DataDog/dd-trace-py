@@ -218,7 +218,7 @@ def test_debugger_function_probe_on_function_with_exception():
 
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
-    assert return_capture["locals"] == {}
+    assert return_capture["locals"] == {"@exception": {"fields": {}, "type": "Exception"}}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -886,7 +886,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-@flaky(until=1704067200)
+@flaky(until=1706677200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 

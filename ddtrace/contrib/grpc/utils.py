@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 
 from ddtrace.internal.compat import parse
@@ -43,6 +44,12 @@ def set_grpc_method_meta(span, method, method_kind):
 def set_grpc_client_meta(span, host, port):
     if host:
         span.set_tag_str(constants.GRPC_HOST_KEY, host)
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            span.set_tag_str(net.PEER_HOSTNAME, host)
+        else:
+            span.set_tag_str(net.TARGET_IP, host)
     if port:
         span.set_tag_str(net.TARGET_PORT, str(port))
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)

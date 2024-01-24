@@ -1,24 +1,32 @@
-import json
 import sys
-import time
+import typing as t
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal import runtime
+from ddtrace.internal.utils.http import parse_form_multipart
 from tests.debugging.utils import create_snapshot_line_probe
 
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
     def __init__(self, *args, **kwargs):
         super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
-        self.queue = []
+        self._flush_queue = []
 
-    def _write(self, probe, status, message, exc_info=None):
-        payload = self._payload(probe, status, message, int(time.time() * 1e3), exc_info)
-        self.queue.append(json.loads(payload))
+    def _write_payload(self, data: t.Tuple[bytes, dict]):
+        body, headers = data
+        self._flush_queue.extend(parse_form_multipart(body.decode("utf-8"), headers)["event"])
+
+    def clear(self):
+        self._flush_queue[:] = []
+
+    @property
+    def queue(self) -> list:
+        self.flush()
+        return self._flush_queue
 
 
 def test_probe_status_received():
-    status_logger = DummyProbeStatusLogger("test", "test")
+    status_logger = DummyProbeStatusLogger("test")
 
     probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
@@ -39,7 +47,7 @@ def test_probe_status_received():
 
 
 def test_probe_status_installed():
-    status_logger = DummyProbeStatusLogger("test", "test")
+    status_logger = DummyProbeStatusLogger("test")
 
     probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",
@@ -61,7 +69,7 @@ def test_probe_status_installed():
 
 
 def test_probe_status_error():
-    status_logger = DummyProbeStatusLogger("test", "test")
+    status_logger = DummyProbeStatusLogger("test")
 
     probe = create_snapshot_line_probe(
         probe_id="probe-instance-method",

@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import BufferFull
+from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal.compat import Queue
 
@@ -28,9 +28,7 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
 
 class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
     def __init__(self, size=1 << 10, interval=1):
-        super(ActiveBatchJsonEncoder, self).__init__(
-            BatchJsonEncoder({str: str}, size, self.on_full), interval=interval
-        )
+        super(ActiveBatchJsonEncoder, self).__init__(SignalQueue(None, size, self.on_full), interval=interval)
 
     def on_full(self, item, encoded):
         self.periodic()
@@ -39,8 +37,8 @@ class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
 def test_uploader_batching():
     with ActiveBatchJsonEncoder(interval=LONG_INTERVAL) as uploader:
         for _ in range(5):
-            uploader._encoder.put("hello")
-            uploader._encoder.put("world")
+            uploader._queue.put_encoded(None, "hello".encode("utf-8"))
+            uploader._queue.put_encoded(None, "world".encode("utf-8"))
             uploader.periodic()
 
         for _ in range(5):
@@ -56,7 +54,7 @@ def test_uploader_full_buffer():
 
         with pytest.raises(BufferFull):
             for _ in range(2 * n):
-                uploader._encoder.put(item)
+                uploader._queue.put_encoded(None, item.encode("utf-8"))
 
         # The full buffer forces a flush
         uploader.queue.get(timeout=0.5)

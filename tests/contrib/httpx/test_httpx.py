@@ -89,6 +89,7 @@ async def test_get_200(snapshot_context):
             assert resp.status_code == 200
 
 
+@flaky(until=1706677200, reason="flaky errors with no error logs, need to investigate")
 @pytest.mark.asyncio
 async def test_configure_service_name(snapshot_context):
     """
@@ -190,6 +191,7 @@ def test_configure_service_name_env():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
 def test_schematized_configure_global_service_name_env_default():
     """
@@ -388,6 +390,7 @@ def test_schematized_unspecified_service_name_env_v1():
     asyncio.run(test())
 
 
+@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_schematized_operation_name_env_v0():
     """

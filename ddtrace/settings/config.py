@@ -201,12 +201,15 @@ class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, name, default, envs):
-        # type: (str, _JSONType, List[Tuple[str, Callable[[str], Any]]]) -> None
+        # type: (str, Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
         self._name = name
-        self._default_value = default
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
+        if callable(default):
+            self._default_value = default()
+        else:
+            self._default_value = default
         self._envs = envs
         for env_var, parser in envs:
             if env_var in os.environ:
@@ -261,6 +264,11 @@ class _ConfigItem:
         )
 
 
+def _parse_global_tags(s):
+    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
+    return gitmetadata.clean_tags(parse_tags_str(s))
+
+
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
@@ -276,8 +284,13 @@ def _default_config():
         ),
         "trace_http_header_tags": _ConfigItem(
             name="trace_http_header_tags",
-            default={},
+            default=lambda: {},
             envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+        ),
+        "tags": _ConfigItem(
+            name="tags",
+            default=lambda: {},
+            envs=[("DD_TAGS", _parse_global_tags)],
         ),
     }
 
@@ -393,9 +406,6 @@ class Config(object):
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
-        # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-        self.tags = gitmetadata.clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
-
         self.propagation_http_baggage_enabled = asbool(
             os.getenv("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", default=False)
         )
@@ -499,7 +509,7 @@ class Config(object):
         self._ci_visibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", default=False))
         self._ci_visibility_agentless_url = os.getenv("DD_CIVISIBILITY_AGENTLESS_URL", default="")
         self._ci_visibility_intelligent_testrunner_enabled = asbool(
-            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=False)
+            os.getenv("DD_CIVISIBILITY_ITR_ENABLED", default=True)
         )
         self.ci_visibility_log_level = os.getenv("DD_CIVISIBILITY_LOG_LEVEL", default="info")
         self._otel_enabled = asbool(os.getenv("DD_TRACE_OTEL_ENABLED", False))
@@ -704,17 +714,49 @@ class Config(object):
 
         # If no data is submitted then the RC config has been deleted. Revert the settings.
         config = data["config"][0]
-        updated_items = []  # type: List[Tuple[str, Any]]
+        base_rc_config = {n: None for n in self._config}
 
-        if not config:
-            for item in self._config:
-                updated_items.append((item, None))
-        else:
+        if config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
-                updated_items.append(("_trace_sample_rate", lib_config["tracing_sampling_rate"]))
+                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
 
-        self._set_config_items([(k, v, "remote_config") for k, v in updated_items])
+            if "log_injection_enabled" in lib_config:
+                base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
+
+            if "tracing_tags" in lib_config:
+                tags = lib_config["tracing_tags"]
+                if tags:
+                    tags = self._format_tags(lib_config["tracing_tags"])
+                base_rc_config["tags"] = tags
+
+            if "tracing_header_tags" in lib_config:
+                tags = lib_config["tracing_header_tags"]
+                if tags:
+                    tags = self._format_tags(lib_config["tracing_header_tags"])
+                base_rc_config["trace_http_header_tags"] = tags
+
+        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+        # called unconditionally to handle the case where header tags have been unset
+        self._handle_remoteconfig_header_tags(base_rc_config)
+
+    def _handle_remoteconfig_header_tags(self, base_rc_config):
+        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
+        header_tags_conf = self._config["trace_http_header_tags"]
+        env_headers = header_tags_conf._env_value or {}
+        code_headers = header_tags_conf._code_value or {}
+        non_rc_header_tags = {**code_headers, **env_headers}
+        selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
+        self.http = HttpConfig(header_tags=selected_header_tags)
+
+    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
+        if not tags:
+            return {}
+        if isinstance(tags[0], Dict):
+            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        else:
+            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
         # type: () -> None
