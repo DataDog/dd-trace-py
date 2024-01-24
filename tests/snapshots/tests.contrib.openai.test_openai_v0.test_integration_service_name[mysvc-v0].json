@@ -40,10 +40,10 @@
       "_dd.tracer_kr": 1.0,
       "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.requests.limit": 3000,
-      "openai.organization.ratelimit.tokens.remaining": 249979,
+      "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.limit": 250000,
+      "openai.organization.ratelimit.tokens.remaining": 249979,
       "process_id": 20750
     },
     "duration": 25352000,

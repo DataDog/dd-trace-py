@@ -481,7 +481,10 @@ def test_enable_metrics(openai, openai_vcr, ddtrace_config_openai, mock_metrics,
         assert not mock_metrics.mock_calls
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(metrics_enabled=True, llmobs_enabled=True)])
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [dict(metrics_enabled=True, llmobs_enabled=True, _api_key="<not-a-real-api-key>", _app_key="<not-a-real-app-key",)]
+)
 def test_metrics_not_sent_if_llmobs_enabled(openai, openai_vcr, ddtrace_config_openai, mock_metrics, mock_tracer):
     """Ensure no metrics are sent if llmobs is enabled."""
     with openai_vcr.use_cassette("completion.yaml"):
