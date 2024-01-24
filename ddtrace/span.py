@@ -562,7 +562,6 @@ class Span(object):
                 span_id,
                 str(self._links[span_id]),
             )
-
         self._links[span_id] = SpanLink(
             trace_id=trace_id,
             span_id=span_id,
@@ -570,9 +569,6 @@ class Span(object):
             flags=flags,
             attributes=attributes,
         )
-
-    def get_link(self, span_id: int) -> Optional[SpanLink]:
-        return self._links.get(span_id)
 
     def finish_with_ancestors(self):
         # type: () -> None
