@@ -173,7 +173,12 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
         ) as span:
             if current_span:
                 span.link_span(current_span.context)
-            await task(*args, **kwargs)
+           # import inspect 
+           if inspect.isawaitable(task):
+               await task(*args, **kwargs)
+           else:
+               .... # make function awaitable or we let starlette handle this? 
+               
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
     wrapped(*args, **kwargs)
