@@ -168,3 +168,36 @@ assert span.get_metric("_dd.rule_psr") == 0.5
         "value": "0.5",
         "origin": "remote_config",
     }
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_in_subprocess):
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from ddtrace.contrib import trace_utils
+from tests.internal.test_settings import _base_rc_config
+
+config._handle_remoteconfig(_base_rc_config({
+    "tracing_header_tags": [
+        {"header": "used", "tag_name":"header_tag_69"},
+        {"header": "unused", "tag_name":"header_tag_70"},
+        {"header": "used-with-default", "tag_name":""}]
+}))
+with tracer.trace("test") as span:
+    trace_utils.set_http_meta(span,
+                              config.falcon,  # randomly chosen http integration config
+                              request_headers={"used": "foobarbanana", "used-with-default": "defaultname"})
+assert span.get_tag("header_tag_69") == "foobarbanana"
+assert span.get_tag("header_tag_70") is None
+assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
+        """,
+    )
+    assert status == 0, err
+
+    events = test_agent_session.get_events()
+    assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
+        "name": "trace_header_tags",
+        "value": "used:header_tag_69,unused:header_tag_70,used-with-default:",
+        "origin": "remote_config",
+    }

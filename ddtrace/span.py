@@ -170,7 +170,9 @@ class Span(object):
         self.sampled = True  # type: bool
 
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
-        self._links = links or []
+        self._links = {}  # type: Dict[int, SpanLink]
+        if links:
+            self._links = {link.span_id: link for link in links}
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -540,28 +542,37 @@ class Span(object):
         if not context.trace_id or not context.span_id:
             raise ValueError(f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}")
 
-        self._set_span_link(
+        self.set_link(
             trace_id=context.trace_id,
             span_id=context.span_id,
             tracestate=context._tracestate,
-            traceflags=int(context._traceflags),
+            flags=int(context._traceflags),
             attributes=attributes,
         )
 
-    def _set_span_link(self, trace_id, span_id, tracestate=None, traceflags=None, attributes=None):
+    def set_link(self, trace_id, span_id, tracestate=None, flags=None, attributes=None):
         # type: (int, int, Optional[str], Optional[int], Optional[Dict[str, Any]]) -> None
         if attributes is None:
             attributes = dict()
 
-        self._links.append(
-            SpanLink(
-                trace_id=trace_id,
-                span_id=span_id,
-                tracestate=tracestate,
-                flags=traceflags,
-                attributes=attributes,
+        if span_id in self._links:
+            log.debug(
+                "Span %d already linked to span %d. Overwriting existing link: %s",
+                self.span_id,
+                span_id,
+                str(self._links[span_id]),
             )
+
+        self._links[span_id] = SpanLink(
+            trace_id=trace_id,
+            span_id=span_id,
+            tracestate=tracestate,
+            flags=flags,
+            attributes=attributes,
         )
+
+    def get_link(self, span_id: int) -> Optional[SpanLink]:
+        return self._links.get(span_id)
 
     def finish_with_ancestors(self):
         # type: () -> None

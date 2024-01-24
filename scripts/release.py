@@ -76,7 +76,8 @@ def _decide_next_release_number(base: str, candidate: bool = False) -> int:
 
 def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress release candidate"""
-    name = "%s.%s" % (base, str(_decide_next_release_number(base)))
+    # patch value should always be 0 if we're doing an RC
+    name = "%s.0" % (base)
     new_rc_version = _decide_next_release_number(base, candidate=True)
     release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
     rn = clean_release_notes(generate_release_notes(release_branch))

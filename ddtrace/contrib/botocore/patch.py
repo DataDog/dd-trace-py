@@ -1,5 +1,5 @@
 """
-Trace queries and data streams monitoring to aws api done via botocore client
+Trace queries to aws api done via botocore client
 """
 import collections
 import os
@@ -75,6 +75,8 @@ config._add(
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
         "_api_key": os.getenv("DD_API_KEY"),
         "_app_key": os.getenv("DD_APP_KEY"),
+        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
+        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
     },
 )
 
@@ -225,8 +227,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                             params,
                             span,
                             endpoint_service=endpoint_name,
-                            pin=pin,
-                            data_streams_enabled=config._data_streams_enabled,
                         )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
@@ -239,8 +239,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                             params,
                             span,
                             endpoint_service=endpoint_name,
-                            pin=pin,
-                            data_streams_enabled=config._data_streams_enabled,
                         )
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,

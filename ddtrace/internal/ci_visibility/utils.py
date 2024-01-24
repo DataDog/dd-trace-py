@@ -138,4 +138,4 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
     root_logger.addHandler(ci_visibility_handler)
     root_logger.setLevel(min(root_logger.level, ci_visibility_handler.level))
 
-    log.info("logger setup complete")
+    log.debug("logger setup complete")

@@ -91,7 +91,13 @@ class SpanLink:
                 # flatten all values with the type list, tuple and set
                 for k1, v1 in flatten_key_value(k, v).items():
                     # convert all values to string
-                    d["attributes"][k1] = str(v1)
+                    if isinstance(v1, str):
+                        d["attributes"][k1] = v1
+                    elif isinstance(v1, bool):
+                        # convert bool to lowercase string to be consistent with json encoding
+                        d["attributes"][k1] = str(v1).lower()
+                    else:
+                        d["attributes"][k1] = str(v1)
 
         if self._dropped_attributes > 0:
             d["dropped_attributes_count"] = self._dropped_attributes
