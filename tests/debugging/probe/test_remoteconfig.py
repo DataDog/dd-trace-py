@@ -19,7 +19,6 @@ from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -548,7 +547,6 @@ def test_parse_metric_probe_with_probeid_tags():
     assert probe.tags["debugger.probeid"] == probeId
 
 
-@flaky(until=1706677200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 
@@ -571,7 +569,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = float("inf")
     try:
-        adapter = SyncProbeRCAdapter(None, cb, None)
+        adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
 
