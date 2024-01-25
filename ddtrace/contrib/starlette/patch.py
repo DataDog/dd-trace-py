@@ -178,8 +178,8 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
             if inspect.iscoroutinefunction(task):
                 await task(*args, **kwargs)
             else:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, task(*args, **kwargs))
+                async_task = asyncio.to_thread(task, *args, **kwargs)
+                await async_task
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
     wrapped(*args, **kwargs)

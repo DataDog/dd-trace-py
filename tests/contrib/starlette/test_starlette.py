@@ -519,6 +519,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     # Background task shound not be a child of the request span
     background_span = next(test_spans.filter_spans(name="starlette.background_task"))
     # background task should link to the request span
+    assert background_span
     assert background_span.parent_id is None
     assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
     assert background_span._links[request_span.span_id].span_id == request_span.span_id
