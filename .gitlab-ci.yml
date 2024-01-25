@@ -3,6 +3,7 @@ stages:
   - deploy
   - benchmarks
   - benchmarks-pr-comment
+  - serverless
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
