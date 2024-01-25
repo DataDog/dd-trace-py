@@ -229,13 +229,18 @@ class _ProfilerInstance(service.Service):
         self._collectors = []
 
         if self._stack_collector_enabled:
-            self._collectors.append(
-                stack.StackCollector(
-                    r,
-                    tracer=self.tracer,
-                    endpoint_collection_enabled=self.endpoint_collection_enabled,
-                )  # type: ignore[call-arg]
-            )
+            LOG.debug("Profiling collector (stack) enabled")
+            try:
+                self._collectors.append(
+                    stack.StackCollector(
+                        r,
+                        tracer=self.tracer,
+                        endpoint_collection_enabled=self.endpoint_collection_enabled,
+                    )  # type: ignore[call-arg]
+                )
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
@@ -248,6 +253,7 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
+                            LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
