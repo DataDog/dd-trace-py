@@ -1,6 +1,7 @@
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
+import typing as t
 
 import pytest
 
@@ -42,12 +43,15 @@ def test_symbols_class():
         def baz():
             pass
 
-        def gen(n: int = 10):
+        def gen(n: int = 10, _untyped=None) -> t.Generator[int, None, None]:
             yield from range(n)
 
         async def coro(b):
             oroc = 42
             yield oroc
+
+        def me(self) -> "Sym":
+            return self
 
     module = ModuleType("test")
     module.Sym = Sym
@@ -61,8 +65,8 @@ def test_symbols_class():
 
     assert class_scope.language_specifics == {
         "mro": [
-            "tests.internal.symbol_db.test_symbols:test_symbols_class.<locals>.Sym",
-            "builtins:object",
+            "tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym",
+            "object",
         ]
     }
 
@@ -76,12 +80,19 @@ def test_symbols_class():
         "coro",
         "foo",
         "gen",
+        "me",
     }
 
-    assert next(_ for _ in class_scope.scopes if _.name == "gen").language_specifics == {
-        "signature": "(n: int = 10)",
+    gen_scope = next(_ for _ in class_scope.scopes if _.name == "gen")
+    assert gen_scope.language_specifics == {
+        "return_type": "typing.Generator[int, NoneType, NoneType]",
+        "signature": "(n: int = 10, _untyped=None) -> Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
+    assert gen_scope.symbols == [
+        Symbol(symbol_type=SymbolType.ARG, name="n", line=47, type="int"),
+        Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=47, type=None),
+    ]
 
     assert next(_ for _ in class_scope.scopes if _.name == "foo").language_specifics == {
         "method_type": "property",
@@ -90,6 +101,11 @@ def test_symbols_class():
     assert next(_ for _ in class_scope.scopes if _.name == "bar").language_specifics == {
         "method_type": "class",
         "signature": "(cls)",
+    }
+
+    assert next(_ for _ in class_scope.scopes if _.name == "me").language_specifics == {
+        "signature": "(self) -> 'Sym'",
+        "return_type": "Sym",
     }
 
 
@@ -178,6 +194,7 @@ def test_symbols_to_json():
                 "symbol_type": SymbolType.STATIC_FIELD,
                 "name": "foo",
                 "line": 0,
+                "type": None,
             }
         ],
         "scopes": [],

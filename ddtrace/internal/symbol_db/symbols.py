@@ -57,6 +57,21 @@ def is_from_stdlib(obj: t.Any) -> t.Optional[bool]:
         return None
 
 
+@cached()
+def type_qualname(_type: type) -> str:
+    try:
+        module = object.__getattribute__(_type, "__module__")
+    except AttributeError:
+        module = "<unknown>"
+
+    try:
+        qualname = object.__getattribute__(_type, "__qualname__")
+    except AttributeError:
+        qualname = str(_type)
+
+    return qualname if module == int.__module__ or qualname.startswith(f"{module}.") else f"{module}.{qualname}"
+
+
 def func_origin(f: FunctionType) -> t.Optional[str]:
     try:
         filename = f.__code__.co_filename
@@ -99,6 +114,7 @@ class Symbol:
     symbol_type: str
     name: str
     line: int
+    type: t.Optional[str] = None
 
     @classmethod
     def from_code(cls, code: CodeType) -> t.List["Symbol"]:
@@ -274,6 +290,12 @@ class Scope:
         else:
             start_line = end_line = SOF
 
+        try:
+            mro = [type_qualname(_) for _ in obj.__mro__]
+        except Exception:
+            log.debug("Cannot get MRO for %r", obj, exc_info=True)
+            mro = []
+
         return Scope(
             scope_type=ScopeType.CLASS,
             name=name,
@@ -282,12 +304,7 @@ class Scope:
             end_line=end_line,
             symbols=symbols,
             scopes=scopes,
-            language_specifics={
-                "mro": [
-                    f"{object.__getattribute__(_, '__module__')}:{object.__getattribute__(_, '__qualname__')}"
-                    for _ in obj.mro()
-                ],
-            },
+            language_specifics={"mro": mro},
         )
 
     @_get_from.register
@@ -330,7 +347,7 @@ class Scope:
         if is_from_stdlib(f):
             return None
 
-        code_scope = cls._get_from(f.__code__, data)
+        code_scope = t.cast(t.Optional[Scope], cls._get_from(f.__code__, data))
         if code_scope is None:
             return None
 
@@ -338,10 +355,25 @@ class Scope:
         # that this comes from a function scope, so we override the type.
         code_scope.scope_type = ScopeType.FUNCTION
 
-        # Get the signature of the function in JSON format
+        # Get the signature of the function and add type annotations to the
+        # arguments.
+        sig = signature(f)
+        params = sig.parameters
+        for arg in (
+            _
+            for _ in code_scope.symbols
+            if _.symbol_type == SymbolType.ARG and params[_.name].annotation is not sig.empty
+        ):
+            ann = params[arg.name].annotation
+            arg.type = ann if isinstance(ann, str) else type_qualname(ann)
+
         code_scope.language_specifics = {
-            "signature": str(signature(f)),
+            "signature": str(sig),
         }
+
+        if sig.return_annotation is not sig.empty:
+            ann = sig.return_annotation
+            code_scope.language_specifics["return_type"] = ann if isinstance(ann, str) else type_qualname(ann)
 
         function_type = None
         if isasyncgenfunction(f):
