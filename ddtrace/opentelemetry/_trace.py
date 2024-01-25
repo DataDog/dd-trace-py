@@ -102,7 +102,7 @@ class Tracer(OtelTracer):
 
         if links:
             for link in links:
-                dd_span._set_span_link(
+                dd_span.set_link(
                     link.context.trace_id,
                     link.context.span_id,
                     link.context.trace_state.to_header(),
