@@ -88,6 +88,7 @@ def tracer():
     patch()
     t = Tracer()
     t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    t._writer.RETRY_ATTEMPTS = 1
     try:
         yield t
     finally:
@@ -239,12 +240,13 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_message(producer, consumer, tombstone, kafka_topic):
-    if tombstone:
-        producer.produce(kafka_topic, key=KEY)
-    else:
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-    producer.flush()
-    consumer.poll()
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        if tombstone:
+            producer.produce(kafka_topic, key=KEY)
+        else:
+            producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -261,9 +263,7 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        consumer.poll()
         consumer.commit(offsets=[TopicPartition(kafka_topic)])
 
 
@@ -272,9 +272,7 @@ def test_commit_with_only_async_arg(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        consumer.poll()
         consumer.commit(asynchronous=False)
 
 
@@ -285,9 +283,7 @@ def test_service_override_config(producer, consumer, kafka_topic):
     with override_config("kafka", dict(service="my-custom-service-name", trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -305,9 +301,7 @@ def test_analytics_without_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True, trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        consumer.poll()
 
 
 def retry_until_not_none(factory):
@@ -340,9 +334,7 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
 
     producer.produce(kafka_topic, payload, key=key, headers=test_headers)
     producer.flush()
-    message = None
-    while message is None:
-        message = consumer.poll()
+    consumer.poll()
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
