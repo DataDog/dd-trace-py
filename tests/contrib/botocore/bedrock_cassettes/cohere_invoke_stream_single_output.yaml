@@ -1,0 +1,77 @@
+interactions:
+- request:
+    body: '{"prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain
+      is?", "temperature": 0.9, "p": 1.0, "k": 0, "max_tokens": 10, "stop_sequences":
+      [], "stream": true, "num_generations": 1}'
+    headers:
+      Content-Length:
+      - '194'
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC4xNSBtZC9Cb3RvY29yZSMxLjM0LjE1IHVhLzIuMCBvcy9tYWNvcyMyMy4yLjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjUgbWQvcHlpbXBsI0NQeXRob24gY2ZnL3Jl
+        dHJ5LW1vZGUjbGVnYWN5IEJvdG9jb3JlLzEuMzQuMTU=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMTFUMTgzODA5Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NDU5MTMwMjQtNTA3Ny00MmE4LTgzZmEtZWMwNTUzNDkxMjFk
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/cohere.command-light-text-v14/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAAAkwAAAEsSihqxCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SnBjMTltYVc1cGMyaGxa
+        Q0k2Wm1Gc2MyVXNJblJsZUhRaU9pSWdTU0o5In2toMoHAAAAlwAAAEvnCrxxCzpldmVudC10eXBl
+        BwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcA
+        BWV2ZW50eyJieXRlcyI6ImV5SnBjMTltYVc1cGMyaGxaQ0k2Wm1Gc2MyVXNJblJsZUhRaU9pSWdZ
+        VzBpZlE9PSJ9mccwQAAAAJcAAABL5wq8cQs6ZXZlbnQtdHlwZQcABWNodW5rDTpjb250ZW50LXR5
+        cGUHABBhcHBsaWNhdGlvbi9qc29uDTptZXNzYWdlLXR5cGUHAAVldmVudHsiYnl0ZXMiOiJleUpw
+        YzE5bWFXNXBjMmhsWkNJNlptRnNjMlVzSW5SbGVIUWlPaUlnZG1WeWVTSjkifcM6V0EAAACbAAAA
+        SyL6UXALOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNv
+        bg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKcGMxOW1hVzVwYzJobFpDSTZabUZz
+        YzJVc0luUmxlSFFpT2lJZ2FHRndjSGtpZlE9PSJ9bILCWwAAAJcAAABL5wq8cQs6ZXZlbnQtdHlw
+        ZQcABWNodW5rDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlvbi9qc29uDTptZXNzYWdlLXR5cGUH
+        AAVldmVudHsiYnl0ZXMiOiJleUpwYzE5bWFXNXBjMmhsWkNJNlptRnNjMlVzSW5SbGVIUWlPaUln
+        ZEc4aWZRPT0ifXvvYAwAAACbAAAASyL6UXALOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10
+        eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlK
+        cGMxOW1hVzVwYzJobFpDSTZabUZzYzJVc0luUmxlSFFpT2lJZ1lYTnphWE4wSW4wPSJ9Iu3CvAAA
+        AJcAAABL5wq8cQs6ZXZlbnQtdHlwZQcABWNodW5rDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlv
+        bi9qc29uDTptZXNzYWdlLXR5cGUHAAVldmVudHsiYnl0ZXMiOiJleUpwYzE5bWFXNXBjMmhsWkNJ
+        NlptRnNjMlVzSW5SbGVIUWlPaUlnZVc5MUluMD0ifcOcrmQAAACTAAAASxKKGrELOmV2ZW50LXR5
+        cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBl
+        BwAFZXZlbnR7ImJ5dGVzIjoiZXlKcGMxOW1hVzVwYzJobFpDSTZabUZzYzJVc0luUmxlSFFpT2lJ
+        aEluMD0ifaOfDwAAAACTAAAASxKKGrELOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBl
+        BwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKcGMx
+        OW1hVzVwYzJobFpDSTZabUZzYzJVc0luUmxlSFFpT2lJZ1FTSjkifeBoawwAAACXAAAAS+cKvHEL
+        OmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVz
+        c2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKcGMxOW1hVzVwYzJobFpDSTZabUZzYzJVc0lu
+        UmxlSFFpT2lJZ1RHOXVaeUo5In0MIIf6AAABUwAAAEswwyHPCzpldmVudC10eXBlBwAFY2h1bmsN
+        OmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJi
+        eXRlcyI6ImV5Sm1hVzVwYzJoZmNtVmhjMjl1SWpvaVRVRllYMVJQUzBWT1V5SXNJbWx6WDJacGJt
+        bHphR1ZrSWpwMGNuVmxMQ0poYldGNmIyNHRZbVZrY205amF5MXBiblp2WTJGMGFXOXVUV1YwY21s
+        amN5STZleUpwYm5CMWRGUnZhMlZ1UTI5MWJuUWlPakl3TENKdmRYUndkWFJVYjJ0bGJrTnZkVzUw
+        SWpveE1Dd2lhVzUyYjJOaGRHbHZia3hoZEdWdVkza2lPak0wTnl3aVptbHljM1JDZVhSbFRHRjBa
+        VzVqZVNJNk1UazBmWDA9In1/yL2k
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Thu, 11 Jan 2024 18:38:10 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - ff340d3e-475b-4774-92fa-56ee3d4702c8
+    status:
+      code: 200
+      message: OK
+version: 1

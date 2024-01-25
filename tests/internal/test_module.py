@@ -451,3 +451,38 @@ def test_module_watchdog_namespace_import_no_warnings():
     # Test that the namespace import does not emit warnings (e.g. fallback to
     # legacy import machinery).
     import namespace_test.ns_module  # noqa:F401
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)))
+def test_module_watchdog_pkg_resources_support():
+    # Test that we can access resource files with pkg_resources without raising
+    # an exception.
+    import os
+    import sys
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    import pkg_resources as p
+
+    p.resource_listdir("namespace_test.ns_module", ".")
+
+
+@pytest.mark.subprocess(
+    env=dict(NSPATH=str(Path(__file__).parent)),
+    err=lambda _: "Can't perform this operation for unregistered loader type" not in _,
+)
+def test_module_watchdog_pkg_resources_support_already_imported():
+    # Test that we can access resource files with pkg_resources without raising
+    # an exception.
+    import os
+    import sys
+
+    assert "ddtrace" not in sys.modules
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    import pkg_resources as p
+
+    import ddtrace  # noqa
+
+    p.resource_listdir("namespace_test.ns_module", ".")

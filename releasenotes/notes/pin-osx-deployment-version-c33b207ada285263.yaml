@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    setup: pins the default macOS deployment target to 10.14.

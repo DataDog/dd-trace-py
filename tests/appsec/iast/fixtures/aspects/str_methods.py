@@ -53,6 +53,21 @@ def do_operator_add_params(a, b):
     return a + b
 
 
+def do_string_assignment(a):
+    b = a
+    return b
+
+
+def do_multiple_string_assigment(a):
+    b = c = d = a
+    return b, c, d
+
+
+def do_tuple_string_assignment(a):
+    (b, c, d) = z = a
+    return b, c, d, z
+
+
 def uppercase_decorator(function):  # type: (Callable) -> Callable
     def wrapper(a, b):  # type: (str, str) -> str
         func = function(a, b)

@@ -12,8 +12,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Type
-from typing import Union
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.model import LogSignal
@@ -21,7 +19,6 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import cachedmethod
 
 
 log = get_logger(__name__)
@@ -74,8 +71,8 @@ class BufferedEncoder(abc.ABC):
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def encode(self) -> Optional[bytes]:
-        """Encode the given item."""
+    def flush(self) -> Optional[bytes]:
+        """Flush the buffer and return the encoded data."""
 
 
 def _logs_track_logger_details(thread: Thread, frame: FrameType) -> Dict[str, Any]:
@@ -287,35 +284,24 @@ class LogSignalJsonEncoder(Encoder):
         return "".join(segments)
 
 
-class BatchJsonEncoder(BufferedEncoder):
+class SignalQueue(BufferedEncoder):
     def __init__(
         self,
-        item_encoders: Dict[Type, Union[Encoder, Type]],
+        encoder: Encoder,
         buffer_size: int = 4 * (1 << 20),
         on_full: Optional[Callable[[Any, bytes], None]] = None,
     ) -> None:
-        self._encoders = item_encoders
+        self._encoder = encoder
         self._buffer = JsonBuffer(buffer_size)
         self._lock = forksafe.Lock()
         self._on_full = on_full
         self.count = 0
         self.max_size = buffer_size - self._buffer.size
 
-    @cachedmethod()
-    def _lookup_encoder(self, item_class: Type[Any]) -> Optional[Union[Encoder, Type]]:
-        for ic, encoder in self._encoders.items():
-            if issubclass(item_class, ic):
-                return encoder
-        return None
+    def put(self, item: Snapshot) -> int:
+        return self.put_encoded(item, self._encoder.encode(item))
 
-    def put(self, item: Union[Snapshot, str]) -> int:
-        encoder = self._lookup_encoder(type(item))
-        if encoder is None:
-            raise ValueError("No encoder for item type: %r" % type(item))
-
-        return self.put_encoded(item, encoder.encode(item))
-
-    def put_encoded(self, item: Union[Snapshot, str], encoded: bytes) -> int:
+    def put_encoded(self, item: Snapshot, encoded: bytes) -> int:
         try:
             with self._lock:
                 size = self._buffer.put(encoded)
@@ -326,7 +312,7 @@ class BatchJsonEncoder(BufferedEncoder):
                 self._on_full(item, encoded)
             raise
 
-    def encode(self) -> Optional[bytes]:
+    def flush(self) -> Optional[bytes]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory
