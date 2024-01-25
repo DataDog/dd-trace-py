@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an incomplete support for pkg_resouces that could have caused an
+    exception on start-up.

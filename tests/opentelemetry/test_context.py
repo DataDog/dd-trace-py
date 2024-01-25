@@ -6,6 +6,8 @@ import opentelemetry
 import pytest
 
 import ddtrace
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
 from tests.utils import flaky
 
 
@@ -98,6 +100,21 @@ def test_otel_trace_across_fork(oteltracer):
             p.join(timeout=2)
 
     assert errors.empty(), errors.get()
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize("decision", [MANUAL_KEEP_KEY, MANUAL_DROP_KEY], ids=["manual.keep", "manual.drop"])
+def test_sampling_decisions_across_processes(oteltracer, decision):
+    # sampling decision in the subprocess task should be the same as the parent
+    errors = multiprocessing.Queue()
+    with oteltracer.start_as_current_span("root", attributes={decision: ""}) as root:
+        p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
+        try:
+            p.start()
+        finally:
+            p.join(timeout=2)
+
+        assert errors.empty(), errors.get()
 
 
 @pytest.mark.asyncio

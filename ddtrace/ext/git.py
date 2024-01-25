@@ -125,7 +125,7 @@ def _set_safe_directory():
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
-        log.error("Error setting safe directory", exc_info=True)
+        log.error("Error setting safe directory")
 
 
 def _extract_clone_defaultremotename_with_details(cwd):

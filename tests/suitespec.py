@@ -27,7 +27,7 @@ def get_patterns(suite: str) -> t.Set[str]:
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
     ['.circleci/*', 'ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py',
     'ddtrace/_tracing/*', 'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py',
-    'ddtrace/context.py', 'ddtrace/contrib/__init__.py', 'ddtrace/contrib/_trace_utils_llm.py',
+    'ddtrace/context.py', 'ddtrace/contrib/__init__.py',
     'ddtrace/contrib/trace_utils.py', 'ddtrace/contrib/trace_utils_async.py', 'ddtrace/contrib/urllib3/*',
     'ddtrace/ext/__init__.py', 'ddtrace/ext/http.py', 'ddtrace/ext/net.py', 'ddtrace/ext/sql.py',
     'ddtrace/ext/test.py', 'ddtrace/ext/user.py', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py',

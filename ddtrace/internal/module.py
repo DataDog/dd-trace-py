@@ -115,6 +115,10 @@ def find_loader(fullname: str) -> t.Optional[Loader]:
     return getattr(find_spec(fullname), "loader", None)
 
 
+def is_module_installed(module_name):
+    return find_loader(module_name) is not None
+
+
 def is_namespace_spec(spec: ModuleSpec) -> bool:
     return spec.origin is None and spec.submodule_search_locations is not None
 
@@ -139,6 +143,16 @@ class _ImportHookChainedLoader:
     def add_callback(self, key: t.Any, callback: t.Callable[[ModuleType], None]) -> None:
         self.callbacks[key] = callback
 
+    def call_back(self, module: ModuleType) -> None:
+        if module.__name__ == "pkg_resources":
+            # DEV: pkg_resources support to prevent errors such as
+            # NotImplementedError: Can't perform this operation for unregistered
+            # loader type
+            module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
+
+        for callback in self.callbacks.values():
+            callback(module)
+
     def load_module(self, fullname: str) -> t.Optional[ModuleType]:
         if self.loader is None:
             if self.spec is None:
@@ -148,8 +162,7 @@ class _ImportHookChainedLoader:
         else:
             module = self.loader.load_module(fullname)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
         return module
 
@@ -194,8 +207,7 @@ class _ImportHookChainedLoader:
             else:
                 self.loader.exec_module(module)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        self.call_back(module)
 
 
 class BaseModuleWatchdog(abc.ABC):
@@ -208,6 +220,12 @@ class BaseModuleWatchdog(abc.ABC):
 
     def __init__(self) -> None:
         self._finding: t.Set[str] = set()
+
+        # DEV: pkg_resources support to prevent errors such as
+        # NotImplementedError: Can't perform this operation for unregistered
+        pkg_resources = sys.modules.get("pkg_resources")
+        if pkg_resources is not None:
+            pkg_resources.register_loader_type(_ImportHookChainedLoader, pkg_resources.DefaultProvider)
 
     def _add_to_meta_path(self) -> None:
         sys.meta_path.insert(0, self)  # type: ignore[arg-type]
@@ -332,9 +350,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
     """
 
     def __init__(self) -> None:
+        super().__init__()
+
         self._hook_map: t.DefaultDict[str, t.List[ModuleHookType]] = defaultdict(list)
         self._om: t.Optional[t.Dict[str, ModuleType]] = None
-        self._finding: t.Set[str] = set()
         self._pre_exec_module_hooks: t.List[t.Tuple[PreExecHookCond, PreExecHookType]] = []
 
     @property

@@ -19,6 +19,7 @@ CMD_MAX_LEN = 1000
 
 T = TypeVar("T")
 
+
 log = logging.getLogger(__name__)
 
 
@@ -157,3 +158,28 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
             break
 
     return " ".join(out)
+
+
+def is_sequence(obj):
+    # type: (Any) -> bool
+    try:
+        return isinstance(obj, (list, tuple, set, frozenset))
+    except TypeError:
+        # Checking the type of Generic Subclasses raises a TypeError
+        return False
+
+
+def flatten_key_value(root_key, value):
+    # type: (str, Any) -> Dict[str, Any]
+    """Flattens attributes"""
+    if not is_sequence(value):
+        return {root_key: value}
+
+    flattened = dict()
+    for i, item in enumerate(value):
+        key = f"{root_key}.{i}"
+        if is_sequence(item):
+            flattened.update(flatten_key_value(key, item))
+        else:
+            flattened[key] = item
+    return flattened

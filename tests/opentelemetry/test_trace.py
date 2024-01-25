@@ -5,7 +5,6 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-from tests.utils import flaky
 
 
 OTEL_VERSION = parse_version(opentelemetry.version.__version__)
@@ -85,14 +84,14 @@ def test_otel_start_span_with_span_links(oteltracer):
         pass
 
     # assert that span3 has the expected links
-    links = span3._ddspan._links
-    assert len(links) == 2
-    for i, span_context, attributes in ((0, span1_context, attributes1), (1, span2_context, attributes2)):
-        assert links[i].trace_id == span_context.trace_id
-        assert links[i].span_id == span_context.span_id
-        assert links[i].tracestate == span_context.trace_state.to_header()
-        assert links[i].flags == span_context.trace_flags
-        assert links[i].attributes == attributes
+    ddspan3 = span3._ddspan
+    for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
+        link = ddspan3._links.get(span_context.span_id)
+        assert link.trace_id == span_context.trace_id
+        assert link.span_id == span_context.span_id
+        assert link.tracestate == span_context.trace_state.to_header()
+        assert link.flags == span_context.trace_flags
+        assert link.attributes == attributes
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
@@ -135,7 +134,6 @@ def test_otel_start_current_span_without_default_args(oteltracer):
     otel_span.end()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "flask_wsgi_application,flask_env_arg,flask_port,flask_command",
     [
