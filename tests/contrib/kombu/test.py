@@ -295,6 +295,7 @@ class TestKombuDsm(TracerTestCase):
 
     def _publish_consume(self, message={"hello": "world"}, exchange="dsm_tests"):
         results = []
+        queue_name = None
 
         def process_message(body, message):
             results.append(body)
@@ -309,26 +310,26 @@ class TestKombuDsm(TracerTestCase):
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
             Pin.override(consumer, service="kombu-patch", tracer=self.tracer)
             self.conn.drain_events(timeout=2)
+            queue_name = consumer.channel.queue_declare("tasks", passive=True).queue
 
         self.assertEqual(results[0], to_publish)
+        return queue_name
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_data_streams_basic(self):
-        self._publish_consume()
+        queue_name = self._publish_consume()
         buckets = self.processor._buckets
         assert len(buckets) == 1
         first = list(buckets.values())[0].pathway_stats
 
-        in_tags = ",".join(["direction:in", "exchange:dsm_tests", "type:rabbitmq"])
+        out_tags = ",".join(["direction:out", "exchange:dsm_tests", "has_routing_key:true", "type:rabbitmq"])
+        in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
 
-        out_tags = ",".join(["direction:out", "exchange:dsm_tests", "type:rabbitmq"])
-        assert first[(out_tags, 8905938472957361368, 0)].full_pathway_latency._count == 1
-        assert first[(out_tags, 8905938472957361368, 0)].edge_latency._count == 1
-
-        assert first[(in_tags, 8482285510735033937, 8905938472957361368)].full_pathway_latency._count == 1
-
-        assert first[(in_tags, 8482285510735033937, 8905938472957361368)].edge_latency._count == 1
+        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency._count == 1
+        assert first[(out_tags, 72906486983046225, 0)].edge_latency._count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency._count == 1
+        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency._count == 1
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
@@ -340,7 +341,7 @@ class TestKombuDsm(TracerTestCase):
             expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
             expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
             self.processor._buckets.clear()
-            self._publish_consume(message=payload)
+            _queue_name = self._publish_consume()
             buckets = self.processor._buckets
             assert len(buckets) == 1
 

@@ -120,7 +120,6 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info["exchange"]
-        core.dispatch("kombu.amqp.receive.post", [message, s])
         s.resource = exchange
         s.set_tag_str(kombux.EXCHANGE, exchange)
 
@@ -128,7 +127,9 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         # set analytics sample rate
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
-        return func(*args, **kwargs)
+        result = func(*args, **kwargs)
+        core.dispatch("kombu.amqp.receive.post", [instance, message, s])
+        return result
 
 
 def traced_publish(func, instance, args, kwargs):

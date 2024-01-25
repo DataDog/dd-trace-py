@@ -1,6 +1,7 @@
 from ddtrace import config
 from ddtrace.contrib.kombu.utils import HEADER_POS
 from ddtrace.contrib.kombu.utils import PUBLISH_BODY_IDX
+from ddtrace.contrib.kombu.utils import get_routing_key_from_args
 from ddtrace.contrib.kombu.utils import get_exchange_from_args
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
@@ -19,14 +20,16 @@ def handle_kombu_produce(args, kwargs, span):
     payload_size += _calculate_byte_size(args[HEADER_POS])
     payload_size += _calculate_byte_size(args[PUBLISH_BODY_IDX])
 
+    has_routing_key = str(bool(get_routing_key_from_args(args))).lower()
+
     pathway = processor().set_checkpoint(
-        ["direction:out", "exchange:" + dsm_identifier, "type:rabbitmq"], payload_size=payload_size, span=span
+        ["direction:out", f"exchange:{dsm_identifier}", f"has_routing_key:{has_routing_key}", "type:rabbitmq"], payload_size=payload_size, span=span
     )
     encoded_pathway = pathway.encode()
     args[HEADER_POS][PROPAGATION_KEY] = encoded_pathway
 
 
-def handle_kombu_consume(message, span):
+def handle_kombu_consume(instance, message, span):
     from . import data_streams_processor as processor
 
     payload_size = 0
@@ -34,8 +37,8 @@ def handle_kombu_consume(message, span):
     payload_size += _calculate_byte_size(message.headers)
 
     ctx = processor().decode_pathway(message.headers.get(PROPAGATION_KEY, None))
-    exchange = message.delivery_info["exchange"]
-    ctx.set_checkpoint(["direction:in", f"exchange:{exchange}", "type:rabbitmq"], payload_size=payload_size, span=span)
+    queue = instance.queues[0].name
+    ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
 if config._data_streams_enabled:
