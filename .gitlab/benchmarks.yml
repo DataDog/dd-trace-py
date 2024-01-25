@@ -117,7 +117,7 @@ benchmark-http-propagation-inject:
     SCENARIO: "http_propagation_inject"
 
 benchmark-serverless:
-  stage: benchmark
+  stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
     branch: jordan.gonzalez/add-gitlab-ci
