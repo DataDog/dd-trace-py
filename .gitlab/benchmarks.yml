@@ -115,3 +115,12 @@ benchmark-http-propagation-inject:
   extends: .benchmarks
   variables:
     SCENARIO: "http_propagation_inject"
+
+benchmark-serverless:
+  stage: benchmark
+  trigger:
+    project: DataDog/serverless-tools
+    branch: jordan.gonzalez/add-gitlab-ci
+    strategy: depend
+  variables:
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
