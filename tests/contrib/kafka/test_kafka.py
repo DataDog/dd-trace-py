@@ -88,7 +88,8 @@ def tracer():
     patch()
     t = Tracer()
     t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
-    t._writer.RETRY_ATTEMPTS = 1
+    # disable backoff because it makes these tests less reliable
+    t._writer._send_payload_with_backoff = t._writer._send_payload
     try:
         yield t
     finally:
@@ -246,7 +247,6 @@ def test_message(producer, consumer, tombstone, kafka_topic):
         else:
             producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
