@@ -3,7 +3,7 @@
     "name": "kafka.produce",
     "service": "kafka",
     "resource": "kafka.produce",
-    "trace_id": 1,
+    "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",

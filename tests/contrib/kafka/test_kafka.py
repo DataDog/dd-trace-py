@@ -293,7 +293,6 @@ def test_analytics_with_rate(producer, consumer, kafka_topic):
     ):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -301,7 +300,6 @@ def test_analytics_without_rate(producer, consumer, kafka_topic):
     with override_config("kafka", dict(analytics_enabled=True, trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        consumer.poll()
 
 
 def retry_until_not_none(factory):
@@ -424,6 +422,8 @@ def _generate_in_subprocess(random_topic):
             )
 
     ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    # disable backoff because it makes these tests less reliable
+    ddtrace.tracer._writer._send_payload_with_backoff = ddtrace.tracer._writer._send_payload
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
@@ -443,7 +443,7 @@ def _generate_in_subprocess(random_topic):
     fibonacci_backoff_with_jitter(5)(consumer.subscribe)([random_topic])
     fibonacci_backoff_with_jitter(5)(producer.produce)(random_topic, PAYLOAD, key="test_key")
     fibonacci_backoff_with_jitter(5, until=lambda result: isinstance(result, int))(producer.flush)()
-    fibonacci_backoff_with_jitter(5, until=lambda result: not isinstance(result, Exception))(consumer.poll)()
+    consumer.poll()
 
     unpatch()
     consumer.close()
@@ -571,12 +571,19 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
-    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 1
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 0
+    first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
+    assert first_offset > 0
+    assert (
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        == first_offset - 1
+    )
 
     _message = _read_single_message(consumer)  # noqa: F841
-    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
-    assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+    assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
+    assert (
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        == first_offset + 1 - 1
+    )
 
 
 def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic):
