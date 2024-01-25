@@ -3,7 +3,6 @@ stages:
   - deploy
   - benchmarks
   - benchmarks-pr-comment
-  - serverless
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
@@ -145,3 +144,12 @@ deploy_latest_tag_to_docker_registries:
     # See above note in the `deploy_to_docker_registries` job.
     RETRY_DELAY: 14400
     RETRY_COUNT: 3
+
+benchmark-serverless:
+  stage: deploy
+  trigger:
+    project: DataDog/serverless-tools
+    branch: jordan.gonzalez/add-gitlab-ci
+    strategy: depend
+  variables:
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
