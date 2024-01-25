@@ -502,6 +502,8 @@ with TestClient(app) as test_client:
     assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
 
 
+# Ignoring span link attributes until values are
+# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
