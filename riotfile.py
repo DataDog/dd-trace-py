@@ -189,7 +189,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.0",
+                "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
                 "protobuf": ">=3",

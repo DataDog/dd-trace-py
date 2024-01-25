@@ -458,6 +458,7 @@ jobs:
 
   appsec_integrations:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'appsec_integrations'
