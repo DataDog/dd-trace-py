@@ -1,3 +1,5 @@
+import asyncio
+import inspect
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -173,12 +175,11 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
         ) as span:
             if current_span:
                 span.link_span(current_span.context)
-           # import inspect 
-           if inspect.isawaitable(task):
-               await task(*args, **kwargs)
-           else:
-               .... # make function awaitable or we let starlette handle this? 
-               
+            if inspect.iscoroutinefunction(task):
+                await task(*args, **kwargs)
+            else:
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, task(*args, **kwargs))
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
     wrapped(*args, **kwargs)

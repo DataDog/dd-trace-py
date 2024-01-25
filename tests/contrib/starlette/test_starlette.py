@@ -505,8 +505,8 @@ def test_background_task(client, tracer, test_spans):
     background_span = next(test_spans.filter_spans(name="starlette.background_task"))
     # background task should link to the request span
     assert background_span.parent_id is None
-    assert background_span._links[0].trace_id == request_span.trace_id
-    assert background_span._links[0].span_id == request_span.span_id
+    assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
+    assert background_span._links[request_span.span_id].span_id == request_span.span_id
     assert background_span.name == "starlette.background_task"
     assert background_span.resource == "custom_task"
 
