@@ -244,9 +244,7 @@ def test_message(producer, consumer, tombstone, kafka_topic):
     else:
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
-    message = None
-    while message is None:
-        message = consumer.poll()
+    consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -254,9 +252,7 @@ def test_commit(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        message = consumer.poll()
         consumer.commit(message)
 
 
@@ -301,9 +297,7 @@ def test_analytics_with_rate(producer, consumer, kafka_topic):
     ):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        message = None
-        while message is None:
-            message = consumer.poll()
+        consumer.poll()
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
@@ -457,11 +451,7 @@ def _generate_in_subprocess(random_topic):
     fibonacci_backoff_with_jitter(5)(consumer.subscribe)([random_topic])
     fibonacci_backoff_with_jitter(5)(producer.produce)(random_topic, PAYLOAD, key="test_key")
     fibonacci_backoff_with_jitter(5, until=lambda result: isinstance(result, int))(producer.flush)()
-    message = None
-    while message is None:
-        message = fibonacci_backoff_with_jitter(5, until=lambda result: not isinstance(result, Exception))(
-            consumer.poll
-        )()
+    fibonacci_backoff_with_jitter(5, until=lambda result: not isinstance(result, Exception))(consumer.poll)()
 
     unpatch()
     consumer.close()
