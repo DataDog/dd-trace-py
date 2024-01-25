@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -7,6 +6,7 @@ from typing import Optional  # noqa:F401
 
 import starlette
 from starlette import requests as starlette_requests
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 
 from ddtrace import Pin
@@ -178,8 +178,7 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
             if inspect.iscoroutinefunction(task):
                 await task(*args, **kwargs)
             else:
-                async_task = asyncio.to_thread(task, *args, **kwargs)
-                await async_task
+                await run_in_threadpool(task, *args, **kwargs)
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
     wrapped(*args, **kwargs)
