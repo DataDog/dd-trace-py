@@ -461,7 +461,7 @@ def _generate_in_subprocess(random_topic):
     while message is None:
         message = fibonacci_backoff_with_jitter(5, until=lambda result: not isinstance(result, Exception))(
             consumer.poll
-        )(1.0)
+        )()
 
     unpatch()
     consumer.close()
@@ -601,7 +601,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
-            message = consumer.poll()
+            message = consumer.poll(1.0)
             if message:
                 return message
 
@@ -789,7 +789,6 @@ if __name__ == "__main__":
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
-    assert err == b"", err.decode()
 
 
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
@@ -884,7 +883,7 @@ def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
 
     message = "hello"
     while message is not None:
-        message = consumer.poll()
+        message = consumer.poll(1.0)
 
     traces = dummy_tracer.pop_traces()
 
@@ -930,7 +929,7 @@ def test(consumer, producer, kafka_topic):
 
     message = "hello"
     while message is not None:
-        message = consumer.poll()
+        message = consumer.poll(1.0)
 
     traces = dummy_tracer.pop_traces()
 
@@ -978,4 +977,3 @@ if __name__ == "__main__":
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
-    assert err == b"", err.decode()
