@@ -14,6 +14,7 @@ from itertools import chain
 from itertools import islice
 from itertools import tee
 import json
+import os
 from pathlib import Path
 import sys
 from types import CodeType
@@ -492,7 +493,7 @@ class ScopeContext:
         )
 
         with connector(get_trace_url(), timeout=5.0)() as conn:
-            log.debug("Uploading symbols payload %r", body)
+            log.debug("[PID %d] SymDB: Uploading symbols payload %r", os.getpid(), body)
             conn.request("POST", "/symdb/v1/input", body, headers)
 
             return compat.get_connection_response(conn)
@@ -521,12 +522,13 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         context = ScopeContext()
         for scope in (Scope.from_module(m) for m in list(sys.modules.values()) if is_module_included(m)):
             if scope is not None:
+                log.debug("[PID %d] SymDB: Adding Symbol DB scope %r", os.getpid(), scope)
                 context.add_scope(scope)
         self._upload_context(context)
 
     def after_import(self, module: ModuleType) -> None:
         if not is_module_included(module):
-            log.debug("Excluding module %s from symbol database", module.__name__)
+            log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
 
         scope = Scope.from_module(module)
@@ -539,10 +541,10 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             return
 
         try:
-            log.debug("Uploading symbols")
+            log.debug("[PID %d] SymDB:  Uploading symbols", os.getpid())
             result = context.upload()
             if result.status // 100 != 2:
-                log.error("Bad response while uploading symbols: %s", result.status)
+                log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
 
         except Exception:
-            log.exception("Failed to upload symbols")
+            log.exception("[PID %d] SymDB: Failed to upload symbols", os.getpid())

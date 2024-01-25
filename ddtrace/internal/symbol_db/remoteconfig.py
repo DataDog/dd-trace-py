@@ -1,3 +1,5 @@
+import os
+
 from ddtrace.internal.forksafe import has_forked
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -14,7 +16,7 @@ log = get_logger(__name__)
 
 def _rc_callback(data, test_tracer=None):
     if get_ancestor_runtime_id() is not None and has_forked():
-        log.debug("Disabling Symbol DB in forked process")
+        log.debug("[PID %d] SymDB: Disabling Symbol DB in forked process", os.getpid())
         # We assume that forking is being used for spawning child worker
         # processes. Therefore, we avoid uploading the same symbols from each
         # child process. We restrict the enablement of Symbol DB to just the
@@ -31,8 +33,8 @@ def _rc_callback(data, test_tracer=None):
             continue
 
         if config.get("upload_symbols", False):
-            log.debug("Symbol DB RCM enablement signal received")
             if not SymbolDatabaseUploader.is_installed():
+                log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
                 SymbolDatabaseUploader.install()
             return
 
