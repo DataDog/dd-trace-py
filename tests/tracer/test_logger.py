@@ -6,7 +6,6 @@ import pytest
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from tests.utils import BaseTestCase
-from tests.utils import flaky
 
 
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")
@@ -241,7 +240,6 @@ class DDLoggerTestCase(BaseTestCase):
         # Our buckets are empty
         self.assertEqual(log.buckets, dict())
 
-    @flaky(1707075091)
     @mock.patch("logging.Logger.handle")
     def test_logger_handle_debug(self, base_handle):
         """

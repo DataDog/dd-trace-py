@@ -213,6 +213,7 @@ def _check_client_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
     assert span.get_tag("grpc.host") == "localhost"
+    assert span.get_tag("peer.hostname") == "localhost"
     assert span.get_tag("network.destination.port") == "50531"
     assert span.get_tag("component") == "grpc_aio_client"
     assert span.get_tag("span.kind") == "client"
@@ -691,6 +692,7 @@ async def test_client_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
+    assert client_span.get_tag("peer.hostname") == "localhost"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if server_info.abort_supported:
@@ -871,6 +873,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
+    assert client_span.get_tag("peer.hostname") == "localhost"
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 

@@ -15,11 +15,7 @@ from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
-from tests.appsec.appsec.test_processor import _IP
-from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
-from tests.appsec.appsec.test_processor import RULES_SRB
-from tests.appsec.appsec.test_processor import RULES_SRB_METHOD
-from tests.appsec.appsec.test_processor import RULES_SRB_RESPONSE
+import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
@@ -80,8 +76,8 @@ def fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, ip):
         return "OK"
 
     _aux_appsec_prepare_tracer(tracer)
-    for ip in [_IP.MONITORED, _IP.BYPASS, _IP.DEFAULT]:
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+    for ip in [rules._IP.MONITORED, rules._IP.BYPASS, rules._IP.DEFAULT]:
+        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
             resp = client.get("/", headers={"X-Real-Ip": ip})
             root_span = get_root_span(test_spans)
             assert resp.status_code == 200
@@ -89,21 +85,21 @@ def fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, ip):
 
 
 def test_ipblock_nomatch_200_bypass(app, client, tracer, test_spans):
-    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, _IP.BYPASS)
+    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, rules._IP.BYPASS)
 
 
 def test_ipblock_nomatch_200_monitor(app, client, tracer, test_spans):
-    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, _IP.MONITORED)
+    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, rules._IP.MONITORED)
 
 
 def test_ipblock_nomatch_200_default(app, client, tracer, test_spans):
-    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, _IP.DEFAULT)
+    fastapi_ipblock_nomatch_200_json(app, client, tracer, test_spans, rules._IP.DEFAULT)
 
 
 def test_ipblock_match_403_json(app, client, tracer, test_spans):
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
         _aux_appsec_prepare_tracer(tracer)
-        resp = client.get("/foobar", headers={"X-Real-Ip": _IP.BLOCKED})
+        resp = client.get("/foobar", headers={"X-Real-Ip": rules._IP.BLOCKED})
         assert resp.status_code == 403
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
         root_span = get_root_span(test_spans)
@@ -141,7 +137,7 @@ def test_core_callback_request_body(app, client, tracer, test_spans):
 
     payload, content_type = '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json"
 
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         # disable callback
         _aux_appsec_prepare_tracer(tracer, asm_enabled=True)
         resp = client.post(
@@ -171,7 +167,7 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
         return PlainTextResponse(f"Ok: {toto}")
 
     # value xtrace must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/index.html?toto=xtrace")
         assert resp.status_code == 403
@@ -185,18 +181,18 @@ def test_request_suspicious_request_block_match_query_value(app, client, tracer,
         assert root_span.get_tag(http.USER_AGENT).startswith("testclient")
         assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
     # other values must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/index.html?toto=ytrac%65")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Ok: ytrace"
     # same encoded value must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/index.html?toto=xtrac%65")
         assert resp.status_code == 403
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/index.html?toto=xtrace")
         assert resp.status_code == 200
@@ -210,7 +206,7 @@ def test_request_suspicious_request_block_match_uri(address, app, client, tracer
         return PlainTextResponse("git file")
 
     # value .git must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(address)
         assert resp.status_code == 403
@@ -224,18 +220,18 @@ def test_request_suspicious_request_block_match_uri(address, app, client, tracer
         assert root_span.get_tag(http.USER_AGENT).startswith("testclient")
         assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
     # other values must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/legit")
         assert resp.status_code == 404
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/.git")
         assert resp.status_code == 200
         assert get_response_body(resp) == "git file"
     # we must block with uri.raw not containing scheme or netloc
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/we_should_block")
         assert resp.status_code == 403
@@ -251,7 +247,7 @@ def test_request_suspicious_request_block_match_header(app, client, tracer, test
         return PlainTextResponse("OK")
 
     # value 01972498723465 must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
 
         resp = client.get("/", headers={"User-Agent": "01972498723465"})
@@ -261,13 +257,13 @@ def test_request_suspicious_request_block_match_header(app, client, tracer, test
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-004"]
     # other values must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
 
         resp = client.get("/", headers={"User-Agent": "31972498723467"})
         assert resp.status_code == 200
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
 
         resp = client.get("/", headers={"User-Agent": "01972498723465"})
@@ -281,7 +277,7 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
         return PlainTextResponse("OK")
 
     # GET must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
         _aux_appsec_prepare_tracer(tracer)
 
         resp = client.get("/")
@@ -291,12 +287,12 @@ def test_request_suspicious_request_block_match_method(app, client, tracer, test
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-006"]
     # POST must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post("/", data="post data")
         assert resp.status_code == 200
     # GET must pass if appsec disabled
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_METHOD)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
 
         resp = client.get("/")
@@ -310,7 +306,7 @@ def test_request_suspicious_request_block_match_cookies(app, client, tracer, tes
         return "OK Cookie"
 
     # value jdfoSDGFkivRG_234 must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234 45"})
         assert get_response_body(resp) == constants.BLOCKED_RESPONSE_JSON
@@ -319,13 +315,13 @@ def test_request_suspicious_request_block_match_cookies(app, client, tracer, tes
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-008"]
     # other value must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFHappykivRG_234"})
         assert resp.status_code == 201
         assert get_response_body(resp) == "OK Cookie"
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/test_cookies", cookies={"keyname": "jdfoSDGFkivRG_234"})
         assert resp.status_code == 201
@@ -338,7 +334,7 @@ def test_request_suspicious_request_block_match_path_params(app, client, tracer,
         return PlainTextResponse(item)
 
     # value AiKfOeRcvG45 must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/params/AiKfOeRcvG45")
         assert resp.status_code == 403
@@ -347,13 +343,13 @@ def test_request_suspicious_request_block_match_path_params(app, client, tracer,
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-007"]
     # other values must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/params/Anything")
         assert resp.status_code == 200
         assert get_response_body(resp) == "Anything"
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/params/AiKfOeRcvG45")
         assert resp.status_code == 200
@@ -367,7 +363,7 @@ def test_request_suspicious_request_block_match_response_headers(app, client, tr
             "Foo bar baz", headers={"Content-Disposition": 'attachment; filename="MagicKey_Al4h7iCFep9s1"'}
         )
 
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/response-header/")
         assert resp.status_code == 403
@@ -376,7 +372,7 @@ def test_request_suspicious_request_block_match_response_headers(app, client, tr
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-009"]
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
         resp = client.get("/response-header/")
         assert resp.status_code == 200
@@ -389,7 +385,7 @@ def test_request_suspicious_request_block_match_response_code(app, client, trace
         return PlainTextResponse("OK")
 
     # 404 must be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/do_not_exist.php")
         assert resp.status_code == 403
@@ -398,12 +394,12 @@ def test_request_suspicious_request_block_match_response_code(app, client, trace
         loaded = json.loads(root_span.get_tag(APPSEC.JSON))
         assert [t["rule"]["id"] for t in loaded["triggers"]] == ["tst-037-005"]
     # 200 must not be blocked
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get("/do_exist.php")
         assert resp.status_code == 200
     # appsec disabled must not block
-    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=RULES_SRB_RESPONSE)):
+    with override_global_config(dict(_asm_enabled=False)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=False)
 
         resp = client.get("/do_not_exist.php")
@@ -447,7 +443,7 @@ def test_request_suspicious_request_block_match_body(
         body = await request._receive()
         return PlainTextResponse(body["body"])
 
-    with override_global_config(dict(_asm_enabled=appsec)), override_env(dict(DD_APPSEC_RULES=RULES_SRB)):
+    with override_global_config(dict(_asm_enabled=appsec)), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
         _aux_appsec_prepare_tracer(tracer, asm_enabled=appsec)
         resp = client.post(
             "/index.html?args=test",

@@ -31,7 +31,7 @@ fi
 
 set -e
 
-if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ [0-9]\.x ]]; then
+if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ main ]]; then
     if [[ -f "$CHECKPOINT_FILENAME" ]]; then
         latest_success_commit=$(cat $CHECKPOINT_FILENAME)
         if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then

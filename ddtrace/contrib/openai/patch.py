@@ -160,7 +160,11 @@ def patch():
     )
 
     if OPENAI_VERSION >= (1, 0, 0):
-        wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
+        if OPENAI_VERSION >= (1, 8, 0):
+            wrap(openai._base_client.SyncAPIClient._process_response, _patched_convert(openai, integration))
+            wrap(openai._base_client.AsyncAPIClient._process_response, _patched_convert(openai, integration))
+        else:
+            wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
         wrap(openai.OpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AsyncOpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AzureOpenAI.__init__, _patched_client_init(openai, integration))

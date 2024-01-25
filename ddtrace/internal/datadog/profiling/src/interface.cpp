@@ -11,7 +11,6 @@
 #include <cxxabi.h>
 #include <execinfo.h>
 #include <iostream>
-#include <thread>
 #include <unistd.h>
 
 // State
@@ -280,28 +279,21 @@ ddup_set_runtime_id(const char* id, size_t sz)
         g_uploader->set_runtime_id(std::string_view(id, sz));
 }
 
-void
-ddup_upload_impl(Datadog::Profile* prof)
-{
-    g_uploader->upload(prof);
-}
-
-void
+bool
 ddup_upload()
 {
-    static std::thread upload_thread;
     if (!is_initialized) {
         // Rationalize return for interface
-        std::cout << "WHOA NOT INITIALIZED" << std::endl;
+        std::cerr << "libdd uploader called before initialization" << std::endl;
+        return false;
     }
 
-    if (upload_thread.joinable()) {
-        // The upload thread is still going.  We'll block on it.
-        upload_thread.join();
-    }
-    upload_thread = std::thread(ddup_upload_impl, g_profile);
-
+    // NB., this function strongly assumes single-threaded access in the
+    // caller; otherwise the collection will be serialized as it is being
+    // written to, which is undefined behavior for libdatadog.
+    auto upload_profile = g_profile;
     g_prof_flag ^= true;
     g_profile = g_profile_real[g_prof_flag];
     g_profile->reset();
+    return g_uploader->upload(upload_profile);
 }

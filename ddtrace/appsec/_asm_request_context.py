@@ -489,7 +489,7 @@ def _set_headers_and_response(response, headers, *_):
             else:
                 list_headers = list(headers)
             set_headers_response(list_headers)
-        if response:
+        if response and asm_config._api_security_parse_response_body:
             set_body_response(response)
 
 
