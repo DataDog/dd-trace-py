@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Vulnerability Management for Code-level (IAST): Add support for CMDi in langchain.
