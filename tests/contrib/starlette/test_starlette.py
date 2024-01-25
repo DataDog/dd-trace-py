@@ -81,6 +81,20 @@ def snapshot_client(snapshot_app):
         yield test_client
 
 
+@pytest.fixture
+def snapshot_app_with_tracer(tracer, engine):
+    starlette_patch()
+    app = get_app(engine)
+    yield app
+    starlette_unpatch()
+
+
+@pytest.fixture
+def snapshot_client_with_tracer(snapshot_app_with_tracer):
+    with TestClient(snapshot_app_with_tracer) as test_client:
+        yield test_client
+
+
 def test_200(client, tracer, test_spans):
     r = client.get("/200")
 
@@ -488,9 +502,10 @@ with TestClient(app) as test_client:
     assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
 
 
-def test_background_task(client, tracer, test_spans):
+@snapshot(ignores=["meta._dd.span_links"])
+def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
-    r = client.get("/backgroundtask")
+    r = snapshot_client_with_tracer.get("/backgroundtask")
     assert r.status_code == 200
     assert r.text == '{"result":"Background task added"}'
 
