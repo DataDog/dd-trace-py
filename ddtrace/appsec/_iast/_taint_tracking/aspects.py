@@ -612,9 +612,7 @@ def _distribute_ranges_and_escape(
         new_ranges = {}  # type: Dict[TaintRange, TaintRange]
 
         for taint_range in ranges:
-            if (taint_range.start + taint_range.length) < element_start or (
-                taint_range.start + taint_range.length <= extra
-            ):
+            if (taint_range.start + taint_range.length) <= (element_start + extra):
                 try:
                     range_set_remove(taint_range)
                 except KeyError:

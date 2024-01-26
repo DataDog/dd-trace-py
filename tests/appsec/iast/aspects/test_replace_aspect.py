@@ -219,7 +219,7 @@ def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, expec
 def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcount, expected, formatted):
     set_ranges(
         origstr,
-        (_build_sample_range(0, 1, "name"), _build_sample_range(5, 1, "name")),
+        (_build_sample_range(0, 1, "name"), _build_sample_range(2, 1, "name"), _build_sample_range(5, 1, "name")),
     )
     if maxcount is None:
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
@@ -229,3 +229,31 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
     assert replaced == expected
     assert as_formatted_evidence(replaced) == formatted
     assert is_pyobject_tainted(replaced) is False
+
+
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected, formatted",
+    [
+        (
+            "aaabaaabbcaaa",
+            "aa",
+            "z",
+            None,
+            "zabzabbcza",
+            "z:+-<name>a<name>-+:bz:+-<name>a<name>-+:bbcz:+-<name>a<name>-+:",
+        ),
+    ],
+)
+def test_replace_tainted_shrinking_ranges(origstr, substr, replstr, maxcount, expected, formatted):
+    set_ranges(
+        origstr,
+        (_build_sample_range(0, 3, "name"), _build_sample_range(4, 3, "name"), _build_sample_range(10, 3, "name")),
+    )
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    assert as_formatted_evidence(replaced) == formatted
+    assert is_pyobject_tainted(replaced) is True
