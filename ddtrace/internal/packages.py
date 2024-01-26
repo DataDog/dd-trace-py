@@ -141,11 +141,14 @@ def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
 
 stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
 platstdlib_path = Path(sysconfig.get_path("platstdlib")).resolve()
+purelib_path = Path(sysconfig.get_path("purelib")).resolve()
+platlib_path = Path(sysconfig.get_path("platlib")).resolve()
 
 
 @cached()
-def is_stdlib(path):
-    # type: (Path) -> bool
-    path = path.resolve()
+def is_stdlib(path: Path) -> bool:
+    rpath = path.resolve()
 
-    return path.is_relative_to(stdlib_path) or path.is_relative_to(platstdlib_path)
+    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
+        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    )
