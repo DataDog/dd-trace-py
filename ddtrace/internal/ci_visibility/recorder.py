@@ -40,6 +40,7 @@ from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
+from .constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from .git_client import METADATA_UPLOAD_STATUS
 from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES
@@ -123,11 +124,15 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
+            self.tracer = Tracer()
+
+            # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
+            # assume that a tracer is already configured if it's been passed in.
+            self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
+
             if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 # Create a new CI tracer
                 self.tracer = Tracer(context_provider=CIContextProvider())
-            else:
-                self.tracer = Tracer()
 
         self._configurations = ci._get_runtime_and_os_metadata()
         custom_configurations = _get_custom_configurations()
