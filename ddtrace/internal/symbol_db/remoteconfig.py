@@ -32,7 +32,7 @@ def _rc_callback(data, test_tracer=None):
         if metadata is None:
             continue
 
-        if config.get("upload_symbols", False):
+        if isinstance(config, dict) and config.get("upload_symbols", False):
             if not SymbolDatabaseUploader.is_installed():
                 log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
                 SymbolDatabaseUploader.install()
