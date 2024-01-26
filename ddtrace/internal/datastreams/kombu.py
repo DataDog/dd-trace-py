@@ -1,8 +1,8 @@
 from ddtrace import config
 from ddtrace.contrib.kombu.utils import HEADER_POS
 from ddtrace.contrib.kombu.utils import PUBLISH_BODY_IDX
-from ddtrace.contrib.kombu.utils import get_routing_key_from_args
 from ddtrace.contrib.kombu.utils import get_exchange_from_args
+from ddtrace.contrib.kombu.utils import get_routing_key_from_args
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -15,16 +15,25 @@ log = get_logger(__name__)
 def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
+    routing_key = get_routing_key_from_args(args)
     dsm_identifier = get_exchange_from_args(args)
     payload_size = 0
     payload_size += _calculate_byte_size(args[HEADER_POS])
     payload_size += _calculate_byte_size(args[PUBLISH_BODY_IDX])
 
-    has_routing_key = str(bool(get_routing_key_from_args(args))).lower()
+    has_routing_key = str(bool(routing_key)).lower()
 
-    pathway = processor().set_checkpoint(
-        ["direction:out", f"exchange:{dsm_identifier}", f"has_routing_key:{has_routing_key}", "type:rabbitmq"], payload_size=payload_size, span=span
-    )
+    pathway_tags = []
+    for prefix, value in [
+        ("direction", "out"),
+        ("exchange", dsm_identifier),
+        ("has_routing_key", has_routing_key),
+        ("type", "rabbitmq"),
+    ]:
+        if value is not None:
+            pathway_tags.append(f"{prefix}:{value}")
+
+    pathway = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
     encoded_pathway = pathway.encode()
     args[HEADER_POS][PROPAGATION_KEY] = encoded_pathway
 

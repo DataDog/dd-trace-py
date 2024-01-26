@@ -301,11 +301,16 @@ class TestKombuDsm(TracerTestCase):
             results.append(body)
             message.ack()
 
-        task_queue = kombu.Queue("tasks", kombu.Exchange(exchange), routing_key=exchange)
         to_publish = message
-        self.producer.publish(
-            to_publish, exchange=task_queue.exchange, routing_key=task_queue.routing_key, declare=[task_queue]
-        )
+        task_queue = None
+        if exchange:
+            task_queue = kombu.Queue("tasks", kombu.Exchange(exchange), routing_key=exchange)
+            self.producer.publish(
+                to_publish, exchange=task_queue.exchange, routing_key=task_queue.routing_key, declare=[task_queue]
+            )
+        else:
+            task_queue = kombu.Queue("tasks", kombu.Exchange(), routing_key="tasks")
+            self.producer.publish(to_publish, routing_key=task_queue.routing_key, declare=[task_queue])
 
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
             Pin.override(consumer, service="kombu-patch", tracer=self.tracer)
@@ -341,7 +346,7 @@ class TestKombuDsm(TracerTestCase):
             expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
             expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
             self.processor._buckets.clear()
-            _queue_name = self._publish_consume()
+            _queue_name = self._publish_consume(message=payload)
             buckets = self.processor._buckets
             assert len(buckets) == 1
 
@@ -349,3 +354,19 @@ class TestKombuDsm(TracerTestCase):
             for _bucket_name, bucket in first.items():
                 assert bucket.payload_size._count >= 1
                 assert bucket.payload_size._sum == expected_payload_size
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_data_streams_direct_exchange(self):
+        queue_name = self._publish_consume(exchange=None)
+        buckets = self.processor._buckets
+        assert len(buckets) == 1
+        first = list(buckets.values())[0].pathway_stats
+
+        out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
+        in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
+
+        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency._count == 1
+        assert first[(out_tags, 2585352008533360777, 0)].edge_latency._count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency._count == 1
+        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency._count == 1
