@@ -586,6 +586,55 @@ def lower_aspect(
         return candidate_text.lower(*args, **kwargs)
 
 
+def api_replace_aspect(candidate_text, *args, **kwargs):
+    # type: (TEXT_TYPE, Any, Any) -> TEXT_TYPE
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, args)
+    if not ranges_orig:
+        # No ranges at all, so we can just call the original function
+        return candidate_text.replace(*args, **kwargs)
+
+    substr = args[0]
+    replstr = args[1]
+    maxcount = parse_params(2, "maxcount", -1, *args, **kwargs)
+
+    return _convert_escaped_text_to_tainted_text(
+        as_formatted_evidence(
+            candidate_text,
+            candidate_text_ranges,
+            tag_mapping_function=TagMappingMode.Mapper,
+        ).replace(
+            substr,
+            as_formatted_evidence(
+                replstr,
+                get_tainted_ranges(replstr),
+                tag_mapping_function=TagMappingMode.Mapper,
+            ),
+            maxcount,
+        ),
+        ranges_orig=ranges_orig,
+    )
+
+
+def replace_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        return orig_function(*args, **kwargs)
+
+    candidate_text = args[0]
+    args = args[flag_added_args:]
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return candidate_text.replace(*args, **kwargs)
+    try:
+        return api_replace_aspect(candidate_text, *args, **kwargs)
+        # return aspect_replace_api(candidate_text, *args, **kwargs)
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))
+        return candidate_text.replace(*args, **kwargs)
+
+
 def swapcase_aspect(
     orig_function, flag_added_args, *args, **kwargs
 ):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE

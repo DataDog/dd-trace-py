@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
+import pytest
+
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected",
+    [
+        ("abbbc", "bbb", "d", None, "adc"),
+        ("cbc", "b", "de", -1, "cdec"),
+        ("dbc", "b", "de", 0, "dbc"),
+        ("ebbbcbbb", "bbb", "de", 1, "edecbbb"),
+    ],
+)
+def test_replace_result(origstr, substr, replstr, maxcount, expected):
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+
+
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected, formatted",
+    [
+        (
+            "abbbc",
+            "bbb",
+            "d",
+            None,
+            "adc",
+            ":+-<test_replace_tainted_orig>adc<test_replace_tainted_orig>-+:",
+            # FIXME: Should be ":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+:d:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        (
+            "cbc",
+            "b",
+            "de",
+            -1,
+            "cdec",
+            ":+-<test_replace_tainted_orig>cdec<test_replace_tainted_orig>-+:",
+            # FIXME: Should be ":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        ("dbc", "b", "de", 0, "dbc", ":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),
+        (
+            "ebbbcbbb",
+            "bbb",
+            "de",
+            1,
+            "edecbbb",
+            ":+-<test_replace_tainted_orig>edecbbb<test_replace_tainted_orig>-+:",
+            # FIXME: Should be ":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        (
+            "fbbbcbbb",
+            "bbb",
+            "de",
+            3,
+            "fdecde",
+            ":+-<test_replace_tainted_orig>fdecde<test_replace_tainted_orig>-+:",
+            # FIXME: Should be ":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de",  # noqa: E501
+        ),
+        (
+            "gbcd",
+            "gbcd",
+            "y",
+            -1,
+            "y",
+            ":+-<test_replace_tainted_orig>y<test_replace_tainted_orig>-+:",
+            # FIXME: formatted should be "y"
+        ),
+    ],
+)
+def test_replace_tainted_orig(origstr, substr, replstr, maxcount, expected, formatted):
+    origstr = taint_pyobject(
+        pyobject=origstr,
+        source_name="test_replace_tainted_orig",
+        source_value=origstr,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    # FIXME: Should be: assert is_pyobject_tainted(replaced) is (replaced != "y")
+    assert is_pyobject_tainted(replaced) is True
+    assert as_formatted_evidence(replaced) == formatted
+
+
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected, formatted",
+    [
+        ("abbbc", "bbb", "d", None, "adc", "a:+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+:c"),
+        ("cbc", "b", "de", -1, "cdec", "c:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:c"),
+        ("dbc", "b", "de", 0, "dbc", "dbc"),
+        (
+            "ebbbcbbb",
+            "bbb",
+            "de",
+            1,
+            "edecbbb",
+            "e:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:cbbb",
+        ),
+    ],
+)
+def test_replace_tainted_replstr(origstr, substr, replstr, maxcount, expected, formatted):
+    replstr = taint_pyobject(
+        pyobject=replstr,
+        source_name="test_replace_tainted_replstr",
+        source_value=replstr,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    assert is_pyobject_tainted(replaced) is (maxcount != 0)
+    assert as_formatted_evidence(replaced) == formatted
+
+
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected, formatted",
+    [
+        (
+            "abbbc",
+            "bbb",
+            "d",
+            None,
+            "adc",
+            ":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",
+        ),
+        (
+            "cbc",
+            "b",
+            "de",
+            -1,
+            "cdec",
+            ":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",
+        ),
+        ("dbc", "b", "de", 0, "dbc", ":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),
+        (
+            "ebbbcbbb",
+            "bbb",
+            "de",
+            1,
+            "edecbbb",
+            ":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",
+        ),
+        (
+            "fbbbcbbb",
+            "bbb",
+            "de",
+            3,
+            "fdecde",
+            ":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:",
+        ),
+        ("gbcd", "gbcd", "y", -1, "y", ":+-<test_replace_tainted_replstr>y<test_replace_tainted_replstr>-+:"),
+    ],
+)
+def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, expected, formatted):
+    origstr = taint_pyobject(
+        pyobject=origstr,
+        source_name="test_replace_tainted_orig",
+        source_value=origstr,
+        source_origin=OriginType.PARAMETER,
+    )
+    replstr = taint_pyobject(
+        pyobject=replstr,
+        source_name="test_replace_tainted_replstr",
+        source_value=replstr,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    assert is_pyobject_tainted(replaced) is True
+    assert as_formatted_evidence(replaced) == formatted
