@@ -3,10 +3,17 @@
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _convert_escaped_text_to_tainted_text
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+
+def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
+    return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
 
 
 @pytest.mark.parametrize(
@@ -193,4 +200,29 @@ def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, expec
 
     assert replaced == expected
     assert is_pyobject_tainted(replaced) is True
+    assert as_formatted_evidence(replaced) == formatted
+
+
+@pytest.mark.xfail(reason="Not yet implemented")
+@pytest.mark.parametrize(
+    "origstr, substr, replstr, maxcount, expected, formatted",
+    [
+        (
+            _convert_escaped_text_to_tainted_text(":+-<1>a<1>-+:bbbc", (_build_sample_range(0, 1, "1"),)),
+            "a",
+            "",
+            None,
+            "bbbc",
+            "bbbc",
+        ),
+    ],
+)
+def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcount, expected, formatted):
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    assert is_pyobject_tainted(replaced) is False
     assert as_formatted_evidence(replaced) == formatted
