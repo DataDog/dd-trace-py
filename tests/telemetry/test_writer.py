@@ -116,9 +116,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {
                         "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
                         "origin": "unknown",
-                        "value": "tracecontext,datadog",
+                        "value": "datadog,tracecontext",
                     },
-                    {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
+                    {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog,tracecontext"},
                     {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
                     {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
