@@ -1431,3 +1431,33 @@ def test_fetch_tests_to_skip_custom_configurations():
                 {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
             )
             CIVisibility.disable()
+
+
+def test_civisibility_enable_tracer_uses_partial_traces():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+        assert CIVisibility._instance.tracer._partial_flush_enabled is True
+        assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
+        CIVisibility.disable()
+
+
+def test_civisibility_enable_respects_passed_in_tracer():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        tracer = DummyTracer()
+        tracer.configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        CIVisibility.enable(tracer=tracer)
+        assert CIVisibility._instance.tracer._partial_flush_enabled is False
+        assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
+        CIVisibility.disable()
