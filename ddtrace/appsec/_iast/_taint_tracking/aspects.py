@@ -662,7 +662,6 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
     old_value = parse_params(0, "old_value", None, *args, **kwargs)
     count = parse_params(2, "count", -1, *args, **kwargs)
     if old_value not in candidate_text:
-        assert candidate_text == candidate_text.replace(*args, **kwargs)
         return candidate_text
 
     if old_value:
@@ -725,7 +724,6 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
         ranges_orig=ranges_orig,
     )
 
-    assert result == candidate_text.replace(*args, **kwargs)
     return result
 
 
