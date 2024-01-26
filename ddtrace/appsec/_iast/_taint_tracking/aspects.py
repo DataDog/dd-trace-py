@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
@@ -589,16 +590,16 @@ def lower_aspect(
 
 
 def _distribute_ranges_and_escape(
-    split_elements,  # type: List[AnyStr]
+    split_elements,  # type: List[Optional[TEXT_TYPE]]
     len_separator,  # type: int
     ranges,  # type: Tuple[TaintRange, ...]
-):  # type: (...) -> List[AnyStr]
+):  # type: (...) -> List[Optional[TEXT_TYPE]]
     # FIXME: converts to set, and then to list again, probably to remove
     # duplicates. This should be removed once the ranges values on the
     # taint dictionary are stored in a set.
     range_set = set(ranges)
     range_set_remove = range_set.remove
-    formatted_elements = []  # type: List[AnyStr]
+    formatted_elements = []  # type: List[Optional[TEXT_TYPE]]
     formatted_elements_append = formatted_elements.append
     element_start = 0
     extra = 0
@@ -650,7 +651,7 @@ def _distribute_ranges_and_escape(
         )
 
         element_start = element_end + len_separator - extra
-    return formatted_elements  # type: ignore[return-value]
+    return formatted_elements
 
 
 def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
@@ -677,12 +678,12 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
             ]
         )
     i = 0
-    new_elements = []  # type: List[Optional[Text]]
+    new_elements = []  # type: List[Optional[TEXT_TYPE]]
     new_elements_append = new_elements.append
 
     # if new value is blank, _distribute_ranges_and_escape function doesn't
     # understand what is the replacement to move the ranges.
-    # In the other hand, Split function splits a string and the ocurrence is
+    # In the other hand, Split function splits a string and the occurrence is
     # in the first or last position, split adds ''. IE:
     # 'XabcX'.split('X') -> ['', 'abc', '']
     # We add "None" in the old position and _distribute_ranges_and_escape
@@ -711,7 +712,7 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
         new_elements = elements
 
     if candidate_text_ranges:
-        new_elements = _distribute_ranges_and_escape(  # type: ignore[type-var]
+        new_elements = _distribute_ranges_and_escape(
             new_elements,
             len(old_value),
             candidate_text_ranges,
