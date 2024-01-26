@@ -273,11 +273,6 @@ class Scope:
                 )
             )
 
-        try:
-            name = object.__getattribute__(obj, "__name__")
-        except AttributeError:
-            name = "<unnamed-type>"
-
         # Compute line numbers from child scopes
         if scopes:
             try:
@@ -299,7 +294,7 @@ class Scope:
 
         return Scope(
             scope_type=ScopeType.CLASS,
-            name=name,
+            name=type_qualname(obj),
             source_file=str(type_origin),
             start_line=start_line,
             end_line=end_line,
@@ -311,9 +306,12 @@ class Scope:
     @_get_from.register
     @classmethod
     def _(cls, code: CodeType, data: ScopeData):
-        if code in data.seen:
+        # DEV: A code object with a mutable probe is currently not hashable, so
+        # we cannot put it directly into the set.
+        code_id = f"code-{id(code)}"
+        if code_id in data.seen:
             return None
-        data.seen.add(code)
+        data.seen.add(code_id)
 
         if Path(code.co_filename).resolve() != data.origin:
             # Comes from another module.
@@ -329,7 +327,7 @@ class Scope:
         return Scope(
             scope_type=ScopeType.CLOSURE,  # DEV: Not in the sense of a Python closure.
             name=code.co_name,
-            source_file=code.co_filename,
+            source_file=str(Path(code.co_filename).resolve()),
             start_line=start_line,
             end_line=end_line,
             symbols=Symbol.from_code(code),
@@ -348,7 +346,8 @@ class Scope:
         if is_from_stdlib(f):
             return None
 
-        code_scope = t.cast(t.Optional[Scope], cls._get_from(f.__code__, data))
+        code = f.__dd_wrapped__.__code__ if hasattr(f, "__dd_wrapped__") else f.__code__
+        code_scope = t.cast(t.Optional[Scope], cls._get_from(code, data))
         if code_scope is None:
             return None
 
@@ -432,7 +431,11 @@ class Scope:
             start_line=SOF,
             end_line=SOF,
             symbols=[],
-            scopes=[t.cast(Scope, cls._get_from(_, data)) for _ in (pr.fget, pr.fset, pr.fdel) if _ is not None],
+            scopes=[
+                _
+                for _ in (cls._get_from(_, data) for _ in (pr.fget, pr.fset, pr.fdel) if _ is not None)
+                if _ is not None
+            ],
             language_specifics={"method_type": "property"},
         )
 
@@ -493,13 +496,16 @@ class ScopeContext:
         )
 
         with connector(get_trace_url(), timeout=5.0)() as conn:
-            log.debug("[PID %d] SymDB: Uploading symbols payload %r", os.getpid(), body)
+            log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
             return compat.get_connection_response(conn)
 
     def __bool__(self) -> bool:
         return bool(self._scopes)
+
+    def __len__(self) -> int:
+        return len(self._scopes)
 
 
 def is_module_included(module: ModuleType) -> bool:
@@ -514,6 +520,8 @@ def is_module_included(module: ModuleType) -> bool:
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
+    __scope_limit__ = 100
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -522,9 +530,31 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         context = ScopeContext()
         for scope in (Scope.from_module(m) for m in list(sys.modules.values()) if is_module_included(m)):
             if scope is not None:
-                log.debug("[PID %d] SymDB: Adding Symbol DB scope %r", os.getpid(), scope)
+                log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
                 context.add_scope(scope)
-        self._upload_context(context)
+
+            # Batching: send at most 100 module scopes at a time
+            n = len(context)
+            if n >= self.__scope_limit__:
+                log.debug("[PID %d] SymDB: Flushing batch of %d module scopes", os.getpid(), n)
+                try:
+                    self._upload_context(context)
+                except Exception:
+                    log.error(
+                        "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n, exc_info=True
+                    )
+                    return
+                context = ScopeContext()
+
+        try:
+            self._upload_context(context)
+        except Exception:
+            log.error(
+                "[PID %d] SymDB: Failed to upload symbols context with %d scopes",
+                os.getpid(),
+                len(context),
+                exc_info=True,
+            )
 
     def after_import(self, module: ModuleType) -> None:
         if not is_module_included(module):
@@ -541,10 +571,12 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             return
 
         try:
-            log.debug("[PID %d] SymDB:  Uploading symbols", os.getpid())
+            log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), len(context._scopes))
             result = context.upload()
             if result.status // 100 != 2:
                 log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
 
         except Exception:
-            log.exception("[PID %d] SymDB: Failed to upload symbols", os.getpid())
+            log.exception(
+                "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), len(context._scopes)
+            )

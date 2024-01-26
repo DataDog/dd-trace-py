@@ -61,7 +61,7 @@ def test_symbols_class():
     scope = Scope.from_module(module)
 
     (class_scope,) = scope.scopes
-    assert class_scope.name == "Sym"
+    assert class_scope.name == "tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym"
 
     assert class_scope.language_specifics == {
         "mro": [

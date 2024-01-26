@@ -35,7 +35,11 @@ def _rc_callback(data, test_tracer=None):
         if isinstance(config, dict) and config.get("upload_symbols", False):
             if not SymbolDatabaseUploader.is_installed():
                 log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
-                SymbolDatabaseUploader.install()
+                try:
+                    SymbolDatabaseUploader.install()
+                except Exception:
+                    log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
+                    remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
             return
 
 
