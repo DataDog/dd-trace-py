@@ -178,7 +178,7 @@ Uploader::set_runtime_id(std::string_view id)
 bool
 Uploader::upload(const Profile* profile)
 {
-    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
+    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&result.err).ptr);
         errmsg = "Error serializing pprof, err:" + ddog_err;
@@ -196,11 +196,7 @@ Uploader::upload(const Profile* profile)
     ddog_prof_Exporter_File file[] = {
       {
           .name = to_slice("auto.pprof"),
-          .file =
-              {
-                  .ptr = encoded->buffer.ptr,
-                  .len = encoded->buffer.len,
-              },
+          .file = ddog_Vec_U8_as_slice(&encoded->buffer),
       },
   };
 
@@ -210,8 +206,15 @@ Uploader::upload(const Profile* profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
-    auto build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter.get(), start, end, { .ptr = file, .len = 1 }, &tags, nullptr, nullptr, 5000);
+    auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
+                                                      start,
+                                                      end,
+                                                      ddog_prof_Exporter_Slice_File_empty(),
+                                                      { .ptr = file, .len = 1 },
+                                                      &tags,
+                                                      nullptr,
+                                                      nullptr,
+                                                      5000);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
@@ -316,8 +319,15 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     values.resize(samplers.size());
     std::fill(values.begin(), values.end(), 0);
 
-    ddog_prof_Period default_sampler = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    ddog_profile = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_sampler, nullptr);
+    ddog_prof_Period default_period = { samplers[0], 1 }; // Mandated by pprof, but probably unused
+    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_period, nullptr);
+
+    // Check that the profile was created properly
+    if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
+      ddog_Error_drop(&res.err);
+      throw std::runtime_error("Could not create profile");
+    }
+    ddog_profile = &res.ok;
 
     // Prepare for use
     reset();
@@ -347,8 +357,11 @@ Profile::insert_or_get(std::string_view sv)
 bool
 Profile::reset()
 {
-    if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
-        errmsg = "Unable to reset profile";
+    auto res = ddog_prof_Profile_reset(ddog_profile, nullptr);
+    if (!res.ok) {
+        std::string ddog_err(ddog_Error_message(&res.err).ptr);
+        errmsg = "Could not reset profile, err: " + ddog_err;
+        ddog_Error_drop(&res.err);
         std::cout << errmsg << std::endl;
         return false;
     }
@@ -370,30 +383,23 @@ Profile::start_sample(unsigned int nframes)
 void
 Profile::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    if (cur_frame >= lines.size() || cur_frame >= locations.size())
+    if (cur_frame >= locations.size())
         return;
 
     name = insert_or_get(name);
     filename = insert_or_get(filename);
 
-    lines[cur_frame] = {
-      .function =
-          {
-              .name = to_slice(name),
-              .system_name = {},
-              .filename = to_slice(filename),
-              .start_line = 0,
-          },
-      .line = line,
-  };
-
-    locations[cur_frame] = {
+    locations[cur_frame] = ddog_prof_Location{
         {},
+        ddog_prof_Function{
+          to_slice(name),
+          {},
+          to_slice(filename),
+          line,
+        },
         address,
-        { &lines[cur_frame], 1 },
-        false,
+        line,
     };
-
     ++cur_frame;
 }
 
@@ -472,12 +478,11 @@ Profile::flush_sample()
         .labels = { &labels[0], cur_label },
     };
 
-    ddog_prof_Profile_AddResult address = ddog_prof_Profile_add(ddog_profile, sample);
-    if (address.tag == DDOG_PROF_PROFILE_ADD_RESULT_ERR) {
-        std::string ddog_errmsg(ddog_Error_message(&address.err).ptr);
+    ddog_prof_Profile_Result res = ddog_prof_Profile_add(ddog_profile, sample, 0);
+    if (res.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
+        std::string ddog_errmsg(ddog_Error_message(&res.err).ptr);
         errmsg = "Could not flush sample: " + errmsg;
-        ddog_Error_drop(&address.err);
-
+        ddog_Error_drop(&res.err);
         clear_buffers();
         return false;
     }

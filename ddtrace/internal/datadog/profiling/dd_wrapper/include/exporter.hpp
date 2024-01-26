@@ -143,8 +143,8 @@ private:
   // Keeps temporary buffer of frames in the stack
   // 512 is the max depth allowed by the backend, plus it is limited
   // by user configuration
-  std::array<ddog_prof_Location, 1024> locations;
-  std::array<ddog_prof_Line, 1024> lines;
+  // Bump it by 8 for potential virtual frames
+  std::array<ddog_prof_Location, 512 + 8> locations;
   size_t cur_frame;
 
   // Storage for labels
@@ -208,7 +208,7 @@ public:
   void push_frame(std::string_view name,     // for ddog_prof_Function
                   std::string_view filename, // for ddog_prof_Function
                   uint64_t address,          // for ddog_prof_Location
-                  int64_t line               // for ddog_prof_Line
+                  int64_t line               // for ddog_prof_Location
   );
 
   // Flushes the current buffer, clearing it

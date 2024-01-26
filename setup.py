@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tarfile
 
 
@@ -38,18 +39,14 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_ddwaf", "libddwaf"))
-IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint_tracking"))
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, "ddtrace", "appsec", "_ddwaf", "libddwaf")
+IAST_DIR = os.path.join(HERE, "ddtrace", "appsec", "_iast", "_taint_tracking")
+DDUP_DIR = os.path.join(HERE, "ddtrace", "internal", "datadog", "profiling")
+STACK_V2_DIR = os.path.join(DDUP_DIR, "stack_v2")
 
 CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.15.1"
-
-LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
-    HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
-)
-
-LIBDATADOG_PROF_VERSION = "v3.0.0"
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -223,62 +220,9 @@ class LibDDWafDownload(LibraryDownload):
         return archive_dir
 
 
-class LibDatadogDownload(LibraryDownload):
-    name = "datadog"
-    download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
-    version = LIBDATADOG_PROF_VERSION
-    url_root = "https://github.com/DataDog/libdatadog/releases/download"
-    expected_checksums = {
-        "Linux": {
-            "x86_64": "39418275058a5ba96d6284bb6add0e9fbf6a59d7de0755d10184a0223f21c3ed",
-            "aarch64": "71b89626f585ebf385482fb9d000c71f91721b395df8d352ce04a825c1f1776a",
-        },
-    }
-    available_releases = {
-        "Windows": [],
-        "Darwin": [],
-        "Linux": ["x86_64", "aarch64"],
-    }
-    translate_suffix = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
-
-    @classmethod
-    def get_package_name(cls, arch, os):
-        osnames = {
-            "Linux": "unknown-linux-gnu",
-        }
-        tar_osname = osnames[os]
-        archive_dir = "lib%s-%s-%s" % (cls.name, arch, tar_osname)
-        return archive_dir
-
-    @staticmethod
-    def get_extra_objects():
-        base_name = "libdatadog_profiling"
-        arch = platform.machine()
-        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0]  # always static lib extension
-            base_path = os.path.join(
-                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name
-            )
-            return [base_path]
-        return []
-
-    @staticmethod
-    def get_include_dirs():
-        arch = platform.machine()
-        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            base_include_dir = "ddtrace/internal/datadog/profiling/include"
-            arch_include_dir = os.path.join(
-                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include"
-            )
-            return [base_include_dir, arch_include_dir]
-
-        return []
-
-
 class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
-        LibDatadogDownload.run()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
 
@@ -287,7 +231,6 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(LIBDATADOG_PROF_DOWNLOAD_DIR, True)
         shutil.rmtree(os.path.join(IAST_DIR, "*.so"), True)
 
     def run(self):
@@ -321,14 +264,20 @@ class CMakeBuild(build_ext):
 
         # We derive the cmake build directory from the output directory, but put it in
         # a sibling directory to avoid polluting the final package
-        cmake_build_dir = os.path.abspath(self.build_lib.replace("lib.", "cmake."))
+        cmake_build_dir = os.path.abspath(os.path.join(self.build_lib.replace("lib.", "cmake."), ext.name))
         os.makedirs(cmake_build_dir, exist_ok=True)
+
+        # Get development paths
+        python_include = sysconfig.get_paths()["include"]
+        python_lib = sysconfig.get_config_var("LIBDIR")
 
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
+            "-DPython3_INCLUDE_DIRS={}".format(python_include),
+            "-DPython3_LIBRARIES={}".format(python_lib),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
@@ -353,7 +302,9 @@ class CMakeBuild(build_ext):
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
-            cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+            cmake_args += [
+                "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
+            ]
         if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures
@@ -496,41 +447,24 @@ if not IS_PYSTON:
                 permissive_build=True if CURRENT_OS == "Darwin" else False,
             )
         )
-else:
-    ext_modules = []
 
-
-def get_ddup_ext():
-    ddup_ext = []
-    arch = platform.machine()
-    if "glibc" in platform.libc_ver()[0] and arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-        LibDatadogDownload.run()
-        ddup_ext.extend(
-            cythonize(
-                [
-                    Cython.Distutils.Extension(
-                        "ddtrace.internal.datadog.profiling._ddup",
-                        sources=[
-                            "ddtrace/internal/datadog/profiling/src/exporter.cpp",
-                            "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/_ddup.pyx",
-                        ],
-                        include_dirs=LibDatadogDownload.get_include_dirs(),
-                        extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17", "-flto"],
-                        language="c++",
-                    )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling._ddup",
+                source_dir=DDUP_DIR,
+                permissive_build=CURRENT_OS != "Linux",
+                cmake_args=[
+                    "-DPLATFORM={}".format(CURRENT_OS),
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
                 ],
-                compile_time_env={
-                    "PY_MAJOR_VERSION": sys.version_info.major,
-                    "PY_MINOR_VERSION": sys.version_info.minor,
-                    "PY_MICRO_VERSION": sys.version_info.micro,
-                },
-                force=True,
-                annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
             )
         )
-    return ddup_ext
+
+else:
+    ext_modules = []
 
 
 bytecode = [
@@ -565,6 +499,7 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
     python_requires=">=3.7",
     zip_safe=False,
@@ -682,6 +617,5 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil")
-    + get_ddup_ext(),
+    + get_exts_for("psutil"),
 )
