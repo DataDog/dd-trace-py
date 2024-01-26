@@ -17,7 +17,6 @@ datadog-lambda==5.85.0
 ddsketch==2.0.4
 ddtrace==2.4.0
 deprecated==1.2.14
-envier==0.5.0
 exceptiongroup==1.2.0
 hypothesis==6.45.0
 idna==3.6

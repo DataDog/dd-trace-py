@@ -749,10 +749,14 @@ class Config(object):
         selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
         self.http = HttpConfig(header_tags=selected_header_tags)
 
-    def _format_tags(self, tags):
+    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
-        return {k: v for k, v in [t.split(":") for t in tags]}
+        if isinstance(tags[0], Dict):
+            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        else:
+            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
         # type: () -> None

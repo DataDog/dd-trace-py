@@ -110,14 +110,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            name="scripts",
-            command="python -m doctest {cmdargs} "
-            "scripts/get-target-milestone.py "
-            "scripts/needs_testrun.py "
-            "tests/suitespec.py",
-        ),
-        Venv(
-            pys=["3"],
             name="meta-testing",
             command="pytest {cmdargs} tests/meta",
         ),
@@ -197,7 +189,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.0",
+                "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
                 "protobuf": ">=3",
