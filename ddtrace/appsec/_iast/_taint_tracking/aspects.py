@@ -19,7 +19,9 @@ from .._taint_tracking import copy_ranges_from_strings
 from .._taint_tracking import get_ranges
 from .._taint_tracking import get_tainted_ranges
 from .._taint_tracking import is_pyobject_tainted
+from .._taint_tracking import new_pyobject_id
 from .._taint_tracking import parse_params
+from .._taint_tracking import set_ranges
 from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
@@ -586,33 +588,144 @@ def lower_aspect(
         return candidate_text.lower(*args, **kwargs)
 
 
-def api_replace_aspect(candidate_text, *args, **kwargs):
-    # type: (TEXT_TYPE, Any, Any) -> TEXT_TYPE
-    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, args)
-    if not ranges_orig:
-        # No ranges at all, so we can just call the original function
+def _distribute_ranges_and_escape(
+    split_elements,  # type: List[AnyStr]
+    len_separator,  # type: int
+    ranges,  # type: Tuple[TaintRange, ...]
+):  # type: (...) -> List[AnyStr]
+    # FIXME: converts to set, and then to list again, probably to remove
+    # duplicates. This should be removed once the ranges values on the
+    # taint dictionary are stored in a set.
+    range_set = set(ranges)
+    range_set_remove = range_set.remove
+    formatted_elements = []  # type: List[AnyStr]
+    formatted_elements_append = formatted_elements.append
+    element_start = 0
+    extra = 0
+
+    for element in split_elements:
+        if element is None:
+            extra += len_separator
+            continue
+        element_end = element_start + len(element)
+        new_ranges = {}  # type: Dict[TaintRange, TaintRange]
+
+        for taint_range in ranges:
+            if (taint_range.start + taint_range.length) < element_start:
+                try:
+                    range_set_remove(taint_range)
+                except KeyError:
+                    # If the range appears twice in ranges, it will be
+                    # iterated twice, but it's only once in range_set,
+                    # raising KeyError at remove, so it can be safely ignored
+                    pass
+                continue
+
+            if taint_range.start > element_end:
+                continue
+
+            start = max(taint_range.start, element_start)
+            end = min((taint_range.start + taint_range.length), element_end)
+            if end <= start:
+                continue
+
+            new_range = TaintRange(
+                start=start - element_start,
+                length=end - element_start,
+                source=taint_range.source,
+            )
+            new_ranges[new_range] = taint_range
+
+        element_ranges = tuple(new_ranges.keys())
+        element_new_id = new_pyobject_id(element)
+        set_ranges(element_new_id, element_ranges)
+
+        formatted_elements_append(
+            as_formatted_evidence(
+                element_new_id,
+                element_ranges,
+                TagMappingMode.Mapper_Replace,
+                new_ranges,
+            )
+        )
+
+        element_start = element_end + len_separator - extra
+    return formatted_elements  # type: ignore[return-value]
+
+
+def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, tuple(args) + tuple(kwargs.values()))
+    if not ranges_orig:  # Ranges in args/kwargs are checked
         return candidate_text.replace(*args, **kwargs)
 
-    substr = args[0]
-    replstr = args[1]
-    maxcount = parse_params(2, "maxcount", -1, *args, **kwargs)
+    old_value = parse_params(0, "old_value", None, *args, **kwargs)
+    count = parse_params(2, "count", -1, *args, **kwargs)
+    if old_value not in candidate_text:
+        assert candidate_text == candidate_text.replace(*args, **kwargs)
+        return candidate_text
 
-    return _convert_escaped_text_to_tainted_text(
-        as_formatted_evidence(
-            candidate_text,
+    if old_value:
+        elements = candidate_text.split(old_value, count)
+    else:
+        elements = (
+            [
+                "",
+            ]
+            + list(candidate_text)
+            + [
+                "",
+            ]
+        )
+    i = 0
+    new_elements = []  # type: List[Optional[Text]]
+    new_elements_append = new_elements.append
+
+    # if new value is blank, _distribute_ranges_and_escape function doesn't
+    # understand what is the replacement to move the ranges.
+    # In the other hand, Split function splits a string and the ocurrence is
+    # in the first or last position, split adds ''. IE:
+    # 'XabcX'.split('X') -> ['', 'abc', '']
+    # We add "None" in the old position and _distribute_ranges_and_escape
+    # knows that this is the position of a old value and move len(old_value)
+    # positions of the range
+    new_value = parse_params(1, "new_value", None, *args, **kwargs)
+    if new_value == "":
+        len_elements = len(elements)
+        for element in elements:
+            if i == 0 and element == "":
+                new_elements_append(None)
+                i += 1
+                continue
+            elif i + 1 == len_elements and element == "":
+                new_elements_append(None)
+                continue
+
+            new_elements_append(element)
+
+            if count < 0 and i + 1 < len(elements):
+                new_elements_append(None)
+            elif i >= count and i + 1 < len(elements):
+                new_elements_append(old_value)
+            i += 1
+    else:
+        new_elements = elements
+
+    if candidate_text_ranges:
+        new_elements = _distribute_ranges_and_escape(  # type: ignore[type-var]
+            new_elements,
+            len(old_value),
             candidate_text_ranges,
-            tag_mapping_function=TagMappingMode.Mapper,
-        ).replace(
-            substr,
-            as_formatted_evidence(
-                replstr,
-                get_tainted_ranges(replstr),
-                tag_mapping_function=TagMappingMode.Mapper,
-            ),
-            maxcount,
-        ),
+        )
+
+    result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
+
+    result = _convert_escaped_text_to_tainted_text(
+        result_formatted,
         ranges_orig=ranges_orig,
     )
+
+    assert result == candidate_text.replace(*args, **kwargs)
+    return result
 
 
 def replace_aspect(
@@ -628,8 +741,7 @@ def replace_aspect(
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.replace(*args, **kwargs)
     try:
-        return api_replace_aspect(candidate_text, *args, **kwargs)
-        # return aspect_replace_api(candidate_text, *args, **kwargs)
+        return aspect_replace_api(candidate_text, *args, **kwargs)
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))
         return candidate_text.replace(*args, **kwargs)

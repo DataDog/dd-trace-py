@@ -36,8 +36,7 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "d",
             None,
             "adc",
-            ":+-<test_replace_tainted_orig>adc<test_replace_tainted_orig>-+:",
-            # FIXME: Should be ":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+:d:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+            ":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+:d:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
         ),
         (
             "cbc",
@@ -45,8 +44,7 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "de",
             -1,
             "cdec",
-            ":+-<test_replace_tainted_orig>cdec<test_replace_tainted_orig>-+:",
-            # FIXME: Should be ":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+            ":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
         ),
         ("dbc", "b", "de", 0, "dbc", ":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),
         (
@@ -55,8 +53,7 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "de",
             1,
             "edecbbb",
-            ":+-<test_replace_tainted_orig>edecbbb<test_replace_tainted_orig>-+:",
-            # FIXME: Should be ":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",  # noqa: E501
+            ":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",  # noqa: E501
         ),
         (
             "fbbbcbbb",
@@ -64,8 +61,7 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "de",
             3,
             "fdecde",
-            ":+-<test_replace_tainted_orig>fdecde<test_replace_tainted_orig>-+:",
-            # FIXME: Should be ":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de",  # noqa: E501
+            ":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de",  # noqa: E501
         ),
         (
             "gbcd",
@@ -73,8 +69,15 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "y",
             -1,
             "y",
-            ":+-<test_replace_tainted_orig>y<test_replace_tainted_orig>-+:",
-            # FIXME: formatted should be "y"
+            "y",
+        ),
+        (
+            "gbcd",
+            ":",
+            "-",
+            -1,
+            "gbcd",
+            ":+-<test_replace_tainted_orig>gbcd<test_replace_tainted_orig>-+:",
         ),
     ],
 )
@@ -92,8 +95,7 @@ def test_replace_tainted_orig(origstr, substr, replstr, maxcount, expected, form
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
 
     assert replaced == expected
-    # FIXME: Should be: assert is_pyobject_tainted(replaced) is (replaced != "y")
-    assert is_pyobject_tainted(replaced) is True
+    assert is_pyobject_tainted(replaced) is (replaced != "y")
     assert as_formatted_evidence(replaced) == formatted
 
 
