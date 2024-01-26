@@ -163,6 +163,8 @@ interactions:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
       x-ratelimit-limit-tokens:
       - '1000000'
       x-ratelimit-remaining-requests:
