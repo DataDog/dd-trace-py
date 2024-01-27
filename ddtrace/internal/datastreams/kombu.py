@@ -46,7 +46,7 @@ def handle_kombu_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.headers)
 
     ctx = processor().decode_pathway(message.headers.get(PROPAGATION_KEY, None))
-    queue = instance.queues[0].name if len(queues) > 0 else ""
+    queue = instance.queues[0].name if len(queue) > 0 else ""
     ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
