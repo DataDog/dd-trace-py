@@ -484,6 +484,7 @@ Profile::flush_sample()
     if (res.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
         std::string ddog_errmsg(ddog_Error_message(&res.err).ptr);
         errmsg = "Could not flush sample: " + errmsg;
+        std::cout << errmsg << std::endl;
         ddog_Error_drop(&res.err);
         clear_buffers();
         return false;
