@@ -3,9 +3,9 @@
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
 #include "exporter.hpp"
+#include <initializer_list>
 #include <iostream>
 #include <stdexcept>
-#include <initializer_list>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -180,7 +180,8 @@ Uploader::set_runtime_id(std::string_view id)
 bool
 Uploader::upload(const Profile* profile)
 {
-    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr, nullptr);
+    ddog_prof_Profile_SerializeResult result =
+      ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&result.err).ptr);
         errmsg = "Error serializing pprof, err:" + ddog_err;
@@ -196,11 +197,11 @@ Uploader::upload(const Profile* profile)
 
     // Attach file
     ddog_prof_Exporter_File file[] = {
-      {
+        {
           .name = to_slice("auto.pprof"),
           .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-      },
-  };
+        },
+    };
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -321,14 +322,15 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     std::fill(values.begin(), values.end(), 0);
 
     ddog_prof_Period default_period = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_period, nullptr);
+    ddog_prof_Profile_NewResult res =
+      ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_period, nullptr);
 
     // Check that the profile was created properly
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&res.err).ptr);
         errmsg = "Could not create profile, err: " + ddog_err;
         ddog_Error_drop(&res.err);
-        throw::std::runtime_error(errmsg);
+        throw std::runtime_error(errmsg);
         return;
     }
     ddog_profile = &res.ok;
@@ -393,10 +395,10 @@ Profile::push_frame_impl(std::string_view name, std::string_view filename, uint6
     ddog_prof_Location loc = {
         null_mapping, // No support for mappings in Python
         {
-            to_slice(name),
-            {}, // No support for system name in Python
-            to_slice(filename),
-            0  // We don't know the start_line in the typical case
+          to_slice(name),
+          {}, // No support for system name in Python
+          to_slice(filename),
+          0 // We don't know the start_line in the typical case
         },
         address,
         line,
