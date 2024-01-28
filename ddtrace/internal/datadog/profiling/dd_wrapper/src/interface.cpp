@@ -148,9 +148,9 @@ ddup_init()
 }
 
 void
-ddup_start_sample(unsigned int nframes)
+ddup_start_sample()
 {
-    g_profile->start_sample(nframes);
+    g_profile->start_sample();
 }
 
 void

@@ -26,7 +26,7 @@ except ImportError:
         pass
 
     @not_implemented
-    def start_sample(nframes):  # type: (int) -> None
+    def start_sample():  # type: () -> None
         pass
 
     @not_implemented

@@ -39,7 +39,7 @@ IF UNAME_SYSNAME == "Linux":
 
         void ddup_init()
 
-        void ddup_start_sample(unsigned int nframes)
+        void ddup_start_sample()
         void ddup_push_walltime(int64_t walltime, int64_t count)
         void ddup_push_cputime(int64_t cputime, int64_t count)
         void ddup_push_acquire(int64_t acquire_time, int64_t count)
@@ -92,8 +92,8 @@ IF UNAME_SYSNAME == "Linux":
                 ddup_config_user_tag(key, val)
         ddup_init()
 
-    def start_sample(nframes: int) -> None:
-        ddup_start_sample(nframes)
+    def start_sample() -> None:
+        ddup_start_sample()
 
     def push_cputime(value: int, count: int) -> None:
         ddup_push_cputime(value, count)

@@ -4,6 +4,8 @@
 // Datadog, Inc.
 #include "exporter.hpp"
 #include <iostream>
+#include <stdexcept>
+#include <initializer_list>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -277,7 +279,6 @@ ProfileBuilder::build_ptr()
 Profile::Profile(ProfileType type, unsigned int _max_nframes)
   : type_mask{ type & ProfileType::All }
   , max_nframes{ _max_nframes }
-  , nframes{ 0 }
 {
     // Push an element to the end of the vector, returning the position of
     // insertion
@@ -324,16 +325,19 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
 
     // Check that the profile was created properly
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
-      ddog_Error_drop(&res.err);
-      throw std::runtime_error("Could not create profile");
+        std::string ddog_err(ddog_Error_message(&res.err).ptr);
+        errmsg = "Could not create profile, err: " + ddog_err;
+        ddog_Error_drop(&res.err);
+        throw::std::runtime_error(errmsg);
+        return;
     }
     ddog_profile = &res.ok;
 
+    // Initialize storage
+    locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
+
     // Prepare for use
     reset();
-
-    // Initialize the size for buffers
-    cur_frame = 0;
 }
 
 Profile::~Profile()
@@ -369,45 +373,42 @@ Profile::reset()
 }
 
 bool
-Profile::start_sample(unsigned int nframes)
+Profile::start_sample()
 {
     // NB, since string_storage is a deque, `clear()` may not return all of
     // the allocated space
     strings.clear();
     string_storage.clear();
     clear_buffers();
-    this->nframes = nframes;
     return true;
 }
 
 void
 Profile::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    if (cur_frame >= locations.size())
-        return;
-
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
     name = insert_or_get(name);
     filename = insert_or_get(filename);
 
-    locations[cur_frame] = ddog_prof_Location{
-        {},
-        ddog_prof_Function{
-          to_slice(name),
-          {},
-          to_slice(filename),
-          line,
+    ddog_prof_Location loc = {
+        null_mapping, // No support for mappings in Python
+        {
+            to_slice(name),
+            {}, // No support for system name in Python
+            to_slice(filename),
+            0  // We don't know the start_line in the typical case
         },
         address,
         line,
     };
-    ++cur_frame;
+    locations.push_back(loc);
 }
 
 void
 Profile::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (cur_frame <= max_nframes)
+    if (locations.size() < max_nframes)
         push_frame_impl(name, filename, address, line);
 }
 
@@ -455,9 +456,8 @@ Profile::clear_buffers()
 {
     std::fill(values.begin(), values.end(), 0);
     std::fill(std::begin(labels), std::end(labels), ddog_prof_Label{});
+    locations.clear();
     cur_label = 0;
-    cur_frame = 0;
-    nframes = 0;
 }
 
 bool
@@ -465,15 +465,15 @@ Profile::flush_sample()
 {
     // We choose to normalize thread counts against the user's indicated
     // preference, even though we have no control over how many frames are sent.
-    if (nframes > max_nframes) {
-        auto dropped_frames = nframes - max_nframes;
+    if (locations.size() > max_nframes) {
+        auto dropped_frames = locations.size() - max_nframes;
         std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Profile::push_frame_impl(name, "", 0, 0);
     }
 
     ddog_prof_Sample sample = {
-        .locations = { &locations[0], cur_frame },
+        .locations = { &locations[0], locations.size() },
         .values = { &values[0], values.size() },
         .labels = { &labels[0], cur_label },
     };

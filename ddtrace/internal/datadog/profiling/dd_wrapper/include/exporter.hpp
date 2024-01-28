@@ -136,16 +136,11 @@ private:
 
   unsigned int type_mask;
   unsigned int max_nframes;
-  unsigned int nframes;
 
   std::string errmsg;
 
   // Keeps temporary buffer of frames in the stack
-  // 512 is the max depth allowed by the backend, plus it is limited
-  // by user configuration
-  // Bump it by 8 for potential virtual frames
-  std::array<ddog_prof_Location, 512 + 8> locations;
-  size_t cur_frame;
+  std::vector<ddog_prof_Location> locations;
 
   // Storage for labels
   std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)>
@@ -181,7 +176,7 @@ public:
   ddog_prof_Profile *ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
-  bool start_sample(unsigned int nframes);
+  bool start_sample();
 
   // Add values
   bool push_walltime(int64_t walltime, int64_t count);
