@@ -48,6 +48,9 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.15.1"
 
+# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+if CURRENT_OS == "Darwin":
+    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
@@ -512,7 +515,7 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
+        "importlib_metadata<=6.5.0; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",

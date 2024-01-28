@@ -272,6 +272,11 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
+        "_trace_enabled": _ConfigItem(
+            name="trace_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
@@ -291,6 +296,21 @@ def _default_config():
             name="tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
+        ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+        ),
+        "_asm_enabled": _ConfigItem(
+            name="asm_enabled",
+            default=False,
+            envs=[("DD_APPSEC_ENABLED", asbool)],
+        ),
+        "_dsm_enabled": _ConfigItem(
+            name="dsm_enabled",
+            default=False,
+            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
     }
 
@@ -749,10 +769,14 @@ class Config(object):
         selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
         self.http = HttpConfig(header_tags=selected_header_tags)
 
-    def _format_tags(self, tags):
+    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
-        return {k: v for k, v in [t.split(":") for t in tags]}
+        if isinstance(tags[0], Dict):
+            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        else:
+            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
         # type: () -> None
