@@ -565,6 +565,8 @@ class DummyTracer(Tracer):
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
+        # disable backoff because it makes these tests less reliable
+        self._writer._send_payload_with_backoff = self._writer._send_payload
 
     @property
     def agent_url(self):
@@ -981,6 +983,9 @@ def snapshot_context(
     ignores = ignores or []
     if not tracer:
         tracer = ddtrace.tracer
+
+    # disable backoff because it makes these tests less reliable
+    tracer._writer._send_payload_with_backoff = tracer._writer._send_payload
 
     parsed = parse.urlparse(tracer._writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
