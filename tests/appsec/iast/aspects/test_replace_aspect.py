@@ -543,3 +543,54 @@ def test_replace_tainted_shrinking_ranges(origstr, substr, replstr, maxcount, ex
     assert replaced == expected
     assert as_formatted_evidence(replaced) == formatted
     assert is_pyobject_tainted(replaced) is True
+
+
+@pytest.mark.parametrize(
+    "origstr, taint_len, substr, replstr, maxcount, expected, formatted",
+    [
+        ("abcd", 3, "", "_", None, "_a_b_c_d_", "_:+-<name>a<name>-+:_:+-<name>b<name>-+:_:+-<name>c<name>-+:_d_"),
+        ("abcd", 3, "", "_", 1, "_abcd", "_:+-<name>abc<name>-+:d"),
+        ("abcd", 3, "", "_", 2, "_a_bcd", "_:+-<name>a<name>-+:_:+-<name>bc<name>-+:d"),
+        ("", 0, "", "_", 1, "_", "_"),
+        ("", 0, "", "_", 2, "_", "_"),
+        ("a", 1, "", "_", 1, "_a", "_:+-<name>a<name>-+:"),
+        ("a", 1, "", "_", 2, "_a_", "_:+-<name>a<name>-+:_"),
+        ("a", 1, "", "_", 0, "a", ":+-<name>a<name>-+:"),
+        (b"abcd", 3, b"", b"_", None, b"_a_b_c_d_", b"_:+-<name>a<name>-+:_:+-<name>b<name>-+:_:+-<name>c<name>-+:_d_"),
+        (b"abcd", 3, b"", b"_", 1, b"_abcd", b"_:+-<name>abc<name>-+:d"),
+        (b"abcd", 3, b"", b"_", 2, b"_a_bcd", b"_:+-<name>a<name>-+:_:+-<name>bc<name>-+:d"),
+        (b"", 0, b"", b"_", 1, b"_", b"_"),
+        (b"", 0, b"", b"_", 2, b"_", b"_"),
+        (b"a", 1, b"", b"_", 1, b"_a", b"_:+-<name>a<name>-+:"),
+        (b"a", 1, b"", b"_", 2, b"_a_", b"_:+-<name>a<name>-+:_"),
+        (b"a", 1, b"", b"_", 0, b"a", b":+-<name>a<name>-+:"),
+        (
+            bytearray(b"abcd"),
+            3,
+            b"",
+            b"_",
+            None,
+            b"_a_b_c_d_",
+            bytearray(b"_:+-<name>a<name>-+:_:+-<name>b<name>-+:_:+-<name>c<name>-+:_d_"),
+        ),
+        (bytearray(b"abcd"), 3, b"", b"_", 1, b"_abcd", bytearray(b"_:+-<name>abc<name>-+:d")),
+        (bytearray(b"abcd"), 3, b"", b"_", 2, b"_a_bcd", bytearray(b"_:+-<name>a<name>-+:_:+-<name>bc<name>-+:d")),
+        (bytearray(b""), 3, b"", b"_", 1, b"_", bytearray(b"_")),
+        (bytearray(b""), 3, b"", b"_", 2, b"_", bytearray(b"_")),
+        (bytearray(b"a"), 3, b"", b"_", 1, b"_a", bytearray(b"_:+-<name>a<name>-+:")),
+        (bytearray(b"a"), 3, b"", b"_", 2, b"_a_", bytearray(b"_:+-<name>a<name>-+:_")),
+        (bytearray(b"a"), 3, b"", b"_", 0, b"a", bytearray(b":+-<name>a<name>-+:")),
+    ],
+)
+def test_replace_aspect_more(origstr, taint_len, substr, replstr, maxcount, expected, formatted):
+    set_ranges(
+        origstr,
+        (_build_sample_range(0, taint_len, "name"),),
+    )
+    if maxcount is None:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+    else:
+        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+
+    assert replaced == expected
+    assert as_formatted_evidence(replaced) == formatted

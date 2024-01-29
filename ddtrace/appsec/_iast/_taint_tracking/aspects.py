@@ -608,7 +608,12 @@ def _distribute_ranges_and_escape(
         if element is None:
             extra += len_separator
             continue
-        element_end = element_start + len(element)
+        # DEV: If this if is True, it means that the element is part of bytes/bytearray
+        if isinstance(element, int):
+            len_element = 1
+        else:
+            len_element = len(element)
+        element_end = element_start + len_element
         new_ranges = {}  # type: Dict[TaintRange, TaintRange]
 
         for taint_range in ranges:
@@ -638,7 +643,11 @@ def _distribute_ranges_and_escape(
             new_ranges[new_range] = taint_range
 
         element_ranges = tuple(new_ranges.keys())
-        element_new_id = new_pyobject_id(element)
+        # DEV: If this if is True, it means that the element is part of bytes/bytearray
+        if isinstance(element, int):
+            element_new_id = new_pyobject_id(bytes(chr(element), "utf-8"))
+        else:
+            element_new_id = new_pyobject_id(element)
         set_ranges(element_new_id, element_ranges)
 
         formatted_elements_append(
@@ -659,6 +668,7 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
     if not ranges_orig:  # Ranges in args/kwargs are checked
         return candidate_text.replace(*args, **kwargs)
 
+    empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""
     old_value = parse_params(0, "old_value", None, *args, **kwargs)
     count = parse_params(2, "count", -1, *args, **kwargs)
     if old_value not in candidate_text:
@@ -667,15 +677,26 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
     if old_value:
         elements = candidate_text.split(old_value, count)
     else:
-        elements = (
-            [
-                "",
-            ]
-            + list(candidate_text)
-            + [
-                "",
-            ]
-        )
+        if count == -1:
+            elements = (
+                [
+                    empty,
+                ]
+                + list(candidate_text)
+                + [
+                    empty,
+                ]
+            )
+        else:
+            elements = (
+                [
+                    empty,
+                ]
+                + list(candidate_text[: count - 1])
+                + [candidate_text[count - 1 :]]
+            )
+            if count == -1 or count > len(candidate_text) + 2:
+                elements.append(empty)
     i = 0
     new_elements = []  # type: List[Optional[TEXT_TYPE]]
     new_elements_append = new_elements.append
@@ -739,6 +760,13 @@ def replace_aspect(
     args = args[flag_added_args:]
     if not isinstance(candidate_text, TEXT_TYPES):
         return candidate_text.replace(*args, **kwargs)
+
+    ###
+    # Optimization: if we're not going to replace, just return the original string
+    count = parse_params(2, "count", -1, *args, **kwargs)
+    if count == 0:
+        return candidate_text
+    ###
     try:
         return aspect_replace_api(candidate_text, *args, **kwargs)
     except Exception as e:
