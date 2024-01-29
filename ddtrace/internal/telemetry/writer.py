@@ -332,9 +332,6 @@ class TelemetryWriter(PeriodicService):
         if cfg_name == "_trace_enabled":
             name = "trace_enabled"
             value = "true" if item.value() else "false"
-        elif cfg_name == "_profiling_enabled":
-            name = "profiling_enabled"
-            value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
             name = "appsec_enabled"
             value = "true" if item.value() else "false"
@@ -372,7 +369,6 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 self._telemetry_entry("_trace_enabled"),
-                self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
@@ -429,6 +425,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
+                (PROFILING_ENABLED, config.profiling_enabled, "unknown"),
+                (PROFILING_STACK_ENABLED, config.profiling.stack.enabled, "unknown"),
+                (PROFILING_MEMORY_ENABLED, config.profiling.memory.enabled, "unknown"),
+                (PROFILING_HEAP_ENABLED, config.profiling.heap_sample_size > 0, "unknown"),
+                (PROFILING_LOCK_ENABLED, config.profiling.lock.enabled, "unknown"),
+                (PROFILING_EXPORT_PY_ENABLED, config.profiling.export.py_enabled, "unknown"),
+                (PROFILING_EXPORT_LIBDD_ENABLED, config.profiling.export.libdd_enabled, "unknown"),
+                (PROFILING_CAPTURE_PCT, config.profiling.capture_pct, "unknown"),
+                (PROFILING_MAX_FRAMES, config.profiling.max_frames, "unknown"),
             ]
         )
 
