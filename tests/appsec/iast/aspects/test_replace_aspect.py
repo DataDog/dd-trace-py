@@ -23,6 +23,14 @@ def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
         ("cbc", "b", "de", -1, "cdec"),
         ("dbc", "b", "de", 0, "dbc"),
         ("ebbbcbbb", "bbb", "de", 1, "edecbbb"),
+        (b"abbbc", b"bbb", b"d", None, b"adc"),
+        (b"cbc", b"b", b"de", -1, b"cdec"),
+        (b"dbc", b"b", b"de", 0, b"dbc"),
+        (b"ebbbcbbb", b"bbb", b"de", 1, b"edecbbb"),
+        (bytearray(b"abbbc"), b"bbb", b"d", None, bytearray(b"adc")),
+        (bytearray(b"cbc"), b"b", b"de", -1, bytearray(b"cdec")),
+        (bytearray(b"dbc"), b"b", b"de", 0, bytearray(b"dbc")),
+        (bytearray(b"ebbbcbbb"), b"bbb", b"de", 1, bytearray(b"edecbbb")),
     ],
 )
 def test_replace_result(origstr, substr, replstr, maxcount, expected):
@@ -79,12 +87,125 @@ def test_replace_result(origstr, substr, replstr, maxcount, expected):
             "y",
         ),
         (
-            "gbcd",
+            "hbcd",
             ":",
             "-",
             -1,
-            "gbcd",
-            ":+-<test_replace_tainted_orig>gbcd<test_replace_tainted_orig>-+:",
+            "hbcd",
+            ":+-<test_replace_tainted_orig>hbcd<test_replace_tainted_orig>-+:",
+        ),
+        (
+            b"abbbc",
+            b"bbb",
+            b"d",
+            None,
+            b"adc",
+            b":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+:d:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        (
+            b"cbc",
+            b"b",
+            b"de",
+            -1,
+            b"cdec",
+            b":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        (b"dbc", b"b", b"de", 0, b"dbc", b":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),
+        (
+            b"ebbbcbbb",
+            b"bbb",
+            b"de",
+            1,
+            b"edecbbb",
+            b":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",  # noqa: E501
+        ),
+        (
+            b"fbbbcbbb",
+            b"bbb",
+            b"de",
+            3,
+            b"fdecde",
+            b":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de",  # noqa: E501
+        ),
+        (
+            b"gbcd",
+            b"gbcd",
+            b"y",
+            -1,
+            b"y",
+            b"y",
+        ),
+        (
+            b"hbcd",
+            b":",
+            b"-",
+            -1,
+            b"hbcd",
+            b":+-<test_replace_tainted_orig>hbcd<test_replace_tainted_orig>-+:",
+        ),
+        (
+            bytearray(b"abbbc"),
+            b"bbb",
+            b"d",
+            None,
+            bytearray(b"adc"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+:d:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:"  # noqa: E501
+            ),
+        ),
+        (
+            bytearray(b"cbc"),
+            b"b",
+            b"de",
+            -1,
+            bytearray(b"cdec"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:"  # noqa: E501
+            ),
+        ),
+        (
+            bytearray(b"dbc"),
+            b"b",
+            b"de",
+            0,
+            bytearray(b"dbc"),
+            bytearray(b":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),  # noqa: E501
+        ),
+        (
+            bytearray(b"ebbbcbbb"),
+            b"bbb",
+            b"de",
+            1,
+            bytearray(b"edecbbb"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:"  # noqa: E501
+            ),
+        ),
+        (
+            bytearray(b"fbbbcbbb"),
+            b"bbb",
+            b"de",
+            3,
+            bytearray(b"fdecde"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+:de:+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:de"  # noqa: E501
+            ),
+        ),
+        (
+            bytearray(b"gbcd"),
+            b"gbcd",
+            b"y",
+            -1,
+            bytearray(b"y"),
+            bytearray(b"y"),
+        ),
+        (
+            bytearray(b"hbcd"),
+            b":",
+            b"-",
+            -1,
+            bytearray(b"hbcd"),
+            bytearray(b":+-<test_replace_tainted_orig>hbcd<test_replace_tainted_orig>-+:"),
         ),
     ],
 )
@@ -102,7 +223,7 @@ def test_replace_tainted_orig(origstr, substr, replstr, maxcount, expected, form
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
 
     assert replaced == expected
-    assert is_pyobject_tainted(replaced) is (replaced != "y")
+    assert is_pyobject_tainted(replaced) is (replaced not in ("y", b"y", bytearray(b"y")))
     assert as_formatted_evidence(replaced) == formatted
 
 
@@ -119,6 +240,49 @@ def test_replace_tainted_orig(origstr, substr, replstr, maxcount, expected, form
             1,
             "edecbbb",
             "e:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:cbbb",
+        ),
+        (
+            b"abbbc",
+            b"bbb",
+            b"d",
+            None,
+            b"adc",
+            b"a:+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+:c",  # noqa: E501
+        ),
+        (b"cbc", b"b", b"de", -1, b"cdec", b"c:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:c"),
+        (b"dbc", b"b", b"de", 0, b"dbc", b"dbc"),
+        (
+            b"ebbbcbbb",
+            b"bbb",
+            b"de",
+            1,
+            b"edecbbb",
+            b"e:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:cbbb",
+        ),
+        (
+            bytearray(b"abbbc"),
+            b"bbb",
+            b"d",
+            None,
+            bytearray(b"adc"),
+            bytearray(b"a:+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+:c"),  # noqa: E501
+        ),
+        (
+            bytearray(b"cbc"),
+            b"b",
+            b"de",
+            -1,
+            bytearray(b"cdec"),
+            bytearray(b"c:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:c"),  # noqa: E501
+        ),
+        (bytearray(b"dbc"), b"b", b"de", 0, bytearray(b"dbc"), bytearray(b"dbc")),
+        (
+            bytearray(b"ebbbcbbb"),
+            b"bbb",
+            b"de",
+            1,
+            bytearray(b"edecbbb"),
+            bytearray(b"e:+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:cbbb"),
         ),
     ],
 )
@@ -177,6 +341,96 @@ def test_replace_tainted_replstr(origstr, substr, replstr, maxcount, expected, f
             ":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:",
         ),
         ("gbcd", "gbcd", "y", -1, "y", ":+-<test_replace_tainted_replstr>y<test_replace_tainted_replstr>-+:"),
+        (
+            b"abbbc",
+            b"bbb",
+            b"d",
+            None,
+            b"adc",
+            b":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",
+        ),
+        (
+            b"cbc",
+            b"b",
+            b"de",
+            -1,
+            b"cdec",
+            b":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:",
+        ),
+        (b"dbc", b"b", b"de", 0, b"dbc", b":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),
+        (
+            b"ebbbcbbb",
+            b"bbb",
+            b"de",
+            1,
+            b"edecbbb",
+            b":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:",
+        ),
+        (
+            b"fbbbcbbb",
+            b"bbb",
+            b"de",
+            3,
+            b"fdecde",
+            b":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:",
+        ),
+        (b"gbcd", b"gbcd", b"y", -1, b"y", b":+-<test_replace_tainted_replstr>y<test_replace_tainted_replstr>-+:"),
+        (
+            bytearray(b"abbbc"),
+            b"bbb",
+            b"d",
+            None,
+            bytearray(b"adc"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>a<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>d<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:"
+            ),
+        ),
+        (
+            bytearray(b"cbc"),
+            b"b",
+            b"de",
+            -1,
+            bytearray(b"cdec"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+:"
+            ),
+        ),
+        (
+            bytearray(b"dbc"),
+            b"b",
+            b"de",
+            0,
+            bytearray(b"dbc"),
+            bytearray(b":+-<test_replace_tainted_orig>dbc<test_replace_tainted_orig>-+:"),  # noqa: E501
+        ),
+        (
+            bytearray(b"ebbbcbbb"),
+            b"bbb",
+            b"de",
+            1,
+            bytearray(b"edecbbb"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>e<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>cbbb<test_replace_tainted_orig>-+:"
+            ),
+        ),
+        (
+            bytearray(b"fbbbcbbb"),
+            b"bbb",
+            b"de",
+            3,
+            bytearray(b"fdecde"),
+            bytearray(
+                b":+-<test_replace_tainted_orig>f<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+::+-<test_replace_tainted_orig>c<test_replace_tainted_orig>-+::+-<test_replace_tainted_replstr>de<test_replace_tainted_replstr>-+:"
+            ),
+        ),
+        (
+            bytearray(b"gbcd"),
+            b"gbcd",
+            b"y",
+            -1,
+            bytearray(b"y"),
+            bytearray(b":+-<test_replace_tainted_replstr>y<test_replace_tainted_replstr>-+:"),  # noqa: E501
+        ),
     ],
 )
 def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, expected, formatted):
@@ -207,19 +461,35 @@ def test_replace_tainted_orig_and_repl(origstr, substr, replstr, maxcount, expec
     "origstr, substr, replstr, maxcount, expected, formatted",
     [
         (
-            "ababbca",
+            "abaabbcaaa",
             "a",
             "",
             None,
             "bbbc",
             "bbbc",
         ),
+        (
+            b"abaabbcaaa",
+            b"a",
+            b"",
+            None,
+            b"bbbc",
+            b"bbbc",
+        ),
+        (
+            bytearray(b"abaabbcaaa"),
+            b"a",
+            b"",
+            None,
+            bytearray(b"bbbc"),
+            bytearray(b"bbbc"),
+        ),
     ],
 )
 def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcount, expected, formatted):
     set_ranges(
         origstr,
-        (_build_sample_range(0, 1, "name"), _build_sample_range(2, 1, "name"), _build_sample_range(5, 1, "name")),
+        (_build_sample_range(0, 1, "name"), _build_sample_range(2, 2, "name"), _build_sample_range(6, 3, "name")),
     )
     if maxcount is None:
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
@@ -241,6 +511,22 @@ def test_replace_tainted_results_in_no_tainted(origstr, substr, replstr, maxcoun
             None,
             "zabzabbcza",
             "z:+-<name>a<name>-+:bz:+-<name>a<name>-+:bbcz:+-<name>a<name>-+:",
+        ),
+        (
+            b"aaabaaabbcaaa",
+            b"aa",
+            b"z",
+            None,
+            b"zabzabbcza",
+            b"z:+-<name>a<name>-+:bz:+-<name>a<name>-+:bbcz:+-<name>a<name>-+:",
+        ),
+        (
+            bytearray(b"aaabaaabbcaaa"),
+            b"aa",
+            b"z",
+            None,
+            bytearray(b"zabzabbcza"),
+            bytearray(b"z:+-<name>a<name>-+:bz:+-<name>a<name>-+:bbcz:+-<name>a<name>-+:"),
         ),
     ],
 )
