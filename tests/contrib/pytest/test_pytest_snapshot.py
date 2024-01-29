@@ -74,7 +74,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             )
         ):
             with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisiblity._check_settings_api",
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
                 subprocess.run(["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace"])
@@ -114,7 +114,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             )
         ):
             with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisiblity._check_settings_api",
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
                 subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
