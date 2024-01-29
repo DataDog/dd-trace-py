@@ -79,12 +79,6 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 
-# unsubscribe listeners to the "_tracing_enabled" config change event
-# because the tracer uses such a listener to disable itself
-# the tracer controls the sending of telemetry events, so when it's disabled none of these
-# events are sent
-config._subscriptions = [a for a in config._subscriptions if a[0][0] != "_tracing_enabled"]
-
 config._trace_sample_rate = 0.2
 config.logs_injection = False
 config.trace_http_header_tags = {"header": "value"}
@@ -175,7 +169,6 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
 
-config._subscriptions = [a for a in config._subscriptions if a[0][0] != "tracing_enabled"]
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.5}))
 with tracer.trace("test") as span:
     pass
