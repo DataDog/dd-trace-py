@@ -45,7 +45,7 @@ GITHUB_URL_LIBDATADOG=https://github.com/DataDog/libdatadog/releases/download/${
 SHA256_LIBDATADOG="blank"
 while IFS='  ' read -r checksum filename; do
     if [ "$filename" == "$TAR_LIBDATADOG" ]; then
-        SHA256_LIBDATADOG=$checksum
+        SHA256_LIBDATADOG="$checksum  $filename"
         break
     fi
 done < "$CHECKSUM_FILE"
