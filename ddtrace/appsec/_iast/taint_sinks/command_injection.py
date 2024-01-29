@@ -113,22 +113,6 @@ class CommandInjection(VulnerabilityBase):
         return ret
 
     @classmethod
-    def replace_tokens(
-        cls,
-        vuln,
-        vulns_to_tokens,
-        has_range=False,
-    ):
-        ret = vuln.evidence.value
-        replaced = False
-
-        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-            ret = ret.replace(token, "")
-            replaced = True
-
-        return ret, replaced
-
-    @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
         if not asm_config._iast_redaction_enabled:
             return report

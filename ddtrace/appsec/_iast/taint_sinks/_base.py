@@ -237,6 +237,8 @@ class VulnerabilityBase(Operation):
         already_scrubbed = {}
 
         sources_values_to_scrubbed = {}
+        vulns_to_text = {vuln: cls._get_vulnerability_text(vuln) for vuln in report.vulnerabilities}
+        vulns_to_tokens = cls._extract_sensitive_tokens(vulns_to_text)
 
         for source in report.sources:
             # Join them so we only run the regexps once for each source
@@ -246,10 +248,20 @@ class VulnerabilityBase(Operation):
                 already_scrubbed[source.value] = scrubbed
                 source.redacted = True
                 sources_values_to_scrubbed[source.value] = scrubbed
-                source.value = scrubbed
+                source.pattern = scrubbed
+                source.value = None
 
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
+            if vuln.evidence.value is not None:
+                pattern, replaced = cls.replace_tokens(
+                    vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source")
+                )
+                if replaced:
+                    vuln.evidence.pattern = pattern
+                    vuln.evidence.redacted = True
+                    vuln.evidence.value = None
+
             if vuln.evidence.valueParts is None:
                 continue
             for part in vuln.evidence.valueParts:

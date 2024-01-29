@@ -22,8 +22,6 @@ from sqlparse import tokens
 
 
 _TEXT_TOKENS_REGEXP = re.compile(r"\b\w+\b")
-_INSIDE_QUOTES_REGEXP = re.compile(r'[\"\']([^"\']*?)[\"\']')
-_INSIDE_QUOTES_REGEXP = re.compile(r"""(['"])(.*?)\1""")
 
 
 @oce.register
@@ -153,10 +151,20 @@ class SqlInjection(VulnerabilityBase):
         while idx < len_parts:
             value = new_valueparts[idx].get("value")
             if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx + 1]:
-                # Scrub the value, which is the next one
-                new_valueparts[idx + 1] = {"redacted": True}
-                idx += 2
-                continue
+                # Scrub the value, which is the next one, except when the previous was a LIKE  or an assigment
+                # in which case this is the value to scrub
+                prev_valuepart = new_valueparts[idx-1].get("value", "").strip().lower()
+                if len(prev_valuepart) and (" like " in prev_valuepart or prev_valuepart[-1] == "="):
+                    new_valueparts[idx] = {"redacted": True}
+                else:  # scrub the next non empty quote value
+                    for part in new_valueparts[idx + 1:]:
+                        idx += 1
+                        next_valuepart = part.get("value", "").strip()
+                        if not len(next_valuepart) or next_valuepart in ("'", '"'):
+                            continue
+
+                        new_valueparts[idx] = {"redacted": True}
+                        break
             idx += 1
 
         vuln.evidence.valueParts = new_valueparts
