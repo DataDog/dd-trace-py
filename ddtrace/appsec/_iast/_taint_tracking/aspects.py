@@ -670,9 +670,15 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
 
     empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""
     old_value = parse_params(0, "old_value", None, *args, **kwargs)
-    count = parse_params(2, "count", -1, *args, **kwargs)
-    if old_value not in candidate_text:
+    new_value = parse_params(1, "new_value", None, *args, **kwargs)
+
+    if old_value is None or new_value is None:
+        return candidate_text.replace(*args, **kwargs)
+
+    if old_value not in candidate_text or old_value == new_value:
         return candidate_text
+
+    count = parse_params(2, "count", -1, *args, **kwargs)
 
     if old_value:
         elements = candidate_text.split(old_value, count)
@@ -695,8 +701,6 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
                 + list(candidate_text[: count - 1])
                 + [candidate_text[count - 1 :]]
             )
-            if count == -1 or count > len(candidate_text) + 2:
-                elements.append(empty)
     i = 0
     new_elements = []  # type: List[Optional[TEXT_TYPE]]
     new_elements_append = new_elements.append
@@ -709,7 +713,6 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
     # We add "None" in the old position and _distribute_ranges_and_escape
     # knows that this is the position of a old value and move len(old_value)
     # positions of the range
-    new_value = parse_params(1, "new_value", None, *args, **kwargs)
     if new_value in ("", b""):
         len_elements = len(elements)
         for element in elements:
