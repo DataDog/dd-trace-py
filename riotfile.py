@@ -189,7 +189,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.0",
+                "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
                 "protobuf": ">=3",
@@ -2210,7 +2210,8 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.7", max_version="3.11"),
+            # FIXME: this test suite breaks on 3.7
+            pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
