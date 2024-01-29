@@ -36,6 +36,7 @@ from ddtrace.internal.logger import get_logger
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
+
 log = get_logger(__name__)
 
 oce = OverheadControl()
