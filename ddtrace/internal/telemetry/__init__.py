@@ -67,3 +67,16 @@ def install_excepthook():
 def uninstall_excepthook():
     """Uninstall the global tracer except hook."""
     sys.excepthook = _ORIGINAL_EXCEPTHOOK
+
+
+def flush_and_disable():
+    if config._telemetry_enabled:
+        # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
+        # Here we submit the remanining span creation metrics without restarting the periodic thread.
+        # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
+        telemetry_writer._is_periodic = False
+        telemetry_writer._enabled = True
+        # XXX this is the line that makes the disablement test pass
+        telemetry_writer.periodic(True)
+        # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
+        telemetry_writer.disable()

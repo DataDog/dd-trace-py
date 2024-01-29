@@ -76,6 +76,9 @@ if TYPE_CHECKING:
     from .internal.writer import AgentResponse  # noqa: F401
 
 
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
+
 log = get_logger(__name__)
 
 
@@ -1005,6 +1008,8 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+
+            telemetry.flush_and_disable()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
