@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix resolves an issue where certain aspects incorrectly expected at least one argument, leading to an IndexError when none were provided. The solution removes this constraint and incorporates regression tests for stability assurance.

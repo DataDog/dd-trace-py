@@ -1,11 +1,12 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.llms.openai.OpenAI",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",

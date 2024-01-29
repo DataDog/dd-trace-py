@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where tagging image inputs in the chat completions endpoint resulted in attribute errors.

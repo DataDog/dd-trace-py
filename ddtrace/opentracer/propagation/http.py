@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict  # noqa:F401
 
 from opentracing import InvalidCarrierException
 
@@ -11,8 +11,8 @@ from .propagator import Propagator
 
 log = get_logger(__name__)
 
-HTTP_BAGGAGE_PREFIX = "ot-baggage-"
-HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)
+_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
+_HTTP_BAGGAGE_PREFIX_LEN = len(_HTTP_BAGGAGE_PREFIX)
 
 
 class HTTPPropagator(Propagator):
@@ -46,7 +46,7 @@ class HTTPPropagator(Propagator):
         # Add the baggage
         if span_context.baggage is not None:
             for key in span_context.baggage:
-                carrier[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
+                carrier[_HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
     @staticmethod
     def extract(carrier):
@@ -68,7 +68,7 @@ class HTTPPropagator(Propagator):
         ddspan_ctx = DDHTTPPropagator.extract(carrier)
         baggage = {}
         for key in carrier:
-            if key.startswith(HTTP_BAGGAGE_PREFIX):
-                baggage[key[HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
+            if key.startswith(_HTTP_BAGGAGE_PREFIX):
+                baggage[key[_HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
 
         return SpanContext(ddcontext=ddspan_ctx, baggage=baggage)

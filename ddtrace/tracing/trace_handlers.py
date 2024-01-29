@@ -1,9 +1,9 @@
 import functools
 import sys
-from typing import Callable
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -143,7 +143,7 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
         )
 
 
-def _make_block_content(ctx, construct_url):
+def _wsgi_make_block_content(ctx, construct_url):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -172,6 +172,54 @@ def _make_block_content(ctx, construct_url):
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware._config, req_span, url, query_string)
+        if query_string and middleware._config.trace_query_string:
+            req_span.set_tag_str(http.QUERY_STRING, query_string)
+        method = environ.get("REQUEST_METHOD")
+        if method:
+            req_span.set_tag_str(http.METHOD, method)
+        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
+        if user_agent:
+            req_span.set_tag_str(http.USER_AGENT, user_agent)
+    except Exception as e:
+        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+
+    return status, resp_headers, content
+
+
+def _asgi_make_block_content(ctx, url):
+    middleware = ctx.get_item("middleware")
+    req_span = ctx.get_item("req_span")
+    headers = ctx.get_item("headers")
+    environ = ctx.get_item("environ")
+    if req_span is None:
+        raise ValueError("request span not found")
+    block_config = core.get_item(HTTP_REQUEST_BLOCKED, span=req_span)
+    desired_type = block_config.get("type", "auto")
+    ctype = None
+    if desired_type == "none":
+        content = ""
+        resp_headers = [
+            (b"content-type", b"text/plain; charset=utf-8"),
+            (b"location", block_config.get("location", "").encode()),
+        ]
+    else:
+        if desired_type == "auto":
+            ctype = (
+                "text/html" if "text/html" in headers.get("Accept", headers.get("accept", "")).lower() else "text/json"
+            )
+        else:
+            ctype = "text/" + block_config["type"]
+        content = http_utils._get_blocked_template(ctype).encode("UTF-8")
+        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
+        resp_headers = [(b"content-type", ctype.encode())]
+    status = block_config.get("status_code", 403)
+    try:
+        req_span.set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
+        if ctype is not None:
+            req_span.set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
+        req_span.set_tag_str(http.STATUS_CODE, str(status))
+        query_string = environ.get("QUERY_STRING")
+        _set_url_tag(middleware.integration_config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
             req_span.set_tag_str(http.QUERY_STRING, query_string)
         method = environ.get("REQUEST_METHOD")
@@ -469,7 +517,6 @@ def _on_django_after_request_headers_post(
     span: Span,
     django_config,
     request,
-    body,
     url,
     raw_uri,
     status,
@@ -488,7 +535,6 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        request_body=body,
         peer_ip=core.get_item("http.request.remote_ip", span=span),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
@@ -496,12 +542,13 @@ def _on_django_after_request_headers_post(
 
 
 def listen():
-    core.on("wsgi.block.started", _make_block_content)
+    core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
+    core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
     core.on("wsgi.app.exception", _on_app_exception)
-    core.on("wsgi.request.complete", _on_request_complete)
+    core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
@@ -531,7 +578,7 @@ def listen():
         "django.process_exception",
         "django.func.wrapped",
     ):
-        core.on(f"context.started.{context_name}", _start_span)
+        core.on(f"context.started.start_span.{context_name}", _start_span)
 
 
 listen()

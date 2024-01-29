@@ -2,19 +2,19 @@ import os
 import re
 import sys
 from typing import TYPE_CHECKING
+from typing import List
 
+from ddtrace import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable
-    from typing import Dict
-    from typing import Iterable
-    from typing import List
-    from typing import Tuple
-    from typing import Union
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
-    from ddtrace import Span
 
 import graphql
 from graphql import MiddlewareManager
@@ -27,7 +27,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.internal.compat import stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -291,8 +290,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _set_span_errors(errors, span):
-    # type: (List[GraphQLError], Span) -> None
+def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return
@@ -300,7 +298,7 @@ def _set_span_errors(errors, span):
     span.error = 1
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
     span.set_tag_str(ERROR_TYPE, exc_type_str)
-    error_msgs = "\n".join([stringify(error) for error in errors])
+    error_msgs = "\n".join([str(error) for error in errors])
     # Since we do not support adding and visualizing multiple tracebacks to one span
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.

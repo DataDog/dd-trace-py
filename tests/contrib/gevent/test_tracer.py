@@ -1,4 +1,4 @@
-import subprocess
+import subprocess  # noqa:I001
 
 import gevent
 import gevent.pool
@@ -11,7 +11,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
-from ddtrace.internal.compat import PY3
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 
@@ -396,14 +395,13 @@ class TestGeventTracer(TracerTestCase):
         """
 
         # Ensure modules are installed
-        if PY3:
-            import aiohttp  # noqa
-            import aiobotocore  # noqa
-        import botocore  # noqa
-        import elasticsearch  # noqa
-        import opensearchpy  # noqa
-        import pynamodb  # noqa
-        import requests  # noqa
+        import aiobotocore  # noqa:F401
+        import aiohttp  # noqa:F401
+        import botocore  # noqa:F401
+        import elasticsearch  # noqa:F401
+        import opensearchpy  # noqa:F401
+        import pynamodb  # noqa:F401
+        import requests  # noqa:F401
 
         p = subprocess.Popen(
             ["ddtrace-run", "python", "tests/contrib/gevent/monkeypatch.py"],

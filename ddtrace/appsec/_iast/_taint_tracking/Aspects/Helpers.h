@@ -9,9 +9,6 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-size_t
-get_pyobject_size(PyObject* obj);
-
 // Calls the specified method and applies the same ranges to the result. Used
 // for wrapping simple methods that doesn't change the string size like upper(),
 // lower() and similar.
@@ -24,10 +21,25 @@ common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-as_formatted_evidence(StrType& text,
-                      optional<TaintRangeRefs>& text_ranges,
-                      const optional<TagMappingMode>& tag_mapping_mode,
-                      const optional<const py::dict>& new_ranges);
+_all_as_formatted_evidence(StrType& text, TagMappingMode tag_mapping_mode);
+
+template<class StrType>
+StrType
+_int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingMode tag_mapping_mode);
+
+template<class StrType>
+StrType
+AsFormattedEvidence(StrType& text,
+                    optional<TaintRangeRefs>& text_ranges,
+                    const TagMappingMode& tag_mapping_mode,
+                    const optional<const py::dict>& new_ranges);
+
+template<class StrType>
+StrType
+ApiAsFormattedEvidence(StrType& text,
+                       optional<TaintRangeRefs>& text_ranges,
+                       const optional<TagMappingMode>& tag_mapping_mode,
+                       const optional<const py::dict>& new_ranges);
 
 py::bytearray
 api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);

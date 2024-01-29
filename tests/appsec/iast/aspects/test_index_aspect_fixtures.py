@@ -3,35 +3,28 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-if python_supported_by_iast():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_string_index_error_index_error():
     with pytest.raises(IndexError) as excinfo:
         mod.do_index("abc", 22)  # pylint: disable=no-member
     assert "string index out of range" in str(excinfo.value)
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_string_index_error_type_error():
     with pytest.raises(TypeError) as excinfo:
         mod.do_index("abc", "22")  # pylint: disable=no-member
     assert "string indices must be integers" in str(excinfo.value)
 
 
-@pytest.mark.skipif(
-    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
-)
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, index_pos, expected_result, tainted",
     [
@@ -66,9 +59,7 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
         assert tainted_ranges[0].length == 1
 
 
-@pytest.mark.skipif(
-    not python_supported_by_iast() or sys.version_info < (3, 9, 0), reason="Python version not supported by IAST"
-)
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",

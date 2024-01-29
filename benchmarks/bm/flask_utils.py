@@ -68,13 +68,13 @@ def post_fork(server, worker):
     # This will not work with gevent workers as the gevent hub has not been
     # initialized when this hook is called.
     if os.environ.get("PERF_TRACER_ENABLED") == "True":
-        import ddtrace.bootstrap.sitecustomize  # noqa
+        import ddtrace.bootstrap.sitecustomize  # noqa:F401
 
 
 def post_worker_init(worker):
     # If profiling enabled but not tracer than only run auto script for profiler
     if os.environ.get("PERF_PROFILER_ENABLED") == "1" and os.environ.get("PERF_TRACER_ENABLED") == "0":
-        import ddtrace.profiling.auto  # noqa
+        import ddtrace.profiling.auto  # noqa:F401
     if os.environ.get("PERF_DEBUGGER_ENABLED") == "True":
         from bm.di_utils import BMDebugger
 

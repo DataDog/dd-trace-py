@@ -18,4 +18,4 @@ is unsupported and may lead to undefined behavior::
 If you'd like more granular control over instrumentation setup, you can call the `patch*` functions
 directly.
 """
-import ddtrace.bootstrap.sitecustomize  # noqa
+import ddtrace.bootstrap.sitecustomize  # noqa:F401

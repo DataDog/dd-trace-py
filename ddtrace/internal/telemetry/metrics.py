@@ -1,18 +1,16 @@
 # -*- coding: utf-8 -*-
 import abc
 import time
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-
-import six
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
 
-class Metric(six.with_metaclass(abc.ABCMeta)):
+class Metric(metaclass=abc.ABCMeta):
     """
     Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer
     """

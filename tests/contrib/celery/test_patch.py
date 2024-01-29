@@ -9,20 +9,24 @@ class CeleryPatchTest(unittest.TestCase):
         import celery
 
         from ddtrace import patch
+        from ddtrace.contrib.celery import unpatch
 
         patch(celery=True)
 
         app = celery.Celery()
         assert Pin.get_from(app) is not None
+        unpatch()
 
     def test_patch_before_import(self):
         from ddtrace import patch
+        from ddtrace.contrib.celery import unpatch
 
         patch(celery=True)
         import celery
 
         app = celery.Celery()
         assert Pin.get_from(app) is not None
+        unpatch()
 
     def test_and_emit_get_version(self):
         from ddtrace.contrib.celery import get_version

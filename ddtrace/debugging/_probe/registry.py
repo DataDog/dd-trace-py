@@ -51,7 +51,7 @@ class ProbeRegistry(dict):
 
     def __init__(self, status_logger: ProbeStatusLogger, *args: Any, **kwargs: Any) -> None:
         """Initialize the probe registry."""
-        super(ProbeRegistry, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.logger = status_logger
 
         # Used to keep track of probes pending installation
@@ -180,4 +180,4 @@ class ProbeRegistry(dict):
         assert isinstance(probe, Probe), probe  # nosec
 
         with self._lock:
-            return super(ProbeRegistry, self).__contains__(probe.probe_id)
+            return super().__contains__(probe.probe_id)

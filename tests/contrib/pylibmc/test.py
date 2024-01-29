@@ -283,6 +283,10 @@ class PylibmcCore(object):
 
             spans = self.get_spans()
             assert len(spans) == 0
+
+            client.get("a")
+
+            client.get_multi(["a"])
         finally:
             tracer.enabled = True
 

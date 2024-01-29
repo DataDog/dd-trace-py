@@ -154,10 +154,12 @@ async def test_patch_unpatch(redis_cluster):
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
 def test_default_service_name_v1():
     import asyncio
-    import sys
 
     import redis
 
@@ -190,21 +192,20 @@ def test_default_service_name_v1():
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
 def test_user_specified_service_v0():
     """
     When a user specifies a service for the app
         The rediscluster integration should not use it.
     """
     import asyncio
-    import sys
 
     import redis
 
@@ -240,21 +241,20 @@ def test_user_specified_service_v0():
         span = spans[0]
         assert span.service != "mysvc"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+@pytest.mark.subprocess(
+    env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
 def test_user_specified_service_v1():
     """
     When a user specifies a service for the app
         The rediscluster integration should use it.
     """
     import asyncio
-    import sys
 
     import redis
 
@@ -290,103 +290,102 @@ def test_user_specified_service_v1():
         span = spans[0]
         assert span.service == "mysvc"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
-
-
-@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-def test_env_user_specified_rediscluster_service_v0():
-    import asyncio
-    import sys
-
-    import redis
-
-    from ddtrace import Pin
-    from ddtrace.contrib.redis import patch
-    from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
-    from tests.utils import TracerSpanContainer
-
-    patch()
-
-    async def test():
-        startup_nodes = [
-            redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
-            for port in REDISCLUSTER_CONFIG["ports"].split(",")
-        ]
-        r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
-        test_spans = TracerSpanContainer(tracer)
-
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service == "myrediscluster"
-
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
-
-
-@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
-@pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-def test_env_user_specified_rediscluster_service_v1():
-    import asyncio
-    import sys
-
-    import redis
-
-    from ddtrace import Pin
-    from ddtrace.contrib.redis import patch
-    from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
-    from tests.utils import TracerSpanContainer
-
-    patch()
-
-    async def test():
-        startup_nodes = [
-            redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
-            for port in REDISCLUSTER_CONFIG["ports"].split(",")
-        ]
-        r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
-        test_spans = TracerSpanContainer(tracer)
-
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service == "myrediscluster"
-
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.subprocess(
-    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
+def test_env_user_specified_rediscluster_service_v0():
+    import asyncio
+
+    import redis
+
+    from ddtrace import Pin
+    from ddtrace.contrib.redis import patch
+    from tests.contrib.config import REDISCLUSTER_CONFIG
+    from tests.utils import DummyTracer
+    from tests.utils import TracerSpanContainer
+
+    patch()
+
+    async def test():
+        startup_nodes = [
+            redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
+            for port in REDISCLUSTER_CONFIG["ports"].split(",")
+        ]
+        r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
+        tracer = DummyTracer()
+        test_spans = TracerSpanContainer(tracer)
+
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        await r.get("key")
+        await r.close()
+
+        traces = test_spans.pop_traces()
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "myrediscluster"
+
+    asyncio.run(test())
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.subprocess(
+    env=dict(DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
+)
+def test_env_user_specified_rediscluster_service_v1():
+    import asyncio
+
+    import redis
+
+    from ddtrace import Pin
+    from ddtrace.contrib.redis import patch
+    from tests.contrib.config import REDISCLUSTER_CONFIG
+    from tests.utils import DummyTracer
+    from tests.utils import TracerSpanContainer
+
+    patch()
+
+    async def test():
+        startup_nodes = [
+            redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
+            for port in REDISCLUSTER_CONFIG["ports"].split(",")
+        ]
+        r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
+        tracer = DummyTracer()
+        test_spans = TracerSpanContainer(tracer)
+
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        await r.get("key")
+        await r.close()
+
+        traces = test_spans.pop_traces()
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "myrediscluster"
+
+    asyncio.run(test())
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_SERVICE="mysvc",
+        DD_REDIS_SERVICE="myrediscluster",
+        DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0",
+    ),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
 )
 def test_service_precedence_v0():
     import asyncio
-    import sys
 
     import redis
 
@@ -422,19 +421,16 @@ def test_service_precedence_v0():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.subprocess(
-    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
+    err=None,  # avoid checking stderr because of an expected deprecation warning
 )
 def test_service_precedence_v1():
     import asyncio
-    import sys
 
     import redis
 
@@ -470,7 +466,4 @@ def test_service_precedence_v1():
         span = spans[0]
         assert span.service == "myrediscluster"
 
-    if sys.version_info >= (3, 7, 0):
-        asyncio.run(test())
-    else:
-        asyncio.get_event_loop().run_until_complete(test())
+    asyncio.run(test())

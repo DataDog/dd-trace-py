@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -8,11 +8,11 @@ from ddtrace.internal.utils.cache import cachedmethod
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from .span import Span
+    from .span import Span  # noqa:F401
 
 log = get_logger(__name__)
 KNUTH_FACTOR = 1111111111111111111

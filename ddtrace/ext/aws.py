@@ -1,10 +1,10 @@
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Dict
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.span import Span
+    from ddtrace.span import Span  # noqa:F401
 
 
 def truncate_arg_value(value, max_len=1024):

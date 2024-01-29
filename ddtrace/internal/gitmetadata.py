@@ -1,4 +1,4 @@
-import typing
+import typing  # noqa:F401
 
 from envier import Env
 

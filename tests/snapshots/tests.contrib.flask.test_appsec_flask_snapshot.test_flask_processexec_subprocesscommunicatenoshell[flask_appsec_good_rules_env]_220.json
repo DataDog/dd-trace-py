@@ -7,9 +7,10 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
-      "_dd.appsec.waf.version": "1.15.0",
+      "_dd.appsec.waf.version": "1.15.1",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -53,6 +54,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
@@ -70,6 +73,8 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -85,6 +90,8 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -100,6 +107,8 @@
              "trace_id": 0,
              "span_id": 9,
              "parent_id": 5,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "_dd.p.tid": "654a694400000000",
@@ -116,6 +125,7 @@
                 "span_id": 10,
                 "parent_id": 9,
                 "type": "system",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000"
@@ -131,6 +141,7 @@
                 "span_id": 11,
                 "parent_id": 9,
                 "type": "system",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000",
@@ -149,6 +160,7 @@
                 "span_id": 12,
                 "parent_id": 9,
                 "type": "system",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "_dd.p.tid": "654a694400000000",
@@ -166,6 +178,8 @@
           "trace_id": 0,
           "span_id": 6,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -181,6 +195,8 @@
           "trace_id": 0,
           "span_id": 7,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -196,6 +212,8 @@
           "trace_id": 0,
           "span_id": 8,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "_dd.p.tid": "654a694400000000",
@@ -211,6 +229,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",

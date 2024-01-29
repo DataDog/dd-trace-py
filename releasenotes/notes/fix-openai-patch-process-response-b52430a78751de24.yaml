@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where an internal OpenAI method `SyncAPIClient._process_response` 
+     was not being patched correctly and led to to an AttributeError while patching.

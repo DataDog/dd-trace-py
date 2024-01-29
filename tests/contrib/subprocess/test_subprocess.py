@@ -11,14 +11,8 @@ from ddtrace.contrib.subprocess.patch import patch
 from ddtrace.contrib.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import PY2
-from ddtrace.internal.compat import PY3
 from tests.utils import override_config
 from tests.utils import override_global_config
-
-
-if PY2:
-    pytest.skip(allow_module_level=True)
 
 
 @pytest.fixture(autouse=True)
@@ -280,8 +274,7 @@ def test_ossystem_noappsec(tracer):
         assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
 
 
-@pytest.mark.skipif(PY2, reason="Python3 specific test (pins into subprocess)")
-def test_py3ospopen(tracer):
+def test_ospopen(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
@@ -300,29 +293,6 @@ def test_py3ospopen(tracer):
         assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
         assert not span.get_tag(COMMANDS.TRUNCATED)
         assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
-
-
-@pytest.mark.skipif(PY3, reason="Python2 specific tests")
-def test_py2ospopen(tracer):
-    with override_global_config(dict(_asm_enabled=True)):
-        patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
-        for func in [os.popen, os.popen2, os.popen3]:
-            with tracer.trace("os.popen"):
-                res = func("dir -li %s" % func.__name__)
-                assert res
-                readpipe = res[0] if isinstance(res, tuple) else res
-                readpipe.close()
-
-            spans = tracer.pop()
-            assert spans
-            assert len(spans) > 1
-            span = spans[1]
-            assert span.name == COMMANDS.SPAN_NAME
-            assert span.resource == "dir"
-            assert span.get_tag(COMMANDS.EXEC) == str(["dir", "-li", func.__name__])
-            assert not span.get_tag(COMMANDS.TRUNCATED)
-            assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
 _PARAMS = ["/bin/ls", "-l", "/"]
@@ -451,7 +421,6 @@ def test_subprocess_wait_shell_true(tracer):
             assert core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
 
 
-@pytest.mark.skipif(PY2, reason="Python2 does not have subprocess.run")
 def test_subprocess_run(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()

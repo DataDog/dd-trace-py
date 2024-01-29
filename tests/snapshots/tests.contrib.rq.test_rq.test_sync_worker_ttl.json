@@ -1,0 +1,81 @@
+[[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.job_add1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "rq",
+      "job.func_name": "tests.contrib.rq.jobs.job_add1",
+      "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2601
+    },
+    "duration": 830708,
+    "start": 1692649887569483383
+  },
+     {
+       "name": "rq.worker.perform_job",
+       "service": "rq-worker",
+       "resource": "tests.contrib.rq.jobs.job_add1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "654a694400000000",
+         "component": "rq",
+         "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1",
+         "job.origin": "q",
+         "job.status": "None",
+         "language": "python",
+         "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
+         "span.kind": "consumer",
+         "traceparent": "00-0000000000000000dfe7ed03d1f23df4-d773b116ed54102c-01",
+         "tracestate": "dd=s:1;t.dm:-0"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "process_id": 2601
+       },
+       "duration": 1692083,
+       "start": 1692649887575252633
+     },
+        {
+          "name": "rq.job.perform",
+          "service": "rq-worker",
+          "resource": "tests.contrib.rq.jobs.job_add1",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
+            "component": "rq",
+            "job.id": "30c861b5-640d-4d34-aed4-f4a5270723f1"
+          },
+          "duration": 178917,
+          "start": 1692649887575690758
+        }]]

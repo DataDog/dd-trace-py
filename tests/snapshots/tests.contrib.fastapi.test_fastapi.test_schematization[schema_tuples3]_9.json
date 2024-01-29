@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -38,6 +39,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "component": "fastapi",
@@ -60,6 +62,7 @@
           "span_id": 3,
           "parent_id": 2,
           "type": "web",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "component": "fastapi",
@@ -80,6 +83,8 @@
              "trace_id": 0,
              "span_id": 4,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "duration": 87587,
              "start": 1691166911366639806
            }]]

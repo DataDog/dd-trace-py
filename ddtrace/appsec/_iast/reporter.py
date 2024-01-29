@@ -9,13 +9,11 @@ import zlib
 
 import attr
 
-from ddtrace.internal.compat import PY2
-
 
 if TYPE_CHECKING:
-    import Any
-    import Dict
-    import Optional
+    import Any  # noqa:F401
+    import Dict  # noqa:F401
+    import Optional  # noqa:F401
 
 
 def _only_if_true(value):
@@ -69,8 +67,6 @@ class Vulnerability(object):
 
     def __attrs_post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
-        if PY2 and self.hash < 0:
-            self.hash += 1 << 32
 
 
 @attr.s(eq=True, hash=True)

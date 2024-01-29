@@ -2,16 +2,14 @@
 # -*- encoding: utf-8 -*-
 import pytest
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
-if python_supported_by_iast():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
+mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
 
 def catch_all(fun, args, kwargs):
@@ -36,11 +34,7 @@ def catch_all(fun, args, kwargs):
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
 @pytest.mark.parametrize("suffix", [b"", b"abc", b"\xc3\xa9\xc3\xa7"])
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
     if should_be_tainted:
@@ -98,12 +92,7 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
 @pytest.mark.parametrize("should_be_tainted", [False, True])
 @pytest.mark.parametrize("prefix", ["", "abc", "èôï"])
 @pytest.mark.parametrize("suffix", ["", "abc", "èôï"])
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, suffix):
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-
     if should_be_tainted:
         infix = taint_pyobject(
             pyobject=infix, source_name="test_decode_aspect", source_value=infix, source_origin=OriginType.PARAMETER
@@ -136,7 +125,6 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
         assert list_ranges[0].length == len_infix
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_encode_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
@@ -151,7 +139,6 @@ def test_encode_error_and_no_log_metric(telemetry_writer):
     assert len(list_metrics_logs) == 0
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_dencode_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject=b"abcde",

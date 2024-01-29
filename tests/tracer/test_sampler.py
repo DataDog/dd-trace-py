@@ -16,7 +16,6 @@ from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.context import Context
-from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
@@ -990,7 +989,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in iteritems(priority_sampler._by_service_samplers):
+        for k, v in priority_sampler._by_service_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
     # It's important to also test in reverse mode for we want to make sure key deletion
@@ -999,7 +998,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in iteritems(priority_sampler._by_service_samplers):
+        for k, v in priority_sampler._by_service_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
 

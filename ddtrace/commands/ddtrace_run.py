@@ -5,15 +5,10 @@ import logging
 import os
 import shutil
 import sys
-import typing
+import typing  # noqa:F401
 
 import ddtrace
-from ddtrace.internal.compat import PY2
 
-
-if PY2:
-    # Python 2 does not have PermissionError but Python 3 does.
-    PermissionError = None  # noqa: A001
 
 if hasattr(shutil, "which"):
     _which = shutil.which
@@ -147,3 +142,7 @@ def main():
         raise
 
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

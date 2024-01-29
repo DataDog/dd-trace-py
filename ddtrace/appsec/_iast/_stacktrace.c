@@ -17,10 +17,12 @@
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
-#define FRAME_DECREF(frame) Py_DECREF(frame)
+#define FRAME_DECREF(frame) Py_DecRef(frame)
 #define FRAME_XDECREF(frame) Py_XDECREF(frame)
-#define FILENAME_DECREF(filename) Py_DECREF(filename)
-#define FILENAME_XDECREF(filename) Py_XDECREF(filename)
+#define FILENAME_DECREF(filename) Py_DecRef(filename)
+#define FILENAME_XDECREF(filename)                                                                                     \
+    if (filename)                                                                                                      \
+    Py_DecRef(filename)
 static inline PyObject*
 GET_FILENAME(PyFrameObject* frame)
 {
@@ -28,7 +30,9 @@ GET_FILENAME(PyFrameObject* frame)
     if (!code) {
         return NULL;
     }
-    return PyObject_GetAttrString((PyObject*)code, "co_filename");
+    PyObject* filename = PyObject_GetAttrString((PyObject*)code, "co_filename");
+    Py_DecRef(code);
+    return filename;
 }
 #else
 #define GET_FRAME(tstate) tstate->frame
@@ -73,13 +77,11 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     }
     cwd = PyBytes_AsString(cwd_bytes);
     if (!cwd) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
 
     PyFrameObject* frame = GET_FRAME(tstate);
     if (!frame) {
-        Py_DECREF(cwd_bytes);
         goto exit_0;
     }
 
@@ -114,7 +116,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
     }
 
 exit:
-    Py_DECREF(cwd_bytes);
+    Py_DecRef(cwd_bytes);
     FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
     return result;
@@ -124,8 +126,10 @@ exit_0:; // fix: "a label can only be part of a statement and a declaration is n
     PyObject* line_obj = Py_BuildValue("i", 0);
     filename_o = PyUnicode_FromString("");
     result = PyTuple_Pack(2, filename_o, line_obj);
+    Py_DecRef(cwd_bytes);
+    FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
-    Py_DECREF(line_obj);
+    Py_DecRef(line_obj);
     return result;
 }
 

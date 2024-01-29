@@ -1,7 +1,6 @@
 import sqlite3
-import sys
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 import pytest
 
@@ -22,7 +21,7 @@ from tests.utils import assert_is_not_measured
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Generator
+    from typing import Generator  # noqa:F401
 
 
 @pytest.fixture
@@ -463,7 +462,6 @@ def test_iterator_usage(patched_conn):
     assert len(rows) == 1
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="Connection.backup was added in Python 3.7")
 def test_backup(patched_conn):
     """Ensure sqlite3 patched connections backup function can be used"""
     destination = sqlite3.connect(":memory:")

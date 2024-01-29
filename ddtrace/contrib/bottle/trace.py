@@ -91,6 +91,7 @@ class TracePlugin(object):
 
                     method = request.method
                     url = request.urlparts._replace(query="").geturl()
+                    full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
                     trace_utils.set_http_meta(
                         s,
                         config.bottle,
@@ -100,6 +101,7 @@ class TracePlugin(object):
                         query=request.query_string,
                         request_headers=request.headers,
                         response_headers=response.headers,
+                        route=full_route,
                     )
 
         return wrapped

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    psycopg: This fix resolves an issue where exceptions originating from asynchronous Psycopg cursors were not
+    propagated up the call stack.

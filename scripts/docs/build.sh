@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-
-export DD_TRACE_ENABLED=0
-
 set -eux
 
 reno lint

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: Adds code coverage lines covered tag for ``pytest`` and ``unittest``.

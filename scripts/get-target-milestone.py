@@ -3,7 +3,7 @@ import json
 import os
 import re
 import subprocess
-from typing import Optional
+from typing import Optional  # noqa
 
 import packaging.version
 

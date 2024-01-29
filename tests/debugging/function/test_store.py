@@ -4,7 +4,7 @@ import mock
 from mock.mock import call
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import _undecorate
+from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
@@ -143,7 +143,7 @@ def test_function_wrap_decorated():
         )
 
         assert function is not stuff.Stuff.doublydecoratedstuff
-        assert function is _undecorate(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
+        assert function is undecorated(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
 
         arg = mock.Mock()
         store.wrap(function, gen_wrapper(arg, 42))

@@ -3,31 +3,31 @@ from __future__ import absolute_import
 from functools import wraps
 from itertools import repeat
 import random
-import sys
 from time import sleep
 import typing as t
-
-import six
 
 
 class RetryError(Exception):
     pass
 
 
-def retry(after, until=lambda result: result is None, initial_wait=0):
-    # type: (t.Union[int, float, t.Iterable[t.Union[int, float]]], t.Callable[[t.Any], bool], float) -> t.Callable
+def retry(
+    after: t.Union[int, float, t.Iterable[t.Union[int, float]]],
+    until: t.Callable[[t.Any], bool] = lambda result: result is None,
+    initial_wait: float = 0,
+) -> t.Callable:
     def retry_decorator(f):
         @wraps(f)
         def retry_wrapped(*args, **kwargs):
             sleep(initial_wait)
             after_iter = repeat(after) if isinstance(after, (int, float)) else after
-            exc_info = None
+            exception = None
 
             for s in after_iter:
                 try:
                     result = f(*args, **kwargs)
                 except Exception as e:
-                    exc_info = sys.exc_info()
+                    exception = e
                     result = e
 
                 if until(result):
@@ -39,14 +39,14 @@ def retry(after, until=lambda result: result is None, initial_wait=0):
             try:
                 result = f(*args, **kwargs)
             except Exception as e:
-                exc_info = sys.exc_info()
+                exception = e
                 result = e
 
             if until(result):
                 return result
 
-            if exc_info is not None:
-                six.reraise(*exc_info)
+            if exception is not None:
+                raise exception
 
             raise RetryError(result)
 

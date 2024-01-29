@@ -1,6 +1,6 @@
 import functools
 import os
-from typing import Generator
+from typing import Generator  # noqa:F401
 
 import pytest
 

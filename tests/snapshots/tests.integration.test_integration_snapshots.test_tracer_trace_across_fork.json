@@ -1,11 +1,13 @@
 [[
   {
     "name": "parent",
-    "service": null,
+    "service": "",
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -22,11 +24,13 @@
   },
      {
        "name": "child",
-       "service": null,
+       "service": "",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "language": "python",
          "runtime-id": "36f1a5c9396e469291422d40f4296160"

@@ -1,5 +1,5 @@
 from sys import version_info
-from typing import Any
+from typing import Any  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 

@@ -55,7 +55,6 @@ import random
 
 from libc.time cimport time
 
-from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 
 
@@ -72,7 +71,7 @@ cpdef _getstate():
 cpdef seed():
     global state
     random.seed()
-    state = <uint64_t>compat.getrandbits(64) ^ <uint64_t>4101842887655102017
+    state = <uint64_t>random.getrandbits(64) ^ <uint64_t>4101842887655102017
 
 
 # We have to reseed the RNG or we will get collisions between the processes as

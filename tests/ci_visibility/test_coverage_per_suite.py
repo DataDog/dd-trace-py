@@ -6,9 +6,9 @@ import pytest
 
 import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.internal import compat
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -35,7 +35,6 @@ class PytestTestCase(TracerTestCase):
 
         return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_suite_with_pytest_skipped(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -110,9 +109,16 @@ class PytestTestCase(TracerTestCase):
         )
 
         with override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(True, False, False, True),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
@@ -153,7 +159,6 @@ class PytestTestCase(TracerTestCase):
         assert len(files[0]["segments"]) == 1
         assert files[0]["segments"][0] == [2, 0, 2, 0, -1]
 
-    @pytest.mark.skipif(compat.PY2, reason="ddtrace does not support coverage on Python 2")
     def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -198,7 +203,8 @@ class PytestTestCase(TracerTestCase):
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
             }
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(True, True, False, True),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
         ), mock.patch.object(
@@ -208,7 +214,13 @@ class PytestTestCase(TracerTestCase):
                 "test_cov_second.py",
             ],
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]

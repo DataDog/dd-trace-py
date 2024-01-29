@@ -3,15 +3,12 @@ from flask.views import View
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
-from ddtrace.internal.compat import PY2
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
 
 base_exception_name = "builtins.Exception"
-if PY2:
-    base_exception_name = "exceptions.Exception"
 
 EXPECTED_METADATA = {"component": "flask", "_dd.base_service": ""}
 

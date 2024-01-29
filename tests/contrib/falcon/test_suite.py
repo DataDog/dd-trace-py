@@ -111,6 +111,39 @@ class FalconTestCase(FalconTestMixin):
         with self.override_http_config("falcon", dict(trace_query_string=True)):
             return self.test_200("foo=bar&foo=baz&x=y", trace_query_string=True)
 
+    def make_route_reporting_test(self, endpoint, status, expected_route):
+        _ = self.make_test_call(endpoint)
+
+        traces = self.tracer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+
+        assert_is_measured(span)
+        assert span.name == "falcon.request"
+        assert span.service == self._service
+        assert_span_http_status_code(span, status)
+        assert span.get_tag("component") == "falcon"
+        assert span.get_tag("span.kind") == "server"
+        assert span.get_tag("http.route") == expected_route
+        assert span.parent_id is None
+        assert span.span_type == "web"
+
+    def test_route_reporting_200(self):
+        return self.make_route_reporting_test("/200", 200, "/200")
+
+    def test_route_reporting_dynamic_match(self):
+        return self.make_route_reporting_test("/hello/foo", 200, "/hello/{name}")
+
+    def test_route_reporting_404_no_match(self):
+        return self.make_route_reporting_test("/nothing/here", 404, None)
+
+    def test_route_reporting_404_match(self):
+        return self.make_route_reporting_test("/not_found", 404, "/not_found")
+
+    def test_route_reporting_500_match(self):
+        return self.make_route_reporting_test("/exception", 500, "/exception")
+
     def test_analytics_global_on_integration_default(self):
         """
         When making a request

@@ -1,6 +1,9 @@
+import tempfile
+
 import django
 from django.contrib.auth import login
 from django.contrib.auth.models import User
+from django.http import FileResponse
 from django.http import HttpResponse
 from django.urls import include
 from django.urls import path
@@ -26,6 +29,12 @@ def repath_view(request):
 
 def path_view(request):
     return HttpResponse(status=200)
+
+
+def send_file(request):
+    f = tempfile.NamedTemporaryFile()
+    f.write(b"Stream Hello World!" * 100)
+    return FileResponse(f, content_type="text/plain")
 
 
 def authenticated_view(request):
@@ -65,6 +74,7 @@ urlpatterns = [
     handler(r"^template-view/$", views.template_view, name="template-view"),
     handler(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     handler(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    handler(r"^stream-file/$", send_file, name="stream-file"),
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),

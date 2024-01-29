@@ -1,6 +1,6 @@
 import errno
 import re
-from typing import Optional
+from typing import Optional  # noqa:F401
 
 import attr
 

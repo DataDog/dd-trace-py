@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    opentelemetry: datadog operation name from semantic conventions

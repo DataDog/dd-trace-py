@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import time
 
 import pytest
@@ -88,6 +87,16 @@ def test_sync_worker(queue):
 
 
 @snapshot(ignores=snapshot_ignores)
+def test_sync_worker_ttl(queue):
+    # queue a job where the result expires immediately
+    job = queue.enqueue(job_add1, 1, result_ttl=0)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+    assert job.get_status() is None
+    assert job.result is None
+
+
+@snapshot(ignores=snapshot_ignores)
 def test_sync_worker_multiple_jobs(queue):
     jobs = []
     for i in range(3):
@@ -146,9 +155,7 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         distributed_tracing_enabled,
         worker_service_name,
     )
-    num_traces_expected = None
-    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
-        num_traces_expected = 2 if distributed_tracing_enabled is False else 1
+    num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"

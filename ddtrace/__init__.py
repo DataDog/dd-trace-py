@@ -1,10 +1,8 @@
 import sys
 
-
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
-
 
 ModuleWatchdog.install()
 
@@ -21,15 +19,17 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from ddtrace.internal import telemetry
+from .settings import _config as config
 
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
 
-telemetry.install_excepthook()
-# In order to support 3.12, we start the writer upon initialization.
-# See https://github.com/python/cpython/pull/104826.
-# Telemetry events will only be sent after the `app-started` is queued.
-# This will occur when the agent writer starts.
-telemetry.telemetry_writer.enable()
+    telemetry.install_excepthook()
+    # In order to support 3.12, we start the writer upon initialization.
+    # See https://github.com/python/cpython/pull/104826.
+    # Telemetry events will only be sent after the `app-started` is queued.
+    # This will occur when the agent writer starts.
+    telemetry.telemetry_writer.enable()
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402

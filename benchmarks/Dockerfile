@@ -18,7 +18,7 @@ ARG PYTHON_VERSION=3.9.6
 
 COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
-ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:/root/.cargo/bin/:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
 
 ARG SCENARIO=base
@@ -44,6 +44,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl https://sh.rustup.rs -sSf | \
+    sh -s -- --default-toolchain stable -y
 
 # Add base common files used by all scenarios
 COPY ./base/ /app/

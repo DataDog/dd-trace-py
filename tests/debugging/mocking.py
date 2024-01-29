@@ -68,13 +68,6 @@ class MockDebuggingRCV07(object):
 
 
 class MockProbeStatusLogger(DummyProbeStatusLogger):
-    def __init__(self, service, encoder):
-        super(MockProbeStatusLogger, self).__init__(service, encoder)
-        self.queue = []
-
-    def clear(self):
-        self.queue[:] = []
-
     def wait(self, cond, timeout=1.0):
         end = monotonic() + timeout
 

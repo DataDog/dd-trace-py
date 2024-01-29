@@ -1,10 +1,6 @@
-from functools import wraps
-from pathlib import Path
-
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import _undecorate
 import tests.submod.stuff as stuff
 
 
@@ -123,55 +119,3 @@ def test_discovery_after_external_wrapping(stuff):
 def test_property_non_function_getter(stuff_discovery):
     with pytest.raises(ValueError):
         stuff_discovery.by_name("PropertyStuff.foo")
-
-
-def test_undecorate():
-    def d(f):
-        def wrapper(*args, **kwargs):
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    def f():
-        pass
-
-    df = d(f)
-    assert df is not f
-
-    ddf = d(df)
-    assert ddf is not df
-
-    dddf = d(ddf)
-    assert dddf is not ddf
-
-    name, path = f.__code__.co_name, Path(__file__).resolve()
-    assert f is _undecorate(dddf, name, path)
-    assert f is _undecorate(ddf, name, path)
-    assert f is _undecorate(df, name, path)
-    assert f is _undecorate(f, name, path)
-
-    assert _undecorate(_undecorate, name, path) is _undecorate
-
-
-def test_discovery_class_decoration():
-    class Decorator:
-        def __init__(self, f):
-            self.f = f
-
-    @Decorator
-    def f():
-        pass
-
-    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
-    assert code.co_name == "f"
-    assert Path(code.co_filename).resolve() == Path(__file__).resolve()
-
-
-def test_discovery_wrapped_decoration():
-    @wraps
-    def f():
-        pass
-
-    code = _undecorate(f, name="f", path=Path(__file__).resolve()).__code__
-    assert code.co_name == "f"
-    assert Path(code.co_filename).resolve() == Path(__file__).resolve()

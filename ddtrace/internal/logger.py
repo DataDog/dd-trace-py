@@ -2,13 +2,13 @@ import collections
 import logging
 import os
 import typing
-from typing import cast
+from typing import cast  # noqa:F401
 
 
 if typing.TYPE_CHECKING:
-    from typing import Any
-    from typing import DefaultDict
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import DefaultDict  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 
 def get_logger(name):
@@ -33,13 +33,13 @@ def get_logger(name):
     :rtype: ``DDLogger``
     """
     # DEV: `logging.Logger.manager` refers to the single root `logging.Manager` instance
-    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa
+    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa:E501
     manager = logging.Logger.manager
 
     # If the logger does not exist yet, create it
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
     # DEV: This is a simplified version of `logging.Manager.getLogger`
-    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa
+    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa:E501
     # DEV: _fixupParents could be adding a placeholder, we want to replace it if that's the case
     if name in manager.loggerDict:
         logger = manager.loggerDict[name]

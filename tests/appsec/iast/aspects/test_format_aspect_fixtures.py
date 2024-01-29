@@ -5,17 +5,10 @@ from typing import NamedTuple
 
 import pytest
 
-from tests.utils import override_env
-from tests.utils import override_global_config
-
-
-try:
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -164,9 +157,8 @@ class TestOperatorFormatReplacement(BaseReplacement):
         assert as_formatted_evidence(res) == "-1234 6 1"
 
         string_input = create_taint_range_with_format(":+--12-+:34 {} {test_var}")
-        mod.do_args_kwargs_1(string_input, 6, test_var=1)  # pylint: disable=no-member
-        # TODO format with params doesn't work correctly
-        #  assert as_formatted_evidence(res) == ":+--12-+:34 6 1"
+        res = mod.do_args_kwargs_1(string_input, 6, test_var=1)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ":+--12-+:34 6 1"
 
     def test_format_with_one_argument_args_and_kwargs(self):  # type: () -> None
         string_input = "-1234 {} {} {test_var}"
@@ -178,9 +170,8 @@ class TestOperatorFormatReplacement(BaseReplacement):
         assert as_formatted_evidence(res) == "-1234 1 6 1"
 
         string_input = create_taint_range_with_format(":+--12-+:34 {} {} {test_var}")
-        mod.do_args_kwargs_2(string_input, 6, test_var=1)  # pylint: disable=no-member
-        # TODO format with params doesn't work correctly
-        #  as_formatted_evidence(res) == ":+--12-+:34 1 6 1"
+        res = mod.do_args_kwargs_2(string_input, 6, test_var=1)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ":+--12-+:34 1 6 1"
 
     def test_format_with_two_argument_args_and_kwargs(self):  # type: () -> None
         string_input = "-1234 {} {} {} {test_var}"
@@ -192,9 +183,8 @@ class TestOperatorFormatReplacement(BaseReplacement):
         assert as_formatted_evidence(res) == "-1234 1 2 6 1"
 
         string_input = create_taint_range_with_format(":+--12-+:34 {} {} {} {test_var}")
-        mod.do_args_kwargs_3(string_input, 6, test_var=1)  # pylint: disable=no-member
-        # TODO format with params doesn't work correctly
-        #  as_formatted_evidence(res) == ":+--12-+:34 1 2 6 1"
+        res = mod.do_args_kwargs_3(string_input, 6, test_var=1)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ":+--12-+:34 1 2 6 1"
 
     def test_format_with_two_argument_two_keywordargument_args_kwargs(self):  # type: () -> None
         string_input = "-1234 {} {} {} {test_kwarg} {test_var}"
@@ -206,9 +196,8 @@ class TestOperatorFormatReplacement(BaseReplacement):
         assert as_formatted_evidence(res) == "-1234 1 2 6 3 1"
 
         string_input = create_taint_range_with_format(":+--12-+:34 {} {} {} {test_kwarg} {test_var}")
-        mod.do_args_kwargs_4(string_input, 6, test_var=1)  # pylint: disable=no-member
-        # TODO format with params doesn't work correctly
-        #  as_formatted_evidence(res) == ":+--12-+:34 1 2 6 3 1"
+        res = mod.do_args_kwargs_4(string_input, 6, test_var=1)  # pylint: disable=no-member
+        assert as_formatted_evidence(res) == ":+--12-+:34 1 2 6 3 1"
 
     def test_format_when_tainted_template_range_special_then_tainted_result(self):  # type: () -> None
         self._assert_format_result(

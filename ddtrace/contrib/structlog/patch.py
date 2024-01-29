@@ -48,8 +48,18 @@ def _tracer_injection(_, __, event_dict):
 
 
 def _w_get_logger(func, instance, args, kwargs):
+    """
+    Append the tracer injection processor to the ``default_processors`` list used by the logger
+    The ``default_processors`` list has built in defaults which protects against a user configured ``None`` value.
+    The argument to configure ``default_processors`` accepts an iterable type:
+        - List: default use case which has been accounted for
+        - Tuple: patched via list conversion
+        - Set: ignored because structlog processors care about order notably the last value to be a Renderer
+        - Dict: because keys are ignored, this essentially becomes a List
+    """
+
     dd_processor = [_tracer_injection]
-    structlog._config._CONFIG.default_processors = dd_processor + structlog._config._CONFIG.default_processors
+    structlog._config._CONFIG.default_processors = dd_processor + list(structlog._config._CONFIG.default_processors)
     return func(*args, **kwargs)
 
 

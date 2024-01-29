@@ -36,7 +36,7 @@ class TestPytest(TracerTestCase):
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(
-        sys.version_info >= (3, 11, 0) or sys.version_info <= (3, 6, 0),
+        sys.version_info >= (3, 11, 0),
         reason="asynctest isn't working on Python 3.11, asynctest "
         "raisesAttributeError: module 'asyncio' has no "
         "attribute 'coroutine'",

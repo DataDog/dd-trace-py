@@ -1,0 +1,33 @@
+# <--------------- 50 characters ---------------> |
+feat/fix/docs/refactor/ci(xxx): commit title here
+
+# Write the commit message body in between the two lines above and below
+# <-------------------------- 72 characters --------------------------> |
+
+# <-------------------------- 72 characters --------------------------> |
+# To disable Intelligent Test Runner for this commit, uncomment the
+# following line
+# ITR:NoSkip
+
+# To force run extra suites in CircleCI on top of what's detected,
+# uncomment as needed
+
+# To force run all test suites:
+# CircleCI:all
+
+# To force run selectively, separated by commas like:
+# CircleCI:django,flask,wsgi
+
+# CircleCI suites are:
+# aiobotocore, aiohttp, aiomysql, aiopg, algoliasearch, appsec, appsec_iast,
+# appsec_iast_memcheck, appsec_integrations, aredis, asgi, asyncpg, asynctest, aws_lambda,
+# botocore, bottle, cassandra, celery, cherrypy, ci_visibility, consul, datastreams,
+# ddtracerun, debugger, django, django_hosts, djangorestframework, dogpile_cache,
+# elasticsearch, falcon, fastapi, flask, gevent, graphene, graphql, grpc, gunicorn,
+# httplib, httpx, integration_agent, integration_testagent, internal, jinja2, kafka,
+# kombu, langchain, logbook, loguru, mako, mariadb, molten, mongoengine, mysqlconnector,
+# mysqlpython, openai, opentelemetry, opentracer, profile, psycopg, pylibmc, pymemcache,
+# pymongo, pymysql, pynamodb, pyodbc, pyramid, pytest, redis, rediscluster, requests, rq,
+# sanic, snowflake, sourcecode, sqlalchemy, starlette, stdlib, structlog, subprocess,
+# telemetry, test_logging, tornado, tracer, unittest, urllib3, vendor, vertica, wsgi,
+# yaaredis

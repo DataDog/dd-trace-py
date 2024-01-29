@@ -1,15 +1,15 @@
 import concurrent.futures
 import random
-from typing import Callable
-from typing import Generator
-from typing import List
-from typing import Optional
+from typing import Callable  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import bm
 
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.span import Span
-from ddtrace.tracer import Tracer
+from ddtrace.span import Span  # noqa:F401
+from ddtrace.tracer import Tracer  # noqa:F401
 
 
 class NoopWriter(TraceWriter):

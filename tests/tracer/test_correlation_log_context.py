@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.context import Context
 from ddtrace.opentracer.tracer import Tracer as OT_Tracer
+from ddtrace.provider import _DD_CONTEXTVAR
 from tests.utils import override_global_config
 
 
@@ -14,6 +15,8 @@ def global_config():
     config.service = "test-service"
     config.env = "test-env"
     config.version = "test-version"
+    global tracer
+    tracer = Tracer()
     yield
     config.service = config.env = config.version = None
 
@@ -50,8 +53,9 @@ class TestCorrelationLogsContext(object):
             "version": "test-version",
         }
 
-    def test_get_log_correlation_context(self, global_config):
+    def test_get_log_correlation_context_basic(self, global_config):
         """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
+        tracer = Tracer()
         with tracer.trace("test-span-1") as span1:
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
@@ -102,6 +106,7 @@ class TestCorrelationLogsContext(object):
 
     def test_get_log_correlation_context_no_active_span(self):
         """Ensure empty DDLogRecord generated if no active span."""
+        tracer = Tracer()
         dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "span_id": "0",
@@ -147,6 +152,7 @@ class TestCorrelationLogsContext(object):
 
     def test_custom_logging_injection_global_config(self):
         """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
+        _DD_CONTEXTVAR.set(None)
         capture_log = structlog.testing.LogCapture()
         structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
         logger = structlog.get_logger()
@@ -168,6 +174,7 @@ class TestCorrelationLogsContext(object):
 
     def test_custom_logging_injection_no_span(self):
         """Ensure custom log injection via get_correlation_log_record with no active span returns empty record."""
+        _DD_CONTEXTVAR.set(None)
         capture_log = structlog.testing.LogCapture()
         structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
         logger = structlog.get_logger()

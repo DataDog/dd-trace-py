@@ -79,7 +79,7 @@ deploy_to_di_backend:automatic:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-    
+
 deploy_to_di_backend:manual:
   stage: deploy
   rules:

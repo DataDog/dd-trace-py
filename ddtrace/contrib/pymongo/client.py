@@ -20,7 +20,6 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import mongo as mongox
 from ...ext import net as netx
-from ...internal.compat import iteritems
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
@@ -306,7 +305,7 @@ def normalize_filter(f=None):
         # normalize dicts of filters
         #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         out = {}
-        for k, v in iteritems(f):
+        for k, v in f.items():
             if k == "$in" or k == "$nin":
                 # special case $in queries so we don't loop over lists.
                 out[k] = "?"

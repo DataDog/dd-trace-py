@@ -2,10 +2,8 @@ import httpretty
 import pytest
 
 from ddtrace.internal.utils.http import connector
-from tests.utils import flaky
 
 
-@flaky(until=1704067201)
 @pytest.mark.parametrize("scheme", ["http", "https"])
 def test_connector(scheme):
     with httpretty.enabled():

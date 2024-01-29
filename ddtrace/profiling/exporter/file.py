@@ -1,12 +1,12 @@
 import gzip
 import os
-import typing
+import typing  # noqa:F401
 
 import attr
 
 from ddtrace.profiling.exporter import pprof
 
-from .. import recorder
+from .. import recorder  # noqa:F401
 
 
 @attr.s

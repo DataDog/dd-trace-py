@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-try:
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
@@ -56,11 +57,6 @@ def test_str_aspect(obj, kwargs):
     ],
 )
 def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-
     if should_be_tainted:
         obj = taint_pyobject(
             obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
@@ -83,11 +79,6 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     ],
 )
 def test_repr_aspect_tainting(obj, expected_result):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-
     assert repr(obj) == expected_result
 
     obj = taint_pyobject(

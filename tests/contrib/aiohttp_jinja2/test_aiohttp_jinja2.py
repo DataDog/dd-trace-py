@@ -6,7 +6,7 @@ from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader
-import tests.contrib.aiohttp.conftest  # noqa
+import tests.contrib.aiohttp.conftest  # noqa:F401
 
 
 VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))

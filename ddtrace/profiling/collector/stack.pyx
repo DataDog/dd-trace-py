@@ -12,7 +12,6 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -25,7 +24,7 @@ from ddtrace.settings.profiling import config
 # These are special features that might not be available depending on your Python version and platform
 FEATURES = {
     "cpu-time": False,
-    "stack-exceptions": False,
+    "stack-exceptions": True,
     "transparent_events": False,
 }
 
@@ -150,12 +149,16 @@ ELSE:
 
 
 from cpython.object cimport PyObject
+from cpython.ref cimport Py_DECREF
 
+cdef extern from "<pystate.h>":
+    PyObject* _PyThread_CurrentFrames()
 
-# The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
-    FEATURES['stack-exceptions'] = True
+IF PY_VERSION_HEX >= 0x030b0000:
+    cdef extern from "<pystate.h>":
+        PyObject* _PyThread_CurrentExceptions()
 
+ELIF UNAME_SYSNAME != "Windows":
     from cpython cimport PyInterpreterState
     from cpython cimport PyInterpreterState_Head
     from cpython cimport PyInterpreterState_Next
@@ -167,9 +170,6 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
     from cpython.pythread cimport PyThread_type_lock
     from cpython.pythread cimport WAIT_LOCK
 
-    IF PY_VERSION_HEX >= 0x030b0000:
-        from cpython.ref cimport Py_XDECREF
-
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
         # but we need to access some of its fields so we redefine it here.
@@ -179,14 +179,10 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
 
-        IF PY_VERSION_HEX >= 0x030b0000:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_value
-        ELSE:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_type
-                PyObject* exc_value
-                PyObject* exc_traceback
+        ctypedef struct _PyErr_StackItem:
+            PyObject* exc_type
+            PyObject* exc_value
+            PyObject* exc_traceback
 
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
@@ -222,24 +218,35 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
             cdef extern from "<Python.h>":
                 PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
 ELSE:
-    from cpython.ref cimport Py_DECREF
-
-    cdef extern from "<pystate.h>":
-        PyObject* _PyThread_CurrentFrames()
-
+    FEATURES['stack-exceptions'] = False
 
 
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
-    cdef dict current_exceptions = {}
+    cdef dict running_threads = <dict>_PyThread_CurrentFrames()
+    Py_DECREF(running_threads)
 
-    IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
+    IF PY_VERSION_HEX >= 0x030b0000:
+        cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
+        Py_DECREF(current_exceptions)
+
+        for thread_id, exc_info in current_exceptions.items():
+            if exc_info is None:
+                continue
+            IF PY_VERSION_HEX >= 0x030c0000:
+                exc_type = type(exc_info)
+                exc_traceback = getattr(exc_info, "__traceback__", None)
+            ELSE:
+                exc_type, exc_value, exc_traceback = exc_info
+            current_exceptions[thread_id] = exc_type, exc_traceback
+
+    ELIF UNAME_SYSNAME != "Windows":
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
         cdef PyThread_type_lock lmutex = _PyRuntime.interpreters.mutex
         cdef PyObject* exc_type
         cdef PyObject* exc_tb
-        cdef dict running_threads = {}
+        cdef dict current_exceptions = {}
 
         # This is an internal lock but we do need it.
         # See https://bugs.python.org/issue1021318
@@ -253,40 +260,16 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                 while interp:
                     tstate = PyInterpreterState_ThreadHead(interp)
                     while tstate:
-                        # The frame can be NULL
-                        # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-                        IF PY_VERSION_HEX >= 0x030b0000:
-                            frame = PyThreadState_GetFrame(tstate)
-                            if frame:
-                                running_threads[tstate.thread_id] = <object>frame
-                            exc_info = _PyErr_GetTopmostException(tstate)
-                            if exc_info and exc_info.exc_value and <object> exc_info.exc_value is not None:
-                                # Python 3.11 removed exc_type, exc_traceback from exception representations,
-                                # can instead derive exc_type and exc_traceback from remaining exc_value field
-                                exc_type = Py_TYPE(exc_info.exc_value)
-                                exc_tb = PyException_GetTraceback(exc_info.exc_value)
-                                if exc_tb:
-                                    current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
-                                Py_XDECREF(exc_tb)
-                            Py_XDECREF(frame)
-                        ELSE:
-                            frame = tstate.frame
-                            if frame:
-                                running_threads[tstate.thread_id] = <object>frame
-                            exc_info = _PyErr_GetTopmostException(tstate)
-                            if exc_info and exc_info.exc_type and exc_info.exc_traceback:
-                                current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
+                        exc_info = _PyErr_GetTopmostException(tstate)
+                        if exc_info and exc_info.exc_type and exc_info.exc_traceback:
+                            current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
                         tstate = PyThreadState_Next(tstate)
 
                     interp = PyInterpreterState_Next(interp)
             finally:
                 PyThread_release_lock(lmutex)
     ELSE:
-        cdef dict running_threads = <dict>_PyThread_CurrentFrames()
-
-        # Now that we own the ref via <dict> casting, we can safely decrease the default refcount
-        # so we don't leak the object
-        Py_DECREF(running_threads)
+        cdef dict current_exceptions = {}
 
     cdef dict cpu_times = thread_time(running_threads.keys())
 
@@ -303,7 +286,6 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
         if pthread_id not in thread_id_ignore_list
     )
-
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
@@ -467,8 +449,6 @@ class _ThreadSpanLinks(_thread_span_links_base):
 
 
 def _default_min_interval_time():
-    if six.PY2:
-        return 0.01
     return sys.getswitchinterval() * 2
 
 

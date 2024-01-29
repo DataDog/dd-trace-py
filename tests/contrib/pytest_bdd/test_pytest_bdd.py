@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 
 import pytest
 
@@ -113,7 +112,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
@@ -155,7 +154,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -201,7 +200,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -224,7 +223,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -247,13 +246,6 @@ class TestPytest(TracerTestCase):
             "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
         )
 
-        if sys.version_info < (3, 6, 0):
-            expected = '{"error_serializing_args": "set([]) is not JSON serializable"}'
-        elif sys.version_info < (3, 6, 0):
-            expected = '{"error_serializing_args": "set() is not JSON serializable"}'
-        elif sys.version_info < (3, 7, 0):
-            expected = '{"error_serializing_args": "Object of type \'set\' is not JSON serializable"}'
-        else:
-            expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'
+        expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'
 
         assert _get_step_func_args_json(None, lambda: None, None) == expected

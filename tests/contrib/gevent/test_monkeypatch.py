@@ -27,7 +27,7 @@ def test_gevent_auto_patching():
     # Disable tracing sqlite3 as it is used by coverage
     ddtrace.patch_all(sqlite3=False)
     # Patch on import
-    import gevent  # noqa
+    import gevent  # noqa:F401
 
     from ddtrace.contrib.gevent import GeventContextProvider
 

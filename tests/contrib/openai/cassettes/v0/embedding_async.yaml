@@ -59,7 +59,7 @@ interactions:
       x-ratelimit-remaining-requests:
       - '2999'
       x-ratelimit-remaining-tokens:
-      - '999998'
+      - '999997'
       x-ratelimit-reset-requests:
       - 20ms
       x-request-id:

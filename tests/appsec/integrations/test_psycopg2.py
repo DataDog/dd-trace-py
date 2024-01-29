@@ -1,17 +1,11 @@
 import psycopg2.extensions as ext
-import pytest
 
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_utils import LazyTaintList
 from tests.utils import override_global_config
-
-
-try:
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_utils import LazyTaintList
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def setup():

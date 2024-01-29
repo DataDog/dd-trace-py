@@ -42,7 +42,8 @@ class FlaskIdempotencyTestCase(unittest.TestCase):
     def test_patch_idempotency(self, _w):
         # Ensure we didn't do any patching automatically
         _w.assert_not_called()
-        self.assert_is_not_patched()
+        if hasattr(flask, "_datadog_patch"):
+            self.assert_is_not_patched()
 
         # Patch for the first time
         patch()

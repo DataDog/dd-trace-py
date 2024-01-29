@@ -114,40 +114,37 @@ class TracedClient(ObjectProxy):
         """
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
-            if span and args:
-                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
-
-            if method_name == "get":
-                result = method(*args, **kwargs)
-                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+            result = method(*args, **kwargs)
+            if span is None:
                 return result
-            elif method_name == "gets":
-                result = method(*args, **kwargs)
 
+            if args:
+                span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, args[0]))
+            if method_name == "get":
+                span.set_metric(db.ROWCOUNT, 1 if result else 0)
+            elif method_name == "gets":
                 # returns a tuple object that may be (None, None)
                 span.set_metric(db.ROWCOUNT, 1 if isinstance(result, Iterable) and len(result) > 0 and result[0] else 0)
-                return result
-            else:
-                return method(*args, **kwargs)
+            return result
 
     def _trace_multi_cmd(self, method_name, *args, **kwargs):
         """trace the execution of the multi command with the given name."""
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
+            result = method(*args, **kwargs)
+            if span is None:
+                return result
+
             pre = kwargs.get("key_prefix")
-            if span and pre:
+            if pre:
                 span.set_tag_str(memcached.QUERY, "%s %s" % (method_name, pre))
 
             if method_name == "get_multi":
-                result = method(*args, **kwargs)
-
                 # returns mapping of key -> value if key exists, but does not include a missing key. Empty result = {}
                 span.set_metric(
                     db.ROWCOUNT, sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
                 )
-                return result
-            else:
-                return method(*args, **kwargs)
+            return result
 
     @contextmanager
     def _no_span(self):

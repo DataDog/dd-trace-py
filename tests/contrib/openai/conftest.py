@@ -1,8 +1,8 @@
 import os
 import sys
-from typing import TYPE_CHECKING
-from typing import List
-from typing import Optional
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 import mock
 import pytest
@@ -17,7 +17,7 @@ from tests.utils import override_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 
 def pytest_configure(config):
@@ -100,7 +100,7 @@ class FilterOrg(TraceFilter):
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
@@ -114,10 +114,20 @@ def mock_logs(scope="session"):
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
     """
-    patcher = mock.patch("ddtrace.contrib._trace_utils_llm.V2LogWriter")
+    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.V2LogWriter")
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_llmobs_writer(scope="session"):
+    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
     yield m
     patcher.stop()
 

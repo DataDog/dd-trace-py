@@ -11,7 +11,7 @@ import six
 from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
-from ddtrace.internal.compat import ensure_str
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.datadog.profiling.utils import sanitize_string
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
@@ -638,7 +638,7 @@ class PprofExporter(exporter.Exporter):
         # Do not export trace_resource for non Web spans for privacy concerns.
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
-        return ensure_str(trace_resource, errors="backslashreplace")
+        return ensure_text(trace_resource, errors="backslashreplace")
 
     def export(
         self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int

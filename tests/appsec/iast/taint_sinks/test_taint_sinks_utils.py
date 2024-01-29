@@ -2,15 +2,11 @@ import copy
 import json
 import os
 
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-
-
-if python_supported_by_iast():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import Source as RangeSource
-    from ddtrace.appsec._iast._taint_tracking import TaintRange
-    from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
-    from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source as RangeSource
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
+from ddtrace.appsec._iast._taint_tracking import set_ranges
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -13,7 +13,7 @@ from ddtrace import Tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.span import Span
+    from ddtrace.span import Span  # noqa:F401
 
 
 @pytest.fixture

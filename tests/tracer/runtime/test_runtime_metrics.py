@@ -141,7 +141,8 @@ class TestRuntimeMetrics(BaseTestCase):
 class TestRuntimeWorker(TracerTestCase):
     def test_tracer_metrics(self):
         # Mock socket.socket to hijack the dogstatsd socket
-        with mock.patch("socket.socket"):
+        with mock.patch("socket.socket") as sock:
+            sock.return_value.getsockopt.return_value = 0
             # configure tracer for runtime metrics
             interval = 1.0 / 4
             with runtime_metrics_service(tracer=self.tracer, flush_interval=interval):
@@ -157,8 +158,7 @@ class TestRuntimeWorker(TracerTestCase):
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
                     statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
-
-                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                    received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
         # we expect more than one flush since it is also called on shutdown
         assert len(received) > 1

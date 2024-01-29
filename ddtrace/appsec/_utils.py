@@ -1,13 +1,12 @@
 import os
 import uuid
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import _get_blocked_template  # noqa
-from ddtrace.internal.utils.http import parse_form_multipart  # noqa
-from ddtrace.internal.utils.http import parse_form_params  # noqa
+from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
+from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
+from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
 
@@ -20,6 +19,7 @@ def parse_response_body(raw_body):
 
     import xmltodict
 
+    from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._constants import SPAN_DATA_NAMES
     from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
 

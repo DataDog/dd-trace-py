@@ -52,8 +52,7 @@ def should_skip_context_value(key, value):
     return False
 
 
-def set_tags_from_context(span, context):
-    # type: (Span, Dict[str, Any]) -> None
+def set_tags_from_context(span: Span, context: Dict[str, Any]) -> None:
     """Helper to extract meta values from a Celery Context"""
 
     context_tags = []

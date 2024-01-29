@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -28,11 +27,6 @@ from . import app
 def tracer():
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
 
     ddtrace.tracer = tracer
     fastapi_patch()
@@ -88,6 +82,20 @@ def snapshot_app():
 @pytest.fixture
 def snapshot_client(snapshot_app):
     with TestClient(snapshot_app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def snapshot_app_with_tracer(tracer):
+    fastapi_patch()
+    application = app.get_app()
+    yield application
+    fastapi_unpatch()
+
+
+@pytest.fixture
+def snapshot_client_with_tracer(snapshot_app_with_tracer):
+    with TestClient(snapshot_app_with_tracer) as test_client:
         yield test_client
 
 
@@ -240,13 +248,14 @@ def test_200_multi_query_string(client, tracer, test_spans):
 
 
 def test_create_item_success(client, tracer, test_spans):
+    _id = "aawlieufghai3w4uhfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDog"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 200
-    assert response.json() == {"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"}
+    assert response.json() == {"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"}
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -269,10 +278,11 @@ def test_create_item_success(client, tracer, test_spans):
 
 
 def test_create_item_bad_token(client, tracer, test_spans):
+    _id = "iughq8374yfg"
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDoged"},
-        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+        json={"id": _id, "name": "Foo Bar", "description": "The Foo Bartenders"},
     )
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
@@ -572,7 +582,7 @@ def test_w_patch_starlette(client, tracer, test_spans):
 
 @snapshot()
 def test_subapp_snapshot(snapshot_client):
-    response = snapshot_client.get("/sub-app/hello/name")
+    response = snapshot_client.get("/sub-app/hello/foo")
     assert response.status_code == 200
 
 
@@ -581,7 +591,7 @@ def test_subapp_w_starlette_patch_snapshot(snapshot_client):
     # Test that patching starlette doesn't affect the spans generated
     patch_starlette()
     try:
-        response = snapshot_client.get("/sub-app/hello/name")
+        response = snapshot_client.get("/sub-app/hello/foo")
         assert response.status_code == 200
     finally:
         unpatch_starlette()
@@ -610,13 +620,17 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-def test_background_task(client, tracer, test_spans):
-    """Tests if background tasks have been excluded from span duration"""
-    response = client.get("/asynctask")
+# Ignoring span link attributes until values are
+# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
+@snapshot(ignores=["meta._dd.span_links"])
+def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
+    """Tests if background tasks have been traced but excluded from span duration"""
+    response = snapshot_client_with_tracer.get("/asynctask")
     assert response.status_code == 200
     assert response.json() == "task added"
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
+    # Generates two traces
+    assert len(spans) == 2
     assert len(spans[0]) == 2
     request_span, serialize_span = spans[0]
 
@@ -625,6 +639,16 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+    # Background task shound not be a child of the request span
+    assert len(spans[1]) == 1
+    background_span = spans[1][0]
+    # background task should link to the request span
+    assert background_span.parent_id is None
+    assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
+    assert background_span._links[request_span.span_id].span_id == request_span.span_id
+    assert background_span.name == "fastapi.background_task"
+    assert background_span.resource == "custom_task"
 
 
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])

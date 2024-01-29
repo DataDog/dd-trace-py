@@ -19,9 +19,9 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"id":"chatcmpl-76n5iUWrirIDc8ldhMryJtvsL5wef","object":"chat.completion","created":1681853030,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
-        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
-        2020 World Series was played in Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
+      string: '{"id":"chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu","object":"chat.completion","created":1681853029,"model":"gpt-3.5-turbo-0301","usage":{"prompt_tokens":57,"completion_tokens":34,"total_tokens":91},"choices":[{"message":{"role":"assistant","content":"The
+        2020 World Series was played in Arlington, Texas at Globe Life Field."},"finish_reason":"stop","index":0},{"message":{"role":"assistant","content":"The
+        2020 World Series was played at Globe Life Field in Arlington, Texas."},"finish_reason":"stop","index":1}]}
 
         '
     headers:

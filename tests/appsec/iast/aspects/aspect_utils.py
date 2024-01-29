@@ -1,10 +1,10 @@
 # -*- encoding: utf-8 -*-
 import re
-from typing import Any
-from typing import List
-from typing import NamedTuple
-from typing import Optional
-from typing import Text
+from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
+from typing import NamedTuple  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Text  # noqa:F401
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source

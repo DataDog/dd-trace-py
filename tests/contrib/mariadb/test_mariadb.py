@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Tuple  # noqa:F401
 
 import mariadb
 import pytest

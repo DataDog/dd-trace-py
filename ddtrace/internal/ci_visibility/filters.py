@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Union
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
@@ -12,7 +12,7 @@ from ddtrace.filters import TraceFilter
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace import Span  # noqa:F401
 
 
 class TraceCiVisibilityFilter(TraceFilter):

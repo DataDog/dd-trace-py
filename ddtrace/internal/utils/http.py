@@ -1,18 +1,21 @@
 from contextlib import contextmanager
+from dataclasses import dataclass
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
 from json import loads
 import logging
 import os
 import re
-from typing import Any
-from typing import Callable
-from typing import ContextManager
-from typing import Dict
-from typing import Generator
-from typing import List
-from typing import Optional
-from typing import Pattern
-from typing import Tuple
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import ContextManager  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Pattern  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
@@ -382,6 +385,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
+    from urllib.parse import parse_qs
 
     import xmltodict
 
@@ -397,6 +401,8 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
                 res = json.loads(msg.get_payload())
             elif content_type in ("application/xml", "text/xml"):
                 res = xmltodict.parse(msg.get_payload())
+            elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+                res = parse_qs(msg.get_payload())
             elif content_type in ("text/plain", None):
                 res = msg.get_payload()
             else:
@@ -405,7 +411,31 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
         return res
 
     if headers is not None:
-        content_type = headers.get("Content-Type")
+        content_type = headers.get("Content-Type") or headers.get("content-type")
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+@dataclass
+class FormData:
+    name: str
+    filename: str
+    data: str
+    content_type: str
+
+
+def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
+    msg = MIMEMultipart("form-data")
+    del msg["MIME-Version"]
+
+    for part in parts:
+        app = MIMEApplication(part.data, part.content_type, lambda _: _)
+        app.add_header("Content-Disposition", "form-data", name=part.name, filename=part.filename)
+        del app["MIME-Version"]
+        msg.attach(app)
+
+    # Split headers and body
+    headers, _, body = msg.as_string().partition("\n\n")
+
+    return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())

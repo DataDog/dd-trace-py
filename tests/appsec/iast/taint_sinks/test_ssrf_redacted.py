@@ -3,7 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
@@ -16,14 +16,9 @@ from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
 
 
-if python_supported_by_iast():
-    from ddtrace.appsec._iast._taint_tracking import str_to_origin
-
-
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SSRF))[0:2]
 )
@@ -56,7 +51,6 @@ def test_ssrf_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_cmdi_redact_param():
     ev = Evidence(
         valueParts=[
@@ -79,7 +73,6 @@ def test_cmdi_redact_param():
         ]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_cmdi_redact_user_password():
     ev = Evidence(
         valueParts=[

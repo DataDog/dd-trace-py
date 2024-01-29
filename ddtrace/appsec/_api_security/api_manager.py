@@ -2,9 +2,8 @@ import base64
 import gzip
 import json
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace import config
 from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
 from ddtrace.appsec._asm_request_context import add_context_callback
@@ -15,10 +14,11 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
+from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -90,7 +90,7 @@ class APIManager(Service):
     def _should_collect_schema(self, env):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        sample_rate = config._api_security_sample_rate
+        sample_rate = asm_config._api_security_sample_rate
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
@@ -127,6 +127,8 @@ class APIManager(Service):
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
+            if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
+                continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)

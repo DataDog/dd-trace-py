@@ -1,11 +1,11 @@
 import atexit
 import json
-from typing import List
+from typing import List  # noqa:F401
 
 
 # TypedDict was added to typing in python 3.8
 try:
-    from typing import TypedDict
+    from typing import TypedDict  # noqa:F401
 except ImportError:
     from typing_extensions import TypedDict
 
