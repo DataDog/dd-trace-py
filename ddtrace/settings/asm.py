@@ -37,7 +37,8 @@ class ASMConfig(Env):
         str,
         "DD_IAST_REDACTION_NAME_PATTERN",
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
-        + r"public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id|key|secret)|"
+        + r"public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|"
+        + r"consumer_?(?:id|key|secret)|"
         + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
     )
     _iast_redaction_value_pattern = Env.var(
