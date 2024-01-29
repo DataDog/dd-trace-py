@@ -1,4 +1,5 @@
 import copy
+import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
@@ -9,9 +10,6 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
-from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
-from ddtrace.internal import core
 from ddtrace.internal import core
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
