@@ -22,7 +22,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 @pytest.fixture(autouse=True, scope="module")
-def _dummy_check_enabled_features(self):
+def _dummy_check_enabled_features():
     """By default, assume that _check_enabled_features() returns an ITR-disabled response.
 
     Tests that need a different response should re-patch the CIVisibility object.

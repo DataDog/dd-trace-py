@@ -571,7 +571,7 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            ./scripts/run-test-suite 'integration-latest' <<pipeline.parameters.coverage>> 1
+            ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
 
   integration_testagent:
     <<: *machine_executor
@@ -579,7 +579,7 @@ jobs:
       - run_test:
           snapshot: true
           store_coverage: false
-          pattern: 'integration-snapshot'
+          pattern: 'integration-snapshot*'
           trace_agent_url: ""
 
   vendor:
