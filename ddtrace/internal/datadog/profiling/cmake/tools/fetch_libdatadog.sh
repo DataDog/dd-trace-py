@@ -42,12 +42,19 @@ fi
 TAR_LIBDATADOG=libdatadog-${MARCH}-${DISTRIBUTION}.tar.gz
 GITHUB_URL_LIBDATADOG=https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${TAR_LIBDATADOG}
 
-SHA256_LIBDATADOG=$(grep "${TAR_LIBDATADOG}" "${CHECKSUM_FILE}")
-if echo "${SHA256_LIBDATADOG}" | grep -qE '^[[:xdigit:]]{64}[[:space:]]{2}'; then
-  echo "Using libdatadog sha256: ${SHA256_LIBDATADOG}"
+SHA256_LIBDATADOG="blank"
+while IFS='  ' read -r checksum filename; do
+    if [ "$filename" == "$TAR_LIBDATADOG" ]; then
+        SHA256_LIBDATADOG=$checksum
+        break
+    fi
+done < "$CHECKSUM_FILE"
+
+if [ "$SHA256_LIBDATADOG" == "blank" ]; then
+    echo "Could not find checksum for ${TAR_LIBDATADOG} in ${CHECKSUM_FILE}"
+    exit 1
 else
-  echo "Badly formatted sha256. There should be 2 spaces between sha and file name."
-  exit 1
+  echo "Using libdatadog sha256: ${SHA256_LIBDATADOG}"
 fi
 
 mkdir -p "$TARGET_EXTRACT" || true
