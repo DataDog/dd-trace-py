@@ -52,6 +52,7 @@ LIBDDWAF_VERSION = "1.15.1"
 if CURRENT_OS == "Darwin":
     os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
+
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
