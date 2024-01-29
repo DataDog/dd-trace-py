@@ -27,10 +27,13 @@ from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env
 
 
+# FIXME: ideally all these should pass, trough the key is that we don't leak any potential PII which
+# currently we don't.
+
 _ignore_list = {
     13, 14, 15, 16, 17, 18, 19, 20,  # unsupported weird strings
     23, 28, 31, 33, 34,   # difference in numerics parsing (e.g. sign in the previous valuepart)
-    40, 41, 42, 43, 44,  # overlapping ":string",
+    40, 41, 42, 43, 44,  # overlapping ":string", not supported by sqlparser,
     45, 46, 47, 49, 50, 51, 52,  # slight differences in sqlparser parsing
 }
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
