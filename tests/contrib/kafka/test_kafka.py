@@ -19,9 +19,11 @@ from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
+from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
+from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
 from tests.utils import flaky
 from tests.utils import override_config
@@ -389,22 +391,22 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
-    assert (
-        first[
-            ("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)
-        ].full_pathway_latency._count
-        >= 1
+    ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
+    parent_hash = ctx._compute_hash(sorted(["direction:out", "type:kafka", "topic:{}".format(kafka_topic)]), 0)
+    child_hash = ctx._compute_hash(
+        sorted(["direction:in", "type:kafka", "group:test_group", "topic:{}".format(kafka_topic)]), parent_hash
     )
     assert (
-        first[("direction:out,topic:{},type:kafka".format(kafka_topic), 7591515074392955298, 0)].edge_latency._count
+        first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].full_pathway_latency._count
         >= 1
     )
+    assert first[("direction:out,topic:{},type:kafka".format(kafka_topic), parent_hash, 0)].edge_latency._count >= 1
     assert (
         first[
             (
                 "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6611771803293368236,
-                7591515074392955298,
+                child_hash,
+                parent_hash,
             )
         ].full_pathway_latency._count
         >= 1
@@ -413,8 +415,8 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
         first[
             (
                 "direction:in,group:test_group,topic:{},type:kafka".format(kafka_topic),
-                6611771803293368236,
-                7591515074392955298,
+                child_hash,
+                parent_hash,
             )
         ].edge_latency._count
         >= 1
