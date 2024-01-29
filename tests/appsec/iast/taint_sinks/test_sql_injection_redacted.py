@@ -23,7 +23,7 @@ from ddtrace.internal.utils.cache import LFUCache
 from tests.utils import override_env
 
 
-# FIXME: ideally all these should pass, trough the key is that we don't leak any potential PII
+# FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
 
 _ignore_list = {
     13,

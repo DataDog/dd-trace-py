@@ -151,7 +151,7 @@ class SqlInjection(VulnerabilityBase):
         while idx < len_parts:
             value = new_valueparts[idx].get("value")
             if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx + 1]:
-                # Scrub the value, which is the next one, except when the previous was a LIKE  or an assigment
+                # Scrub the value, which is the next one, except when the previous was a LIKE  or an assignment
                 # in which case this is the value to scrub
                 prev_valuepart = new_valueparts[idx-1].get("value", "").strip().lower()
                 if len(prev_valuepart) and (" like " in prev_valuepart or prev_valuepart[-1] == "="):
