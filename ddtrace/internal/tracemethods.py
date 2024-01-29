@@ -56,7 +56,6 @@ def _parse_trace_methods(raw_dd_trace_methods):
                     )
                 )
             dd_trace_methods.append("%s.%s" % (qualified_method_prefix, method))
-
     return dd_trace_methods
 
 
