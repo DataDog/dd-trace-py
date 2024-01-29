@@ -38,6 +38,15 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
+from .constants import PROFILING_CAPTURE_PCT
+from .constants import PROFILING_ENABLED
+from .constants import PROFILING_EXPORT_LIBDD_ENABLED
+from .constants import PROFILING_EXPORT_PY_ENABLED
+from .constants import PROFILING_HEAP_ENABLED
+from .constants import PROFILING_LOCK_ENABLED
+from .constants import PROFILING_MAX_FRAMES
+from .constants import PROFILING_MEMORY_ENABLED
+from .constants import PROFILING_STACK_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
 from .constants import TELEMETRY_AGENT_HOST
