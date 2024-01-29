@@ -1,25 +1,23 @@
 import copy
+
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
-from ddtrace.internal import core
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
-from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
-
-
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
-
+from ddtrace.internal import core
 from ddtrace.internal.utils.cache import LFUCache
+from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
+from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
 from tests.utils import override_env
 
 
@@ -168,9 +166,9 @@ def test_redacted_report_valueparts():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {'value': "SELECT * FROM users WHERE password = '"},
-            {'redacted': True},
-            {'value': ":{SHA1}'"}
+            {"value": "SELECT * FROM users WHERE password = '"},
+            {"redacted": True},
+            {"value": ":{SHA1}'"},
         ]
 
 
@@ -192,13 +190,13 @@ def test_redacted_report_valueparts_username_not_tainted():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {'value': "SELECT * FROM users WHERE username = '"},
-            {'redacted': True},
-            {'value': "'"},
-            {'value': ' AND password = '},
-            {'value': "'"},
-            {'redacted': True},
-            {'value': "'"}
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"redacted": True},
+            {"value": "'"},
+            {"value": " AND password = "},
+            {"value": "'"},
+            {"redacted": True},
+            {"value": "'"},
         ]
 
 
@@ -220,12 +218,13 @@ def test_redacted_report_valueparts_username_tainted():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {'value': "SELECT * FROM users WHERE username = '"},
-            {'redacted': True},
-            {'value': "'"},
-            {'value': ' AND password = '},
-            {'value': "'"},
-            {'redacted': True}, {'value': "'"}
+            {"value": "SELECT * FROM users WHERE username = '"},
+            {"redacted": True},
+            {"value": "'"},
+            {"value": " AND password = "},
+            {"value": "'"},
+            {"redacted": True},
+            {"value": "'"},
         ]
 
 
@@ -245,12 +244,12 @@ def test_regression_ci_failure():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {'value': 'SELECT tbl_name FROM sqlite_'},
-            {'source': 0, 'value': 'master'},
-            {'value': "WHERE tbl_name LIKE '"},
-            {'redacted': True},
-            {'value': "'"}
-         ]
+            {"value": "SELECT tbl_name FROM sqlite_"},
+            {"source": 0, "value": "master"},
+            {"value": "WHERE tbl_name LIKE '"},
+            {"redacted": True},
+            {"value": "'"},
+        ]
 
 
 def test_scrub_cache(tracer):
@@ -285,9 +284,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {'value': "SELECT * FROM users WHERE password = '"},
-                    {'redacted': True},
-                    {'value': ":{SHA1}'"}
+                    {"value": "SELECT * FROM users WHERE password = '"},
+                    {"redacted": True},
+                    {"value": ":{SHA1}'"},
                 ],
             )
             assert len(VulnerabilityBase._redacted_report_cache) == 1
@@ -302,9 +301,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {'value': "SELECT * FROM users WHERE password = '"},
-                    {'redacted': True},
-                    {'value': ":{SHA1}'"}
+                    {"value": "SELECT * FROM users WHERE password = '"},
+                    {"redacted": True},
+                    {"value": ":{SHA1}'"},
                 ],
             )
             assert id(span_report1) == id(span_report2)
@@ -321,9 +320,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {'value': "SELECT * FROM users WHERE password = '"},
-                    {'redacted': True},
-                    {'value': ":{SHA1}'"}
+                    {"value": "SELECT * FROM users WHERE password = '"},
+                    {"redacted": True},
+                    {"value": ":{SHA1}'"},
                 ],
             )
             assert id(span_report1) != id(span_report3)
@@ -340,9 +339,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {'value': "SELECT * FROM users WHERE password = '"},
-                    {'redacted': True},
-                    {'value': ":{SHA1}'"}
+                    {"value": "SELECT * FROM users WHERE password = '"},
+                    {"redacted": True},
+                    {"value": ":{SHA1}'"},
                 ],
             )
             assert id(span_report1) != id(span_report4)
@@ -359,9 +358,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {'value': "SELECT * FROM users WHERE password = '"},
-                    {'redacted': True},
-                    {'value': ":{SHA1}'"}
+                    {"value": "SELECT * FROM users WHERE password = '"},
+                    {"redacted": True},
+                    {"value": ":{SHA1}'"},
                 ],
             )
             assert id(span_report1) != id(span_report5)

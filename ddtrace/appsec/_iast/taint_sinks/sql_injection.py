@@ -153,11 +153,11 @@ class SqlInjection(VulnerabilityBase):
             if value and _has_to_scrub(value) and idx < (len_parts - 1) and "redacted" not in new_valueparts[idx + 1]:
                 # Scrub the value, which is the next one, except when the previous was a LIKE  or an assignment
                 # in which case this is the value to scrub
-                prev_valuepart = new_valueparts[idx-1].get("value", "").strip().lower()
+                prev_valuepart = new_valueparts[idx - 1].get("value", "").strip().lower()
                 if len(prev_valuepart) and (" like " in prev_valuepart or prev_valuepart[-1] == "="):
                     new_valueparts[idx] = {"redacted": True}
                 else:  # scrub the next non empty quote value
-                    for part in new_valueparts[idx + 1:]:
+                    for part in new_valueparts[idx + 1 :]:
                         idx += 1
                         next_valuepart = part.get("value", "").strip()
                         if not len(next_valuepart) or next_valuepart in ("'", '"'):

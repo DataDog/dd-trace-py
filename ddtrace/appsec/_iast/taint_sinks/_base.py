@@ -254,9 +254,7 @@ class VulnerabilityBase(Operation):
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
             if vuln.evidence.value is not None:
-                pattern, replaced = cls.replace_tokens(
-                    vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source")
-                )
+                pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
                     vuln.evidence.pattern = pattern
                     vuln.evidence.redacted = True
