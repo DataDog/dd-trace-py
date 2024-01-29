@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+import uuid
 
 import confluent_kafka
 from confluent_kafka import KafkaException
@@ -44,7 +45,7 @@ class KafkaConsumerPollFilter(TraceFilter):
 
 @pytest.fixture()
 def kafka_topic(request):
-    topic_name = request.node.name.replace("[", "_").replace("]", "")
+    topic_name = request.node.name.replace("[", "_").replace("]", "") + str(uuid.uuid4())
 
     client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
