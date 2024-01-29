@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Add support for remote configuration of trace-logs correlation.

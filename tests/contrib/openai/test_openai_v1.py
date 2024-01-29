@@ -1943,10 +1943,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model:{}".format(model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 2
@@ -1961,10 +1961,19 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": ", relax!” I said to my laptop"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -1976,10 +1985,19 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": " (1"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2031,10 +2049,10 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model:{}".format(model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 2
@@ -2049,10 +2067,19 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[0].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2064,10 +2091,19 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "timestamp": resp.created * 1000,
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[1].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2112,10 +2148,10 @@ def test_llmobs_chat_completion_function_call(
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model:{}".format(model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 1
@@ -2134,12 +2170,17 @@ def test_llmobs_chat_completion_function_call(
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
                         "temperature": None,
                         "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
                     },
                     "output": {
                         "completions": [
                             {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
                         ],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),

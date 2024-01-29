@@ -160,7 +160,11 @@ def patch():
     )
 
     if OPENAI_VERSION >= (1, 0, 0):
-        wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
+        if OPENAI_VERSION >= (1, 8, 0):
+            wrap(openai._base_client.SyncAPIClient._process_response, _patched_convert(openai, integration))
+            wrap(openai._base_client.AsyncAPIClient._process_response, _patched_convert(openai, integration))
+        else:
+            wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
         wrap(openai.OpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AsyncOpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AzureOpenAI.__init__, _patched_client_init(openai, integration))
@@ -367,11 +371,12 @@ def _patched_convert(openai, integration):
             v = headers.get("x-ratelimit-limit-requests")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.requests", int(v))
+                span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
         if headers.get("x-ratelimit-limit-tokens"):
             v = headers.get("x-ratelimit-limit-tokens")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.tokens", int(v))
-
+                span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
         # Gauge and set span info for remaining requests and tokens
         if headers.get("x-ratelimit-remaining-requests"):
             v = headers.get("x-ratelimit-remaining-requests")

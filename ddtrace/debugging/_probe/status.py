@@ -11,7 +11,6 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.internal import compat
 from ddtrace.internal import runtime
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import MULTIPART_HEADERS
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
@@ -73,15 +72,16 @@ class ProbeStatusLogger:
 
         return json.dumps(payload)
 
-    def _write_payload(self, payload: bytes) -> None:
+    def _write_payload(self, data: t.Tuple[bytes, dict]) -> None:
+        body, headers = data
         try:
-            log.debug("Sending probe status payload: %r", payload)
+            log.debug("Sending probe status payload: %r", body)
             with self._connect() as conn:
                 conn.request(
                     "POST",
                     "/debugger/v1/diagnostics",
-                    payload,
-                    headers=MULTIPART_HEADERS,
+                    body,
+                    headers=headers,
                 )
                 resp = compat.get_connection_response(conn)
                 if not (200 <= resp.status < 300):
@@ -89,7 +89,7 @@ class ProbeStatusLogger:
                     meter.increment("upload.error", tags={"status": str(resp.status)})
                 else:
                     meter.increment("upload.success")
-                    meter.distribution("upload.size", len(payload))
+                    meter.distribution("upload.size", len(body))
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
@@ -114,7 +114,7 @@ class ProbeStatusLogger:
                             name="event",
                             filename="event.json",
                             data=f"[{','.join(msgs)}]",
-                            content_type="application/json",
+                            content_type="json",
                         )
                     ]
                 )
