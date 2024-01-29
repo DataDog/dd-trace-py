@@ -132,7 +132,7 @@ class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
     ENABLED = "_dd.appsec.api_security.enabled"
-    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
+    ENV_VAR_ENABLED = "DD_API_SECURITY_ENABLED"
     PARSE_RESPONSE_BODY = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
