@@ -11,6 +11,7 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.utils.http import Response
 from ddtrace.tracer import Tracer
@@ -18,6 +19,19 @@ from tests.utils import override_env
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _dummy_check_enabled_features(self):
+    """By default, assume that _check_enabled_features() returns an ITR-disabled response.
+
+    Tests that need a different response should re-patch the CIVisibility object.
+    """
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+        return_value=_CIVisibilitySettings(False, False, False, False),
+    ):
+        yield
 
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support evp proxy.")
