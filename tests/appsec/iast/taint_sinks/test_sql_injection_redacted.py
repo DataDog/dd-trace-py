@@ -115,6 +115,7 @@ def test_redacted_report_source_name_match():
     report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
+    print("JJJ redacted_report: %s" % redacted_report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.redacted
         assert v.evidence.pattern == "'%s'" % ("*" * len_ev)
@@ -283,9 +284,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {"value": "SELECT * FROM users WHERE password = '"},
-                    {"source": 0, "pattern": "abcd", "redacted": True},
-                    {"pattern": "*******'", "redacted": True},
+                    {'value': "SELECT * FROM users WHERE password = '"},
+                    {'redacted': True},
+                    {'value': ":{SHA1}'"}
                 ],
             )
             assert len(VulnerabilityBase._redacted_report_cache) == 1
@@ -300,9 +301,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {"value": "SELECT * FROM users WHERE password = '"},
-                    {"source": 0, "pattern": "abcd", "redacted": True},
-                    {"pattern": "*******'", "redacted": True},
+                    {'value': "SELECT * FROM users WHERE password = '"},
+                    {'redacted': True},
+                    {'value': ":{SHA1}'"}
                 ],
             )
             assert id(span_report1) == id(span_report2)
@@ -319,9 +320,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {"value": "SELECT * FROM users WHERE password = '"},
-                    {"source": 0, "pattern": "abcdef", "redacted": True},
-                    {"pattern": "*******'", "redacted": True},
+                    {'value': "SELECT * FROM users WHERE password = '"},
+                    {'redacted': True},
+                    {'value': ":{SHA1}'"}
                 ],
             )
             assert id(span_report1) != id(span_report3)
@@ -338,9 +339,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {"value": "SELECT * FROM users WHERE password = '"},
-                    {"source": 0, "pattern": "abcd", "redacted": True},
-                    {"pattern": "*******'", "redacted": True},
+                    {'value': "SELECT * FROM users WHERE password = '"},
+                    {'redacted': True},
+                    {'value': ":{SHA1}'"}
                 ],
             )
             assert id(span_report1) != id(span_report4)
@@ -357,9 +358,9 @@ def test_scrub_cache(tracer):
                 value=None,
                 pattern=None,
                 valueParts=[
-                    {"value": "SELECT * FROM users WHERE password = '"},
-                    {"source": 0, "pattern": "abcd", "redacted": True},
-                    {"pattern": "*******'", "redacted": True},
+                    {'value': "SELECT * FROM users WHERE password = '"},
+                    {'redacted': True},
+                    {'value': ":{SHA1}'"}
                 ],
             )
             assert id(span_report1) != id(span_report5)

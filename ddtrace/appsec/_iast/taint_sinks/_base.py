@@ -125,7 +125,9 @@ class VulnerabilityBase(Operation):
 
             report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
-        redacted_report = cls._redact_report(cast(IastSpanReporter, report))
+        redacted_report = cls._redacted_report_cache.get(
+            hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
+        )
         core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
         return True
@@ -248,6 +250,8 @@ class VulnerabilityBase(Operation):
 
         already_scrubbed_set = set(already_scrubbed.keys())
         for vuln in report.vulnerabilities:
+            if vuln.evidence.valueParts is None:
+                continue
             for part in vuln.evidence.valueParts:
                 part_value = part.get("value")
                 if not part_value:
