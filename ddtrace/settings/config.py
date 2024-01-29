@@ -301,6 +301,7 @@ def _default_config():
             name="tracing_enabled",
             default=True,
             envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
         "_profiling_enabled": _ConfigItem(
             name="profiling_enabled",
             default=False,
