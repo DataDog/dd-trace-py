@@ -650,7 +650,7 @@ def _distribute_ranges_and_escape(
             )
         )
 
-        element_start = element_end + len_separator - extra
+        element_start = element_end + len_separator
     return formatted_elements
 
 
@@ -689,14 +689,14 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
     # knows that this is the position of a old value and move len(old_value)
     # positions of the range
     new_value = parse_params(1, "new_value", None, *args, **kwargs)
-    if new_value == "":
+    if new_value in ("", b""):
         len_elements = len(elements)
         for element in elements:
-            if i == 0 and element == "":
+            if i == 0 and element in ("", b""):
                 new_elements_append(None)
                 i += 1
                 continue
-            elif i + 1 == len_elements and element == "":
+            elif i + 1 == len_elements and element in ("", b""):
                 new_elements_append(None)
                 continue
 
