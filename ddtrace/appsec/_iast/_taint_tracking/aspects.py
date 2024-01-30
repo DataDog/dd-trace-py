@@ -634,8 +634,6 @@ def _distribute_ranges_and_escape(
             end = min((taint_range.start + taint_range.length), element_end)
             if end <= start:
                 continue
-            if (end - element_start) < 1:
-                continue
 
             new_range = TaintRange(
                 start=start - element_start,
@@ -645,22 +643,21 @@ def _distribute_ranges_and_escape(
             new_ranges[new_range] = taint_range
 
         element_ranges = tuple(new_ranges.keys())
-        if element_ranges:
-            # DEV: If this if is True, it means that the element is part of bytes/bytearray
-            if isinstance(element, int):
-                element_new_id = new_pyobject_id(bytes(chr(element), "utf-8"))
-            else:
-                element_new_id = new_pyobject_id(element)
-            set_ranges(element_new_id, element_ranges)
+        # DEV: If this if is True, it means that the element is part of bytes/bytearray
+        if isinstance(element, int):
+            element_new_id = new_pyobject_id(bytes(chr(element), "utf-8"))
+        else:
+            element_new_id = new_pyobject_id(element)
+        set_ranges(element_new_id, element_ranges)
 
-            formatted_elements_append(
-                as_formatted_evidence(
-                    element_new_id,
-                    element_ranges,
-                    TagMappingMode.Mapper_Replace,
-                    new_ranges,
-                )
+        formatted_elements_append(
+            as_formatted_evidence(
+                element_new_id,
+                element_ranges,
+                TagMappingMode.Mapper_Replace,
+                new_ranges,
             )
+        )
 
         element_start = element_end + len_separator
     return formatted_elements
