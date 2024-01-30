@@ -288,11 +288,11 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),
         [
-            ({"HTTP_X_REAL_IP": rules._IP.BLOCKED}, True, constants.BLOCKED_RESPONSE_JSON, "text/json"),
+            ({"HTTP_X_REAL_IP": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
             (
                 {"HTTP_X_REAL_IP": rules._IP.BLOCKED, "HTTP_ACCEPT": "text/html"},
                 True,
-                constants.BLOCKED_RESPONSE_HTML,
+                "BLOCKED_RESPONSE_HTML",
                 "text/html",
             ),
             ({"HTTP_X_REAL_IP": rules._IP.DEFAULT}, False, None, None),
@@ -310,7 +310,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", headers=headers)
             if blocked and asm_enabled:
                 assert self.status(response) == 403
-                assert self.body(response) == body
+                assert self.body(response) == getattr(constants, body, None)
                 assert get_tag("actor.ip") == rules._IP.BLOCKED
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert get_tag(http.URL) == "http://localhost:8000/"
@@ -335,24 +335,21 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             response = getattr(interface.client, method)("/", **kwargs)
-            if asm_enabled:
-                assert get_tag(http.URL) == "http://localhost:8000/"
-                assert get_tag(http.METHOD) == method.upper()
-                if method != "get":
-                    assert self.status(response) == 200
-                    assert get_tag(http.STATUS_CODE) == "200"
-                else:
-                    assert self.status(response) == 403
-                    assert get_tag(http.STATUS_CODE) == "403"
-                    assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                    self.check_single_rule_triggered("tst-037-006", get_tag)
-                    assert (
-                        get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
-                        == "text/json"
-                    )
-                    assert self.headers(response)["content-type"] == "text/json"
+            assert get_tag(http.URL) == "http://localhost:8000/"
+            assert get_tag(http.METHOD) == method.upper()
+            if asm_enabled and method == "get":
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-006", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
             else:
                 assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
@@ -365,24 +362,243 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             response = interface.client.get(uri)
-            if asm_enabled:
-                assert get_tag(http.URL) == f"http://localhost:8000{uri}"
-                assert get_tag(http.METHOD) == "GET"
-                if not blocked:
-                    assert self.status(response) == 404
-                    assert get_tag(http.STATUS_CODE) == "404"
-                else:
-                    assert self.status(response) == 403
-                    assert get_tag(http.STATUS_CODE) == "403"
-                    assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                    self.check_single_rule_triggered("tst-037-002", get_tag)
-                    assert (
-                        get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
-                        == "text/json"
-                    )
-                    assert self.headers(response)["content-type"] == "text/json"
+            assert get_tag(http.URL) == f"http://localhost:8000{uri}"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-002", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
             else:
                 assert self.status(response) == 404
+                assert get_tag(http.STATUS_CODE) == "404"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("path", "blocked"),
+        [
+            ("AiKfOeRcvG45/", True),
+            ("Anything/", False),
+            ("AiKfOeRcvG45", True),
+            ("NoTralingSlash", False),
+        ],
+    )
+    def test_request_suspicious_request_block_match_path_params(
+        self, interface: Interface, get_tag, asm_enabled, path, blocked
+    ):
+        from ddtrace.ext import http
+
+        uri = f"/asm/4352/{path}"  # removing trailer slash will cause errors
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000" + uri
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-007", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("query", "blocked"),
+        [
+            ("?toto=xtrace", True),
+            ("?toto=ytrace", False),
+            ("?toto=xtrace&toto=ytrace", True),
+        ],
+    )
+    def test_request_suspicious_request_block_match_query_params(
+        self, interface: Interface, get_tag, asm_enabled, query, blocked
+    ):
+        if interface.name in ("django") and query == "?toto=xtrace&toto=ytrace":
+            raise pytest.skip(f"{interface.name} does not support multiple query params with same name")
+
+        from ddtrace.ext import http
+
+        uri = f"/{query}"
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000" + uri
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-001", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("headers", "blocked"),
+        [
+            ({"HTTP_USER_AGENT": "01972498723465"}, True),
+            ({"HTTP_USER_AGENT": "01973498523465"}, False),
+        ],
+    )
+    def test_request_suspicious_request_block_match_request_headers(
+        self, interface: Interface, get_tag, asm_enabled, headers, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", headers=headers)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000/"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-004", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("cookies", "blocked"),
+        [
+            ({"mytestingcookie_key": "jdfoSDGFkivRG_234"}, True),
+            ({"mytestingcookie_key": "jdfoSDGEkivRH_234"}, False),
+        ],
+    )
+    def test_request_suspicious_request_block_match_request_cookies(
+        self, interface: Interface, get_tag, asm_enabled, cookies, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/", cookies=cookies)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000/"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered("tst-037-008", get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("uri", "status", "blocked"),
+        [
+            ("/donotexist", 404, "tst-037-005"),
+            ("/asm/1/a?status=216", 216, "tst-037-216"),
+            ("/asm/1/a?status=415", 415, None),
+            ("/", 200, None),
+        ],
+    )
+    def test_request_suspicious_request_block_match_response_status(
+        self, interface: Interface, get_tag, asm_enabled, uri, status, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000" + uri
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered(blocked, get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == status
+                assert get_tag(http.STATUS_CODE) == str(status)
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("uri", "blocked"),
+        [
+            ("/asm/1/a", False),
+            ("/asm/1/a?headers=header_name=MagicKey_Al4h7iCFep9s1", "tst-037-009"),
+            ("/asm/1/a?headers=key=anythin,header_name=HiddenMagicKey_Al4h7iCFep9s1Value", "tst-037-009"),
+            ("/asm/1/a?headers=header_name=NoWorryBeHappy", None),
+        ],
+    )
+    def test_request_suspicious_request_block_match_response_headers(
+        self, interface: Interface, get_tag, asm_enabled, root_span, uri, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000" + uri
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered(blocked, get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
 
 
 @contextmanager

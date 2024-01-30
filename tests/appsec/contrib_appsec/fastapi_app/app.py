@@ -38,6 +38,8 @@ def get_app():
 
     @app.get("/asm/{param_int:int}/{param_str:str}/")
     @app.post("/asm/{param_int:int}/{param_str:str}/")
+    @app.get("/asm/{param_int:int}/{param_str:str}")
+    @app.post("/asm/{param_int:int}/{param_str:str}")
     async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
         query_params = dict(request.query_params)
         body = {
@@ -49,7 +51,13 @@ def get_app():
             "method": request.method,
         }
         status = int(query_params.get("status", "200"))
-        return JSONResponse(body, status_code=status)
+        headers_query = query_params.get("headers", "").split(",")
+        response_headers = {}
+        for header in headers_query:
+            vk = header.split("=")
+            if len(vk) == 2:
+                response_headers[vk[0]] = vk[1]
+        return JSONResponse(body, status_code=status, headers=response_headers)
 
     @app.get("/asm/")
     @app.post("/asm/")
