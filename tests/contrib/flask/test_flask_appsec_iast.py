@@ -397,7 +397,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -450,7 +455,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 if vulnerability["type"] == VULN_SQL_INJECTION:
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
-                        "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                        "valueParts": [
+                            {"value": "SELECT "},
+                            {"redacted": True},
+                            {"value": " FROM "},
+                            {"value": "sqlite_master", "source": 0},
+                        ]
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
