@@ -10,6 +10,7 @@ from typing import List
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
@@ -43,7 +44,7 @@ if system() == "Windows" and ARCHI == "amd64":
 TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
 ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
 
-ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
+ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
