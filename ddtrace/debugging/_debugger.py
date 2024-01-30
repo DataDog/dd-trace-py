@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections import deque
 from itertools import chain
 import linecache
 import os
@@ -9,6 +10,7 @@ from types import CoroutineType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
+from typing import Deque
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -344,11 +346,23 @@ class Debugger(Service):
             actual_frame = sys._getframe(1)
             allargs = list(chain(zip(argnames, args), kwargs.items()))
             thread = threading.current_thread()
-            trace_context = self._tracer.current_trace_context()
 
-            open_contexts: List[SignalContext] = []
+            open_contexts: Deque[SignalContext] = deque()
             signal: Optional[Signal] = None
-            for probe in wrappers.values():
+
+            # Group probes on the basis of whether they create new context.
+            context_creators: List[Probe] = []
+            context_consumers: List[Probe] = []
+            for p in wrappers.values():
+                (context_creators if p.__context_creator__ else context_consumers).append(p)
+
+            # Trigger the context creators first, so that the new context can be
+            # consumed by the consumers.
+            for probe in chain(context_creators, context_consumers):
+                # Because new context might be created, we need to recompute it
+                # for each probe.
+                trace_context = self._tracer.current_trace_context()
+
                 if isinstance(probe, MetricFunctionProbe):
                     signal = MetricSample(
                         probe=probe,
@@ -385,7 +399,10 @@ class Debugger(Service):
                     log.error("Unsupported probe type: %s", type(probe))
                     continue
 
-                open_contexts.append(self._collector.attach(signal))
+                # Open probe signal contexts are ordered, with those that have
+                # created new tracing context first. We need to finalise them in
+                # reverse order, so we append them to the beginning.
+                open_contexts.appendleft(self._collector.attach(signal))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)

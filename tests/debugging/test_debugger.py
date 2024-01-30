@@ -11,6 +11,9 @@ import ddtrace
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import SpanDecoration
+from ddtrace.debugging._probe.model import SpanDecorationTag
+from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
 from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
@@ -22,17 +25,20 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_function_probe
+from tests.debugging.utils import ddexpr
+from tests.debugging.utils import ddstrtempl
 from tests.internal.remoteconfig import rcm_endpoint
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 def good_probe():
@@ -891,7 +897,6 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-@flaky(until=1706677200)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
@@ -1033,6 +1038,49 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.name == "child"
 
             assert span.parent_id is root.span_id
+
+    def test_debugger_function_probe_ordering(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_log_function_probe(
+                    probe_id="log-probe", module="tests.submod.stuff", func_qname="mutator", template="", segments=[]
+                ),
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.stuff",
+                    func_qname="mutator",
+                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl(["test.value"]))],
+                        )
+                    ],
+                ),
+                create_span_function_probe(
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags={"tag": "value"}
+                ),
+            )
+
+            with self.tracer.trace("outer"):
+                mutator(arg=[])
+
+            self.assert_span_count(2)
+            (outer, span) = self.get_spans()
+
+            (log,) = d.test_queue
+            assert log.trace_context.trace_id == span.trace_id
+            assert log.trace_context.span_id == span.span_id
+
+            assert outer.name == "outer"
+            assert outer.get_tag("test.tag") is None
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tag("test.tag") == "test.value"
 
 
 def test_debugger_modified_probe():
