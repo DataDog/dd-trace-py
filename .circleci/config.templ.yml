@@ -21,7 +21,7 @@ testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-a
 parameters:
   coverage:
     type: boolean
-    default: false
+    default: true
   riot_run_latest:
     type: boolean
     default: false
