@@ -28,6 +28,7 @@ _TEXT_TOKENS_REGEXP = re.compile(r"\b\w+\b")
 class SqlInjection(VulnerabilityBase):
     vulnerability_type = VULN_SQL_INJECTION
     evidence_type = EVIDENCE_SQL_INJECTION
+    redact_report = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):

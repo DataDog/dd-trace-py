@@ -90,6 +90,7 @@ def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
     evidence_type = EVIDENCE_CMDI
+    redact_report = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):

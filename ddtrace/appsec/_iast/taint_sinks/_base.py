@@ -125,9 +125,12 @@ class VulnerabilityBase(Operation):
 
             report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
-        redacted_report = cls._redacted_report_cache.get(
-            hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
-        )
+        if getattr(cls, "redact_report", False):
+            redacted_report = cls._redacted_report_cache.get(
+                hash(report), lambda x: cls._redact_report(cast(IastSpanReporter, report))
+            )
+        else:
+            redacted_report = report
         core.set_item(IAST.CONTEXT_KEY, redacted_report, span=span)
 
         return True
