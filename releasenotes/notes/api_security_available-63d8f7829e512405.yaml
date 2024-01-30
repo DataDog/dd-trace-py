@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ASM: API Security schema collection is now officially supported for Django, Flask and FastAPI. It can be enabled in the tracer
+    using environment variable DD_API_SECURITY_ENABLED=true
+    It will only be active when ASM is also enabled.
