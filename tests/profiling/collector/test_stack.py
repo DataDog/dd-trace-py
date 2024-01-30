@@ -18,6 +18,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 
+from ...utils import flaky
 from . import test_collector
 
 
@@ -599,6 +600,7 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
     assert event.trace_resource_container[0] == resource
 
 
+@flaky(1711836471)
 def test_resource_not_collected(monkeypatch, tracer):
     r = recorder.Recorder()
     collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)

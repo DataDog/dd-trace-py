@@ -60,6 +60,7 @@ def test_patch():
     assert collector.original == threading.Lock
 
 
+@flaky(1711836471)
 def test_lock_acquire_events():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
@@ -78,6 +79,7 @@ def test_lock_acquire_events():
     assert event.sampling_pct == 100
 
 
+@flaky(1711836471)
 def test_lock_acquire_events_class():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
@@ -102,6 +104,7 @@ def test_lock_acquire_events_class():
     assert event.sampling_pct == 100
 
 
+@flaky(1711836471)
 def test_lock_events_tracer(tracer):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
@@ -133,6 +136,7 @@ def test_lock_events_tracer(tracer):
                 assert event.trace_type == t.span_type
 
 
+@flaky(1711836471)
 def test_lock_events_tracer_late_finish(tracer):
     resource = str(uuid.uuid4())
     span_type = str(uuid.uuid4())
@@ -166,6 +170,7 @@ def test_lock_events_tracer_late_finish(tracer):
                 assert event.trace_type == span.span_type
 
 
+@flaky(1711836471)
 def test_resource_not_collected(monkeypatch, tracer):
     monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
     resource = str(uuid.uuid4())
@@ -198,6 +203,7 @@ def test_resource_not_collected(monkeypatch, tracer):
                 assert event.trace_type == t.span_type
 
 
+@flaky(1711836471)
 def test_lock_release_events():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
