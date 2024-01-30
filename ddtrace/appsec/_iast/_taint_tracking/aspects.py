@@ -635,6 +635,9 @@ def _distribute_ranges_and_escape(
             if end <= start:
                 continue
 
+            if end - element_start < 1:
+                continue
+
             new_range = TaintRange(
                 start=start - element_start,
                 length=end - element_start,
