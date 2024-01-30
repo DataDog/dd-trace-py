@@ -776,6 +776,9 @@ def replace_aspect(
         if old_value not in candidate_text or old_value == new_value:
             return candidate_text
 
+        if orig_result == "":
+            return orig_result
+
         aspect_result = aspect_replace_api(candidate_text, old_value, new_value, count, orig_result)
         if aspect_result != orig_result:
             return orig_result
