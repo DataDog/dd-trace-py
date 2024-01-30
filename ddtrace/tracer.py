@@ -145,6 +145,8 @@ def _default_span_processors_factory(
                 APIManager.disable()
 
             appsec_processor = None
+    else:
+        appsec_processor = None
 
     if iast_enabled:
         from .appsec._iast.processor import AppSecIastSpanProcessor
