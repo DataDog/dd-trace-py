@@ -532,6 +532,7 @@ def get_ddup_ext():
                 },
                 force=True,
                 annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+                compiler_directives={"language_level": "3"},
             )
         )
     return ddup_ext
@@ -685,6 +686,7 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "3"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil")
