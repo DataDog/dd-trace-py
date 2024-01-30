@@ -23,6 +23,7 @@ else:
     from django.conf.urls import url as path
 
 
+@csrf_exempt
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 

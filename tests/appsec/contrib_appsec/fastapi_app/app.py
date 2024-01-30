@@ -31,6 +31,8 @@ def get_app():
     app = FastAPI()
 
     @app.get("/")
+    @app.post("/")
+    @app.options("/")
     async def read_homepage():  # noqa: B008
         return HTMLResponse("ok ASM", 200)
 

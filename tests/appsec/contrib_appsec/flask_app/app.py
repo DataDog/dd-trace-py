@@ -17,7 +17,7 @@ tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
 
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST", "OPTIONS"])
 def index():
     return "ok ASM"
 
