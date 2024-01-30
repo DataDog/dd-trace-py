@@ -2254,8 +2254,8 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
                         "completions": [{"content": ""}],
                         "durations": [mock.ANY],
                         "error": [
-                            "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
-                        ],  # noqa: E501
+                            "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"  # noqa: E501
+                        ],
                     },
                 }
             ),
@@ -2332,8 +2332,8 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai,
                         "completions": [{"content": ""}],
                         "durations": [mock.ANY],
                         "error": [
-                            "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
-                        ],  # noqa: E501
+                            "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"  # noqa: E501
+                        ],
                     },
                 }
             ),

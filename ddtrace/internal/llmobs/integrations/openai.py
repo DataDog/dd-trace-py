@@ -1,11 +1,10 @@
 import time
-import uuid
-
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+import uuid
 
 from ddtrace import Span
 from ddtrace import config
@@ -161,7 +160,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             attrs_dict["output"]["completions"] = [{"content": str(content), "role": choice.message.role}]
             self.llm_record(span, attrs_dict)
 
-    def _llm_error_record(self, span: Span, kwargs: Dict[str, Any], record_type: str) -> None:
+    def _llm_error_record(self, span: Span, kwargs: Dict[str, Any], record_type: str) -> Dict[str, Any]:
         """LLMObs erroneous record template for OpenAI."""
         now = time.time()
         attrs_dict = {
@@ -184,10 +183,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
                 prompt = [prompt]
-            attrs_dict["input"]["prompts"] = prompt
+            attrs_dict["input"]["prompts"] = prompt  # type: ignore[index]
         elif record_type == "chat":
             messages = kwargs.get("messages", [])
-            attrs_dict["input"]["messages"] = [
+            attrs_dict["input"]["messages"] = [  # type: ignore[index]
                 {"content": str(m.get("content", "")), "role": m.get("role", "")} for m in messages
             ]
         return attrs_dict

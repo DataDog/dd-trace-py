@@ -2606,7 +2606,9 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
                     "output": {
                         "completions": [{"content": ""}],
                         "durations": [mock.ANY],
-                        "error": ["Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."],  # noqa: E501
+                        "error": [
+                            "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."  # noqa: E501
+                        ],
                     },
                 }
             ),
@@ -2681,7 +2683,9 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai,
                     "output": {
                         "completions": [{"content": ""}],
                         "durations": [mock.ANY],
-                        "error": ["Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."],  # noqa: E501
+                        "error": [
+                            "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."  # noqa: E501
+                        ],
                     },
                 }
             ),
