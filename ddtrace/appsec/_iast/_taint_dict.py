@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 #
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import Tuple
+    from typing import Dict  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
-    from ._taint_tracking import Source
+    from ._taint_tracking import Source  # noqa:F401
 
 _IAST_TAINT_DICT = {}  # type: Dict[int, Tuple[Tuple[Source, int, int],...]]
 

@@ -168,3 +168,17 @@ def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, i
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
         # yield the span in case the caller wants to build on span
         yield span
+
+
+async def _run_redis_command_async(span, func, args, kwargs):
+    parsed_command = stringify_cache_args(args)
+    redis_command = parsed_command.split(" ")[0]
+    try:
+        result = await func(*args, **kwargs)
+        if redis_command in ROW_RETURNING_COMMANDS:
+            determine_row_count(redis_command=redis_command, span=span, result=result)
+        return result
+    except Exception:
+        if redis_command in ROW_RETURNING_COMMANDS:
+            span.set_metric(db.ROWCOUNT, 0)
+        raise

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an ``get_openai_token_cost_for_model`` import error in 
+    langhcain version 0.0.351 or later.

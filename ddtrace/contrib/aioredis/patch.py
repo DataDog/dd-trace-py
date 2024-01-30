@@ -24,8 +24,8 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from .. import trace_utils
-from ..redis.asyncio_patch import _run_redis_command_async
 from ..trace_utils_redis import ROW_RETURNING_COMMANDS
+from ..trace_utils_redis import _run_redis_command_async
 from ..trace_utils_redis import _trace_redis_cmd
 from ..trace_utils_redis import _trace_redis_execute_pipeline
 from ..trace_utils_redis import determine_row_count

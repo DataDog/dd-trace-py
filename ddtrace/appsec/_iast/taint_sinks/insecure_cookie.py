@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.compat import six
 
@@ -14,8 +14,8 @@ from ..taint_sinks._base import VulnerabilityBase
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-    from typing import Optional
+    from typing import Dict  # noqa:F401
+    from typing import Optional  # noqa:F401
 
 
 @oce.register
@@ -46,17 +46,16 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
 
     for cookie_key, cookie_value in six.iteritems(cookies):
         lvalue = cookie_value.lower().replace(" ", "")
-        evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)
             _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
-            InsecureCookie.report(evidence_value=evidence)
+            InsecureCookie.report(evidence_value=cookie_key)
 
         if ";httponly" not in lvalue:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoHttpOnlyCookie.vulnerability_type)
             _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
-            NoHttpOnlyCookie.report(evidence_value=evidence)
+            NoHttpOnlyCookie.report(evidence_value=cookie_key)
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
@@ -72,4 +71,4 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
         if report_samesite:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoSameSite.vulnerability_type)
             _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
-            NoSameSite.report(evidence_value=evidence)
+            NoSameSite.report(evidence_value=cookie_key)

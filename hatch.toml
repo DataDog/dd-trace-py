@@ -75,6 +75,12 @@ dependencies = [  # copied from library dependencies
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
+    "sphinxcontrib-applehelp<1.0.8",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-htmlhelp<2.0.5",
+    "sphinxcontrib-devhelp<1.0.6",
+    "sphinxcontrib-serializinghtml<1.1.10",
+    "sphinxcontrib-qthelp<1.0.7",
     "sphinxcontrib-spelling==7.7.0",
     "PyEnchant==3.2.2",
     "sphinx-copybutton==0.5.1",

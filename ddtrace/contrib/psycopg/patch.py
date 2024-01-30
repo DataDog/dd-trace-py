@@ -39,7 +39,8 @@ try:
     # using unwrap
     _original_connect = psycopg_import.Connection.__dict__["connect"]
     _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-except ImportError:
+# AttributeError can happen due to circular imports under certain integration methods
+except (ImportError, AttributeError):
     pass
 
 
