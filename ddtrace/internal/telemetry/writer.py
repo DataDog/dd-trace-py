@@ -21,11 +21,11 @@ from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
-from ...settings.profiling import config as prof_config
 from ...settings.config import _ConfigSource
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
+from ...settings.profiling import config as prof_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
