@@ -306,7 +306,7 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [
-                {"value": "SELECT "},
+                {"value": "SELECT"},
                 {"redacted": True},
                 {"value": " FROM "},
                 {"value": "sqlite_master", "source": 0},
