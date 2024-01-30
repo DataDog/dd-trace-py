@@ -2,7 +2,7 @@ from importlib import import_module
 from typing import List  # noqa:F401
 
 from ddtrace import config
-from ddtrace._tracing import _limits
+from ddtrace._trace import _limits
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import net
