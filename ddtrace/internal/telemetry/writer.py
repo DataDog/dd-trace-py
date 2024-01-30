@@ -21,6 +21,7 @@ from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
+from ...settings.profiling import config as prof_config
 from ...settings.config import _ConfigSource
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
@@ -434,15 +435,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
-                (PROFILING_ENABLED, config.profiling_enabled, "unknown"),
-                (PROFILING_STACK_ENABLED, config.profiling.stack.enabled, "unknown"),
-                (PROFILING_MEMORY_ENABLED, config.profiling.memory.enabled, "unknown"),
-                (PROFILING_HEAP_ENABLED, config.profiling.heap_sample_size > 0, "unknown"),
-                (PROFILING_LOCK_ENABLED, config.profiling.lock.enabled, "unknown"),
-                (PROFILING_EXPORT_PY_ENABLED, config.profiling.export.py_enabled, "unknown"),
-                (PROFILING_EXPORT_LIBDD_ENABLED, config.profiling.export.libdd_enabled, "unknown"),
-                (PROFILING_CAPTURE_PCT, config.profiling.capture_pct, "unknown"),
-                (PROFILING_MAX_FRAMES, config.profiling.max_frames, "unknown"),
+                (PROFILING_ENABLED, prof_config.enabled, "unknown"),
+                (PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
+                (PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
+                (PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
+                (PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
+                (PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
+                (PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
+                (PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
+                (PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
             ]
         )
 
