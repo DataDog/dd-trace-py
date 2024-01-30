@@ -9,6 +9,7 @@ from six.moves import _thread
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
 
+from ...utils import flaky
 from . import test_collector
 
 
@@ -216,6 +217,7 @@ def test_lock_release_events():
     assert event.sampling_pct == 100
 
 
+@flaky(1711836471)
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
 @pytest.mark.subprocess
 def test_lock_gevent_tasks():

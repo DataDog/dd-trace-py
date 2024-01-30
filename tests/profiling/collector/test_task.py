@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.profiling.collector import _task
+from tests.utils import flaky
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
@@ -23,6 +24,7 @@ def test_list_tasks_nogevent():
     assert _task.list_tasks(compat.main_thread.ident) == []
 
 
+@flaky(1711836471)
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
 @pytest.mark.subprocess
 def test_list_tasks_gevent():
