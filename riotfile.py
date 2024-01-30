@@ -179,8 +179,9 @@ venv = Venv(
         Venv(
             name="appsec_iast_tdd_propagation",
             pys=select_pys(min_version="3.11", max_version="3.11"),
-            command="pytest --no-cov tests/appsec/iast_tdd_propagation/",
+            command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
+                "coverage": latest,
                 "flask": "~=3.0",
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
