@@ -94,9 +94,9 @@ interactions:
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '15000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '2000000'
+      - '1000000'
       x-ratelimit-remaining-requests:
       - '9999'
       x-ratelimit-remaining-tokens:

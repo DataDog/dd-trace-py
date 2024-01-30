@@ -233,6 +233,9 @@ commands:
       - checkout
       - attach_workspace:
           at: .
+      - restore_cache:
+          keys:
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - setup_hatch
       - when:
           condition:
@@ -266,6 +269,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: "Store Test Agent Supported Integrations Data"
           command: |
@@ -458,10 +465,41 @@ jobs:
 
   appsec_integrations:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
+
+  appsec_threats_django:
+    parallelism: 12
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_django'
+          snapshot: false
+  
+  appsec_threats_flask:
+    parallelism: 10
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_flask'
+          snapshot: false
+
+  appsec_threats_fastapi:
+    parallelism: 9
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_fastapi'
+          snapshot: false
 
   aws_lambda:
     <<: *machine_executor
@@ -1154,7 +1192,7 @@ jobs:
 
   kafka:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'kafka'
