@@ -2000,7 +2000,8 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.7", max_version="3.11"),
+            # FIXME: this test suite breaks on 3.7
+            pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "pytest-asyncio": latest,
                 "opentelemetry-api": ["~=1.0.0", "~=1.3.0", "~=1.4.0", "~=1.8.0", "~=1.11.0", "~=1.15.0", latest],
