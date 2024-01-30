@@ -663,22 +663,14 @@ def _distribute_ranges_and_escape(
     return formatted_elements
 
 
-def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any) -> str
-    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, tuple(args) + tuple(kwargs.values()))
+def aspect_replace_api(
+    candidate_text, old_value, new_value, count, orig_result
+):  # type: (Any, Any, Any, int, Any) -> str
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, (old_value, new_value))
     if not ranges_orig:  # Ranges in args/kwargs are checked
-        return candidate_text.replace(*args, **kwargs)
+        return orig_result
 
     empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""
-    old_value = parse_params(0, "old_value", None, *args, **kwargs)
-    new_value = parse_params(1, "new_value", None, *args, **kwargs)
-
-    if old_value is None or new_value is None:
-        return candidate_text.replace(*args, **kwargs)
-
-    if old_value not in candidate_text or old_value == new_value:
-        return candidate_text
-
-    count = parse_params(2, "count", -1, *args, **kwargs)
 
     if old_value:
         elements = candidate_text.split(old_value, count)
@@ -720,7 +712,7 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
                 new_elements_append(None)
                 i += 1
                 continue
-            elif i + 1 == len_elements and element in ("", b""):
+            if i + 1 == len_elements and element in ("", b""):
                 new_elements_append(None)
                 continue
 
@@ -728,7 +720,7 @@ def aspect_replace_api(candidate_text, *args, **kwargs):  # type: (Any, Any, Any
 
             if count < 0 and i + 1 < len(elements):
                 new_elements_append(None)
-            elif i >= count and i + 1 < len(elements):
+            if i >= count and i + 1 < len(elements):
                 new_elements_append(old_value)
             i += 1
     else:
@@ -772,7 +764,16 @@ def replace_aspect(
         return candidate_text
     ###
     try:
-        aspect_result = aspect_replace_api(candidate_text, *args, **kwargs)
+        old_value = parse_params(0, "old_value", None, *args, **kwargs)
+        new_value = parse_params(1, "new_value", None, *args, **kwargs)
+
+        if old_value is None or new_value is None:
+            return orig_result
+
+        if old_value not in candidate_text or old_value == new_value:
+            return candidate_text
+
+        aspect_result = aspect_replace_api(candidate_text, old_value, new_value, count, orig_result)
         if aspect_result != orig_result:
             return orig_result
         return aspect_result
