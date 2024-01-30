@@ -73,7 +73,7 @@ How do I run only the tests I care about?
    these are the "suite services".
 4. Start the suite services, if applicable, with ``$ docker-compose up -d service1 service2``.
 5. Start the test-runner Docker container with ``$ scripts/ddtest``.
-6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
+6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
 
 Anatomy of a Riot Command
 -------------------------
