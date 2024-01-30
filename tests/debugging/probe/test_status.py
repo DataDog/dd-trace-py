@@ -1,8 +1,8 @@
 import sys
+import typing as t
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal import runtime
-from ddtrace.internal.utils.http import MULTIPART_HEADERS
 from ddtrace.internal.utils.http import parse_form_multipart
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -12,8 +12,9 @@ class DummyProbeStatusLogger(ProbeStatusLogger):
         super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
         self._flush_queue = []
 
-    def _write_payload(self, payload: bytes):
-        self._flush_queue.extend(parse_form_multipart(payload.decode("utf-8"), MULTIPART_HEADERS)["event"])
+    def _write_payload(self, data: t.Tuple[bytes, dict]):
+        body, headers = data
+        self._flush_queue.extend(parse_form_multipart(body.decode("utf-8"), headers)["event"])
 
     def clear(self):
         self._flush_queue[:] = []

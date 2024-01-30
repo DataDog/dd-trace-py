@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Removes another place where we always load instrumentation telemetry, even if it is disabled

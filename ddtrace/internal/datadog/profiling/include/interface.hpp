@@ -47,7 +47,7 @@ void ddup_push_frame(const char *_name, const char *_filename, uint64_t address,
                      int64_t line);
 void ddup_flush_sample();
 void ddup_set_runtime_id(const char *id, size_t sz);
-void ddup_upload();
+bool ddup_upload();
 
 
 #ifdef __cplusplus

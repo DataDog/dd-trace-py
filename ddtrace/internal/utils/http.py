@@ -1,5 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
 from json import loads
 import logging
 import os
@@ -422,20 +424,18 @@ class FormData:
     data: str
     content_type: str
 
-    def __str__(self):
-        return (
-            f'Content-Disposition: form-data; name="{self.name}"; filename="{self.filename}"\r\n'
-            + f"Content-Type: {self.content_type}\r\n"
-            + f"\r\n{self.data}\r\n"
-        )
 
+def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
+    msg = MIMEMultipart("form-data")
+    del msg["MIME-Version"]
 
-MULTIPART_BOUNDARY = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-MULTIPART_SEPARATOR = f"--{MULTIPART_BOUNDARY}\r\n"
-MULTIPART_HEADERS = {"Content-Type": f"multipart/form-data; boundary={MULTIPART_BOUNDARY}"}
+    for part in parts:
+        app = MIMEApplication(part.data, part.content_type, lambda _: _)
+        app.add_header("Content-Disposition", "form-data", name=part.name, filename=part.filename)
+        del app["MIME-Version"]
+        msg.attach(app)
 
+    # Split headers and body
+    headers, _, body = msg.as_string().partition("\n\n")
 
-def multipart(parts: List[FormData]) -> bytes:
-    return f"{MULTIPART_SEPARATOR}{MULTIPART_SEPARATOR.join(str(_) for _ in parts)}--{MULTIPART_BOUNDARY}--\r\n".encode(
-        "utf-8"
-    )
+    return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())

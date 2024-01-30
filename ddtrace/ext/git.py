@@ -56,6 +56,9 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+# Python main package
+MAIN_PACKAGE = "python_main_package"
+
 _RE_REFS = re.compile(r"^refs/(heads/)?")
 _RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
@@ -125,7 +128,7 @@ def _set_safe_directory():
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
-        log.error("Error setting safe directory", exc_info=True)
+        log.error("Error setting safe directory")
 
 
 def _extract_clone_defaultremotename_with_details(cwd):
