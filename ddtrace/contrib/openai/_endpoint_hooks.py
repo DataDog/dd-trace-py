@@ -212,25 +212,27 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
         if kwargs.get("stream"):
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
+        if integration.is_pc_sampled_log(span):
+            attrs_dict = {"prompt": kwargs.get("prompt", "")}
+            if error is None:
+                log_choices = resp.choices
+                if hasattr(resp.choices[0], "model_dump"):
+                    log_choices = [choice.model_dump() for choice in resp.choices]
+                attrs_dict.update({"choices": log_choices})
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_completion_llm_records(resp, error, span, kwargs)
+        if not resp:
+            return
         for choice in resp.choices:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % choice.index, str(choice.finish_reason))
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str("openai.response.choices.%d.text" % choice.index, integration.trunc(choice.text))
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"prompt": kwargs.get("prompt", ""), "choices": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -266,10 +268,20 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
         if kwargs.get("stream"):
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
+        if integration.is_pc_sampled_log(span):
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
+            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_chat_llm_records(resp, error, span, kwargs)
+        if not resp:
+            return
         for choice in resp.choices:
             idx = choice.index
             finish_reason = getattr(choice, "finish_reason", None)
@@ -285,16 +297,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if getattr(message, "tool_calls", None):
                 _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return resp
 
 
