@@ -21,7 +21,7 @@ class ASMConfig(Env):
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
-    _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=False)
+    _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_rate = Env.var(float, API_SECURITY.SAMPLE_RATE, validator=_validate_sample_rate, default=0.1)
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
     _waf_timeout = Env.var(
