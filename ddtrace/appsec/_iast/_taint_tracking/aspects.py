@@ -761,8 +761,9 @@ def replace_aspect(
 
     candidate_text = args[0]
     args = args[flag_added_args:]
+    orig_result = candidate_text.replace(*args, **kwargs)
     if not isinstance(candidate_text, TEXT_TYPES):
-        return candidate_text.replace(*args, **kwargs)
+        return orig_result
 
     ###
     # Optimization: if we're not going to replace, just return the original string
@@ -771,10 +772,13 @@ def replace_aspect(
         return candidate_text
     ###
     try:
-        return aspect_replace_api(candidate_text, *args, **kwargs)
+        aspect_result = aspect_replace_api(candidate_text, *args, **kwargs)
+        if aspect_result != orig_result:
+            return orig_result
+        return aspect_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))
-        return candidate_text.replace(*args, **kwargs)
+        return orig_result
 
 
 def swapcase_aspect(
