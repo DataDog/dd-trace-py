@@ -562,7 +562,7 @@ jobs:
 
   openai:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'openai'
