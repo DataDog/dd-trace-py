@@ -145,7 +145,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [
-                {"value": "SELECT "},
+                {"value": "SELECT ", "source": 0},
                 {"redacted": True},
                 {"value": " FROM sqlite_master", "source": 0},
             ]
