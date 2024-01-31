@@ -255,10 +255,8 @@ class CIVisibilityGitClient(object):
                     return None
 
                 if response.status >= 400:
-                    log.warning(payload)
-                    log.warning(base_url)
                     request_error = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-                    log.warning(
+                    log.debug(
                         "Error searching commits, response status code: %s , response body: %s",
                         response.status,
                         response.body,
