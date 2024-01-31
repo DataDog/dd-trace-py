@@ -2632,6 +2632,8 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
 )
 def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with pytest.raises(Exception):
         with openai_vcr.use_cassette("chat_completion_error.yaml"):
             model = "gpt-3.5-turbo"
