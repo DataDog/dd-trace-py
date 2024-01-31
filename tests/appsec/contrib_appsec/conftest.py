@@ -1,6 +1,7 @@
 import pytest
 
 from tests.utils import TracerSpanContainer
+from tests.utils import _build_tree
 
 
 @pytest.fixture
@@ -12,7 +13,13 @@ def test_spans(interface):
 
 @pytest.fixture
 def root_span(test_spans):
-    yield test_spans.get_root_span
+    # get the first root span
+    def get_root_span():
+        for span in test_spans.spans:
+            if span.parent_id is None:
+                return _build_tree(test_spans.spans, span)
+
+    return get_root_span
 
 
 @pytest.fixture

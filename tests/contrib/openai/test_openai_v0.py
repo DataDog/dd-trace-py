@@ -2289,7 +2289,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
     """
     with openai_vcr.use_cassette("completion.yaml"):
         model = "ada"
-        openai.Completion.create(
+        resp = openai.Completion.create(
             model=model, prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
         )
     span = mock_tracer.pop_traces()[0][0]
@@ -2302,7 +2302,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2317,7 +2317,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
                     "timestamp": 1681852797000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "prompts": ["Hello world"],
@@ -2341,7 +2341,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
                     "timestamp": 1681852797000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "prompts": ["Hello world"],
@@ -2409,7 +2409,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2424,7 +2424,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": input_messages,
@@ -2448,7 +2448,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": input_messages,
@@ -2509,7 +2509,7 @@ def test_llmobs_chat_completion_function_call(
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2524,7 +2524,7 @@ def test_llmobs_chat_completion_function_call(
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
