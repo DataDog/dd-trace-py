@@ -648,7 +648,7 @@ def _distribute_ranges_and_escape(
         element_ranges = tuple(new_ranges.keys())
         # DEV: If this if is True, it means that the element is part of bytes/bytearray
         if isinstance(element, int):
-            element_new_id = new_pyobject_id(bytes(chr(element), "utf-8"))
+            element_new_id = bytes([element])
         else:
             element_new_id = new_pyobject_id(element)
         set_ranges(element_new_id, element_ranges)

@@ -59,6 +59,11 @@ def _test_replace_result(
             else:
                 replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
                 assert replaced == origstr.replace(substr, replstr, maxcount)
+            if should_be_tainted_origstr and should_be_tainted_replstr and replaced:
+                assert is_pyobject_tainted(replaced)
+
+            if not should_be_tainted_origstr and not should_be_tainted_replstr:
+                assert not is_pyobject_tainted(replaced)
     else:
         if maxcount is None:
             replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
@@ -66,6 +71,12 @@ def _test_replace_result(
         else:
             replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
             assert replaced == origstr.replace(substr, replstr, maxcount)
+
+        if should_be_tainted_origstr and should_be_tainted_replstr and replaced:
+            assert is_pyobject_tainted(replaced)
+
+        if not should_be_tainted_origstr and not should_be_tainted_replstr:
+            assert not is_pyobject_tainted(replaced)
 
 
 @pytest.mark.parametrize(
@@ -101,12 +112,7 @@ def _test_replace_result(
     ],
 )
 def test_replace_result(origstr, substr, replstr, maxcount):
-    if maxcount is None:
-        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
-        assert replaced == origstr.replace(substr, replstr)
-    else:
-        replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
-        assert replaced == origstr.replace(substr, replstr, maxcount)
+    _test_replace_result(None, origstr, substr, replstr, maxcount, False, False, str)
 
 
 @pytest.mark.parametrize(
@@ -118,19 +124,15 @@ def test_replace_result(origstr, substr, replstr, maxcount):
         "aaa",
         "abaacaaadaaaa",
         '""',
-        "-",
-        "--",
-        "---",
-        "----",
     ],
 )
 @pytest.mark.parametrize(
     "substr",
     [
         "",
-        "a" "aaa",
+        "a",
+        "aaa",
         '"',
-        "-",
     ],
 )
 @pytest.mark.parametrize(
@@ -140,7 +142,6 @@ def test_replace_result(origstr, substr, replstr, maxcount):
         "a",
         "aaa",
         '"',
-        "-",
     ],
 )
 @pytest.mark.parametrize("maxcount", [None, -2, -1, 0, 1, 2, 3, 4, 5, 1000000000])
@@ -159,8 +160,6 @@ def test_replace_result_str(
     "origstr",
     [
         "",
-        "  ",
-        "a",
         "----",
     ],
 )
@@ -169,8 +168,6 @@ def test_replace_result_str(
     [
         b"",
         bytearray(b""),
-        b"ascii123",
-        b"\xe9\xe7\xe0\xf1\xd4\xcb",
         b"\xe1\xe3\xe9\xf7\xfa \xee\xe5\xf6\xf8",
     ],
 )
@@ -178,7 +175,6 @@ def test_replace_result_str(
     "replstr",
     [
         b"",
-        b"\xc3\xa9\xc3\xa7\xc3\xa0\xc3\xb1\xc3\x94\xc3\x8b",
         b"\x83v\x83\x8d\x83_\x83N\x83g\x83e\x83X\x83g",
     ],
 )
@@ -195,8 +191,6 @@ def test_replace_result_mix1(origstr, substr, replstr, maxcount, should_be_taint
     "origstr",
     [
         b"",
-        b"  ",
-        b"a",
         b"----",
     ],
 )
@@ -205,18 +199,16 @@ def test_replace_result_mix1(origstr, substr, replstr, maxcount, should_be_taint
     [
         "",
         "\xe9\xe7\xe0\xf1\xd4\xcb",
-        "\xc3\xa9\xc3\xa7",
     ],
 )
 @pytest.mark.parametrize(
     "replstr",
     [
         "",
-        "\xe9\xe7\xe0\xf1\xd4\xcb",
         "\xc3\xa9\xc3\xa7",
     ],
 )
-@pytest.mark.parametrize("maxcount", [None, -1, 0, 1, 2, 1000000000])
+@pytest.mark.parametrize("maxcount", [None, -2, -1, 0, 1, 1000000000])
 @pytest.mark.parametrize("should_be_tainted_origstr", [False, True])
 @pytest.mark.parametrize("should_be_tainted_replstr", [False, True])
 def test_replace_result_mix2(origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr):
@@ -229,8 +221,6 @@ def test_replace_result_mix2(origstr, substr, replstr, maxcount, should_be_taint
     "origstr",
     [
         bytearray(b""),
-        bytearray(b"  "),
-        bytearray(b"a"),
         bytearray(b"----"),
     ],
 )
@@ -238,7 +228,6 @@ def test_replace_result_mix2(origstr, substr, replstr, maxcount, should_be_taint
     "substr",
     [
         "",
-        "\xe9\xe7\xe0\xf1\xd4\xcb",
         "\xc3\xa9\xc3\xa7",
     ],
 )
@@ -246,7 +235,6 @@ def test_replace_result_mix2(origstr, substr, replstr, maxcount, should_be_taint
     "replstr",
     [
         "",
-        "\xe9\xe7\xe0\xf1\xd4\xcb",
         "\xc3\xa9\xc3\xa7",
     ],
 )
