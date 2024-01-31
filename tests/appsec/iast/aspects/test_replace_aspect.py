@@ -562,10 +562,11 @@ def test_replace_tainted_shrinking_ranges(origstr, substr, replstr, maxcount, fo
     ],
 )
 def test_replace_aspect_more(origstr, taint_len, substr, replstr, maxcount, formatted):
-    set_ranges(
-        origstr,
-        (_build_sample_range(0, taint_len, "name"),),
-    )
+    if taint_len > 0:
+        set_ranges(
+            origstr,
+            (_build_sample_range(0, taint_len, "name"),),
+        )
     if maxcount is None:
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
         assert replaced == origstr.replace(substr, replstr)
