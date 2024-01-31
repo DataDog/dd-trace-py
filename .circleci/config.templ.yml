@@ -1192,7 +1192,7 @@ jobs:
 
   kafka:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'kafka'
