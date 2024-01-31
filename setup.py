@@ -452,7 +452,7 @@ if not IS_PYSTON:
             )
         )
 
-    if platform.system() is "Linux" and is_64_bit_python():
+    if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling._ddup",
@@ -620,6 +620,7 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "3"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),

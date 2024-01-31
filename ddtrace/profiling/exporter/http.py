@@ -16,6 +16,7 @@ import attr
 
 import ddtrace
 from ddtrace.ext.git import COMMIT_SHA
+from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import agent
 from ddtrace.internal import compat
@@ -66,11 +67,13 @@ class PprofHTTPExporter(pprof.PprofExporter):
         """
         # clean tags, because values will be combined and inserted back in the same way as for tracer
         gitmetadata.clean_tags(tags)
-        repository_url, commit_sha = gitmetadata.get_git_tags()
+        repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
             tags[REPOSITORY_URL] = repository_url
         if commit_sha:
             tags[COMMIT_SHA] = commit_sha
+        if main_package:
+            tags[MAIN_PACKAGE] = main_package
         return tags
 
     def __attrs_post_init__(self):

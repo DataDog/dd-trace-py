@@ -442,6 +442,43 @@
             "tests/appsec/iast_integrations/*",
             "tests/snapshots/tests.appsec.*"
         ],
+        "appsec_threats_django": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@asgi",
+            "@wsgi",
+            "@django",
+            "tests/appsec/*",
+            "tests/appsec/contrib_appsec/*"
+        ],
+        "appsec_threats_flask": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@asgi",
+            "@wsgi",
+            "@flask",
+            "tests/appsec/*",
+            "tests/appsec/contrib_appsec/*"
+        ],
+        "appsec_threats_fastapi": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@appsec",
+            "@appsec_iast",
+            "@asgi",
+            "@wsgi",
+            "@fastapi",
+            "@starlette",
+            "tests/appsec/*",
+            "tests/appsec/contrib_appsec/*"
+        ],
         "aws_lambda": [
             "@bootstrap",
             "@core",
