@@ -1,7 +1,6 @@
 import ctypes
 import ctypes.util
 from enum import IntEnum
-import os
 from platform import machine
 from platform import system
 from typing import Any
@@ -10,14 +9,10 @@ from typing import List
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
-
-_DIRNAME = os.path.dirname(__file__)
-
-FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
-
 
 log = get_logger(__name__)
 
@@ -34,16 +29,8 @@ if system() == "Linux":
 ARCHI = machine().lower()
 
 # 32-bit-Python on 64-bit-Windows
-if system() == "Windows" and ARCHI == "amd64":
-    from sys import maxsize
 
-    if maxsize <= (1 << 32):
-        ARCHI = "x86"
-
-TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-
-ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
+ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
