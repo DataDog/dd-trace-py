@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace._trace.context import Context
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -15,7 +16,6 @@ from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor

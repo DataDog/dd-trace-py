@@ -44,7 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List  # noqa:F401
     from typing import Text  # noqa:F401
 
-    from ddtrace.context import Context  # noqa:F401
+    from ddtrace._trace.context import Context  # noqa:F401
     from ddtrace.span import Span  # noqa:F401
 
 # Big prime number to make hashing better distributed
