@@ -396,13 +396,13 @@ Profile::push_frame_impl(std::string_view name, std::string_view filename, uint6
     ddog_prof_Location loc = {
         null_mapping, // No support for mappings in Python
         {
-          to_slice(name),
-          {}, // No support for system name in Python
-          to_slice(filename),
-          0 // We don't know the start_line in the typical case
+          .name = to_slice(name),
+          .system_name = {}, // No support for system name in Python
+          .filename = to_slice(filename),
+          .start_line = 0 // We don't know the start_line in the typical case
         },
-        address,
-        line,
+        .address = address,
+        .line = line,
     };
     locations.push_back(loc);
 }
