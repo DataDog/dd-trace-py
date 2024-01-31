@@ -147,8 +147,8 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"value": "master", "source": 0},
+                {"value": " from "},
+                {"value": "sqlite_master", "source": 0},
             ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
