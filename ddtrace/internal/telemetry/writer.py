@@ -39,15 +39,16 @@ from ..service import ServiceStatus
 from ..utils.formats import asbool
 from ..utils.time import StopWatch
 from ..utils.version import _pep440_to_semver
-from .constants import PROFILING_CAPTURE_PCT
-from .constants import PROFILING_ENABLED
-from .constants import PROFILING_EXPORT_LIBDD_ENABLED
-from .constants import PROFILING_EXPORT_PY_ENABLED
-from .constants import PROFILING_HEAP_ENABLED
-from .constants import PROFILING_LOCK_ENABLED
-from .constants import PROFILING_MAX_FRAMES
-from .constants import PROFILING_MEMORY_ENABLED
-from .constants import PROFILING_STACK_ENABLED
+from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
+from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
+from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
+from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
+from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
+from .constants import TELEMETRY_PROFILING_MAX_FRAMES
+from .constants import TELEMETRY_PROFILING_MEMORY_ENABLED
+from .constants import TELEMETRY_PROFILING_STACK_ENABLED
+from .constants import TELEMETRY_PROFILING_UPLOAD_INTERVAL
 from .constants import TELEMETRY_128_BIT_TRACEID_GENERATION_ENABLED
 from .constants import TELEMETRY_128_BIT_TRACEID_LOGGING_ENABLED
 from .constants import TELEMETRY_AGENT_HOST
@@ -435,15 +436,16 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
-                (PROFILING_ENABLED, prof_config.enabled, "unknown"),
-                (PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
-                (PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
-                (PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
-                (PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
-                (PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
-                (PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
-                (PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
-                (PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
+                (TELEMETRY_PROFILING_ENABLED, prof_config.enabled, "unknown"),
+                (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
+                (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
+                (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
+                (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
+                (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
+                (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
+                (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
         )
 
