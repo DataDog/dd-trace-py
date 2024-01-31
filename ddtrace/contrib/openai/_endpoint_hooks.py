@@ -212,7 +212,7 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if kwargs.get("stream"):
+        if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
         if integration.is_pc_sampled_log(span):
             attrs_dict = {"prompt": kwargs.get("prompt", "")}
@@ -268,7 +268,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if kwargs.get("stream"):
+        if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, args, kwargs, resp)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
