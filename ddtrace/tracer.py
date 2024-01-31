@@ -17,6 +17,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
+from ddtrace._trace.processor.trace import SpanProcessor
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -26,6 +27,14 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
 from . import _hooks
+from ._trace.processor.trace import BaseServiceProcessor
+from ._trace.processor.trace import PeerServiceProcessor
+from ._trace.processor.trace import SpanAggregator
+from ._trace.processor.trace import SpanSamplingProcessor
+from ._trace.processor.trace import TopLevelSpanProcessor
+from ._trace.processor.trace import TraceProcessor
+from ._trace.processor.trace import TraceSamplingProcessor
+from ._trace.processor.trace import TraceTagsProcessor
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
@@ -42,15 +51,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.processor import SpanProcessor
-from .internal.processor.trace import BaseServiceProcessor
-from .internal.processor.trace import PeerServiceProcessor
-from .internal.processor.trace import SpanAggregator
-from .internal.processor.trace import SpanSamplingProcessor
-from .internal.processor.trace import TopLevelSpanProcessor
-from .internal.processor.trace import TraceProcessor
-from .internal.processor.trace import TraceSamplingProcessor
-from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda

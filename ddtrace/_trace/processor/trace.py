@@ -19,7 +19,6 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.schema import schematize_service_name
@@ -68,6 +67,72 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         processed.
         """
         pass
+
+
+@attr.s
+class SpanProcessor(metaclass=abc.ABCMeta):
+    """A Processor is used to process spans as they are created and finished by a tracer."""
+
+    __processors__ = []  # type: List["SpanProcessor"]
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        """Default post initializer which logs the representation of the
+        Processor at the ``logging.DEBUG`` level.
+
+        The representation can be modified with the ``repr`` argument to the
+        attrs attribute::
+
+            @attr.s
+            class MyProcessor(Processor):
+                field_to_include = attr.ib(repr=True)
+                field_to_exclude = attr.ib(repr=False)
+        """
+        log.debug("initialized processor %r", self)
+
+    @abc.abstractmethod
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        """Called when a span is started.
+
+        This method is useful for making upfront decisions on spans.
+
+        For example, a sampling decision can be made when the span is created
+        based on its resource name.
+        """
+        pass
+
+    @abc.abstractmethod
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        """Called with the result of any previous processors or initially with
+        the finishing span when a span finishes.
+
+        It can return any data which will be passed to any processors that are
+        applied afterwards.
+        """
+        pass
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """Called when the processor is done being used.
+
+        Any clean-up or flushing should be performed with this method.
+        """
+        pass
+
+    def register(self):
+        # type: () -> None
+        """Register the processor with the global list of processors."""
+        SpanProcessor.__processors__.append(self)
+
+    def unregister(self):
+        # type: () -> None
+        """Unregister the processor from the global list of processors."""
+        try:
+            SpanProcessor.__processors__.remove(self)
+        except ValueError:
+            raise ValueError("Span processor %r not registered" % self)
 
 
 @attr.s
@@ -232,7 +297,7 @@ class SpanAggregator(SpanProcessor):
 
                 num_finished = len(finished)
 
-                if should_partial_flush and num_finished > 0:
+                if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
@@ -267,16 +332,22 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
-            telemetry.telemetry_writer._is_periodic = False
-            telemetry.telemetry_writer._enabled = True
-            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-            # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", None)
-            # on_span_finish(...) queues span finish metrics in batches of 100.
-            # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", None)
-            telemetry.telemetry_writer.periodic(True)
+        if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
+            if config._telemetry_enabled:
+                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
+                # Here we submit the remanining span creation metrics without restarting the periodic thread.
+                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
+                telemetry.telemetry_writer._is_periodic = False
+                telemetry.telemetry_writer._enabled = True
+                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+                # before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_created", "integration_name", None)
+                # on_span_finish(...) queues span finish metrics in batches of 100.
+                # This ensures all remaining counts are sent before the tracer is shutdown.
+                self._queue_span_count_metrics("spans_finished", "integration_name", None)
+                telemetry.telemetry_writer.periodic(True)
+                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
+                telemetry.telemetry_writer.disable()
 
         try:
             self._writer.stop(timeout)

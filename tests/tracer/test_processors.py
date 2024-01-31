@@ -6,6 +6,11 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace._trace.processor.trace import SpanAggregator
+from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor.trace import SpanSamplingProcessor
+from ddtrace._trace.processor.trace import TraceProcessor
+from ddtrace._trace.processor.trace import TraceTagsProcessor
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -19,11 +24,6 @@ from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.processor.trace import SpanAggregator
-from ddtrace.internal.processor.trace import SpanProcessor
-from ddtrace.internal.processor.trace import SpanSamplingProcessor
-from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from tests.utils import DummyTracer
@@ -49,7 +49,7 @@ def test_default_post_init():
         def on_span_finish(self, data):  # type: (Any) -> Any
             pass
 
-    with mock.patch("ddtrace.internal.processor.log") as log:
+    with mock.patch("ddtrace._trace.processor.trace.log") as log:
         p = MyProcessor()
 
     calls = [
