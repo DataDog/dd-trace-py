@@ -547,6 +547,10 @@ class Config(object):
         self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
         self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
+        self._dd_api_key = os.getenv("DD_API_KEY")
+        self._dd_app_key = os.getenv("DD_APP_KEY")
+        self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()

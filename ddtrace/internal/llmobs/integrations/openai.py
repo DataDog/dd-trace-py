@@ -16,12 +16,12 @@ from ddtrace.internal.utils.version import parse_version
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
-    def __init__(self, config, openai, stats_url):
+    def __init__(self, integration_config, openai):
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
-        super().__init__(config, stats_url)
+        super().__init__(integration_config)
         self._openai = openai
         self._user_api_key = None
         self._client = None

@@ -55,7 +55,7 @@ The following environment variables for the tracer are supported:
    DD_SITE:
      default: datadoghq.com
      description: |
-         Specify which site to use for uploading profiles. Set to
+         Specify which site to use for uploading profiles and logs. Set to
          ``datadoghq.eu`` to use EU site.
 
    DD_TRACE_ENABLED:
