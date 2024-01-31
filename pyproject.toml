@@ -145,6 +145,8 @@ exclude-modules = '''
   | ddtrace.appsec._iast.taint_sinks.sql_injection
   # DSM specific contribs
   | ddtrace.internal.datastreams.kafka
+  # libdd_wrapper is a common native dependency, not a module
+  | ddtrace.internal.datadog.profiling.libdd_wrapper
 )
 '''
 
