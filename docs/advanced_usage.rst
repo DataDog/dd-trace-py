@@ -404,7 +404,8 @@ For a selected set of integrations, it is possible to store http headers from bo
 
 The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
 
-Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
+This configuration can be provided both at the global level and at the integration level in your application code, or it
+can be set via the Datadog UI (UI functionality in beta as of version 2.5.0).
 
 Examples::
 

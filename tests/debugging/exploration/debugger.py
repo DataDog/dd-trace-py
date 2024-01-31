@@ -171,6 +171,9 @@ class NoopProbeStatusLogger(object):
     def installed(self, *args, **kwargs):
         pass
 
+    def emitting(self, *args, **kwargs):
+        pass
+
     def error(self, *args, **kwargs):
         pass
 

@@ -27,7 +27,10 @@ _PARAMS = ["/bin/ls", "-l"]
 @pytest.fixture(autouse=True)
 def auto_unpatch():
     yield
-    unpatch()
+    try:
+        unpatch()
+    except AttributeError:
+        pass
 
 
 def setup():

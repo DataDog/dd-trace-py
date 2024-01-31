@@ -179,6 +179,7 @@ class GrpcTestCase(TracerTestCase):
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("grpc.status.code") == "StatusCode.OK"
         assert span.get_tag("grpc.host") == "localhost"
+        assert span.get_tag("peer.hostname") == "localhost"
         assert span.get_tag("network.destination.port") == "50531"
         assert span.get_tag("component") == "grpc"
         assert span.get_tag("span.kind") == "client"

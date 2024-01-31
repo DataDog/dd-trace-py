@@ -5,7 +5,7 @@ import time
 import databases
 import sqlalchemy
 from starlette.applications import Starlette
-from starlette.background import BackgroundTask
+from starlette.background import BackgroundTasks
 from starlette.responses import FileResponse
 from starlette.responses import JSONResponse
 from starlette.responses import PlainTextResponse
@@ -109,13 +109,16 @@ def get_app(engine):
         response = "Success"
         return PlainTextResponse(response)
 
-    async def custom_task():
-        await asyncio.sleep(1)
+    async def custom_task(task_arg):
+        await asyncio.sleep(2)
 
     async def background_task(request):
         """An example endpoint that just adds to background tasks"""
         jsonmsg = {"result": "Background task added"}
-        return JSONResponse(jsonmsg, background=BackgroundTask(custom_task))
+
+        tasks = BackgroundTasks()
+        tasks.add_task(custom_task, task_arg="hi")
+        return JSONResponse(jsonmsg, background=tasks)
 
     routes = [
         Route("/", endpoint=homepage, name="homepage", methods=["GET"]),

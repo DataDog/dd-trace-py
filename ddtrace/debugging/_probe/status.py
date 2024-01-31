@@ -136,5 +136,12 @@ class ProbeStatusLogger:
             message or "Probe %s instrumented correctly" % probe.probe_id,
         )
 
+    def emitting(self, probe: Probe, message: t.Optional[str] = None) -> None:
+        self._enqueue(
+            probe,
+            "EMITTING",
+            message or "Probe %s is emitting data" % probe.probe_id,
+        )
+
     def error(self, probe: Probe, error: t.Optional[ErrorInfo] = None) -> None:
         self._enqueue(probe, "ERROR", "Failed to instrument probe %s" % probe.probe_id, error)

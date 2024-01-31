@@ -162,8 +162,6 @@ jobs:
     needs: needs-run
     env:
       TEST_LIBRARY: python
-       #keep this line until system-tests -> robertomonteromiguel/parametric_use_load_binary_python merged
-      PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'

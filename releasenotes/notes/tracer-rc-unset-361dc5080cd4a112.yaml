@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fix an issue where remote configuration values would not be reverted when unset in the UI.

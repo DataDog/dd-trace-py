@@ -14,7 +14,6 @@ from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 from . import app as fastapi_app
@@ -110,9 +109,7 @@ def test_api_security(app, client, tracer, test_spans, name, expected_value):
 
     payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-    with override_global_config(
-        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
-    ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
             "/response-header-apisec/posting?x=2&extended=345&x=3",
@@ -138,9 +135,7 @@ def test_api_security_scanners(app, client, tracer, test_spans):
 
     payload = {"key": "secret", "ids": [0, 1, 2, 3]}
 
-    with override_global_config(
-        dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)
-    ), override_env({API_SECURITY.SAMPLE_RATE: "1.0"}):
+    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
             "/response-header-apisec/posting?x=2&extended=345&x=3",
