@@ -172,7 +172,17 @@ class DDLogger(logging.Logger):
             self.buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)
 
             # Call the base handle to actually log this record
-            super(DDLogger, self).handle(record)
+            c = self
+            found = 0
+            while c:
+                for hdlr in c.handlers:
+                    found = found + 1
+                    if record.levelno >= hdlr.level:
+                        hdlr.handle(record)
+                if not c.propagate or found >= 1:
+                    c = None  # break out
+                else:
+                    c = c.parent
         else:
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
