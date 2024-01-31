@@ -17,13 +17,14 @@ tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
 
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST", "OPTIONS"])
 def index():
     return "ok ASM"
 
 
 @app.route("/asm/", methods=["GET", "POST", "OPTIONS"])
 @app.route("/asm/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
+@app.route("/asm/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])
 def multi_view(param_int=0, param_str=""):
     query_params = request.args.to_dict()
     body = {
@@ -35,4 +36,10 @@ def multi_view(param_int=0, param_str=""):
         "method": request.method,
     }
     status = int(query_params.get("status", "200"))
-    return body, status
+    headers_query = query_params.get("headers", "").split(",")
+    response_headers = {}
+    for header in headers_query:
+        vk = header.split("=")
+        if len(vk) == 2:
+            response_headers[vk[0]] = vk[1]
+    return body, status, response_headers

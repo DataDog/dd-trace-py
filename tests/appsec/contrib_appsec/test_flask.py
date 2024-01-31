@@ -88,3 +88,6 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
     def body(self, response):
         return response.data.decode("utf-8")
+
+    def location(self, response):
+        return response.location
