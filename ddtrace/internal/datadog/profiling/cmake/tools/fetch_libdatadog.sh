@@ -65,7 +65,7 @@ if [[ -e "${TAR_LIBDATADOG}" ]]; then
 else
     already_present=0
     echo "Downloading libdatadog ${GITHUB_URL_LIBDATADOG}..."
-    curl -fsSLO "${GITHUB_URL_LIBDATADOG}"
+    wget -q -O "${GITHUB_URL_LIBDATADOG##*/}" "${GITHUB_URL_LIBDATADOG}"
 fi
 
 echo "Checking libdatadog sha256"
