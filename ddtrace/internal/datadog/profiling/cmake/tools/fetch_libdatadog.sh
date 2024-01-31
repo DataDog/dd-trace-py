@@ -65,7 +65,14 @@ if [[ -e "${TAR_LIBDATADOG}" ]]; then
 else
     already_present=0
     echo "Downloading libdatadog ${GITHUB_URL_LIBDATADOG}..."
-    wget -q -O "${GITHUB_URL_LIBDATADOG##*/}" "${GITHUB_URL_LIBDATADOG}"
+    if command -v curl > /dev/null 2>&1; then
+        curl -fsSLO "${GITHUB_URL_LIBDATADOG}"
+    elif command -v wget > /dev/null 2>&1; then
+        wget -q -O "${GITHUB_URL_LIBDATADOG##*/}" "${GITHUB_URL_LIBDATADOG}"
+    else
+        echo "Error: neither curl nor wget is available." >&2
+        exit 1
+    fi
 fi
 
 echo "Checking libdatadog sha256"
