@@ -180,9 +180,9 @@ class DDLogger(logging.Logger):
                     if record.levelno >= hdlr.level:
                         hdlr.handle(record)
                 if not c.propagate or found >= 1:
-                    c = None  # break out
+                    c = None  # type: ignore[assignment]
                 else:
-                    c = c.parent
+                    c = c.parent  # type: ignore[assignment]
         else:
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
