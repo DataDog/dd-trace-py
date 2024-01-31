@@ -428,7 +428,7 @@ class Contrib_TestClass_For_Threats:
     def test_request_suspicious_request_block_match_query_params(
         self, interface: Interface, get_tag, asm_enabled, query, blocked
     ):
-        if interface.name in ("django") and query == "?toto=xtrace&toto=ytrace":
+        if interface.name in ("django",) and query == "?toto=xtrace&toto=ytrace":
             raise pytest.skip(f"{interface.name} does not support multiple query params with same name")
 
         from ddtrace.ext import http
@@ -586,6 +586,61 @@ class Contrib_TestClass_For_Threats:
             # DEV Warning: encoded URL will behave differently
             assert get_tag(http.URL) == "http://localhost:8000" + uri
             assert get_tag(http.METHOD) == "GET"
+            if asm_enabled and blocked:
+                assert self.status(response) == 403
+                assert get_tag(http.STATUS_CODE) == "403"
+                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
+                self.check_single_rule_triggered(blocked, get_tag)
+                assert (
+                    get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
+                )
+                assert self.headers(response)["content-type"] == "text/json"
+            else:
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("body", "content_type", "blocked"),
+        [
+            # json body must be blocked
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "text/json", "tst-037-003"),
+            # xml body must be blocked
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "text/xml",
+                "tst-037-003",
+            ),
+            # form body must be blocked
+            ("attack=yqrweytqwreasldhkuqwgervflnmlnli", "application/x-www-form-urlencoded", "tst-037-003"),
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
+            # raw body must not be blocked
+            ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
+            # other values must not be blocked
+            ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
+        ],
+    )
+    def test_request_suspicious_request_block_match_request_body(
+        self, interface: Interface, get_tag, asm_enabled, root_span, body, content_type, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_SRB)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.post("/asm/", data=body, content_type=content_type)
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000/asm/"
+            assert get_tag(http.METHOD) == "POST"
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"

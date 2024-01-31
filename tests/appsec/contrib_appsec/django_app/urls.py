@@ -46,7 +46,11 @@ def multi_view(request, param_int=0, param_str=""):
         vk = header.split("=")
         if len(vk) == 2:
             response_headers[vk[0]] = vk[1]
-    return JsonResponse(body, status=status, headers=response_headers)
+    # setting headers in the response with compatibility for django < 4.0
+    json_response = JsonResponse(body, status=status)
+    for k, v in response_headers.items():
+        json_response[k] = v
+    return json_response
 
 
 def send_file(request):
