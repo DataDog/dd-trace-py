@@ -363,7 +363,7 @@ class CMakeExtension(Extension):
         self.build_args = build_args or []
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
-        self.optional= optional # If True, cmake errors are ignored
+        self.optional = optional  # If True, cmake errors are ignored
 
 
 long_description = """
@@ -465,7 +465,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling._ddup",
                 source_dir=DDUP_DIR,
-                permissive_build=CURRENT_OS != "Linux",
+                optional=CURRENT_OS != "Linux",
                 cmake_args=[
                     "-DPLATFORM={}".format(CURRENT_OS),
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
