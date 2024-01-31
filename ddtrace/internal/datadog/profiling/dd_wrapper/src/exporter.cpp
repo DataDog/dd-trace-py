@@ -209,6 +209,7 @@ Uploader::upload(const Profile* profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
+    const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       start,
                                                       end,
@@ -217,7 +218,7 @@ Uploader::upload(const Profile* profile)
                                                       &tags,
                                                       nullptr,
                                                       nullptr,
-                                                      5000);
+                                                      max_timeout_ms);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
