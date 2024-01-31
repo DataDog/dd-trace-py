@@ -1944,7 +1944,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -1959,7 +1959,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "prompts": ["Hello world"],
@@ -1983,7 +1983,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "type": "completion",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "prompts": ["Hello world"],
@@ -2050,7 +2050,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2065,7 +2065,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": input_messages,
@@ -2089,7 +2089,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": input_messages,
@@ -2149,7 +2149,7 @@ def test_llmobs_chat_completion_function_call(
         "env:",
         "service:",
         "source:integration",
-        "model:{}".format(model),
+        "model_name:{}".format(resp.model),
         "model_provider:openai",
         "error:0",
     ]
@@ -2164,7 +2164,7 @@ def test_llmobs_chat_completion_function_call(
                     "type": "chat",
                     "id": resp.id,
                     "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
