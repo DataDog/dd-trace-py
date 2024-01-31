@@ -451,7 +451,7 @@ def test_span_link_v04_encoding():
     )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span.get_link(6)._drop_attribute("drop_me")
+    span._links.get(6)._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -522,7 +522,7 @@ def test_span_link_v05_encoding():
 
     assert len(span._links) == 2
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span.get_link((2**64) - 1)._drop_attribute("drop_me")
+    span._links.get((2**64) - 1)._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()

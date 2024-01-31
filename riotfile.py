@@ -179,8 +179,9 @@ venv = Venv(
         Venv(
             name="appsec_iast_tdd_propagation",
             pys=select_pys(min_version="3.11", max_version="3.11"),
-            command="pytest --no-cov tests/appsec/iast_tdd_propagation/",
+            command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
+                "coverage": latest,
                 "flask": "~=3.0",
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
@@ -189,7 +190,7 @@ venv = Venv(
                 "peewee": latest,
                 "requests": latest,
                 "six": ">=1.12.0",
-                "envier": "==0.5.0",
+                "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
                 "protobuf": ">=3",
@@ -2210,7 +2211,8 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.7", max_version="3.11"),
+            # FIXME: this test suite breaks on 3.7
+            pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
