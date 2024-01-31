@@ -723,7 +723,7 @@ def aspect_replace_api(
 
             if count < 0 and i + 1 < len(elements):
                 new_elements_append(None)
-            if i >= count and i + 1 < len(elements):
+            elif i >= count and i + 1 < len(elements):
                 new_elements_append(old_value)
             i += 1
     else:
@@ -776,12 +776,17 @@ def replace_aspect(
         if old_value not in candidate_text or old_value == new_value:
             return candidate_text
 
-        if orig_result == "":
+        if orig_result in ("", b"", bytearray(b"")):
             return orig_result
 
+        if count < -1:
+            count = -1
+
         aspect_result = aspect_replace_api(candidate_text, old_value, new_value, count, orig_result)
+
         if aspect_result != orig_result:
             return orig_result
+
         return aspect_result
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))

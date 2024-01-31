@@ -17,6 +17,57 @@ def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
     return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
 
 
+def _test_replace_result(
+    expected_exception,
+    origstr,
+    substr,
+    replstr,
+    maxcount,
+    should_be_tainted_origstr,
+    should_be_tainted_replstr,
+    str_type,
+):  # noqa: E501
+    if str_type == bytes:
+        origstr = str_type(origstr, encoding="utf-8")
+        substr = str_type(substr, encoding="utf-8")
+        replstr = str_type(replstr, encoding="utf-8")
+    elif str_type == bytearray:
+        origstr = str_type(bytes(origstr, encoding="utf-8"))
+        substr = str_type(bytes(substr, encoding="utf-8"))
+        replstr = str_type(bytes(replstr, encoding="utf-8"))
+
+    if should_be_tainted_origstr:
+        origstr = taint_pyobject(
+            pyobject=origstr,
+            source_name="test_replace_tainted_orig",
+            source_value=origstr,
+            source_origin=OriginType.PARAMETER,
+        )
+
+    if should_be_tainted_replstr:
+        replstr = taint_pyobject(
+            pyobject=replstr,
+            source_name="test_replace_tainted_orig",
+            source_value=replstr,
+            source_origin=OriginType.PARAMETER,
+        )
+    if expected_exception is not None:
+        with pytest.raises(expected_exception):
+            if maxcount is None:
+                replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+                assert replaced == origstr.replace(substr, replstr)
+            else:
+                replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+                assert replaced == origstr.replace(substr, replstr, maxcount)
+    else:
+        if maxcount is None:
+            replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+            assert replaced == origstr.replace(substr, replstr)
+        else:
+            replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+            assert replaced == origstr.replace(substr, replstr, maxcount)
+
+
 @pytest.mark.parametrize(
     "origstr, substr, replstr, maxcount",
     [
@@ -56,6 +107,156 @@ def test_replace_result(origstr, substr, replstr, maxcount):
     else:
         replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
         assert replaced == origstr.replace(substr, replstr, maxcount)
+
+
+@pytest.mark.parametrize(
+    "origstr",
+    [
+        "",
+        "  ",
+        "a",
+        "aaa",
+        "abaacaaadaaaa",
+        '""',
+        "-",
+        "--",
+        "---",
+        "----",
+    ],
+)
+@pytest.mark.parametrize(
+    "substr",
+    [
+        "",
+        "a" "aaa",
+        '"',
+        "-",
+    ],
+)
+@pytest.mark.parametrize(
+    "replstr",
+    [
+        "",
+        "a",
+        "aaa",
+        '"',
+        "-",
+    ],
+)
+@pytest.mark.parametrize("maxcount", [None, -2, -1, 0, 1, 2, 3, 4, 5, 1000000000])
+@pytest.mark.parametrize("should_be_tainted_origstr", [False, True])
+@pytest.mark.parametrize("should_be_tainted_replstr", [False, True])
+@pytest.mark.parametrize("str_type", [str, bytes, bytearray])
+def test_replace_result_str(
+    origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr, str_type
+):
+    _test_replace_result(
+        None, origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr, str_type
+    )
+
+
+@pytest.mark.parametrize(
+    "origstr",
+    [
+        "",
+        "  ",
+        "a",
+        "----",
+    ],
+)
+@pytest.mark.parametrize(
+    "substr",
+    [
+        b"",
+        bytearray(b""),
+        b"ascii123",
+        b"\xe9\xe7\xe0\xf1\xd4\xcb",
+        b"\xe1\xe3\xe9\xf7\xfa \xee\xe5\xf6\xf8",
+    ],
+)
+@pytest.mark.parametrize(
+    "replstr",
+    [
+        b"",
+        b"\xc3\xa9\xc3\xa7\xc3\xa0\xc3\xb1\xc3\x94\xc3\x8b",
+        b"\x83v\x83\x8d\x83_\x83N\x83g\x83e\x83X\x83g",
+    ],
+)
+@pytest.mark.parametrize("maxcount", [None, -1, 0, 1, 2, 1000000000])
+@pytest.mark.parametrize("should_be_tainted_origstr", [False, True])
+@pytest.mark.parametrize("should_be_tainted_replstr", [False, True])
+def test_replace_result_mix1(origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr):
+    _test_replace_result(
+        TypeError, origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr, str
+    )
+
+
+@pytest.mark.parametrize(
+    "origstr",
+    [
+        b"",
+        b"  ",
+        b"a",
+        b"----",
+    ],
+)
+@pytest.mark.parametrize(
+    "substr",
+    [
+        "",
+        "\xe9\xe7\xe0\xf1\xd4\xcb",
+        "\xc3\xa9\xc3\xa7",
+    ],
+)
+@pytest.mark.parametrize(
+    "replstr",
+    [
+        "",
+        "\xe9\xe7\xe0\xf1\xd4\xcb",
+        "\xc3\xa9\xc3\xa7",
+    ],
+)
+@pytest.mark.parametrize("maxcount", [None, -1, 0, 1, 2, 1000000000])
+@pytest.mark.parametrize("should_be_tainted_origstr", [False, True])
+@pytest.mark.parametrize("should_be_tainted_replstr", [False, True])
+def test_replace_result_mix2(origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr):
+    _test_replace_result(
+        TypeError, origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr, str
+    )
+
+
+@pytest.mark.parametrize(
+    "origstr",
+    [
+        bytearray(b""),
+        bytearray(b"  "),
+        bytearray(b"a"),
+        bytearray(b"----"),
+    ],
+)
+@pytest.mark.parametrize(
+    "substr",
+    [
+        "",
+        "\xe9\xe7\xe0\xf1\xd4\xcb",
+        "\xc3\xa9\xc3\xa7",
+    ],
+)
+@pytest.mark.parametrize(
+    "replstr",
+    [
+        "",
+        "\xe9\xe7\xe0\xf1\xd4\xcb",
+        "\xc3\xa9\xc3\xa7",
+    ],
+)
+@pytest.mark.parametrize("maxcount", [None, -1, 0, 1, 2, 1000000000])
+@pytest.mark.parametrize("should_be_tainted_origstr", [False, True])
+@pytest.mark.parametrize("should_be_tainted_replstr", [False, True])
+def test_replace_result_mix3(origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr):
+    _test_replace_result(
+        TypeError, origstr, substr, replstr, maxcount, should_be_tainted_origstr, should_be_tainted_replstr, str
+    )
 
 
 @pytest.mark.parametrize(
