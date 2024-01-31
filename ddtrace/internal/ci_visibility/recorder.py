@@ -67,6 +67,10 @@ _CIVisibilitySettings = NamedTuple(
 )
 
 
+class CIVisibilityAuthenticationException(Exception):
+    pass
+
+
 def _extract_repository_name_from_url(repository_url):
     # type: (str) -> str
     try:
@@ -242,6 +246,8 @@ class CIVisibility(Service):
         if response.status >= 400:
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
             record_settings(sw.elapsed() * 1000, error=error_code)
+            if response.status == 403:
+                raise CIVisibilityAuthenticationException()
             raise ValueError("API response status code: %d", response.status)
         try:
             if isinstance(response.body, bytes):
@@ -301,6 +307,9 @@ class CIVisibility(Service):
 
         try:
             settings = self._check_settings_api(url, _headers)
+        except CIVisibilityAuthenticationException:
+            # Authentication exception is handled during enable() to prevent the service from being used
+            raise
         except Exception:
             log.warning(
                 "Error checking Intelligent Test Runner API, disabling coverage collection and test skipping",
@@ -495,7 +504,13 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        cls._instance = cls(tracer=tracer, config=config, service=service)
+        try:
+            cls._instance = cls(tracer=tracer, config=config, service=service)
+        except CIVisibilityAuthenticationException:
+            log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
+            cls.enabled = False
+            return
+
         cls.enabled = True
 
         cls._instance.start()
