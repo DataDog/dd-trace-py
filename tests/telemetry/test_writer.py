@@ -302,6 +302,7 @@ import ddtrace.auto
     )
 
 
+@flaky(1735812000)
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
