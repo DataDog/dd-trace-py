@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import json
 from typing import Dict
+from typing import List
 from urllib.parse import urlencode
 
 import pytest
@@ -49,6 +50,9 @@ class Contrib_TestClass_For_Threats:
     def headers(self, response) -> Dict[str, str]:
         raise NotImplementedError
 
+    def location(self, response) -> str:
+        return NotImplementedError
+
     def body(self, response) -> str:
         raise NotImplementedError
 
@@ -57,6 +61,12 @@ class Contrib_TestClass_For_Threats:
         assert tag is not None, "no JSON tag in root span"
         loaded = json.loads(tag)
         assert [t["rule"]["id"] for t in loaded["triggers"]] == [rule_id]
+
+    def check_rules_triggered(self, rule_id: List[str], get_tag):
+        tag = get_tag(APPSEC.JSON)
+        assert tag is not None, "no JSON tag in root span"
+        loaded = json.loads(tag)
+        assert sorted([t["rule"]["id"] for t in loaded["triggers"]]) == rule_id
 
     def update_tracer(self, interface):
         interface.tracer._asm_enabled = asm_config._asm_enabled
@@ -653,6 +663,103 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("query", "status", "rule_id", "action"),
+        [
+            ("suspicious_306_auto", 306, "tst-040-001", "blocked"),
+            ("suspicious_429_json", 429, "tst-040-002", "blocked"),
+            ("suspicious_503_html", 503, "tst-040-003", "blocked"),
+            ("suspicious_301", 301, "tst-040-004", "redirect"),
+            ("suspicious_303", 303, "tst-040-005", "redirect"),
+            ("nothing", 200, None, None),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "headers",
+        [{"HTTP_ACCEPT": "text/html", "Accept": "text/html"}, {"HTTP_ACCEPT": "text/json", "Accept": "text/json"}, {}],
+    )
+    def test_request_suspicious_request_block_custom_actions(
+        self, interface: Interface, get_tag, asm_enabled, root_span, query, status, rule_id, action, headers
+    ):
+        if interface.name in ("fastapi",) and action == "redirect":
+            raise pytest.skip(f"{interface.name}: known issue for redirect")
+        from ddtrace.ext import http
+        import ddtrace.internal.utils.http as http_cache
+
+        # remove cache to avoid using templates from other tests
+        http_cache._HTML_BLOCKED_TEMPLATE_CACHE = None
+        http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
+        try:
+            uri = f"/?param={query}"
+            with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+                dict(
+                    DD_APPSEC_RULES=rules.RULES_SRBCA,
+                    DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,
+                    DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=rules.RESPONSE_CUSTOM_HTML,
+                )
+            ):
+                self.update_tracer(interface)
+                response = interface.client.get(uri, headers=headers)
+                # DEV Warning: encoded URL will behave differently
+                assert get_tag(http.URL) == "http://localhost:8000" + uri
+                assert get_tag(http.METHOD) == "GET"
+                if asm_enabled and action:
+                    # assert self.status(response) == status
+                    assert get_tag(http.STATUS_CODE) == str(status)
+                    self.check_single_rule_triggered(rule_id, get_tag)
+
+                    if action == "blocked":
+                        content_type = (
+                            "text/html"
+                            if "html" in query or ("auto" in query) and headers.get("HTTP_ACCEPT") == "text/html"
+                            else "text/json"
+                        )
+                        assert (
+                            get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
+                            == content_type
+                        )
+                        assert self.headers(response)["content-type"] == content_type
+                        if content_type == "text/json":
+                            assert json.loads(self.body(response)) == {
+                                "errors": [{"title": "You've been blocked", "detail": "Custom content"}]
+                            }
+                    elif action == "redirect":
+                        # assert not self.body(response)
+                        assert self.location(response) == "https://www.datadoghq.com"
+                else:
+                    assert self.status(response) == 200
+                    assert get_tag(http.STATUS_CODE) == "200"
+                    assert get_tag(APPSEC.JSON) is None
+        finally:
+            # remove cache to avoid using custom templates in other tests
+            http_cache._HTML_BLOCKED_TEMPLATE_CACHE = None
+            http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_nested_appsec_events(
+        self,
+        interface: Interface,
+        get_tag,
+        asm_enabled,
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(
+                "/config.php", headers={"HTTP_USER_AGENT": "Arachni/v1.5.1", "user-agent": "Arachni/v1.5.1"}
+            )
+            # DEV Warning: encoded URL will behave differently
+            assert get_tag(http.URL) == "http://localhost:8000/config.php"
+            assert get_tag(http.METHOD) == "GET"
+            assert self.status(response) == 404
+            assert get_tag(http.STATUS_CODE) == "404"
+            if asm_enabled:
+                self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], get_tag)
+            else:
                 assert get_tag(APPSEC.JSON) is None
 
 
