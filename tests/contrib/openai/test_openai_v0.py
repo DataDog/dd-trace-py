@@ -2316,7 +2316,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "ddtags": expected_tags,
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
-                    "timestamp": 1681852797000,
+                    "timestamp": int(span.start * 1000),
                     "model": resp.model,
                     "model_provider": "openai",
                     "input": {
@@ -2340,7 +2340,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "ddtags": expected_tags,
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
-                    "timestamp": 1681852797000,
+                    "timestamp": int(span.start * 1000),
                     "model": resp.model,
                     "model_provider": "openai",
                     "input": {
@@ -2423,7 +2423,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
+                    "timestamp": int(span.start * 1000),
                     "model": resp.model,
                     "model_provider": "openai",
                     "input": {
@@ -2447,7 +2447,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
+                    "timestamp": int(span.start * 1000),
                     "model": resp.model,
                     "model_provider": "openai",
                     "input": {
@@ -2523,7 +2523,7 @@ def test_llmobs_chat_completion_function_call(
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
+                    "timestamp": int(span.start * 1000),
                     "model": resp.model,
                     "model_provider": "openai",
                     "input": {
@@ -2595,7 +2595,7 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
                     "ddtags": expected_tags,
                     "type": "completion",
                     "id": mock.ANY,
-                    "timestamp": int(span.start) * 1000,
+                    "timestamp": int(span.start * 1000),
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {
@@ -2674,7 +2674,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai,
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": mock.ANY,
-                    "timestamp": int(span.start) * 1000,
+                    "timestamp": int(span.start * 1000),
                     "model": span.get_tag("openai.request.model"),
                     "model_provider": "openai",
                     "input": {

@@ -697,8 +697,6 @@ class _BaseAudioHook(_EndpointHook):
                 text = resp_to_tag.get("text", "")
                 if "segments" in resp_to_tag:
                     span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
-            else:
-                text = ""
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str("openai.response.text", integration.trunc(text))
         if integration.is_pc_sampled_log(span):
