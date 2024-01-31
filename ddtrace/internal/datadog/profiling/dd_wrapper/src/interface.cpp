@@ -6,10 +6,7 @@
 #include "interface.hpp"
 #include "exporter.hpp"
 
-#include <csignal>
 #include <cstdlib>
-#include <cxxabi.h>
-#include <execinfo.h>
 #include <iostream>
 #include <unistd.h>
 
@@ -87,6 +84,10 @@ ddup_config_max_nframes(int max_nframes)
 }
 
 #if DDUP_BACKTRACE_ENABLE
+#include <csignal>
+#include <cxxabi.h>
+#include <execinfo.h>
+
 inline static void
 print_backtrace()
 {
