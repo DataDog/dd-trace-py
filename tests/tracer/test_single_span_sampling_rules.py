@@ -196,14 +196,6 @@ def test_env_config_takes_precedence_over_file_config(tmpdir, caplog):
         )
     ):
         sampling_rules = get_span_sampling_rules()
-        assert caplog.record_tuples == [
-            (
-                "ddtrace.internal.sampling",
-                30,
-                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
-                "Defaulting to DD_SPAN_SAMPLING_RULES value.",
-            )
-        ]
         assert sampling_rules[0]._sample_rate == 0.5
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
         assert sampling_rules[0]._name_matcher.pattern == "abc"

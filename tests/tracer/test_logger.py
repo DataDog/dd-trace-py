@@ -265,8 +265,7 @@ class DDLoggerTestCase(BaseTestCase):
         # Our buckets are empty
         self.assertEqual(log.buckets, dict())
 
-    @mock.patch("logging.Logger.handle")
-    def test_logger_handle_bucket(self, base_handle):
+    def test_logger_handle_bucket(self):
         """
         When calling `DDLogger.handle`
             With a record
@@ -274,13 +273,14 @@ class DDLoggerTestCase(BaseTestCase):
                 We create a bucket for tracking
         """
         log = get_logger("test.logger")
+        handler_to_be_called = log.parent.handlers[0]
+        handler_to_be_called.handle = mock.MagicMock()
 
         # Create log record and handle it
         record = self._make_record(log)
         log.handle(record)
 
-        # We passed to base Logger.handle
-        base_handle.assert_called_once_with(record)
+        handler_to_be_called.handle.assert_called_once_with(record)
 
         # We added an bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
@@ -292,8 +292,7 @@ class DDLoggerTestCase(BaseTestCase):
         self.assertEqual(logging_bucket.bucket, expected_bucket)
         self.assertEqual(logging_bucket.skipped, 0)
 
-    @mock.patch("logging.Logger.handle")
-    def test_logger_handle_bucket_limited(self, base_handle):
+    def test_logger_handle_bucket_limited(self):
         """
         When calling `DDLogger.handle`
             With multiple records in a single time frame
@@ -301,6 +300,8 @@ class DDLoggerTestCase(BaseTestCase):
                 We keep track of the number skipped
         """
         log = get_logger("test.logger")
+        handler_to_be_called = log.parent.handlers[0]
+        handler_to_be_called.handle = mock.MagicMock()
 
         # Create log record and handle it
         first_record = self._make_record(log, msg="first")
@@ -312,8 +313,7 @@ class DDLoggerTestCase(BaseTestCase):
             record.created = first_record.created
             log.handle(record)
 
-        # We passed to base Logger.handle
-        base_handle.assert_called_once_with(first_record)
+        handler_to_be_called.handle.assert_called_once_with(first_record)
 
         # We added an bucket entry for these records
         key = (record.name, record.levelno, record.pathname, record.lineno)
@@ -324,8 +324,7 @@ class DDLoggerTestCase(BaseTestCase):
         self.assertEqual(logging_bucket.bucket, expected_bucket)
         self.assertEqual(logging_bucket.skipped, 100)
 
-    @mock.patch("logging.Logger.handle")
-    def test_logger_handle_bucket_skipped_msg(self, base_handle):
+    def test_logger_handle_bucket_skipped_msg(self):
         """
         When calling `DDLogger.handle`
             When a bucket exists for a previous time frame
@@ -333,6 +332,8 @@ class DDLoggerTestCase(BaseTestCase):
                 We update the record message to include the number of skipped messages
         """
         log = get_logger("test.logger")
+        handler_to_be_called = log.parent.handlers[0]
+        handler_to_be_called.handle = mock.MagicMock()
 
         # Create log record to handle
         original_msg = "hello %s"
@@ -348,8 +349,7 @@ class DDLoggerTestCase(BaseTestCase):
         # Handle our record
         log.handle(record)
 
-        # We passed to base Logger.handle
-        base_handle.assert_called_once_with(record)
+        handler_to_be_called.handle.assert_called_once_with(record)
 
         self.assertEqual(record.msg, original_msg + ", %s additional messages skipped")
         self.assertEqual(record.args, original_args + (20,))
