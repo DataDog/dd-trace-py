@@ -23,6 +23,7 @@ else:
     from django.conf.urls import url as path
 
 
+@csrf_exempt
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 
@@ -39,7 +40,17 @@ def multi_view(request, param_int=0, param_str=""):
         "method": request.method,
     }
     status = int(query_params.get("status", "200"))
-    return JsonResponse(body, status=status)
+    headers_query = query_params.get("headers", "").split(",")
+    response_headers = {}
+    for header in headers_query:
+        vk = header.split("=")
+        if len(vk) == 2:
+            response_headers[vk[0]] = vk[1]
+    # setting headers in the response with compatibility for django < 4.0
+    json_response = JsonResponse(body, status=status)
+    for k, v in response_headers.items():
+        json_response[k] = v
+    return json_response
 
 
 def send_file(request):
@@ -75,8 +86,10 @@ urlpatterns = [
 if django.VERSION >= (2, 0, 0):
     urlpatterns += [
         path("asm/<int:param_int>/<str:param_str>/", multi_view, name="multi_view"),
+        path("asm/<int:param_int>/<str:param_str>", multi_view, name="multi_view"),
     ]
 else:
     urlpatterns += [
         path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)/$", multi_view, name="multi_view"),
+        path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)$", multi_view, name="multi_view"),
     ]
