@@ -7,29 +7,33 @@ from typing import Optional
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 LOGGER = get_logger(__name__)
 
-try:
-    from .ddwaf_types import DDWafRulesType
-    from .ddwaf_types import _observator
-    from .ddwaf_types import ddwaf_config
-    from .ddwaf_types import ddwaf_context_capsule
-    from .ddwaf_types import ddwaf_get_version
-    from .ddwaf_types import ddwaf_object
-    from .ddwaf_types import ddwaf_object_free
-    from .ddwaf_types import ddwaf_result
-    from .ddwaf_types import ddwaf_run
-    from .ddwaf_types import py_ddwaf_context_init
-    from .ddwaf_types import py_ddwaf_init
-    from .ddwaf_types import py_ddwaf_known_addresses
-    from .ddwaf_types import py_ddwaf_update
+if asm_config._asm_libddwaf_available:
+    try:
+        from .ddwaf_types import DDWafRulesType
+        from .ddwaf_types import _observator
+        from .ddwaf_types import ddwaf_config
+        from .ddwaf_types import ddwaf_context_capsule
+        from .ddwaf_types import ddwaf_get_version
+        from .ddwaf_types import ddwaf_object
+        from .ddwaf_types import ddwaf_object_free
+        from .ddwaf_types import ddwaf_result
+        from .ddwaf_types import ddwaf_run
+        from .ddwaf_types import py_ddwaf_context_init
+        from .ddwaf_types import py_ddwaf_init
+        from .ddwaf_types import py_ddwaf_known_addresses
+        from .ddwaf_types import py_ddwaf_update
 
-    _DDWAF_LOADED = True
-except BaseException:
+        _DDWAF_LOADED = True
+    except BaseException:
+        _DDWAF_LOADED = False
+        LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
+else:
     _DDWAF_LOADED = False
-    LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 
 
 class DDWaf_result(object):
