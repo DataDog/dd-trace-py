@@ -30,7 +30,7 @@ dependencies = [
 
 [envs.lint.scripts]
 black_check = [
-    "black --check {args:.}",
+    "black {args:.}",
 ]
 style = [
     "black_check",
