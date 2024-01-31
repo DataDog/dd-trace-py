@@ -246,11 +246,32 @@ class CMakeBuild(build_ext):
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
-            subprocess.run(["strip", "-g", so_file], check=True)
+            try:
+                subprocess.run(["strip", "-g", so_file], check=True)
+            except Exception as e:
+                print(
+                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
+                )
+                pass
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
-            self.build_extension_cmake(ext)
+            try:
+                self.build_extension_cmake(ext)
+            except subprocess.CalledProcessError as e:
+                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                if ext.optional:
+                    return
+                raise
+            except Exception as e:
+                print(
+                    "WARNING: An error occurred while building the CMake extension {}, {}.".format(
+                        ext.name, e.returncode
+                    )
+                )
+                if ext.optional:
+                    return
+                raise
         else:
             super().build_extension(ext)
 
@@ -259,7 +280,6 @@ class CMakeBuild(build_ext):
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
-                raise
 
     def build_extension_cmake(self, ext):
         # Define the build and output directories
@@ -320,18 +340,10 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
-        try:
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
-            subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
-            subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
-            if not ext.permissive_build:
-                raise
-        except Exception:
-            print("WARNING: An error occurred while building the CMake extension.")
-            raise
+        cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+        subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
 
 
 class CMakeExtension(Extension):
@@ -343,7 +355,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        permissive_build=False,
+        optional=False,
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -351,7 +363,7 @@ class CMakeExtension(Extension):
         self.build_args = build_args or []
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
-        self.permissive_build = permissive_build  # If True, build errors are ignored
+        self.optional= optional # If True, cmake errors are ignored
 
 
 long_description = """
@@ -445,11 +457,7 @@ if not IS_PYSTON:
         )
 
         ext_modules.append(
-            CMakeExtension(
-                "ddtrace.appsec._iast._taint_tracking._native",
-                source_dir=IAST_DIR,
-                permissive_build=True if CURRENT_OS == "Darwin" else False,
-            )
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=True)
         )
 
     if platform.system() == "Linux" and is_64_bit_python():
