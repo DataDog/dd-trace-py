@@ -1137,6 +1137,7 @@ jobs:
 
   redis:
     <<: *machine_executor
+    parallelism: 5
     steps:
       - run_test:
           docker_services: 'redis rediscluster'
