@@ -21,56 +21,59 @@ to_slice(std::string_view str)
 }
 
 UploaderBuilder&
-UploaderBuilder::set_env(std::string_view env)
+UploaderBuilder::set_env(std::string_view _env)
 {
-    if (!env.empty())
-        this->env = env;
+    if (!_env.empty())
+        env = _env;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_service(std::string_view service)
+UploaderBuilder::set_service(std::string_view _service)
 {
-    if (!service.empty())
-        this->service = service;
+    if (!_service.empty())
+        service = _service;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_version(std::string_view version)
+UploaderBuilder::set_version(std::string_view _version)
 {
-    if (!version.empty())
-        this->version = version;
+    if (!_version.empty())
+        version = _version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_runtime(std::string_view runtime)
+UploaderBuilder::set_runtime(std::string_view _runtime)
 {
-    this->runtime = runtime;
+    if (!_runtime.empty())
+        runtime = _runtime;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_runtime_version(std::string_view runtime_version)
+UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
-    this->runtime_version = runtime_version;
+    if (!_runtime_version.empty())
+        runtime_version = _runtime_version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_profiler_version(std::string_view profiler_version)
+UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
-    this->profiler_version = profiler_version;
+    if (!_profiler_version.empty())
+        profiler_version = _profiler_version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_url(std::string_view url)
+UploaderBuilder::set_url(std::string_view _url)
 {
-    this->url = url;
+    if (!_url.empty())
+        url = _url;
     return *this;
 }
 UploaderBuilder&
 UploaderBuilder::set_tag(std::string_view key, std::string_view val)
 {
-    if (key.empty() || val.empty())
-        return *this;
-    user_tags[key] = val;
+    if (!key.empty() && !val.empty())
+        user_tags[key] = val;
     return *this;
 }
 
@@ -180,8 +183,8 @@ Uploader::set_runtime_id(std::string_view id)
 bool
 Uploader::upload(const Profile* profile)
 {
-    ddog_prof_Profile_SerializeResult result =
-      ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr, nullptr);
+    ddog_prof_Profile* ddog_profile = const_cast<ddog_prof_Profile*>(&profile->ddog_profile);
+    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(ddog_profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&result.err).ptr);
         errmsg = "Error serializing pprof, err:" + ddog_err;
@@ -266,9 +269,10 @@ ProfileBuilder::add_type(unsigned int type)
 }
 
 ProfileBuilder&
-ProfileBuilder::set_max_nframes(unsigned int max_nframes)
+ProfileBuilder::set_max_nframes(unsigned int _max_nframes)
 {
-    this->max_nframes = max_nframes;
+    if (_max_nframes > 0)
+        max_nframes = _max_nframes;
     return *this;
 }
 
@@ -284,7 +288,7 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
 {
     // Push an element to the end of the vector, returning the position of
     // insertion
-    std::vector<ddog_prof_ValueType> samplers;
+    std::vector<ddog_prof_ValueType> samplers{};
     auto get_value_idx = [&samplers](std::string_view value, std::string_view unit) {
         size_t idx = samplers.size();
         samplers.push_back({ to_slice(value), to_slice(unit) });
@@ -322,9 +326,9 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     values.resize(samplers.size());
     std::fill(values.begin(), values.end(), 0);
 
-    ddog_prof_Period default_period = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    ddog_prof_Profile_NewResult res =
-      ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_period, nullptr);
+    ddog_prof_Period default_period = { .type_ = samplers[0], .value = 1 }; // Mandated by pprof, but probably unused
+    ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, &default_period, nullptr);
 
     // Check that the profile was created properly
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
@@ -334,7 +338,7 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
         throw std::runtime_error(errmsg);
         return;
     }
-    ddog_profile = &res.ok;
+    ddog_profile = res.ok;
 
     // Initialize storage
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
@@ -345,7 +349,7 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
 
 Profile::~Profile()
 {
-    ddog_prof_Profile_drop(ddog_profile);
+    ddog_prof_Profile_drop(&ddog_profile);
 }
 
 std::string_view
@@ -364,7 +368,7 @@ Profile::insert_or_get(std::string_view sv)
 bool
 Profile::reset()
 {
-    auto res = ddog_prof_Profile_reset(ddog_profile, nullptr);
+    auto res = ddog_prof_Profile_reset(&ddog_profile, nullptr);
     if (!res.ok) {
         std::string ddog_err(ddog_Error_message(&res.err).ptr);
         errmsg = "Could not reset profile, err: " + ddog_err;
@@ -476,15 +480,16 @@ Profile::flush_sample()
     }
 
     ddog_prof_Sample sample = {
-        .locations = { &locations[0], locations.size() },
-        .values = { &values[0], values.size() },
-        .labels = { &labels[0], cur_label },
+        .locations = { locations.data(), locations.size() },
+        .values = { values.data(), values.size() },
+        .labels = { labels.data(), cur_label },
     };
 
-    ddog_prof_Profile_Result res = ddog_prof_Profile_add(ddog_profile, sample, 0);
+    ddog_prof_Profile_Result res = ddog_prof_Profile_add(&ddog_profile, sample, 0);
     if (res.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
         std::string ddog_errmsg(ddog_Error_message(&res.err).ptr);
-        errmsg = "Could not flush sample: " + errmsg;
+        std::cout << "'" << ddog_errmsg << "'" << std::endl;
+        errmsg = "Could not flush sample: " + ddog_errmsg;
         std::cout << errmsg << std::endl;
         ddog_Error_drop(&res.err);
         clear_buffers();

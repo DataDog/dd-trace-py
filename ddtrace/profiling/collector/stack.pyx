@@ -328,7 +328,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
             if use_libdd and nframes:
-                ddup.start_sample()
+                ddup.start_sample(nframes)
                 ddup.push_walltime(wall_time, 1)
                 ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
                 ddup.push_task_id(task_id)

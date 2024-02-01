@@ -173,7 +173,7 @@ private:
 
 public:
   uint64_t samples = 0;
-  ddog_prof_Profile *ddog_profile;
+  ddog_prof_Profile ddog_profile;
 
   // Clears the current sample without flushing and starts a new one
   bool start_sample();

@@ -89,10 +89,12 @@ IF UNAME_SYSNAME == "Linux":
         ddup_config_max_nframes(max_nframes)
         if tags is not None:
             for key, val in tags.items():
-                ddup_config_user_tag(key, val)
+                if key and val:
+                    ddup_config_user_tag(ensure_binary(key), ensure_binary(val))
         ddup_init()
 
-    def start_sample() -> None:
+    def start_sample(unsigned int _) -> None:
+        # The number of frames is not used in the C++ implementation
         ddup_start_sample()
 
     def push_cputime(value: int, count: int) -> None:
