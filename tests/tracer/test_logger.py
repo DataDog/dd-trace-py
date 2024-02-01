@@ -260,7 +260,7 @@ class DDLoggerTestCase(BaseTestCase):
 
         # Assert that we did not perform any rate limiting
         total = 1000 * len(ALL_LEVEL_NAMES)
-        assert total <= base_handle.call_count <= total + 1
+        self.assertTrue(total <= base_handle.call_count <= total + 1)
 
         # Our buckets are empty
         self.assertEqual(log.buckets, dict())

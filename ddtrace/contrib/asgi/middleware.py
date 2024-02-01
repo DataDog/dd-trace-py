@@ -209,6 +209,7 @@ class TraceMiddleware:
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
+                headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
