@@ -268,6 +268,14 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore[misc,assignment]
 
 
+def is_valid_ip(ip: str) -> bool:
+    try:
+        ipaddress.ip_address(str(ip))
+        return True
+    except ValueError:
+        return False
+
+
 def ip_is_global(ip):
     # type: (str) -> bool
     """

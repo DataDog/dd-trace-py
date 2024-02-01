@@ -7,6 +7,7 @@ from urllib import parse
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.compat import is_valid_ip
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -193,7 +194,7 @@ class TraceMiddleware:
                 receive, body = await result.value
 
             client = scope.get("client")
-            if isinstance(client, list) and len(client):
+            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
                 peer_ip = client[0]
             else:
                 peer_ip = None
