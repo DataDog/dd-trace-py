@@ -21,12 +21,11 @@ from ...internal.module import origin
 from ...internal.schema import SCHEMA_VERSION
 from ...internal.schema import _remove_client_service_names
 from ...settings import _config as config
-from ...settings.asm import config as asm_config
 from ...settings.config import _ConfigSource
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
-from ...settings.profiling import config as profiling_config
+from ...settings.profiling import config as prof_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -46,11 +45,9 @@ from .constants import TELEMETRY_AGENT_HOST
 from .constants import TELEMETRY_AGENT_PORT
 from .constants import TELEMETRY_AGENT_URL
 from .constants import TELEMETRY_ANALYTICS_ENABLED
-from .constants import TELEMETRY_ASM_ENABLED
 from .constants import TELEMETRY_CLIENT_IP_ENABLED
 from .constants import TELEMETRY_DOGSTATSD_PORT
 from .constants import TELEMETRY_DOGSTATSD_URL
-from .constants import TELEMETRY_DSM_ENABLED
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
@@ -59,7 +56,15 @@ from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
-from .constants import TELEMETRY_PROFILING_ENABLED
+from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
+from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
+from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
+from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
+from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
+from .constants import TELEMETRY_PROFILING_MAX_FRAMES
+from .constants import TELEMETRY_PROFILING_MEMORY_ENABLED
+from .constants import TELEMETRY_PROFILING_STACK_ENABLED
+from .constants import TELEMETRY_PROFILING_UPLOAD_INTERVAL
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
@@ -84,7 +89,6 @@ from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
 from .constants import TELEMETRY_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_REUSE_CONNECTIONS
-from .constants import TELEMETRY_TRACING_ENABLED
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
@@ -335,7 +339,19 @@ class TelemetryWriter(PeriodicService):
 
     def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
         item = config._config[cfg_name]
-        if cfg_name == "_trace_sample_rate":
+        if cfg_name == "_trace_enabled":
+            name = "trace_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_profiling_enabled":
+            name = "profiling_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_asm_enabled":
+            name = "appsec_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_dsm_enabled":
+            name = "data_streams_enabled"
+            value = "true" if item.value() else "false"
+        elif cfg_name == "_trace_sample_rate":
             name = "trace_sample_rate"
             value = str(item.value())
         elif cfg_name == "logs_injection":
@@ -365,15 +381,15 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
+                self._telemetry_entry("_trace_enabled"),
+                self._telemetry_entry("_profiling_enabled"),
+                self._telemetry_entry("_asm_enabled"),
+                self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
-                (TELEMETRY_TRACING_ENABLED, config._tracing_enabled, "unknown"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
-                (TELEMETRY_DSM_ENABLED, config._data_streams_enabled, "unknown"),
-                (TELEMETRY_ASM_ENABLED, asm_config._asm_enabled, "unknown"),
-                (TELEMETRY_PROFILING_ENABLED, profiling_config.enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
                 (TELEMETRY_PROPAGATION_STYLE_INJECT, ",".join(config._propagation_style_inject), "unknown"),
@@ -423,6 +439,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
+                (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
+                (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
+                (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
+                (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
+                (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
+                (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
+                (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
         )
 

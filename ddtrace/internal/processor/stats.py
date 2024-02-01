@@ -109,7 +109,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
-        self._hostname = compat.ensure_text(get_hostname())
+        self._hostname = ""
+        if config.report_hostname:
+            self._hostname = get_hostname()
         self._lock = Lock()
         self._enabled = True
 

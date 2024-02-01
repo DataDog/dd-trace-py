@@ -169,6 +169,24 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
+        # Build the list of enabled Profiling features and send along as a tag
+        configured_features = []
+        if self._stack_collector_enabled:
+            configured_features.append("stack")
+        if self._lock_collector_enabled:
+            configured_features.append("lock")
+        if self._memory_collector_enabled:
+            configured_features.append("mem")
+        if config.heap.sample_size > 0:
+            configured_features.append("heap")
+        if self._export_libdd_enabled:
+            configured_features.append("exp_dd")
+        if self._export_py_enabled:
+            configured_features.append("exp_py")
+        configured_features.append("CAP" + str(config.capture_pct))
+        configured_features.append("MAXF" + str(config.max_frames))
+        self.tags.update({"profiler_config": "_".join(configured_features)})
+
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
@@ -229,13 +247,18 @@ class _ProfilerInstance(service.Service):
         self._collectors = []
 
         if self._stack_collector_enabled:
-            self._collectors.append(
-                stack.StackCollector(
-                    r,
-                    tracer=self.tracer,
-                    endpoint_collection_enabled=self.endpoint_collection_enabled,
-                )  # type: ignore[call-arg]
-            )
+            LOG.debug("Profiling collector (stack) enabled")
+            try:
+                self._collectors.append(
+                    stack.StackCollector(
+                        r,
+                        tracer=self.tracer,
+                        endpoint_collection_enabled=self.endpoint_collection_enabled,
+                    )  # type: ignore[call-arg]
+                )
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
@@ -248,6 +271,7 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
+                            LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
