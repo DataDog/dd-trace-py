@@ -19,7 +19,6 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from tests.utils import flaky
 
-from ...utils import flaky
 from . import test_collector
 
 

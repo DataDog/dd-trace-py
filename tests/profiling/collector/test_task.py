@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.profiling.collector import _task
-from tests.utils import flaky
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
