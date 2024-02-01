@@ -1,17 +1,15 @@
-import importlib
-import inspect
-from typing import List
-
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
 
 def _parse_trace_methods(raw_dd_trace_methods):
-    # type: (str) -> typing.List[str]
-    """Return the methods to trace based on the specification of DD_TRACE_METHODS.
+    """
+    type: (str) -> typing.List[str]
+    Return the methods to trace based on the specification of DD_TRACE_METHODS.
 
     DD_TRACE_METHODS is specified to be FullyQualifiedClassOrModuleName[comma-separated-methods]
 
@@ -90,25 +88,27 @@ def _install_trace_methods(raw_dd_trace_methods):
 
         trace_method(base_module_guess, method_name)
 
-def _option_three_create_two_hooks(raw_dd_trace_methods: str) -> None:
-    # type: (str) -> None
-    for qualified_method in _parse_trace_methods(input):
-        # for mymodule.mysubmodule.myclass.mymethod
-        # base_module_guess: mymodule.mysubmodule.myclass
-        # method_name      : mymethod
-        path_components = qualified_method.split(".")
-        base_module_guess = ".".join(path_components[:-1])
-        method_name = qualified_method.split(".")[-1]
-        # create hook for module level
-        trace_method(base_module_guess, method_name)
 
-        # for mymodule.mysubmodule.myclass.mymethod
-        # base_module_guess: mymodule.mysubmodule
-        # method_name      : myclass.mymethod
-        base_module_guess = ".".join(path_components[:-2])
-        method_name = ".".join(path_components[-2:])
-        # create another hook for class level
-        trace_method(base_module_guess, method_name)
+# def _option_three_create_two_hooks(raw_dd_trace_methods: str) -> None:
+#     # type: (str) -> None
+#     for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
+#         # for mymodule.mysubmodule.myclass.mymethod
+#         # base_module_guess: mymodule.mysubmodule.myclass
+#         # method_name      : mymethod
+#         path_components = qualified_method.split(".")
+#         base_module_guess = ".".join(path_components[:-1])
+#         method_name = qualified_method.split(".")[-1]
+#         # create hook for module level
+#         trace_method(base_module_guess, method_name)
+
+#         # for mymodule.mysubmodule.myclass.mymethod
+#         # base_module_guess: mymodule.mysubmodule
+#         # method_name      : myclass.mymethod
+#         base_module_guess = ".".join(path_components[:-2])
+#         method_name = ".".join(path_components[-2:])
+#         # create another hook for class level
+#         trace_method(base_module_guess, method_name)
+
 
 def _option_four_bypass_exceptions(raw_dd_trace_methods: str) -> None:
     for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
@@ -124,7 +124,7 @@ def _option_four_bypass_exceptions(raw_dd_trace_methods: str) -> None:
             except ImportError:
                 # Add the class to the method name
                 method_name = "%s.%s" % (base_module_guess.split(".")[-1], method_name)
-                base_module_guess = ".".join(base_module_guess.split(".")[:-1])                
+                base_module_guess = ".".join(base_module_guess.split(".")[:-1])
             else:
                 break
 
@@ -133,13 +133,14 @@ def _option_four_bypass_exceptions(raw_dd_trace_methods: str) -> None:
 
         trace_method(base_module_guess, method_name)
 
+
 def trace_method(module, method_name):
     # type: (str, str) -> None
 
     # TODO: Look into registering hook cost
     # TODO: Async func considerations? Do we support? -> tracer.wrapped annotation?
     # TODO: Look at wrap_decorator
-    # TODO: 
+    # TODO:
     @wrapt.importer.when_imported(module)
     def _(m):
         wrapt.wrap_function_wrapper(m, method_name, trace_wrapper)

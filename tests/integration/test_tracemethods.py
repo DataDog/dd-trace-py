@@ -5,6 +5,7 @@ import pytest
 
 from .test_integration import AGENT_VERSION
 
+
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
@@ -144,9 +145,8 @@ asyncio.run(main())
     assert status == 0, err
     assert out == b""
 
-def test_ddtrace_run_trace_methods_sync_erika(ddtrace_run_python_code_in_subprocess):
-    # raw_dd_trace_methods = "tests.integration.test_tracemethods[_test_method,_test_method2];tests.integration.test_tracemethods._Class[test_method,test_method2];tests.integration.test_tracemethods._Class.NestedClass[test_method];django_q.tasks[async_task]"
 
+def test_ddtrace_run_trace_methods_sync_erika(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TRACE_METHODS"] = (
         "tests.integration.test_tracemethods[_test_method,_test_method2];"
@@ -181,5 +181,3 @@ async_task('math.copysign', 2, -2)
     )
     assert status == 0, err
     assert out == b""
-
-    
