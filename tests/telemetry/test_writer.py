@@ -91,7 +91,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
-                    {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60},
+                    {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
                     {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
                     {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
@@ -203,7 +203,7 @@ import ddtrace.auto
     env["DD_PROFILING_EXPORT_PY_ENABLED"] = "False"
     env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
-    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10"
+    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
     env["DD_PROFILING_MAX_FRAMES"] = "512"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
@@ -249,7 +249,7 @@ import ddtrace.auto
             {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
-            {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10},
+            {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},
             {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 512},
             {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
