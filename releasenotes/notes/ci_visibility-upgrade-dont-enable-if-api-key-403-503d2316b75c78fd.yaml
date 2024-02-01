@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    CI Visibility: the CI Visibility service is no longer enabled when the initial query to the Datadog test service
+    settings API fails due to a 403 status code.
+

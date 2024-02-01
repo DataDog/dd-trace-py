@@ -212,25 +212,27 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, args, kwargs, resp)
+        if integration.is_pc_sampled_log(span):
+            attrs_dict = {"prompt": kwargs.get("prompt", "")}
+            if error is None:
+                log_choices = resp.choices
+                if hasattr(resp.choices[0], "model_dump"):
+                    log_choices = [choice.model_dump() for choice in resp.choices]
+                attrs_dict.update({"choices": log_choices})
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_completion_llm_records(resp, error, span, kwargs)
         if not resp:
             return
-        if kwargs.get("stream"):
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % choice.index, str(choice.finish_reason))
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str("openai.response.choices.%d.text" % choice.index, integration.trunc(choice.text))
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"prompt": kwargs.get("prompt", ""), "choices": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_completion_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -266,10 +268,20 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, args, kwargs, resp)
+        if integration.is_pc_sampled_log(span):
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
+            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.generate_chat_llm_records(resp, error, span, kwargs)
         if not resp:
             return
-        if kwargs.get("stream"):
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             idx = choice.index
             finish_reason = getattr(choice, "finish_reason", None)
@@ -285,16 +297,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if getattr(message, "tool_calls", None):
                 _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
-        if integration.is_pc_sampled_llmobs(span):
-            integration.generate_chat_llm_records(resp, span, args, kwargs)
         return resp
 
 
@@ -550,14 +552,6 @@ class _EditHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        choices = resp.choices
-        if integration.is_pc_sampled_span(span):
-            for choice in choices:
-                idx = choice.index
-                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
-        integration.record_usage(span, resp.usage)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
             if hasattr(resp.choices[0], "model_dump"):
@@ -572,6 +566,14 @@ class _EditHook(_EndpointHook):
                     "choices": log_choices,
                 },
             )
+        if not resp:
+            return
+        choices = resp.choices
+        if integration.is_pc_sampled_span(span):
+            for choice in choices:
+                idx = choice.index
+                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
+        integration.record_usage(span, resp.usage)
         return resp
 
 
@@ -586,16 +588,6 @@ class _ImageHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        choices = resp.data
-        span.set_metric("openai.response.images_count", len(choices))
-        if integration.is_pc_sampled_span(span):
-            for idx, choice in enumerate(choices):
-                if getattr(choice, "b64_json", None) is not None:
-                    span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
-                else:
-                    span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.url))
         if integration.is_pc_sampled_log(span):
             attrs_dict = {}
             if kwargs.get("response_format", "") == "b64_json":
@@ -616,6 +608,16 @@ class _ImageHook(_EndpointHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if not resp:
+            return
+        choices = resp.data
+        span.set_metric("openai.response.images_count", len(choices))
+        if integration.is_pc_sampled_span(span):
+            for idx, choice in enumerate(choices):
+                if getattr(choice, "b64_json", None) is not None:
+                    span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
+                else:
+                    span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.url))
         return resp
 
 
@@ -686,19 +688,17 @@ class _BaseAudioHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
-        if isinstance(resp_to_tag, str):
-            text = resp
-        elif isinstance(resp_to_tag, dict):
-            text = resp_to_tag.get("text", "")
-            if "segments" in resp_to_tag:
-                span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
-        else:
-            text = ""
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str("openai.response.text", integration.trunc(text))
+        text = ""
+        if resp:
+            resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
+            if isinstance(resp_to_tag, str):
+                text = resp
+            elif isinstance(resp_to_tag, dict):
+                text = resp_to_tag.get("text", "")
+                if "segments" in resp_to_tag:
+                    span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("openai.response.text", integration.trunc(text))
         if integration.is_pc_sampled_log(span):
             file_input = args[2] if len(args) >= 3 else kwargs.get("file", "")
             integration.log(
