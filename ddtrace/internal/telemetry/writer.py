@@ -25,6 +25,7 @@ from ...settings.config import _ConfigSource
 from ...settings.dynamic_instrumentation import config as di_config
 from ...settings.exception_debugging import config as ed_config
 from ...settings.peer_service import _ps_config
+from ...settings.profiling import config as prof_config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -55,6 +56,15 @@ from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
+from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
+from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
+from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
+from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
+from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
+from .constants import TELEMETRY_PROFILING_MAX_FRAMES
+from .constants import TELEMETRY_PROFILING_MEMORY_ENABLED
+from .constants import TELEMETRY_PROFILING_STACK_ENABLED
+from .constants import TELEMETRY_PROFILING_UPLOAD_INTERVAL
 from .constants import TELEMETRY_PROPAGATION_STYLE_EXTRACT
 from .constants import TELEMETRY_PROPAGATION_STYLE_INJECT
 from .constants import TELEMETRY_REMOTE_CONFIGURATION_ENABLED
@@ -433,6 +443,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
+                (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
+                (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
+                (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
+                (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
+                (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
+                (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
+                (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
+                (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
         )
 

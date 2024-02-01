@@ -131,21 +131,24 @@ def _default_span_processors_factory(
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    if appsec_enabled:
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+    if asm_config._asm_libddwaf_available:
+        if appsec_enabled:
+            if asm_config._api_security_enabled:
+                from ddtrace.appsec._api_security.api_manager import APIManager
 
-            APIManager.enable()
+                APIManager.enable()
 
-        appsec_processor = _start_appsec_processor()
-        if appsec_processor:
-            span_processors.append(appsec_processor)
+            appsec_processor = _start_appsec_processor()
+            if appsec_processor:
+                span_processors.append(appsec_processor)
+        else:
+            if asm_config._api_security_enabled:
+                from ddtrace.appsec._api_security.api_manager import APIManager
+
+                APIManager.disable()
+
+            appsec_processor = None
     else:
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.disable()
-
         appsec_processor = None
 
     if iast_enabled:
