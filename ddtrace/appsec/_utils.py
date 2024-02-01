@@ -3,6 +3,7 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
@@ -33,7 +34,7 @@ def parse_response_body(raw_body):
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
-        dict(headers),
+        {to_unicode(k): to_unicode(v) for k, v in dict(headers).items()},
         "content-type",
     )
     if not content_type:

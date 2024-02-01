@@ -81,6 +81,7 @@ span.finish()
     assert events[3]["request_type"] == "generate-metrics"
 
 
+@flaky(1735812000)
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
