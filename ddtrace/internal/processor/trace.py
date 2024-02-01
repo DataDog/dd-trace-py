@@ -268,6 +268,8 @@ class SpanAggregator(SpanProcessor):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
+            telemetry.telemetry_writer._is_periodic = False
+            telemetry.telemetry_writer._enabled = True
             # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
             # before the tracer is shutdown.
             self._queue_span_count_metrics("spans_created", "integration_name", None)
