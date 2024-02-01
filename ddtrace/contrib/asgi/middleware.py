@@ -250,7 +250,7 @@ class TraceMiddleware:
                 if result:
                     status, headers, content = result.value
                 else:
-                    status, headers, content = 403, [], ""
+                    status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
