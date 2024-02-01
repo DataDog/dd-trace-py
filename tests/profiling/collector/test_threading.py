@@ -216,9 +216,8 @@ def test_lock_release_events():
     assert event.sampling_pct == 100
 
 
-@pytest.mark.skip(reason="Unknown failure")
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_lock_gevent_tasks():
     from gevent import monkey  # noqa:F401
 
