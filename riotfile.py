@@ -1874,43 +1874,28 @@ venv = Venv(
                 "aiopg": "~=0.16.0",
                 "pytest-randomly": latest,
             },
-            # venvs=[
-            # FIXME: tests fail on aiopg 1.x
-            # Venv(
-            #     # aiopg dropped support for Python 3.5 in 1.1
-            #     pys="3.5",
-            #     pkgs={
-            #         "aiopg": ["~=0.16.0", "~=1.0"],
-            #     },
-            # ),
-            # Venv(
-            #     # aiopg dropped support for Python 3.6 in 1.4
-            #     pys="3.6",
-            #     pkgs={
-            #         "aiopg": ["~=1.2", "~=1.3"],
-            #     },
-            # ),
-            # Venv(
-            #     pys=select_pys(min_version="3.7", max_version="3.9"),
-            #     pkgs={
-            #         "aiopg": ["~=1.2", "~=1.4.0", latest],
-            #     },
-            # ),
-            # Venv(
-            #     # aiopg added support for Python 3.10 in 1.3
-            #     pys="3.10",
-            #     pkgs={
-            #         "aiopg": ["~=1.3.0", latest],
-            #     },
-            # ),
-            # Venv(
-            #     # aiopg added support for Python 3.11 in 1.4
-            #     pys="3.11",
-            #     pkgs={
-            #         "aiopg": ["~=1.4.0", latest],
-            #     },
-            # ),
-            # ],
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "aiopg": ["~=1.2", "~=1.4.0", latest],
+                    },
+                ),
+                Venv(
+                    # aiopg added support for Python 3.10 in 1.3
+                    pys="3.10",
+                    pkgs={
+                        "aiopg": ["~=1.3.0", latest],
+                    },
+                ),
+                Venv(
+                    # aiopg added support for Python 3.11 in 1.4
+                    pys="3.11",
+                    pkgs={
+                        "aiopg": ["~=1.4.0", latest],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="aiohttp",
