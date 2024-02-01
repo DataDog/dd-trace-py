@@ -294,6 +294,10 @@ class RemoteConfigClient(object):
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
+            data_length = resp.headers.get("Content-Length")
+            if data_length is not None and int(data_length) == 0:
+                log.debug("[%s][P: %s] RC response payload empty", os.getpid(), os.getppid())
+                return None
             data = resp.read()
 
             if config.log_payloads:
