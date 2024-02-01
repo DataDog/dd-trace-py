@@ -1,0 +1,3 @@
+fixes:
+  - |
+    data_streams: This change fixes a bug leading to lag being reported as 1 offset instead of 0 offsets.
