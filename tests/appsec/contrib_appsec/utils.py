@@ -215,8 +215,6 @@ class Contrib_TestClass_For_Threats:
             payload = '{"attack": "bad_payload",}</attack>&='
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert response.status_code == 200
-            # do not work with urlencoded or fastapi for now
-            # assert "Failed to parse request body" in caplog.text
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_request_path_params(self, interface: Interface, root_span, asm_enabled):
@@ -682,8 +680,6 @@ class Contrib_TestClass_For_Threats:
     def test_request_suspicious_request_block_custom_actions(
         self, interface: Interface, get_tag, asm_enabled, root_span, query, status, rule_id, action, headers
     ):
-        if interface.name in ("fastapi",) and action == "redirect":
-            raise pytest.skip(f"{interface.name}: known issue for redirect")
         from ddtrace.ext import http
         import ddtrace.internal.utils.http as http_cache
 
@@ -705,7 +701,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(http.URL) == "http://localhost:8000" + uri
                 assert get_tag(http.METHOD) == "GET"
                 if asm_enabled and action:
-                    # assert self.status(response) == status
+                    assert self.status(response) == status
                     assert get_tag(http.STATUS_CODE) == str(status)
                     self.check_single_rule_triggered(rule_id, get_tag)
 
