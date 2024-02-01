@@ -805,7 +805,7 @@ def replace_aspect(
 
         return aspect_result
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. swapcase_aspect. {}".format(e))
+        _set_iast_error_metric("IAST propagation error. replace_aspect. {}".format(e))
         return orig_result
 
 
