@@ -400,7 +400,7 @@ def test_readlines_error(bedrock_client, request_vcr):
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_botocore", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)]
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)]
 )
 class TestLLMObsBedrock:
     @staticmethod
@@ -508,21 +508,21 @@ class TestLLMObsBedrock:
         assert mock_llmobs_writer.enqueue.call_count == n_output
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
-    def test_llmobs_ai21_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_amazon_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("amazon", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_anthropic_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("anthropic", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_cohere_single_output_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke(
             "cohere", bedrock_client, mock_llmobs_writer, cassette_name="cohere_invoke_single_output.yaml"
         )
 
-    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
@@ -531,17 +531,17 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("meta", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_amazon_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("amazon", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_anthropic_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_writer)
 
     def test_llmobs_cohere_single_output_invoke_stream(
-        self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer
+        self, ddtrace_global_config, bedrock_client, mock_llmobs_writer
     ):
         self._test_llmobs_invoke_stream(
             "cohere",
@@ -551,7 +551,7 @@ class TestLLMObsBedrock:
         )
 
     def test_llmobs_cohere_multi_output_invoke_stream(
-        self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer
+        self, ddtrace_global_config, bedrock_client, mock_llmobs_writer
     ):
         self._test_llmobs_invoke_stream(
             "cohere",
@@ -561,10 +561,10 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_stream(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_error(self, ddtrace_config_botocore, bedrock_client, mock_llmobs_writer, request_vcr):
+    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer, request_vcr):
         import botocore
 
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
