@@ -16,6 +16,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -620,6 +621,7 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
+@flaky(1735812000)
 # Ignoring span link attributes until values are
 # normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])

@@ -53,3 +53,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
     def body(self, response):
         return response.text
+
+    # TODO
+    # def location(self, response):
+    #     pass
