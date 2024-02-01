@@ -472,7 +472,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 new_prod = funcode(self[i:])
                 result_list.append(new_prod)
                 break
-            if i == tainted_range.start and result_length > 0:
+            if i == tainted_range.start:
                 # start new tainted range
                 new_ranges.append(TaintRange(start=i, length=result_length, source=tainted_range.source))
 
@@ -480,7 +480,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
             result_list.append(new_prod)
             result_length += len(new_prod)
 
-            if (i + 1 == tainted_range.start + tainted_range.length) and (result_length - new_ranges[-1].length > 0):
+            if i + 1 == tainted_range.start + tainted_range.length:
                 # end range. Do no taint partial multi-bytes character that comes next.
                 # new_ranges[-1].append(result_length - new_ranges[-1].length)
                 new_ranges[-1] = TaintRange(
@@ -488,6 +488,10 @@ def incremental_translation(self, incr_coder, funcode, empty):
                     length=(result_length - new_ranges[-1].length),
                     source=new_ranges[-1].source,
                 )
+
+                if (result_length - new_ranges[-1].length) == 0:
+                    new_ranges.pop()
+
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:
