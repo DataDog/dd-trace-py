@@ -12,6 +12,7 @@ import tarfile
 from setuptools import Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 
@@ -33,7 +34,7 @@ from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
@@ -283,12 +284,12 @@ class CMakeBuild(build_ext):
 
     def build_extension_cmake(self, ext):
         # Define the build and output directories
-        output_dir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        extension_basename = os.path.basename(self.get_ext_fullpath(ext.name))
+        output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
+        extension_basename = Path(self.get_ext_fullpath(ext.name)).name
 
         # We derive the cmake build directory from the output directory, but put it in
         # a sibling directory to avoid polluting the final package
-        cmake_build_dir = os.path.abspath(os.path.join(self.build_lib.replace("lib.", "cmake."), ext.name))
+        cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         os.makedirs(cmake_build_dir, exist_ok=True)
 
         # Get development paths
