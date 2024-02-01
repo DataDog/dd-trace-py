@@ -6,11 +6,9 @@ from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import asyncio as collector_asyncio
-from tests.utils import flaky
 
 
 @pytest.mark.asyncio
-@flaky(1711836471)
 async def test_lock_acquire_events():
     r = recorder.Recorder()
     with collector_asyncio.AsyncioLockCollector(r, capture_pct=100):
@@ -51,7 +49,6 @@ async def test_asyncio_lock_release_events():
     assert event.sampling_pct == 100
 
 
-@flaky(1711836471)
 @pytest.mark.asyncio
 async def test_lock_events_tracer(tracer):
     resource = str(uuid.uuid4())
