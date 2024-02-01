@@ -256,7 +256,9 @@ class TraceMiddleware:
                     message["status"] = int(status)
                     core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
-                    message["body"] = content if isinstance(content, bytes) else content.encode("utf-8")
+                    message["body"] = (
+                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                    )
                     message["more_body"] = False
                     core.dispatch("asgi.finalize_response", (content, None))
                 try:
