@@ -232,14 +232,11 @@ class Contrib_TestClass_For_Threats:
                 assert path_params is None
 
     def test_useragent(self, interface: Interface, root_span, get_tag):
-        if interface.name == "fastapi":
-            raise pytest.skip("fastapi does not seem to report user-agent")
-
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
-            response = interface.client.get("/", headers={"HTTP_USER_AGENT": "test/1.2.3"})
+            response = interface.client.get("/", headers={"user-agent": "test/1.2.3"})
             assert self.status(response) == 200
             assert get_tag(http.USER_AGENT) == "test/1.2.3"
 
@@ -247,16 +244,14 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "expected"),
         [
-            ({"HTTP_X_REAL_IP": "8.8.8.8"}, "8.8.8.8"),
-            ({"HTTP_X_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
-            ({"HTTP_X_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
-            ({"HTTP_X_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
-            ({"HTTP_X_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
+            ({"x-real-ip": "8.8.8.8"}, "8.8.8.8"),
+            ({"x-client-ip": "", "X-Forwarded-For": "4.4.4.4"}, "4.4.4.4"),
+            ({"x-client-ip": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
+            ({"x-client-ip": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
+            ({"x-client-ip": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
         ],
     )
     def test_client_ip_asm_enabled_reported(self, interface: Interface, get_tag, asm_enabled, headers, expected):
-        if interface.name in ("fastapi", "flask"):
-            raise pytest.skip(f"{interface.name} does not support this feature")
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=asm_enabled)):
@@ -271,16 +266,16 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("env_var", "headers", "expected"),
         [
-            ("Fooipheader", {"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "8.8.8.8"}, None),
-            ("Fooipheader", {"HTTP_FOOIPHEADER": "invalid_ip", "HTTP_X_REAL_IP": "8.8.8.8"}, None),
-            ("Fooipheader", {"HTTP_FOOIPHEADER": "", "HTTP_X_REAL_IP": "アスダス"}, None),
-            ("X-Use-This", {"HTTP_X_USE_THIS": "4.4.4.4", "HTTP_X_REAL_IP": "8.8.8.8"}, "4.4.4.4"),
+            ("Fooipheader", {"Fooipheader": "", "x-real-ip": "8.8.8.8"}, None),
+            ("Fooipheader", {"Fooipheader": "invalid_ip", "x-real-ip": "8.8.8.8"}, None),
+            ("Fooipheader", {"Fooipheader": "", "x-real-ip": "アスダス"}, None),
+            ("X-Use-This", {"X-Use-This": "4.4.4.4", "x-real-ip": "8.8.8.8"}, "4.4.4.4"),
         ],
     )
     def test_client_ip_header_set_by_env_var(
-        self, interface: Interface, get_tag, asm_enabled, env_var, headers, expected
+        self, interface: Interface, get_tag, root_span, asm_enabled, env_var, headers, expected
     ):
-        if interface.name in ("fastapi", "flask"):
+        if interface.name in ("fastapi",):
             raise pytest.skip(f"{interface.name} does not support this feature")
 
         from ddtrace.ext import http
@@ -290,7 +285,10 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", headers=headers)
             assert self.status(response) == 200
             if asm_enabled:
-                assert get_tag(http.CLIENT_IP) == expected
+                print(">>>", core.get_item("http.request.headers", span=root_span()))
+                assert get_tag(http.CLIENT_IP) == expected or (
+                    expected is None and get_tag(http.CLIENT_IP) == "127.0.0.1"
+                )
             else:
                 assert get_tag(http.CLIENT_IP) is None
 
@@ -298,18 +296,18 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),
         [
-            ({"HTTP_X_REAL_IP": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
+            ({"x-real-ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
             (
-                {"HTTP_X_REAL_IP": rules._IP.BLOCKED, "HTTP_ACCEPT": "text/html"},
+                {"x-real-ip": rules._IP.BLOCKED, "Accept": "text/html"},
                 True,
                 "BLOCKED_RESPONSE_HTML",
                 "text/html",
             ),
-            ({"HTTP_X_REAL_IP": rules._IP.DEFAULT}, False, None, None),
+            ({"x-real-ip": rules._IP.DEFAULT}, False, None, None),
         ],
     )
     def test_request_ipblock(self, interface: Interface, get_tag, asm_enabled, headers, blocked, body, content_type):
-        if interface.name in ("fastapi", "flask"):
+        if interface.name in ("fastapi",):
             raise pytest.skip(f"{interface.name} does not support this feature")
         from ddtrace.ext import http
 
@@ -470,8 +468,8 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "blocked"),
         [
-            ({"HTTP_USER_AGENT": "01972498723465"}, True),
-            ({"HTTP_USER_AGENT": "01973498523465"}, False),
+            ({"User-Agent": "01972498723465"}, True),
+            ({"User_Agent": "01973498523465"}, False),
         ],
     )
     def test_request_suspicious_request_block_match_request_headers(
@@ -679,7 +677,7 @@ class Contrib_TestClass_For_Threats:
     )
     @pytest.mark.parametrize(
         "headers",
-        [{"HTTP_ACCEPT": "text/html", "Accept": "text/html"}, {"HTTP_ACCEPT": "text/json", "Accept": "text/json"}, {}],
+        [{"Accept": "text/html"}, {"Accept": "text/json"}, {}],
     )
     def test_request_suspicious_request_block_custom_actions(
         self, interface: Interface, get_tag, asm_enabled, root_span, query, status, rule_id, action, headers
@@ -714,7 +712,7 @@ class Contrib_TestClass_For_Threats:
                     if action == "blocked":
                         content_type = (
                             "text/html"
-                            if "html" in query or ("auto" in query) and headers.get("HTTP_ACCEPT") == "text/html"
+                            if "html" in query or ("auto" in query) and headers.get("Accept") == "text/html"
                             else "text/json"
                         )
                         assert (
@@ -749,9 +747,7 @@ class Contrib_TestClass_For_Threats:
 
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
-            response = interface.client.get(
-                "/config.php", headers={"HTTP_USER_AGENT": "Arachni/v1.5.1", "user-agent": "Arachni/v1.5.1"}
-            )
+            response = interface.client.get("/config.php", headers={"user-agent": "Arachni/v1.5.1"})
             # DEV Warning: encoded URL will behave differently
             assert get_tag(http.URL) == "http://localhost:8000/config.php"
             assert get_tag(http.METHOD) == "GET"

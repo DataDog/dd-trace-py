@@ -493,12 +493,14 @@ def set_http_meta(
         if asm_config._asm_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
+            print("Request IP1: ", request_ip, peer_ip)
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
                 request_ip = (
                     _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
                 )
+                print("Request IP2: ", request_ip)
 
             if request_ip:
                 span.set_tag_str(http.CLIENT_IP, request_ip)
