@@ -39,7 +39,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span.set_tag_str(COMPONENT, self._config.integration_name)
+        span.set_tag_str(COMPONENT, self.integration_config.integration_name)
         if self._user_api_key is not None:
             span.set_tag_str("openai.user.api_key", self._user_api_key)
 
