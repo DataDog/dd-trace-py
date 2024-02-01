@@ -115,7 +115,7 @@ class MemoryCollector(collector.PeriodicCollector):
         if self._export_libdd_enabled:
             for (frames, nframes, thread_id), size in events:
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                    ddup.start_sample(nframes)
+                    ddup.start_sample()
                     ddup.push_heap(size)
                     ddup.push_threadinfo(
                         thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
@@ -170,7 +170,7 @@ class MemoryCollector(collector.PeriodicCollector):
             for (frames, nframes, thread_id), size, _domain in events:
                 if thread_id in thread_id_ignore_set:
                     continue
-                ddup.start_sample(nframes)
+                ddup.start_sample()
                 ddup.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 ddup.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)

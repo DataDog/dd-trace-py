@@ -93,8 +93,7 @@ IF UNAME_SYSNAME == "Linux":
                     ddup_config_user_tag(ensure_binary(key), ensure_binary(val))
         ddup_init()
 
-    def start_sample(unsigned int _) -> None:
-        # The number of frames is not used in the C++ implementation
+    def start_sample() -> None:
         ddup_start_sample()
 
     def push_cputime(value: int, count: int) -> None:
