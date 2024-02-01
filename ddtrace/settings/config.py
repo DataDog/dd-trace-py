@@ -297,6 +297,11 @@ def _default_config():
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+        ),
         "_asm_enabled": _ConfigItem(
             name="asm_enabled",
             default=False,

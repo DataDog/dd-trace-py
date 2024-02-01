@@ -57,7 +57,6 @@ from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
-from .constants import TELEMETRY_PROFILING_ENABLED
 from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
 from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
 from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
@@ -343,6 +342,9 @@ class TelemetryWriter(PeriodicService):
         if cfg_name == "_trace_enabled":
             name = "trace_enabled"
             value = "true" if item.value() else "false"
+        elif cfg_name == "_profiling_enabled":
+            name = "profiling_enabled"
+            value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
             name = "appsec_enabled"
             value = "true" if item.value() else "false"
@@ -380,6 +382,7 @@ class TelemetryWriter(PeriodicService):
         self.add_configurations(
             [
                 self._telemetry_entry("_trace_enabled"),
+                self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
@@ -436,7 +439,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_AGENT_PORT, config._trace_agent_port, "unknown"),
                 (TELEMETRY_AGENT_URL, config._trace_agent_url, "unknown"),
                 (TELEMETRY_TRACE_AGENT_TIMEOUT_SECONDS, config._agent_timeout_seconds, "unknown"),
-                (TELEMETRY_PROFILING_ENABLED, prof_config.enabled, "unknown"),
                 (TELEMETRY_PROFILING_STACK_ENABLED, prof_config.stack.enabled, "unknown"),
                 (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
                 (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
