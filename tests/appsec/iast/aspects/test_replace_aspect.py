@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
+import mock
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -26,57 +27,71 @@ def _test_replace_result(
     should_be_tainted_origstr,
     should_be_tainted_replstr,
     str_type,
-):  # noqa: E501
-    if str_type == bytes:
-        origstr = str_type(origstr, encoding="utf-8")
-        substr = str_type(substr, encoding="utf-8")
-        replstr = str_type(replstr, encoding="utf-8")
-    elif str_type == bytearray:
-        origstr = str_type(bytes(origstr, encoding="utf-8"))
-        substr = str_type(bytes(substr, encoding="utf-8"))
-        replstr = str_type(bytes(replstr, encoding="utf-8"))
+):
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        if str_type == bytes:
+            origstr = str_type(origstr, encoding="utf-8")
+            substr = str_type(substr, encoding="utf-8")
+            replstr = str_type(replstr, encoding="utf-8")
+        elif str_type == bytearray:
+            origstr = str_type(bytes(origstr, encoding="utf-8"))
+            substr = str_type(bytes(substr, encoding="utf-8"))
+            replstr = str_type(bytes(replstr, encoding="utf-8"))
 
-    if should_be_tainted_origstr:
-        origstr = taint_pyobject(
-            pyobject=origstr,
-            source_name="test_replace_tainted_orig",
-            source_value=origstr,
-            source_origin=OriginType.PARAMETER,
-        )
+        if should_be_tainted_origstr:
+            origstr = taint_pyobject(
+                pyobject=origstr,
+                source_name="test_replace_tainted_orig",
+                source_value=origstr,
+                source_origin=OriginType.PARAMETER,
+            )
 
-    if should_be_tainted_replstr:
-        replstr = taint_pyobject(
-            pyobject=replstr,
-            source_name="test_replace_tainted_orig",
-            source_value=replstr,
-            source_origin=OriginType.PARAMETER,
-        )
-    if expected_exception is not None:
-        with pytest.raises(expected_exception):
+        if should_be_tainted_replstr:
+            replstr = taint_pyobject(
+                pyobject=replstr,
+                source_name="test_replace_tainted_orig",
+                source_value=replstr,
+                source_origin=OriginType.PARAMETER,
+            )
+        if expected_exception is not None:
+            with pytest.raises(expected_exception):
+                if maxcount is None:
+                    replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
+                    assert replaced == origstr.replace(substr, replstr)
+                else:
+                    replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
+                    assert replaced == origstr.replace(substr, replstr, maxcount)
+
+                if (
+                    (should_be_tainted_origstr or (replaced != origstr))
+                    and should_be_tainted_replstr
+                    and replaced
+                    and replstr
+                ):
+                    assert is_pyobject_tainted(replaced)
+
+                if not should_be_tainted_origstr and not should_be_tainted_replstr:
+                    assert not is_pyobject_tainted(replaced)
+        else:
             if maxcount is None:
                 replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
                 assert replaced == origstr.replace(substr, replstr)
             else:
                 replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
                 assert replaced == origstr.replace(substr, replstr, maxcount)
-            if should_be_tainted_origstr and should_be_tainted_replstr and replaced:
+
+            if (
+                (should_be_tainted_origstr or (replaced != origstr))
+                and should_be_tainted_replstr
+                and replaced
+                and replstr
+            ):
                 assert is_pyobject_tainted(replaced)
 
             if not should_be_tainted_origstr and not should_be_tainted_replstr:
                 assert not is_pyobject_tainted(replaced)
-    else:
-        if maxcount is None:
-            replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr)
-            assert replaced == origstr.replace(substr, replstr)
-        else:
-            replaced = ddtrace_aspects.replace_aspect(origstr.replace, 1, origstr, substr, replstr, maxcount)
-            assert replaced == origstr.replace(substr, replstr, maxcount)
 
-        if should_be_tainted_origstr and should_be_tainted_replstr and replaced:
-            assert is_pyobject_tainted(replaced)
-
-        if not should_be_tainted_origstr and not should_be_tainted_replstr:
-            assert not is_pyobject_tainted(replaced)
+    _iast_error_metric.assert_not_called()
 
 
 @pytest.mark.parametrize(

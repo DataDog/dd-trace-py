@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
+    from typing import Sequence  # noqa:F401
     from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
 
@@ -648,7 +649,7 @@ def _distribute_ranges_and_escape(
         element_ranges = tuple(new_ranges.keys())
         # DEV: If this if is True, it means that the element is part of bytes/bytearray
         if isinstance(element, int):
-            element_new_id = bytes([element])
+            element_new_id = new_pyobject_id(bytes([element]))
         else:
             element_new_id = new_pyobject_id(element)
         set_ranges(element_new_id, element_ranges)
@@ -673,29 +674,44 @@ def aspect_replace_api(
     if not ranges_orig:  # Ranges in args/kwargs are checked
         return orig_result
 
-    empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""
+    empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""  # type: TEXT_TYPE
 
     if old_value:
-        elements = candidate_text.split(old_value, count)
+        elements = candidate_text.split(old_value, count)  # type: Sequence[TEXT_TYPE]
     else:
         if count == -1:
             elements = (
                 [
                     empty,
                 ]
-                + list(candidate_text)
+                + (
+                    list(candidate_text) if isinstance(candidate_text, str) else [bytes([x]) for x in candidate_text]  # type: ignore
+                )
                 + [
                     empty,
                 ]
             )
         else:
-            elements = (
-                [
-                    empty,
-                ]
-                + list(candidate_text[: count - 1])
-                + [candidate_text[count - 1 :]]
-            )
+            if isinstance(candidate_text, str):
+                elements = (
+                    [
+                        empty,
+                    ]
+                    + list(candidate_text[: count - 1])
+                    + [candidate_text[count - 1 :]]
+                )
+                if len(elements) == count and elements[-1] != "":
+                    elements.append(empty)
+            else:
+                elements = (
+                    [
+                        empty,
+                    ]
+                    + [bytes([x]) for x in candidate_text[: count - 1]]
+                    + [bytes([x for x in candidate_text[count - 1 :]])]
+                )
+                if len(elements) == count and elements[-1] != b"":
+                    elements.append(empty)
     i = 0
     new_elements = []  # type: List[Optional[TEXT_TYPE]]
     new_elements_append = new_elements.append
@@ -727,7 +743,7 @@ def aspect_replace_api(
                 new_elements_append(old_value)
             i += 1
     else:
-        new_elements = elements
+        new_elements = elements  # type: ignore
 
     if candidate_text_ranges:
         new_elements = _distribute_ranges_and_escape(
