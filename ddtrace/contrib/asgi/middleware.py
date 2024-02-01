@@ -7,12 +7,12 @@ from urllib import parse
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.compat import is_valid_ip
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema import schematize_url_operation
