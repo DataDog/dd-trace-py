@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: '{"model": "babbage-002", "prompt": "Hello world", "temperature": 0.8, "n":
+      2, "stop": ".", "max_tokens": 10, "user": "ddtrace-test"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '132'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.2
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.2", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-14.2.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 23.2.0 Darwin Kernel Version 23.2.0: Wed Nov 15 21:53:18
+        PST 2023; root:xnu-10002.61.3~2/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 84dc406a8f5843bc-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '276'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 30 Jan 2024 19:51:47 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=N_8bL.CIpOrFPgxaMnGudrWqGaGv_J0DSur5Me.KsnY-1706644307-1-Ack8u6RCnU6DolpS1mWWYjMoWVudcy+bq5/eY9DZUV3MoSlgMruJyDgb5V1ahAMM4EVn1u8FRVizsWFbeioDMQw=;
+        path=/; expires=Tue, 30-Jan-24 20:21:47 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=OrYEyzgeYd2XAs33rEBm98NbcQDEuzOW3QaUri1YOfs-1706644307709-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      vary:
+      - Origin
+      x-request-id:
+      - 2dcfd0b428e319a865fd1abab253ae0a
+    status:
+      code: 401
+      message: Unauthorized
+version: 1
