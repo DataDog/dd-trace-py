@@ -5,7 +5,6 @@ import pytest
 
 from .test_integration import AGENT_VERSION
 
-
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
@@ -144,3 +143,43 @@ asyncio.run(main())
     )
     assert status == 0, err
     assert out == b""
+
+def test_ddtrace_run_trace_methods_sync_erika(ddtrace_run_python_code_in_subprocess):
+    # raw_dd_trace_methods = "tests.integration.test_tracemethods[_test_method,_test_method2];tests.integration.test_tracemethods._Class[test_method,test_method2];tests.integration.test_tracemethods._Class.NestedClass[test_method];django_q.tasks[async_task]"
+
+    env = os.environ.copy()
+    env["DD_TRACE_METHODS"] = (
+        "tests.integration.test_tracemethods[_test_method,_test_method2];"
+        "tests.integration.test_tracemethods._Class[test_method,test_method2];"
+        "django_q.tasks[async_task]"
+    )
+    # env["DD_TRACE_METHODS"] = (
+    #     "tests.integration.test_tracemethods[_test_method,_test_method2];"
+    #     "tests.integration.test_tracemethods[_Class.test_method,_Class.test_method2];"
+    #     "django_q.tasks[async_task]"
+    # )
+    tests_dir = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join([tests_dir, env.get("PYTHONPATH", "")])
+
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+from tests.integration.test_tracemethods import _test_method
+from tests.integration.test_tracemethods import _test_method2
+from tests.integration.test_tracemethods import _Class
+from django_q.tasks import async_task
+
+
+_test_method()
+_test_method2()
+c = _Class()
+c._test_method()
+c._test_method2()
+
+async_task('math.copysign', 2, -2)
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+
+    

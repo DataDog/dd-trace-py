@@ -11,7 +11,7 @@ from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
-from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
+from ddtrace.internal.tracemethods import _option_one_change_env_var_syntax  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
@@ -101,8 +101,8 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         patch_all(**modules_to_bool)
 
-    if config.trace_methods:
-        _install_trace_methods(config.trace_methods)
+        if config.trace_methods:
+            _option_one_change_env_var_syntax(config.trace_methods)
 
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
