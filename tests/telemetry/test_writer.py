@@ -83,6 +83,15 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
+                    {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
+                    {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
                     {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
                     {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
@@ -164,7 +173,6 @@ import ddtrace.auto
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
-    env["DD_PROFILING_ENABLED"] = "True"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
@@ -187,6 +195,16 @@ import ddtrace.auto
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
     env["DD_PRIORITY_SAMPLING"] = "false"
+    env["DD_PROFILING_ENABLED"] = "True"
+    env["DD_PROFILING_STACK_ENABLED"] = "False"
+    env["DD_PROFILING_MEMORY_ENABLED"] = "False"
+    env["DD_PROFILING_HEAP_ENABLED"] = "False"
+    env["DD_PROFILING_LOCK_ENABLED"] = "False"
+    env["DD_PROFILING_EXPORT_PY_ENABLED"] = "False"
+    env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
+    env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
+    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
+    env["DD_PROFILING_MAX_FRAMES"] = "512"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
     env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
     env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
@@ -223,6 +241,15 @@ import ddtrace.auto
             {"name": "DD_EXCEPTION_DEBUGGING_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PRIORITY_SAMPLING", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_STACK_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": False},
+            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
+            {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},
+            {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 512},
             {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
             {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
