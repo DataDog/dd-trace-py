@@ -287,7 +287,7 @@ class Scope:
             start_line = end_line = SOF
 
         try:
-            mro = [type_qualname(_) for _ in obj.__mro__]
+            mro = [type_qualname(_) for _ in obj.__mro__ if _ is not object]
         except Exception:
             log.debug("Cannot get MRO for %r", obj, exc_info=True)
             mro = []
@@ -300,7 +300,7 @@ class Scope:
             end_line=end_line,
             symbols=symbols,
             scopes=scopes,
-            language_specifics={"mro": mro},
+            language_specifics={"super_classes": mro},
         )
 
     @_get_from.register
@@ -366,10 +366,6 @@ class Scope:
         ):
             ann = params[arg.name].annotation
             arg.type = ann if isinstance(ann, str) else type_qualname(ann)
-
-        code_scope.language_specifics = {
-            "signature": str(sig),
-        }
 
         if sig.return_annotation is not sig.empty:
             ann = sig.return_annotation

@@ -64,10 +64,7 @@ def test_symbols_class():
     assert class_scope.name == "tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym"
 
     assert class_scope.language_specifics == {
-        "mro": [
-            "tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym",
-            "object",
-        ]
+        "super_classes": ["tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym"]
     }
 
     (field,) = (s for s in class_scope.symbols if s.symbol_type == SymbolType.FIELD)
@@ -86,7 +83,6 @@ def test_symbols_class():
     gen_scope = next(_ for _ in class_scope.scopes if _.name == "gen")
     assert gen_scope.language_specifics == {
         "return_type": "typing.Generator[int, NoneType, NoneType]",
-        "signature": "(n: int = 10, _untyped=None) -> Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
     assert gen_scope.symbols == [
@@ -94,19 +90,11 @@ def test_symbols_class():
         Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=47, type=None),
     ]
 
-    assert next(_ for _ in class_scope.scopes if _.name == "foo").language_specifics == {
-        "method_type": "property",
-    }
+    assert next(_ for _ in class_scope.scopes if _.name == "foo").language_specifics == {"method_type": "property"}
 
-    assert next(_ for _ in class_scope.scopes if _.name == "bar").language_specifics == {
-        "method_type": "class",
-        "signature": "(cls)",
-    }
+    assert next(_ for _ in class_scope.scopes if _.name == "bar").language_specifics == {"method_type": "class"}
 
-    assert next(_ for _ in class_scope.scopes if _.name == "me").language_specifics == {
-        "signature": "(self) -> 'Sym'",
-        "return_type": "Sym",
-    }
+    assert next(_ for _ in class_scope.scopes if _.name == "me").language_specifics == {"return_type": "Sym"}
 
 
 def test_symbols_decorators():
