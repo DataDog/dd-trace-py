@@ -270,9 +270,10 @@ except ImportError:
 
 def is_valid_ip(ip: str) -> bool:
     try:
+        # try parsing the IP address
         ipaddress.ip_address(str(ip))
         return True
-    except ValueError:
+    except BaseException:
         return False
 
 
