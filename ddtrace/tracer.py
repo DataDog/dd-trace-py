@@ -1008,11 +1008,12 @@ class Tracer(object):
             deferred_processors = self._deferred_processors
             self._span_processors = []
             self._deferred_processors = []
+
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            telemetry.flush_and_disable()
+            telemetry.disable_and_flush()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)

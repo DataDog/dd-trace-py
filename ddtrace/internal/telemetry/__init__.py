@@ -69,9 +69,6 @@ def uninstall_excepthook():
     sys.excepthook = _ORIGINAL_EXCEPTHOOK
 
 
-def flush_and_disable():
-    if config._telemetry_enabled:
-        telemetry_writer._is_periodic = False
-        telemetry_writer._enabled = True
-        telemetry_writer.periodic(True)
-        telemetry_writer.disable()
+def disable_and_flush():
+    telemetry_writer._enabled = False
+    telemetry_writer.periodic(True)
