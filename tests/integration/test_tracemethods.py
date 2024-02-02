@@ -146,7 +146,7 @@ asyncio.run(main())
     assert out == b""
 
 
-def test_ddtrace_run_trace_methods_sync_erika(ddtrace_run_python_code_in_subprocess):
+def test_ddtrace_run_trace_methods_django_q(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TRACE_METHODS"] = "django_q.tasks[async_task]"
     tests_dir = os.path.dirname(os.path.dirname(__file__))

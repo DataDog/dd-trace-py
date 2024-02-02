@@ -1,3 +1,5 @@
+from typing import List
+
 import wrapt
 
 from ddtrace.internal.logger import get_logger
@@ -6,7 +8,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _parse_trace_methods(raw_dd_trace_methods):
+def _parse_trace_methods(raw_dd_trace_methods: str) -> List[str]:
     """
     type: (str) -> typing.List[str]
     Return the methods to trace based on the specification of DD_TRACE_METHODS.
@@ -133,8 +135,7 @@ def trace_class_and_module_method(qualified_method: str) -> None:
         log.warning("failed to trace method with %s", base_module_guess)
 
 
-def trace_method(module, method_name):
-    # type: (str, str) -> None
+def trace_method(module: str, method_name: str) -> None:
     @wrapt.importer.when_imported(module)
     def _(m):
         try:
