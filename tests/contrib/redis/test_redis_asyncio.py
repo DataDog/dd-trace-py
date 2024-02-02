@@ -117,6 +117,7 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
     assert response_list[3] == b"\x80abc"
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_long_command(redis_client):

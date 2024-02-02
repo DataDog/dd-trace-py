@@ -35,9 +35,21 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                     headers["Content-Type"] = kwargs["content_type"]
                     kwargs["headers"] = headers
                     del kwargs["content_type"]
-                return initial_post(*args, **kwargs)
+                return initial_post(*args, **kwargs, allow_redirects=False)
 
             client.post = patch_post
+
+            initial_get = client.get
+
+            def patch_get(*args, **kwargs):
+                if "content_type" in kwargs:
+                    headers = kwargs.get("headers", {})
+                    headers["Content-Type"] = kwargs["content_type"]
+                    kwargs["headers"] = headers
+                    del kwargs["content_type"]
+                return initial_get(*args, **kwargs, allow_redirects=False)
+
+            client.get = patch_get
 
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
@@ -53,3 +65,6 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
     def body(self, response):
         return response.text
+
+    def location(self, response):
+        return response.headers.get("location", "")

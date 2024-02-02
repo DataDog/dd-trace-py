@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+import logging
 import sys
 import typing
 
@@ -19,6 +20,9 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
+
+
+LOG = logging.getLogger(__name__)
 
 
 # These are special features that might not be available depending on your Python version and platform
@@ -489,14 +493,18 @@ class StackCollector(collector.PeriodicCollector):
     def _start_service(self):
         # type: (...) -> None
         # This is split in its own function to ease testing
+        LOG.debug("Profiling StackCollector starting")
         self._init()
         super(StackCollector, self)._start_service()
+        LOG.debug("Profiling StackCollector started")
 
     def _stop_service(self):
         # type: (...) -> None
+        LOG.debug("Profiling StackCollector stopping")
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
+        LOG.debug("Profiling StackCollector stopped")
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns

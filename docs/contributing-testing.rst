@@ -80,10 +80,11 @@ Anatomy of a Riot Command
 
 .. code-block:: bash
 
-    $ riot -v run -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
+    $ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
 
 * ``-v``: Print verbose output
 * ``--pass-env``: Pass all environment variables in the current shell to the pytest invocation
+* ``-s``: Skips base install. Ensure you have already generated the base virtual environment(s) before using this flag.
 * ``-p 3.10``: Run the tests using Python 3.10. You can change the version string if you want.
 * ``<suite_name>``: A regex matching the names of the Riot ``Venv`` instances to run
 * ``--``: Everything after this gets treated as a ``pytest`` argument
