@@ -96,12 +96,12 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
         return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
-        source_name = str(source_name, encoding="utf8")
+        source_name = str(source_name, encoding="utf8", errors="ignore")
     if isinstance(source_name, OriginType):
         source_name = origin_to_str(source_name)
 
     if isinstance(source_value, (bytes, bytearray)):
-        source_value = str(source_value, encoding="utf8")
+        source_value = str(source_value, encoding="utf8", errors="ignore")
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 

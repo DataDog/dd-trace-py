@@ -532,6 +532,7 @@ def get_ddup_ext():
                 },
                 force=True,
                 annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+                compiler_directives={"language_level": "3"},
             )
         )
     return ddup_ext
@@ -581,7 +582,7 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
+        "importlib_metadata<=6.5.0; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
@@ -684,6 +685,7 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "3"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil")

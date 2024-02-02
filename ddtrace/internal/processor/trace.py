@@ -16,7 +16,6 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
-from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
@@ -25,12 +24,15 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span  # noqa:F401
 from ddtrace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.span import _is_top_level
 
+
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
 
 try:
     from typing import DefaultDict  # noqa:F401
@@ -131,11 +133,13 @@ class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
     def _set_git_metadata(self, chunk_root):
-        repository_url, commit_sha = gitmetadata.get_git_tags()
+        repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
             chunk_root.set_tag_str("_dd.git.repository_url", repository_url)
         if commit_sha:
             chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
+        if main_package:
+            chunk_root.set_tag_str("_dd.python_main_package", main_package)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -228,7 +232,7 @@ class SpanAggregator(SpanProcessor):
 
                 num_finished = len(finished)
 
-                if should_partial_flush:
+                if should_partial_flush and num_finished > 0:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
@@ -263,22 +267,16 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
-            if config._telemetry_enabled:
-                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
-                # Here we submit the remanining span creation metrics without restarting the periodic thread.
-                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
-                telemetry.telemetry_writer._is_periodic = False
-                telemetry.telemetry_writer._enabled = True
-                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-                # before the tracer is shutdown.
-                self._queue_span_count_metrics("spans_created", "integration_name", None)
-                # on_span_finish(...) queues span finish metrics in batches of 100.
-                # This ensures all remaining counts are sent before the tracer is shutdown.
-                self._queue_span_count_metrics("spans_finished", "integration_name", None)
-                telemetry.telemetry_writer.periodic(True)
-                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
-                telemetry.telemetry_writer.disable()
+        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
+            telemetry.telemetry_writer._is_periodic = False
+            telemetry.telemetry_writer._enabled = True
+            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+            # before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_created", "integration_name", None)
+            # on_span_finish(...) queues span finish metrics in batches of 100.
+            # This ensures all remaining counts are sent before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_finished", "integration_name", None)
+            telemetry.telemetry_writer.periodic(True)
 
         try:
             self._writer.stop(timeout)

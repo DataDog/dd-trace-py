@@ -2289,7 +2289,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
     """
     with openai_vcr.use_cassette("completion.yaml"):
         model = "ada"
-        openai.Completion.create(
+        resp = openai.Completion.create(
             model=model, prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
         )
     span = mock_tracer.pop_traces()[0][0]
@@ -2301,10 +2301,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model_name:{}".format(resp.model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 2
@@ -2316,11 +2316,23 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "ddtags": expected_tags,
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
-                    "timestamp": 1681852797000,
-                    "model": span.get_tag("openai.request.model"),
+                    "timestamp": int(span.start * 1000),
+                    "model": resp.model,
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
-                    "output": {"completions": [{"content": ", relax!” I said to my laptop"}], "durations": [mock.ANY]},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
+                    "output": {
+                        "completions": [{"content": ", relax!” I said to my laptop"}],
+                        "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
+                    },
                 }
             ),
             mock.call.enqueue(
@@ -2328,11 +2340,23 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
                     "ddtags": expected_tags,
                     "type": "completion",
                     "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
-                    "timestamp": 1681852797000,
-                    "model": span.get_tag("openai.request.model"),
+                    "timestamp": int(span.start * 1000),
+                    "model": resp.model,
                     "model_provider": "openai",
-                    "input": {"prompts": ["Hello world"], "temperature": 0.8, "max_tokens": 10},
-                    "output": {"completions": [{"content": " (1"}], "durations": [mock.ANY]},
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                        "prompt_tokens": [mock.ANY],
+                    },
+                    "output": {
+                        "completions": [{"content": " (1"}],
+                        "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
+                    },
                 }
             ),
         ]
@@ -2384,10 +2408,10 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model_name:{}".format(resp.model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 2
@@ -2399,13 +2423,22 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "timestamp": int(span.start * 1000),
+                    "model": resp.model,
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[0].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2414,13 +2447,22 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "timestamp": int(span.start * 1000),
+                    "model": resp.model,
                     "model_provider": "openai",
-                    "input": {"messages": input_messages, "temperature": None, "max_tokens": None},
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
+                    },
                     "output": {
                         "completions": [{"content": resp.choices[1].message.content, "role": "assistant"}],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
                     },
                 }
             ),
@@ -2466,10 +2508,10 @@ def test_llmobs_chat_completion_function_call(
         "version:",
         "env:",
         "service:",
-        "src:integration",
-        "ml_obs.request.model:%s" % model,
-        "ml_obs.request.model_provider:openai",
-        "ml_obs.request.error:0",
+        "source:integration",
+        "model_name:{}".format(resp.model),
+        "model_provider:openai",
+        "error:0",
     ]
 
     assert mock_llmobs_writer.enqueue.call_count == 1
@@ -2481,19 +2523,171 @@ def test_llmobs_chat_completion_function_call(
                     "ddtags": expected_tags,
                     "type": "chat",
                     "id": resp.id,
-                    "timestamp": resp.created * 1000,
-                    "model": span.get_tag("openai.request.model"),
+                    "timestamp": int(span.start * 1000),
+                    "model": resp.model,
                     "model_provider": "openai",
                     "input": {
                         "messages": [{"content": chat_completion_input_description, "role": "user"}],
                         "temperature": None,
                         "max_tokens": None,
+                        "prompt_tokens": [mock.ANY],
                     },
                     "output": {
                         "completions": [
                             {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
                         ],
                         "durations": [mock.ANY],
+                        "completion_tokens": [mock.ANY],
+                        "total_tokens": [mock.ANY],
+                        "rate_limit_requests": [mock.ANY],
+                        "rate_limit_tokens": [mock.ANY],
+                    },
+                }
+            ),
+        ]
+    )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-a-real-api-key>",
+            _app_key="<not-a-real-app-key",
+            llmobs_enabled=True,
+            llmobs_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+    """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
+    with pytest.raises(Exception):
+        with openai_vcr.use_cassette("completion_error.yaml"):
+            model = "babbage-002"
+            openai.Completion.create(
+                model=model, prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+            )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    expected_tags = [
+        "dd.trace_id:{:x}".format(trace_id),
+        "dd.span_id:%s" % str(span_id),
+        "version:",
+        "env:",
+        "service:",
+        "source:integration",
+        "model_name:{}".format(model),
+        "model_provider:openai",
+        "error:1",
+        "error_type:openai.error.AuthenticationError",
+    ]
+
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "ddtags": expected_tags,
+                    "type": "completion",
+                    "id": mock.ANY,
+                    "timestamp": int(span.start * 1000),
+                    "model": span.get_tag("openai.request.model"),
+                    "model_provider": "openai",
+                    "input": {
+                        "prompts": ["Hello world"],
+                        "temperature": 0.8,
+                        "max_tokens": 10,
+                    },
+                    "output": {
+                        "completions": [{"content": ""}],
+                        "durations": [mock.ANY],
+                        "error": [
+                            "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."  # noqa: E501
+                        ],
+                    },
+                }
+            ),
+        ]
+    )
+    for record in mock_llmobs_writer.enqueue.call_args_list:
+        assert span.duration >= record[0][0]["output"]["durations"][0]
+
+
+@pytest.mark.parametrize(
+    "ddtrace_config_openai",
+    [
+        # Default service, env, version
+        dict(
+            _api_key="<not-a-real-api-key>",
+            _app_key="<not-a-real-app-key",
+            llmobs_enabled=True,
+            llmobs_prompt_completion_sample_rate=1.0,
+        ),
+    ],
+)
+def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+    """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with pytest.raises(Exception):
+        with openai_vcr.use_cassette("chat_completion_error.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Who won the world series in 2020?"},
+                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+                {"role": "user", "content": "Where was it played?"},
+            ]
+            openai.ChatCompletion.create(
+                model=model,
+                messages=input_messages,
+                top_p=0.9,
+                n=2,
+                user="ddtrace-test",
+            )
+    span = mock_tracer.pop_traces()[0][0]
+    trace_id, span_id = span.trace_id, span.span_id
+
+    expected_tags = [
+        "dd.trace_id:{:x}".format(trace_id),
+        "dd.span_id:%s" % str(span_id),
+        "version:",
+        "env:",
+        "service:",
+        "source:integration",
+        "model_name:{}".format(model),
+        "model_provider:openai",
+        "error:1",
+        "error_type:openai.error.AuthenticationError",
+    ]
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                {
+                    "ddtags": expected_tags,
+                    "type": "chat",
+                    "id": mock.ANY,
+                    "timestamp": int(span.start * 1000),
+                    "model": span.get_tag("openai.request.model"),
+                    "model_provider": "openai",
+                    "input": {
+                        "messages": input_messages,
+                        "temperature": None,
+                        "max_tokens": None,
+                    },
+                    "output": {
+                        "completions": [{"content": ""}],
+                        "durations": [mock.ANY],
+                        "error": [
+                            "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys."  # noqa: E501
+                        ],
                     },
                 }
             ),
