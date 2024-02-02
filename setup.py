@@ -477,6 +477,21 @@ if not IS_PYSTON:
             )
         )
 
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=CURRENT_OS != "Linux",
+                cmake_args=[
+                    "-DPLATFORM={}".format(CURRENT_OS),
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
+                ],
+            )
+        )
+
 else:
     ext_modules = []
 
