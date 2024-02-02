@@ -10,10 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Werror -Wextra -Wshadow")
 
 # If the compiler supports fanalyzer, let's also use that
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "10.0")
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fanalyzer")
-    endif()
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-fanalyzer" CXX_SUPPORTS_FANALYZER)
+if(CXX_SUPPORTS_FANALYZER)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fanalyzer")
 endif()
 
 # Infer some basic properties about the build.  This is necessary because multiple
@@ -38,7 +38,12 @@ set(Datadog_INCLUDE_DIRS "${Datadog_INCLUDE_DIRS}" PARENT_SCOPE)
 
 # Library sources
 add_library(dd_wrapper SHARED
-    src/exporter.cpp
+    src/uploader_builder.cpp
+    src/profile_builder.cpp
+    src/global_cache.cpp
+    src/profile_shared.cpp
+    src/uploader.cpp
+    src/profile.cpp
     src/interface.cpp
 )
 
