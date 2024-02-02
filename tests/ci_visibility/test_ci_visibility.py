@@ -83,7 +83,10 @@ def test_ci_visibility_service_enable():
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), _dummy_noop_git_client():
+    ), _dummy_noop_git_client(), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
+        return_value=_CIVisibilitySettings(False, False, False, False),
+    ):
         with _patch_dummy_writer():
             dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
@@ -503,7 +506,9 @@ def test_civisibilitywriter_agentless_url_envvar():
             DD_CIVISIBILITY_AGENTLESS_URL="https://foo.bar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
         )
-    ), _dummy_noop_git_client():
+    ), _dummy_noop_git_client(), mock.patch.object(
+        CIVisibility, "_check_settings_api", return_value=_CIVisibilitySettings(False, False, False, False)
+    ):
         ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable()
@@ -1431,3 +1436,33 @@ def test_fetch_tests_to_skip_custom_configurations():
                 {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
             )
             CIVisibility.disable()
+
+
+def test_civisibility_enable_tracer_uses_partial_traces():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable()
+        assert CIVisibility._instance.tracer._partial_flush_enabled is True
+        assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
+        CIVisibility.disable()
+
+
+def test_civisibility_enable_respects_passed_in_tracer():
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.writer.config = ddtrace.settings.Config()
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        tracer = ddtrace.Tracer()
+        tracer.configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        CIVisibility.enable(tracer=tracer)
+        assert CIVisibility._instance.tracer._partial_flush_enabled is False
+        assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
+        CIVisibility.disable()

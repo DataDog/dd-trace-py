@@ -25,7 +25,7 @@ def test_list_tasks_nogevent():
 
 @pytest.mark.skip(reason="Unknown failure")
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_list_tasks_gevent():
     import gevent.monkey
 
@@ -33,7 +33,6 @@ def test_list_tasks_gevent():
 
     import threading
 
-    from ddtrace.internal import compat
     from ddtrace.profiling.collector import _task
 
     l1 = threading.Lock()
@@ -49,7 +48,7 @@ def test_list_tasks_gevent():
     t1 = threading.Thread(target=wait, name="t1")
     t1.start()
 
-    tasks = _task.list_tasks(compat.main_thread.ident)
+    tasks = _task.list_tasks(threading.main_thread().ident)
     # can't check == 2 because there are left over from other tests
     assert len(tasks) >= 2
 
@@ -58,7 +57,7 @@ def test_list_tasks_gevent():
     for task in tasks:
         assert len(task) == 3
         # main thread
-        if task[0] == compat.main_thread.ident:
+        if task[0] == threading.main_thread().ident or task[1] == "MainThread":
             assert task[1] == "MainThread"
             assert task[2] is None
             main_thread_found = True
