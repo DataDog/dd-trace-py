@@ -116,6 +116,7 @@ class _ProfilerInstance(service.Service):
     agentless = attr.ib(type=bool, default=config.agentless)
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)

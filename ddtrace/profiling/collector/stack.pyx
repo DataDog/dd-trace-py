@@ -13,6 +13,7 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -474,6 +475,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack_collector_v2_enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -489,6 +491,11 @@ class StackCollector(collector.PeriodicCollector):
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
         set_use_libdd(config.export.libdd_enabled)
         set_use_py(config.export.py_enabled)
+
+        if self._stack_collector_v2_enabled:
+            # stack_v2 should also enable ddup, but we check
+            if use_libdd:
+                stack_v2.start(max_frames=self.nframes, min_interval_time=self.min_interval_time)
 
     def _start_service(self):
         # type: (...) -> None
@@ -506,6 +513,10 @@ class StackCollector(collector.PeriodicCollector):
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
         LOG.debug("Profiling StackCollector stopped")
 
+        # The stack v2 sampler operates in a native thread; we need to stop it explicitly
+        if self._stack_collector_v2_enabled:
+            stack_v2.stop()
+
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
         return max(interval / 1e9, self.min_interval_time)
@@ -516,17 +527,25 @@ class StackCollector(collector.PeriodicCollector):
         wall_time = now - self._last_wall_time
         self._last_wall_time = now
 
-        all_events = stack_collect(
-            self.ignore_profiler,
-            self._thread_time,
-            self.nframes,
-            self.interval,
-            wall_time,
-            self._thread_span_links,
-            self.endpoint_collection_enabled,
-        )
+        if self._stack_collector_v2_enabled:
+            # stack_v2 sends events directly to collection
+            all_events = [], []
+        else:
+            all_events = stack_collect(
+                self.ignore_profiler,
+                self._thread_time,
+                self.nframes,
+                self.interval,
+                wall_time,
+                self._thread_span_links,
+                self.endpoint_collection_enabled,
+            )
 
         used_wall_time_ns = compat.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
+
+        if self._stack_collector_v2_enabled:
+            # Propagate dynamic samples to the stack_v2 sampler
+            stack_v2.set_interval(self.interval)
 
         return all_events

@@ -40,7 +40,12 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 def _is_valid_libdatadog():
     # type: () -> bool
-    return platform.machine() in ["x86_64", "aarch64"] and "glibc" in platform.libc_ver()[0]
+    return platform.machine() in ["x86_64", "aarch64"]
+
+
+def _is_valid_stack_v2():
+    # type: () -> bool
+    return platform.machine() in ["x86_64", "aarch64"]
 
 
 class ProfilingConfig(En):
@@ -165,6 +170,18 @@ class ProfilingConfig(En):
             help="Whether to enable the stack profiler",
         )
 
+    class Stack_V2(En):
+        __item__ = __prefix__ = "stack_v2"
+
+        _enabled = En.v(
+            bool,
+            "enabled",
+            default=False,
+            help_type="Boolean",
+            help="Whether to enable the stack profiler v2 (also enables libdd export)",
+        )
+        enabled = En.d(bool, lambda c: c._enabled and _is_valid_stack_v2())
+
     class Lock(En):
         __item__ = __prefix__ = "lock"
 
@@ -226,8 +243,11 @@ class ProfilingConfig(En):
             help="Enables collection and export using the experimental exporter",
         )
 
-        # For now, only allow libdd to be enabled if the user asks for it
+        # For now, only allow libdd to be enabled on the correct platform
         libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_valid_libdatadog())
+
+        # But force-enable it if the user has set stack v2
+        libdd_enabled = En.d(bool, lambda c: c.libdd_enabled or c._libdd_enabled and c.stack_v2.enabled)
 
         py_enabled = En.v(
             bool,
