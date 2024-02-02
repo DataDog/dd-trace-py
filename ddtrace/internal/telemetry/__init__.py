@@ -67,3 +67,8 @@ def install_excepthook():
 def uninstall_excepthook():
     """Uninstall the global tracer except hook."""
     sys.excepthook = _ORIGINAL_EXCEPTHOOK
+
+
+def disable_and_flush():
+    telemetry_writer._enabled = False
+    telemetry_writer.periodic(True)
