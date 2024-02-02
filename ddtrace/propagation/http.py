@@ -17,6 +17,9 @@ else:
 
 from ddtrace import config
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
+from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
+from ddtrace._trace.span import _MetaDictType
 from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
@@ -40,9 +43,6 @@ from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
-from ..span import _get_64_highest_order_bits_as_hex
-from ..span import _get_64_lowest_order_bits_as_int
-from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 

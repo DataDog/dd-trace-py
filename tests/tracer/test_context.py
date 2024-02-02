@@ -5,7 +5,7 @@ from typing import Optional  # noqa:F401
 import pytest
 
 from ddtrace._trace.context import Context
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 from ddtrace.tracing._span_link import SpanLink
 
 

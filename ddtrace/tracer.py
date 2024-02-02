@@ -19,6 +19,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -67,7 +68,6 @@ from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
-from .span import Span
 
 
 if TYPE_CHECKING:

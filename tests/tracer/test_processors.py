@@ -4,9 +4,9 @@ import attr
 import mock
 import pytest
 
-from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
