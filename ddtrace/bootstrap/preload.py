@@ -104,7 +104,6 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     if config.trace_methods:
         _install_trace_methods(config.trace_methods)
 
-
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
     tracer.set_tags(parse_tags_str(env_tags))
