@@ -22,6 +22,7 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
+            "DD_TRACE_ENABLED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -55,6 +56,11 @@ with tracer.trace("test") as span:
         "value": "team:apm,component:web",
         "origin": "env_var",
     }
+    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
+        "name": "tracing_enabled",
+        "value": "true",
+        "origin": "env_var",
+    }
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -66,15 +72,19 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
+            "DD_TRACE_ENABLED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
+
 config._trace_sample_rate = 0.2
 config.logs_injection = False
 config.trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
+config._tracing_enabled = False
+
 with tracer.trace("test") as span:
     pass
         """,
@@ -101,6 +111,11 @@ with tracer.trace("test") as span:
     assert _get_latest_telemetry_config_item(events, "trace_tags") == {
         "name": "trace_tags",
         "value": "header:value",
+        "origin": "code",
+    }
+    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
+        "name": "tracing_enabled",
+        "value": "false",
         "origin": "code",
     }
 
