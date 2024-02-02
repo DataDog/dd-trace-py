@@ -197,7 +197,9 @@ def extract_DD_context(messages):
         message = messages[0]
         context_json = extract_trace_context_json(message)
         if context_json is not None:
-            ctx = HTTPPropagator.extract(context_json)
+            child_of = HTTPPropagator.extract(context_json)
+            if child_of.trace_id is not None:
+                ctx = child_of
     return ctx
 
 
