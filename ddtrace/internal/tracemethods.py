@@ -63,8 +63,7 @@ def _parse_trace_methods(raw_dd_trace_methods):
     return dd_trace_methods
 
 
-def _install_trace_methods(raw_dd_trace_methods):
-    # type: (str) -> None
+def _install_trace_methods(raw_dd_trace_methods: str) -> None:
     """Install tracing on the given methods."""
     for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
         # We don't know if the method is a class method or a module method, so we need to assume it's a module
@@ -80,70 +79,68 @@ def _install_trace_methods(raw_dd_trace_methods):
                 # Add the class to the method name
                 method_name = "%s.%s" % (base_module_guess.split(".")[-1], method_name)
                 base_module_guess = ".".join(base_module_guess.split(".")[:-1])
+            except Exception:
+                # NOTE: This could be trivial if setting a valid DJANGO_SETTINGS_MODULE
+                # env var resolves the import issue
+                log.warning(
+                    "Attempt to import %s raised a non-ImportError. "
+                    "Creating a class method hook and module method hook to "
+                    "account for both cases",
+                    base_module_guess,
+                    exc_info=True,
+                )
+                try:
+                    trace_class_and_module_method(qualified_method)
+                except Exception:
+                    raise ValueError("this is causing problems")
+                break
             else:
+                if module is None:
+                    raise ImportError("Could not import module for %r" % qualified_method)
+
+                trace_method(base_module_guess, method_name)
                 break
 
-        if module is None:
-            raise ImportError("Could not import module for %r" % qualified_method)
 
+def trace_class_and_module_method(qualified_method: str) -> None:
+    """
+    Creates an import hook for the qualified method as a class method and
+    another as a module method
+    Useful when a qualified method cannot be determined to be one or the other
+    when attempting to import the module
+    """
+    path_components = qualified_method.split(".")
+    # qualified_method : mymodule.mysubmodule.myclass.mymethod
+    # base_module_guess: mymodule.mysubmodule.myclass
+    # method_name      : mymethod
+    base_module_guess = ".".join(path_components[:-1])
+    method_name = qualified_method.split(".")[-1]
+    # create hook for module level
+    try:
         trace_method(base_module_guess, method_name)
+    except Exception:
+        log.warning("failed to trace method with %s", base_module_guess)
 
-
-# def _option_three_create_two_hooks(raw_dd_trace_methods: str) -> None:
-#     # type: (str) -> None
-#     for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
-#         # for mymodule.mysubmodule.myclass.mymethod
-#         # base_module_guess: mymodule.mysubmodule.myclass
-#         # method_name      : mymethod
-#         path_components = qualified_method.split(".")
-#         base_module_guess = ".".join(path_components[:-1])
-#         method_name = qualified_method.split(".")[-1]
-#         # create hook for module level
-#         trace_method(base_module_guess, method_name)
-
-#         # for mymodule.mysubmodule.myclass.mymethod
-#         # base_module_guess: mymodule.mysubmodule
-#         # method_name      : myclass.mymethod
-#         base_module_guess = ".".join(path_components[:-2])
-#         method_name = ".".join(path_components[-2:])
-#         # create another hook for class level
-#         trace_method(base_module_guess, method_name)
-
-
-def _option_four_bypass_exceptions(raw_dd_trace_methods: str) -> None:
-    for qualified_method in _parse_trace_methods(raw_dd_trace_methods):
-        # We don't know if the method is a class method or a module method, so we need to assume it's a module
-        # and if the import fails then go a level up and try again.
-        base_module_guess = ".".join(qualified_method.split(".")[:-1])
-        method_name = qualified_method.split(".")[-1]
-        module = None
-
-        while base_module_guess:
-            try:
-                module = __import__(base_module_guess)
-            except ImportError:
-                # Add the class to the method name
-                method_name = "%s.%s" % (base_module_guess.split(".")[-1], method_name)
-                base_module_guess = ".".join(base_module_guess.split(".")[:-1])
-            else:
-                break
-
-        if module is None:
-            raise ImportError("Could not import module for %r" % qualified_method)
-
+    # qualified_method : mymodule.mysubmodule.myclass.mymethod
+    # base_module_guess: mymodule.mysubmodule
+    # method_name      : myclass.mymethod
+    base_module_guess = ".".join(path_components[:-2])
+    method_name = ".".join(path_components[-2:])
+    # create another hook for class level
+    try:
         trace_method(base_module_guess, method_name)
+    except Exception:
+        log.warning("failed to trace method with %s", base_module_guess)
 
 
 def trace_method(module, method_name):
     # type: (str, str) -> None
-
-    # TODO: Look into registering hook cost
-    # TODO: Async func considerations? Do we support? -> tracer.wrapped annotation?
-    # TODO: Look at wrap_decorator
-    # TODO:
     @wrapt.importer.when_imported(module)
     def _(m):
-        wrapt.wrap_function_wrapper(m, method_name, trace_wrapper)
+        try:
+            wrapt.wrap_function_wrapper(m, method_name, trace_wrapper)
+        except Exception as e:
+            log.error("failing when actually wrapping at import time: [%s]", e)
 
 
 def trace_wrapper(wrapped, instance, args, kwargs):
