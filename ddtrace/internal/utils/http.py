@@ -1,4 +1,7 @@
 from contextlib import contextmanager
+from dataclasses import dataclass
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
 from json import loads
 import logging
 import os
@@ -412,3 +415,27 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
     return {}
+
+
+@dataclass
+class FormData:
+    name: str
+    filename: str
+    data: str
+    content_type: str
+
+
+def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
+    msg = MIMEMultipart("form-data")
+    del msg["MIME-Version"]
+
+    for part in parts:
+        app = MIMEApplication(part.data, part.content_type, lambda _: _)
+        app.add_header("Content-Disposition", "form-data", name=part.name, filename=part.filename)
+        del app["MIME-Version"]
+        msg.attach(app)
+
+    # Split headers and body
+    headers, _, body = msg.as_string().partition("\n\n")
+
+    return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())

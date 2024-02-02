@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
-from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .settings import _config as config
@@ -158,6 +157,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
+        if config._telemetry_enabled:
+            from .internal import telemetry
         # Import and patch module
         path = "%s.%s" % (prefix, module)
         try:
@@ -167,23 +168,25 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                 raise
             error_msg = "failed to import ddtrace module %r when patching on import" % (path,)
             log.error(error_msg, exc_info=True)
-            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
-            telemetry.telemetry_writer.add_count_metric(
-                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
-            )
+            if config._telemetry_enabled:
+                telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, error_msg)
+                telemetry.telemetry_writer.add_count_metric(
+                    "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+                )
         else:
             imported_module.patch()
-            if hasattr(imported_module, "get_versions"):
-                versions = imported_module.get_versions()
-                for name, v in versions.items():
+            if config._telemetry_enabled:
+                if hasattr(imported_module, "get_versions"):
+                    versions = imported_module.get_versions()
+                    for name, v in versions.items():
+                        telemetry.telemetry_writer.add_integration(
+                            name, True, PATCH_MODULES.get(module) is True, "", version=v
+                        )
+                else:
+                    version = imported_module.get_version()
                     telemetry.telemetry_writer.add_integration(
-                        name, True, PATCH_MODULES.get(module) is True, "", version=v
+                        module, True, PATCH_MODULES.get(module) is True, "", version=version
                     )
-            else:
-                version = imported_module.get_version()
-                telemetry.telemetry_writer.add_integration(
-                    module, True, PATCH_MODULES.get(module) is True, "", version=version
-                )
 
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)

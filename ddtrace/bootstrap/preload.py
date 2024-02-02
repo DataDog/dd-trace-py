@@ -43,7 +43,10 @@ log = get_logger(__name__)
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
-    import ddtrace.profiling.auto  # noqa: F401
+    try:
+        import ddtrace.profiling.auto  # noqa: F401
+    except Exception:
+        log.error("failed to enable profiling", exc_info=True)
 
 if di_config.enabled or ed_config.enabled:
     from ddtrace.debugging import DynamicInstrumentation
@@ -60,6 +63,7 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+        log.debug("IAST enabled")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 if config._remote_config_enabled:

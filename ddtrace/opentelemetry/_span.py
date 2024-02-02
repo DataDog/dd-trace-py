@@ -13,10 +13,11 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import flatten_key_value
+from ddtrace.internal.utils.formats import is_sequence
 
 
 if TYPE_CHECKING:
-    from typing import Callable  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
@@ -160,6 +161,10 @@ class Span(OtelSpan):
             _ddmap(self._ddspan, ddattribute, value)
             return
 
+        if is_sequence(value):
+            for k, v in flatten_key_value(key, value).items():
+                self._ddspan.set_tag(k, v)
+            return
         self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):

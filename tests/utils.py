@@ -29,9 +29,11 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -139,17 +141,7 @@ def override_global_config(values):
         "_telemetry_dependency_collection",
     ]
 
-    asm_config_keys = [
-        "_asm_enabled",
-        "_api_security_enabled",
-        "_api_security_sample_rate",
-        "_waf_timeout",
-        "_iast_enabled",
-        "_automatic_login_events_mode",
-        "_user_model_login_field",
-        "_user_model_email_field",
-        "_user_model_name_field",
-    ]
+    asm_config_keys = asm_config._asm_config_keys
 
     subscriptions = ddtrace.config._subscriptions
     ddtrace.config._subscriptions = []
@@ -570,6 +562,7 @@ class DummyTracer(Tracer):
 
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
+        self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
         self.configure(*args, **kwargs)
 
@@ -610,7 +603,9 @@ class DummyTracer(Tracer):
         if not kwargs.get("writer"):
             # if no writer is present, check if test agent is running to determine if we
             # should emit traces.
-            kwargs["writer"] = DummyWriter(trace_flush_enabled=check_test_agent_status())
+            kwargs["writer"] = DummyWriter(
+                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+            )
         super(DummyTracer, self).configure(*args, **kwargs)
 
 

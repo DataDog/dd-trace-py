@@ -1,5 +1,6 @@
 import json
 import os
+from unittest import mock
 
 import pytest
 
@@ -10,6 +11,7 @@ from ddtrace.contrib.pytest_bdd.plugin import _get_step_func_args_json
 from ddtrace.contrib.pytest_bdd.plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyCIVisibilityWriter
@@ -31,6 +33,18 @@ class TestPytest(TracerTestCase):
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
+
+    @pytest.fixture(autouse=True)
+    def _dummy_check_enabled_features(self):
+        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
+
+        Tests that need a different response should re-patch the CIVisibility object.
+        """
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
+            yield
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
@@ -112,7 +126,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
@@ -154,7 +168,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -200,7 +214,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -223,7 +237,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4

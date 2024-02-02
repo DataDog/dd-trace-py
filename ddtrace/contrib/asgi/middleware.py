@@ -18,7 +18,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
-from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
@@ -120,7 +119,6 @@ class TraceMiddleware:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
-
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
@@ -210,6 +208,7 @@ class TraceMiddleware:
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
+                headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
@@ -251,13 +250,15 @@ class TraceMiddleware:
                 if result:
                     status, headers, content = result.value
                 else:
-                    status, headers, content = 403, [], ""
+                    status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
                     core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
-                    message["body"] = content
+                    message["body"] = (
+                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                    )
                     message["more_body"] = False
                     core.dispatch("asgi.finalize_response", (content, None))
                 try:
@@ -280,7 +281,7 @@ class TraceMiddleware:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
-                reraise(exc_type, exc_val, exc_tb)
+                raise
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

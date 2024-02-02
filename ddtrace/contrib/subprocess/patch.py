@@ -13,7 +13,6 @@ from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
 import attr
-import six
 
 from ddtrace import Pin
 from ddtrace import config
@@ -154,7 +153,7 @@ class SubprocessCmdLine(object):
             self.arguments = []
             self.truncated = False
 
-            if isinstance(shell_args, six.string_types):
+            if isinstance(shell_args, str):
                 tokens = shlex.split(shell_args)
             else:
                 tokens = cast(List[str], shell_args)

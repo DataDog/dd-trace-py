@@ -3,7 +3,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import attr
-import six
 
 from ddtrace import Span  # noqa:F401
 from ddtrace.internal.logger import get_logger
@@ -13,7 +12,7 @@ log = get_logger(__name__)
 
 
 @attr.s
-class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
+class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
     __processors__ = []  # type: List["SpanProcessor"]

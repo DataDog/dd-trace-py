@@ -6,13 +6,11 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-import six
-
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
 
-class Metric(six.with_metaclass(abc.ABCMeta)):
+class Metric(metaclass=abc.ABCMeta):
     """
     Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer
     """

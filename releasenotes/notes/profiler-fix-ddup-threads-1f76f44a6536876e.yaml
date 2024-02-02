@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiler: Fixes a sigabrt when shutdown occurs during an upload

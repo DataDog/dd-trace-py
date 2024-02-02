@@ -72,7 +72,7 @@ class Span(OpenTracingSpan):
         :type key: str
 
         :param value: baggage item value
-        :type value: a type that can be compat.stringify()'d
+        :type value: a type that can be str'd
 
         :rtype: Span
         :return: itself for chaining calls

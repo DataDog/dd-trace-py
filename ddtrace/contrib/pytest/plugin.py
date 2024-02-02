@@ -87,6 +87,8 @@ def _is_pytest_cov_enabled(config) -> bool:
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
     if type(cov_option) == list and cov_option == [True] and not nocov_option:
         return True
     return cov_option
@@ -113,6 +115,15 @@ def _extract_ancestor_module_span(item):
         module_span = _extract_module_span(item) or _extract_span(item)
         if module_span is not None and module_span.name == "pytest.test_module":
             return module_span
+        item = item.parent
+
+
+def _extract_ancestor_suite_span(item):
+    """Return the first ancestor suite span found"""
+    while item:
+        suite_span = _extract_span(item)
+        if suite_span is not None and suite_span.name == "pytest.test_suite":
+            return suite_span
         item = item.parent
 
 
@@ -145,7 +156,7 @@ def _mark_test_forced(test_item):
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
-    suite_span = _extract_span(test_item.parent)
+    suite_span = _extract_ancestor_suite_span(test_item)
     suite_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
     module_span = _extract_ancestor_module_span(test_item)
@@ -160,7 +171,7 @@ def _mark_test_unskippable(test_item):
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
-    suite_span = _extract_span(test_item.parent)
+    suite_span = _extract_ancestor_suite_span(test_item)
     suite_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
     module_span = _extract_ancestor_module_span(test_item)
@@ -607,7 +618,7 @@ def pytest_runtest_protocol(item, nextitem):
         )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
-    test_suite_span = _extract_span(pytest_module_item)
+    test_suite_span = _extract_ancestor_suite_span(item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
         # In ITR suite skipping mode, all tests in a skipped suite should be marked
@@ -793,7 +804,7 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.SKIP_REASON, str(reason))
             if str(reason) == SKIPPED_BY_ITR_REASON:
                 if _CIVisibility._instance._suite_skipping_mode:
-                    suite_span = _extract_span(item.parent)
+                    suite_span = _extract_ancestor_suite_span(item)
                     if suite_span is not None:
                         suite_span.set_tag_str(test.ITR_SKIPPED, "true")
                 span.set_tag_str(test.ITR_SKIPPED, "true")

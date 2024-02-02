@@ -8,10 +8,7 @@ from typing import Tuple  # noqa:F401
 from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ..compat import binary_type
 from ..compat import ensure_text
-from ..compat import stringify
-from ..compat import text_type
 
 
 VALUE_PLACEHOLDER = "?"
@@ -21,6 +18,7 @@ CMD_MAX_LEN = 1000
 
 
 T = TypeVar("T")
+
 
 log = logging.getLogger(__name__)
 
@@ -140,10 +138,10 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
     out = []  # type: List[Text]
     for arg in args:
         try:
-            if isinstance(arg, (binary_type, text_type)):
+            if isinstance(arg, (bytes, str)):
                 cmd = ensure_text(arg, errors="backslashreplace")
             else:
-                cmd = stringify(arg)
+                cmd = str(arg)
 
             if len(cmd) > value_max_len:
                 cmd = cmd[:value_max_len] + VALUE_TOO_LONG_MARK
@@ -160,3 +158,28 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
             break
 
     return " ".join(out)
+
+
+def is_sequence(obj):
+    # type: (Any) -> bool
+    try:
+        return isinstance(obj, (list, tuple, set, frozenset))
+    except TypeError:
+        # Checking the type of Generic Subclasses raises a TypeError
+        return False
+
+
+def flatten_key_value(root_key, value):
+    # type: (str, Any) -> Dict[str, Any]
+    """Flattens attributes"""
+    if not is_sequence(value):
+        return {root_key: value}
+
+    flattened = dict()
+    for i, item in enumerate(value):
+        key = f"{root_key}.{i}"
+        if is_sequence(item):
+            flattened.update(flatten_key_value(key, item))
+        else:
+            flattened[key] = item
+    return flattened

@@ -233,6 +233,9 @@ commands:
       - checkout
       - attach_workspace:
           at: .
+      - restore_cache:
+          keys:
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - setup_hatch
       - when:
           condition:
@@ -266,6 +269,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: "Store Test Agent Supported Integrations Data"
           command: |
@@ -373,7 +380,7 @@ jobs:
             - attach_workspace:
                 at: .
             - run: pip install -r ci/coverage/requirements.txt
-            - run: ls -hal *.coverage
+            - run: ls -hal *.coverage 2>/dev/null || true
             # Combine all job coverage reports into one
             - run: coverage combine *.coverage
             # Upload coverage report to Codecov
@@ -434,6 +441,13 @@ jobs:
       - run_test:
           pattern: 'appsec_iast$'
           snapshot: true
+          docker_services: "postgres"
+
+  appsec_iast_tdd_propagation:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec_iast_tdd_propagation'
 
   appsec_iast_memcheck:
     <<: *machine_executor
@@ -451,10 +465,41 @@ jobs:
 
   appsec_integrations:
     <<: *machine_executor
+    parallelism: 7
     steps:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
+
+  appsec_threats_django:
+    parallelism: 12
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_django'
+          snapshot: false
+
+  appsec_threats_flask:
+    parallelism: 10
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_flask'
+          snapshot: false
+
+  appsec_threats_fastapi:
+    parallelism: 9
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_fastapi'
+          snapshot: false
 
   aws_lambda:
     <<: *machine_executor
@@ -517,7 +562,7 @@ jobs:
 
   openai:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 10
     steps:
       - run_test:
           pattern: 'openai'
@@ -563,7 +608,7 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            ./scripts/run-test-suite 'integration-latest' <<pipeline.parameters.coverage>> 1
+            ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
 
   integration_testagent:
     <<: *machine_executor
@@ -571,7 +616,7 @@ jobs:
       - run_test:
           snapshot: true
           store_coverage: false
-          pattern: 'integration-snapshot'
+          pattern: 'integration-snapshot*'
           trace_agent_url: ""
 
   vendor:
@@ -780,7 +825,7 @@ jobs:
 
   flask:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 10
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
@@ -909,6 +954,7 @@ jobs:
 
   pytest:
     <<: *machine_executor
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest'
@@ -1091,6 +1137,7 @@ jobs:
 
   redis:
     <<: *machine_executor
+    parallelism: 5
     steps:
       - run_test:
           docker_services: 'redis rediscluster'
@@ -1146,7 +1193,7 @@ jobs:
 
   kafka:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'kafka'

@@ -8,7 +8,6 @@ from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
-import six
 import xmltodict
 
 from ddtrace import Span
@@ -18,6 +17,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal import compat
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
@@ -175,7 +175,7 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = six.ensure_text(v)
+        urlparts[k] = compat.ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
@@ -343,7 +343,7 @@ def _after_request_tags(pin, span: Span, request, response):
                 # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                 template = response.template_name
 
-                if isinstance(template, six.string_types):
+                if isinstance(template, str):
                     template_names = [template]
                 elif isinstance(
                     template,
@@ -373,7 +373,7 @@ def _after_request_tags(pin, span: Span, request, response):
 
             response_cookies = {}
             if response.cookies:
-                for k, v in six.iteritems(response.cookies):
+                for k, v in response.cookies.items():
                     response_cookies[k] = v.OutputString()
 
             raw_uri = url

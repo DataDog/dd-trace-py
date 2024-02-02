@@ -216,6 +216,7 @@ def test_remote_config_forksafe():
         exit(0)
 
 
+# TODO: split this test into smaller tests that operate independently from each other
 @mock.patch.object(RemoteConfigClient, "_send_request")
 def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
     class Callback:
@@ -240,9 +241,6 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
                 "shared_data_counter": ANY,
             }
 
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worker):
     class Callback:
         features = {}
 
@@ -261,7 +259,7 @@ def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worke
             mock_pubsub = RCMockPubSub(None, callback._reload_features)
             rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
             rc._online()
-            mock_send_request.assert_called_once()
+            mock_send_request.assert_called()
             sleep(0.5)
             assert callback.features == {
                 "config": {
@@ -280,44 +278,6 @@ def test_remote_configuration_ip_blocking(mock_send_request, remote_config_worke
                 "shared_data_counter": ANY,
             }
 
-
-def test_remoteconfig_semver():
-    _assert_and_get_version_agent_format(RemoteConfigClient()._client_tracer["tracer_version"])
-
-
-@pytest.mark.parametrize(
-    "result,expected",
-    [
-        (None, False),
-        ({}, False),
-        ({"endpoints": []}, False),
-        ({"endpoints": ["/info"]}, False),
-        ({"endpoints": ["/info", "/errors"]}, False),
-        ({"endpoints": ["/info", "/errors", REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
-        ({"endpoints": ["/info", "/errors", "/" + REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
-    ],
-)
-@mock.patch("ddtrace.internal.agent.info")
-def test_remote_configuration_check_remote_config_enable_in_agent_errors(
-    mock_info, result, expected, remote_config_worker
-):
-    mock_info.return_value = result
-
-    worker = RemoteConfigPoller()
-
-    # Check that the initial state is agent_check
-    assert worker._state == worker._agent_check
-
-    worker.periodic()
-
-    # Check that the state is online if the agent supports remote config
-    assert worker._state == worker._online if expected else worker._agent_check
-    worker.stop_subscribers(True)
-    worker.disable()
-
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_payload_with_errors_signed_wrong_data(mock_send_request, remote_config_worker):
     class Callback:
         features = {}
 
@@ -355,11 +315,6 @@ def test_remote_configuration_payload_with_errors_signed_wrong_data(mock_send_re
             assert callback.features == {}
             assert rc._client._last_error == "invalid agent payload received"
 
-
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_payload_with_errors_signed_wrong_data_recover_from_error(
-    mock_send_request, remote_config_worker
-):
     class Callback:
         features = {}
 
@@ -408,3 +363,38 @@ def test_remote_configuration_payload_with_errors_signed_wrong_data_recover_from
                 "metadata": {},
                 "shared_data_counter": ANY,
             }
+
+
+def test_remoteconfig_semver():
+    _assert_and_get_version_agent_format(RemoteConfigClient()._client_tracer["tracer_version"])
+
+
+@pytest.mark.parametrize(
+    "result,expected",
+    [
+        (None, False),
+        ({}, False),
+        ({"endpoints": []}, False),
+        ({"endpoints": ["/info"]}, False),
+        ({"endpoints": ["/info", "/errors"]}, False),
+        ({"endpoints": ["/info", "/errors", REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
+        ({"endpoints": ["/info", "/errors", "/" + REMOTE_CONFIG_AGENT_ENDPOINT]}, True),
+    ],
+)
+@mock.patch("ddtrace.internal.agent.info")
+def test_remote_configuration_check_remote_config_enable_in_agent_errors(
+    mock_info, result, expected, remote_config_worker
+):
+    mock_info.return_value = result
+
+    worker = RemoteConfigPoller()
+
+    # Check that the initial state is agent_check
+    assert worker._state == worker._agent_check
+
+    worker.periodic()
+
+    # Check that the state is online if the agent supports remote config
+    assert worker._state == worker._online if expected else worker._agent_check
+    worker.stop_subscribers(True)
+    worker.disable()

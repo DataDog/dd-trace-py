@@ -7,9 +7,9 @@ import threading
 
 import pytest
 
-from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
+from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
@@ -192,29 +192,29 @@ def test_batch_json_encoder():
     cake = "After the test there will be ✨ 🍰 ✨ in the annex"
 
     buffer_size = 30 * (1 << 10)
-    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)}, buffer_size=buffer_size)
+    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
 
     s.line()
 
-    snapshot_size = encoder.put(s)
+    snapshot_size = queue.put(s)
 
     n_snapshots = buffer_size // snapshot_size
 
     with pytest.raises(BufferFull):
         for _ in range(2 * n_snapshots):
-            encoder.put(s)
+            queue.put(s)
 
-    count = encoder.count
-    payload = encoder.encode()
+    count = queue.count
+    payload = queue.flush()
     decoded = json.loads(payload.decode())
     assert len(decoded) == count
     assert n_snapshots <= count
     assert (
         utils.serialize(cake) == decoded[0]["debugger.snapshot"]["captures"]["lines"]["42"]["locals"]["cake"]["value"]
     )
-    assert encoder.encode() is None
-    assert encoder.encode() is None
-    assert encoder.count == 0
+    assert queue.flush() is None
+    assert queue.flush() is None
+    assert queue.count == 0
 
 
 def test_batch_flush_reencode():
@@ -226,16 +226,16 @@ def test_batch_flush_reencode():
 
     s.line()
 
-    encoder = BatchJsonEncoder({Snapshot: LogSignalJsonEncoder(None)})
+    queue = SignalQueue(LogSignalJsonEncoder(None))
 
-    snapshot_total_size = sum(encoder.put(s) for _ in range(2))
-    assert encoder.count == 2
-    assert len(encoder.encode()) == snapshot_total_size + 3
+    snapshot_total_size = sum(queue.put(s) for _ in range(2))
+    assert queue.count == 2
+    assert len(queue.flush()) == snapshot_total_size + 3
 
-    a, b = encoder.put(s), encoder.put(s)
+    a, b = queue.put(s), queue.put(s)
     assert abs(a - b) < 1024
-    assert encoder.count == 2
-    assert len(encoder.encode()) == a + b + 3
+    assert queue.count == 2
+    assert len(queue.flush()) == a + b + 3
 
 
 # ---- Side effects ----

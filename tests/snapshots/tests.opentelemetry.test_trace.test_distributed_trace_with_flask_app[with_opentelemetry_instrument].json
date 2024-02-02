@@ -33,6 +33,7 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.p.dm": "-0",
          "_dd.p.tid": "655535dc00000000",
          "http.flavor": "1.1",
          "http.host": "0.0.0.0:8001",
@@ -52,7 +53,7 @@
        "metrics": {
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 0,
+         "_sampling_priority_v1": 1,
          "net.host.port": 8001,
          "net.peer.port": 65508,
          "process_id": 7721

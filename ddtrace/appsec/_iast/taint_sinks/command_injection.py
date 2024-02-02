@@ -6,8 +6,6 @@ from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -105,7 +103,7 @@ class CommandInjection(VulnerabilityBase):
     def _extract_sensitive_tokens(cls, vulns_to_text):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         ret = {}  # type: Dict[int, Dict[str, Any]]
-        for vuln, text in six.iteritems(vulns_to_text):
+        for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {
                 "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),
@@ -172,7 +170,7 @@ class CommandInjection(VulnerabilityBase):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it
@@ -239,15 +237,15 @@ def _iast_report_cmdi(shell_args):
     # type: (Union[str, List[str]]) -> None
     report_cmdi = ""
     from .._metrics import _set_metric_iast_executed_sink
-    from .._taint_tracking import get_tainted_ranges
+    from .._taint_tracking import is_pyobject_tainted
     from .._taint_tracking.aspects import join_aspect
 
     if isinstance(shell_args, (list, tuple)):
         for arg in shell_args:
-            if get_tainted_ranges(arg):
+            if is_pyobject_tainted(arg):
                 report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
                 break
-    elif get_tainted_ranges(shell_args):
+    elif is_pyobject_tainted(shell_args):
         report_cmdi = shell_args
 
     if report_cmdi:

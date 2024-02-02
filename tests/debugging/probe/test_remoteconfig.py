@@ -15,10 +15,10 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._probe.remoteconfig import build_probe
+from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from tests.debugging.utils import create_snapshot_line_probe
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -44,7 +44,8 @@ class MockConfig(object):
 
 class SyncProbeRCAdapter(ProbeRCAdapter):
     def __init__(self, *args, **kwargs):
-        super(SyncProbeRCAdapter, self).__init__(*args, **kwargs)
+        status_logger = kwargs.pop("status_logger", ProbeStatusLogger("test"))
+        super(SyncProbeRCAdapter, self).__init__(*args, **kwargs, status_logger=status_logger)
         # Make the subscriber worker thread a no-op. We call methods manually.
         self._subscriber.periodic = self.periodic
 
@@ -137,7 +138,7 @@ def test_poller_env_version(env, version, expected, remote_config_worker, mock_c
             ]
         )
 
-        adapter = SyncProbeRCAdapter(None, callback, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, callback)
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": random.randint(0, 11111111)}, "", config_metadata())
         remoteconfig_poller._poll_data()
@@ -154,7 +155,7 @@ def test_poller_remove_probe():
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = 0.5
     try:
-        adapter = SyncProbeRCAdapter(None, cb, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -201,7 +202,7 @@ def test_poller_remove_multiple_probe():
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = float("inf")
     try:
-        adapter = SyncProbeRCAdapter(None, cb, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, cb)
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append(
             {
@@ -306,7 +307,7 @@ def test_poller_events(remote_config_worker, mock_config):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = float("inf")
     try:
-        adapter = SyncProbeRCAdapter(None, callback, status_logger=None)
+        adapter = SyncProbeRCAdapter(None, callback)
         remoteconfig_poller.register("TEST2", adapter, skip_enabled=True)
         adapter.append_and_publish({"test": 2}, "", metadata)
         remoteconfig_poller._poll_data()
@@ -358,7 +359,7 @@ def test_multiple_configs(remote_config_worker):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = float("inf")
     try:
-        adapter = SyncProbeRCAdapter(None, cb, status_logger=mock.Mock())
+        adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
         adapter.append_and_publish(
@@ -546,7 +547,6 @@ def test_parse_metric_probe_with_probeid_tags():
     assert probe.tags["debugger.probeid"] == probeId
 
 
-@flaky(until=1704067200)
 def test_modified_probe_events(remote_config_worker, mock_config):
     events = []
 
@@ -569,7 +569,7 @@ def test_modified_probe_events(remote_config_worker, mock_config):
     old_interval = di_config.diagnostics_interval
     di_config.diagnostics_interval = float("inf")
     try:
-        adapter = SyncProbeRCAdapter(None, cb, None)
+        adapter = SyncProbeRCAdapter(None, cb)
         # Wait to allow the next call to the adapter to generate a status event
         remoteconfig_poller.register("TEST", adapter, skip_enabled=True)
 

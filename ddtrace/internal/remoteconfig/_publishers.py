@@ -3,8 +3,6 @@ import copy
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 
-import six
-
 from ddtrace.internal.logger import get_logger
 
 
@@ -24,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
+class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
     _preprocess_results_func = None  # type: Optional[PreprocessFunc]
 
     def __init__(self, data_connector, preprocess_func=None):

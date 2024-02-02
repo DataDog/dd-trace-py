@@ -10,11 +10,8 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-import six
-
 from .constants import ENV_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
-from .internal.compat import iteritems
 from .internal.constants import _PRIORITY_CATEGORY
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -52,7 +49,7 @@ class SamplingError(Exception):
     pass
 
 
-class BaseSampler(six.with_metaclass(abc.ABCMeta)):
+class BaseSampler(metaclass=abc.ABCMeta):
     __slots__ = ()
 
     @abc.abstractmethod
@@ -181,7 +178,7 @@ class RateByServiceSampler(BasePrioritySampler):
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
         samplers = {}  # type: Dict[str, RateSampler]
-        for key, sample_rate in iteritems(rate_by_service):
+        for key, sample_rate in rate_by_service.items():
             samplers[key] = _AgentRateSampler(sample_rate)
 
         self._by_service_samplers = samplers

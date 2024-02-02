@@ -76,6 +76,9 @@ if TYPE_CHECKING:
     from .internal.writer import AgentResponse  # noqa: F401
 
 
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
+
 log = get_logger(__name__)
 
 
@@ -128,21 +131,24 @@ def _default_span_processors_factory(
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    if appsec_enabled:
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
+    if asm_config._asm_libddwaf_available:
+        if appsec_enabled:
+            if asm_config._api_security_enabled:
+                from ddtrace.appsec._api_security.api_manager import APIManager
 
-            APIManager.enable()
+                APIManager.enable()
 
-        appsec_processor = _start_appsec_processor()
-        if appsec_processor:
-            span_processors.append(appsec_processor)
+            appsec_processor = _start_appsec_processor()
+            if appsec_processor:
+                span_processors.append(appsec_processor)
+        else:
+            if asm_config._api_security_enabled:
+                from ddtrace.appsec._api_security.api_manager import APIManager
+
+                APIManager.disable()
+
+            appsec_processor = None
     else:
-        if asm_config._api_security_enabled:
-            from ddtrace.appsec._api_security.api_manager import APIManager
-
-            APIManager.disable()
-
         appsec_processor = None
 
     if iast_enabled:
@@ -280,6 +286,9 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+        config._subscribe(["logs_injection"], self._on_global_config_update)
+        config._subscribe(["tags"], self._on_global_config_update)
+        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -999,9 +1008,12 @@ class Tracer(object):
             deferred_processors = self._deferred_processors
             self._span_processors = []
             self._deferred_processors = []
+
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+
+            telemetry.disable_and_flush()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
@@ -1068,3 +1080,25 @@ class Tracer(object):
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
+
+        if "tags" in items:
+            self._tags = cfg.tags.copy()
+
+        if "_tracing_enabled" in items:
+            if self.enabled:
+                if cfg._tracing_enabled is False:
+                    self.enabled = False
+            else:
+                # the product specification says not to allow tracing to be re-enabled remotely at runtime
+                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+                    self.enabled = True
+
+        if "logs_injection" in items:
+            if config.logs_injection:
+                from ddtrace.contrib.logging import patch
+
+                patch()
+            else:
+                from ddtrace.contrib.logging import unpatch
+
+                unpatch()
