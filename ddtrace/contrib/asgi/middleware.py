@@ -12,6 +12,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema import schematize_url_operation
@@ -192,7 +193,7 @@ class TraceMiddleware:
                 receive, body = await result.value
 
             client = scope.get("client")
-            if isinstance(client, list) and len(client):
+            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
                 peer_ip = client[0]
             else:
                 peer_ip = None
