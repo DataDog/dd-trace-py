@@ -119,7 +119,6 @@ class TraceMiddleware:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
-
         resource = " ".join((scope["method"], scope["path"]))
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
@@ -209,6 +208,7 @@ class TraceMiddleware:
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
+                headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
@@ -250,13 +250,15 @@ class TraceMiddleware:
                 if result:
                     status, headers, content = result.value
                 else:
-                    status, headers, content = 403, [], ""
+                    status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
                     core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
-                    message["body"] = content
+                    message["body"] = (
+                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                    )
                     message["more_body"] = False
                     core.dispatch("asgi.finalize_response", (content, None))
                 try:
