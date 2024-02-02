@@ -1417,8 +1417,6 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            # "meta": {'_dd.origin': 'synthetics'},
-            # "metrics": {'_sampling_priority_v1': 2},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
