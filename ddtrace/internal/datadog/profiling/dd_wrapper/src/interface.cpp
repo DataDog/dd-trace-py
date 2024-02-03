@@ -59,27 +59,36 @@ ddup_config_version(const char* version)
 void
 ddup_config_runtime(const char* runtime)
 {
+    if (!runtime || !*runtime)
+        return;
     Datadog::ProfileGlobalStorage::uploader_builder.set_runtime(runtime);
 }
 void
 ddup_config_runtime_version(const char* runtime_version)
 {
+    if (!runtime_version || !*runtime_version)
+        return;
     Datadog::ProfileGlobalStorage::uploader_builder.set_runtime_version(runtime_version);
 }
 void
 ddup_config_profiler_version(const char* profiler_version)
 {
+    if (!profiler_version || !*profiler_version)
+        return;
     Datadog::ProfileGlobalStorage::uploader_builder.set_profiler_version(profiler_version);
 }
 void
 ddup_config_url(const char* url)
 {
-    if (url && *url)
-        Datadog::ProfileGlobalStorage::uploader_builder.set_url(url);
+    if (!url || !*url)
+        return;
+    Datadog::ProfileGlobalStorage::uploader_builder.set_url(url);
 }
 void
 ddup_config_user_tag(const char* key, const char* val)
 {
+    if (!key || !*key || !val || !*val)
+        return;
     Datadog::ProfileGlobalStorage::uploader_builder.set_tag(key, val);
 }
 void
@@ -147,6 +156,7 @@ ddup_is_initialized()
 void
 ddup_init()
 {
+    static int initialized_count = 0;
     static bool initialized = []() {
 #if DDUP_BACKTRACE_ENABLE
         // Install segfault handler
@@ -165,9 +175,10 @@ ddup_init()
         return true;
     }();
 
-    if (initialized) {
-        // We shouldn't actually call this multiple times, print warning
-        std::cerr << "ddup_init() called more than once" << std::endl;
+    if (initialized)
+      ++initialized_count;
+    if (initialized_count > 1) {
+        std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
     }
 }
 

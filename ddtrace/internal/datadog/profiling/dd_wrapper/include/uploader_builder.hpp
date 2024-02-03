@@ -32,7 +32,7 @@ class UploaderBuilder
     std::string runtime = "cython";
     std::string runtime_version = "";
     std::string runtime_id = "";
-    std::string profiler_version = "";
+    std::string profiler_version = "";  // TODO get this at build time
     std::string url = "http://localhost:8126";
     ExporterTagset user_tags;
 
