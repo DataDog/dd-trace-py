@@ -5,7 +5,6 @@ import pymysql
 import pytest
 
 from ddtrace import Pin
-from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
 from tests.contrib.config import MYSQL_CONFIG
@@ -31,35 +30,24 @@ async def patched_conn(tracer):
     conn.close()
 
 
-@pytest.fixture()
-async def snapshot_conn():
-    tracer = Tracer()
-    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
-    yield conn
-    conn.close()
-    tracer.shutdown()
-
-
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
-async def test_queries(snapshot_conn):
-    db = snapshot_conn
+@pytest.mark.snapshot(wait_for_num_traces=2, ignores=["meta.error.stack"])
+async def test_queries(patched_conn):
     q = "select 'Jellysmack'"
-    cursor = await db.cursor()
+    cursor = await patched_conn.cursor()
     await cursor.execute(q)
     rows = await cursor.fetchall()
     assert rows == (("Jellysmack",),)
 
     # run a query with an error and ensure all is well
     q = "select * from some_non_existant_table"
-    cur = await db.cursor()
+    cur = await patched_conn.cursor()
     with pytest.raises(pymysql.err.ProgrammingError):
         await cur.execute(q)
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pin_override(patched_conn, tracer):
     Pin.override(patched_conn, service="db")
     cursor = await patched_conn.cursor()
@@ -109,7 +97,7 @@ async def test_patch_unpatch(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
     """
     v0: When a user specifies a service for the app
@@ -138,7 +126,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
     """
     v1: When a user specifies a service for the app
@@ -167,7 +155,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
     """
     v1: When a user specifies nothing for a service,
@@ -194,7 +182,7 @@ asyncio.run(test())""",
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.parametrize("version", ["v0", "v1"])
 async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
     """

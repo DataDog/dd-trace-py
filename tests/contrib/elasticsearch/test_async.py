@@ -60,16 +60,16 @@ def do_test(tmpdir, es_module, async_class):
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False)
+@snapshot()
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot()
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7", "AsyncElasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot()
 def test_opensearch(tmpdir):
     do_test(tmpdir, "opensearchpy", "AsyncOpenSearch")

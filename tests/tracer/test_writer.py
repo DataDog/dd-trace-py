@@ -658,17 +658,6 @@ def test_racing_start(writer_class):
     assert len(writer._encoder) == 100
 
 
-@pytest.mark.subprocess(
-    env={"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "additional-header:additional-value,header2:value2"}
-)
-def test_additional_headers():
-    from ddtrace.internal.writer import AgentWriter
-
-    writer = AgentWriter("http://localhost:9126")
-    assert writer._headers["additional-header"] == "additional-value"
-    assert writer._headers["header2"] == "value2"
-
-
 def test_additional_headers_constructor():
     writer = AgentWriter(
         agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}

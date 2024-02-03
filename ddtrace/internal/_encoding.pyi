@@ -17,6 +17,7 @@ class BufferItemTooLarge(Exception):
     pass
 
 class BufferedEncoder(object):
+    content_type: str
     max_size: int
     max_item_size: int
     def __init__(self, max_size: int, max_item_size: int) -> None: ...
@@ -31,7 +32,6 @@ class ListBufferedEncoder(BufferedEncoder):
     def encode_item(self, item: Any) -> bytes: ...
 
 class MsgpackEncoderBase(BufferedEncoder):
-    content_type: str
     def get_bytes(self) -> bytes: ...
     def _decode(self, data: Union[str, bytes]) -> Any: ...
 

@@ -124,7 +124,7 @@ asyncio.run(test())
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_global_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
     default/v0/v1 schemas: When only setting DD_SERVICE
@@ -152,7 +152,7 @@ asyncio.run(test())
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
     default (v0 schema): When only setting DD_SERVICE
@@ -178,7 +178,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_service_name_pin(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio

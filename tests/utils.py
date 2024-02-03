@@ -966,7 +966,6 @@ def snapshot_context(
     agent_sample_rate_by_service=None,
     ignores=None,
     tracer=None,
-    async_mode=True,
     variants=None,
     wait_for_num_traces=None,
 ):
@@ -992,16 +991,6 @@ def snapshot_context(
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
-        if async_mode:
-            # Patch the tracer writer to include the test token header for all requests.
-            tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
-
-            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-            existing_headers.update({"X-Datadog-Test-Session-Token": token})
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
-                ["%s:%s" % (k, v) for k, v in existing_headers.items()]
-            )
         try:
             query = urllib.parse.urlencode(
                 {
@@ -1019,6 +1008,12 @@ def snapshot_context(
                 pytest.fail(to_unicode(r.read()), pytrace=False)
 
         try:
+            if agent_sample_rate_by_service is not None:
+                # Ensure all trace chunks are sent to the agent with the snapshot token.
+                # For some reason this is only required to propagate the agent_sample_rate_by_service
+                # to the testagent. This is likely a bug in the testagent. The agent_sample_rate_by_service
+                # should be set by the /test/session/start endpoint.
+                tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
             yield SnapshotTest(
                 tracer=tracer,
                 token=token,
@@ -1026,9 +1021,6 @@ def snapshot_context(
         finally:
             # Force a flush so all traces are submitted.
             tracer._writer.flush_queue()
-            if async_mode:
-                del tracer._writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
@@ -1068,9 +1060,7 @@ def snapshot_context(
         conn.close()
 
 
-def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
-):
+def snapshot(ignores=None, include_tracer=False, variants=None, token_override=None, wait_for_num_traces=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -1110,7 +1100,6 @@ def snapshot(
             token,
             ignores=ignores,
             tracer=tracer,
-            async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
         ):

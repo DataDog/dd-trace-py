@@ -48,11 +48,11 @@ def do_test(tmpdir, es_version):
     assert p.returncode == 0
 
 
-@snapshot(async_mode=False)
+@snapshot()
 def test_elasticsearch(tmpdir):
     do_test(tmpdir, "elasticsearch")
 
 
-@snapshot(async_mode=False)
+@snapshot()
 def test_elasticsearch7(tmpdir):
     do_test(tmpdir, "elasticsearch7")

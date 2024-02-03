@@ -20,7 +20,6 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import KEEP_SPANS_RATE_KEY
 from ...internal import telemetry
-from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
 from .. import compat
@@ -276,7 +275,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _get_finalized_headers(self, count, client):
         # type: (int, WriterClientBase) -> dict
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers["X-Datadog-Trace-Count"] = str(count)
+        headers["Content-Type"] = client.encoder.content_type
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -515,11 +515,6 @@ class AgentWriter(HTTPWriter):
                     "Datadog-Container-Id": self._container_info.container_id,
                 }
             )
-
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
@@ -618,9 +613,3 @@ class AgentWriter(HTTPWriter):
                 enable_appsec_rc()
         except service.ServiceStatusError:
             pass
-
-    def _get_finalized_headers(self, count, client):
-        # type: (int, WriterClientBase) -> dict
-        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
-        headers["X-Datadog-Trace-Count"] = str(count)
-        return headers
