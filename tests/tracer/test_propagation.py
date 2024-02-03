@@ -1413,23 +1413,17 @@ EXTRACT_FIXTURES = [
         None,
         ALL_HEADERS,
         {
-            "trace_id": TRACE_ID,
-            "span_id": 67667974448284343,
-            "sampling_priority": 2,
-            "dd_origin": "rum",
-            "meta": {
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
-                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                "_dd.p.dm": "-4",
-                "_dd.p.usr.id": "baz64",
-            },
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
             "span_links": [
                 SpanLink(
-                    trace_id=13088165645273925489,
-                    span_id=5678,
-                    tracestate=None,
+                    trace_id=TRACE_ID,
+                    span_id=67667974448284343,
+                    tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                     flags=1,
-                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
         },
@@ -1751,6 +1745,7 @@ assert context == expected_context, f"Expected {{expected_context}} but got {{co
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    print(stderr, stdout)
     assert status == 0, (stdout, stderr)
 
 
@@ -2036,12 +2031,12 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
 
     spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
-    assert spans[0][0]._links.get(5678) == SpanLink(
-        trace_id=13088165645273925489,
-        span_id=5678,
-        tracestate=None,
+    assert spans[0][0]._links.get(67667974448284343) == SpanLink(
+        trace_id=171395628812617415352188477958425669623,
+        span_id=67667974448284343,
+        tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         flags=1,
-        attributes={"reason": "terminated_context", "context_headers": "datadog"},
+        attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
 
