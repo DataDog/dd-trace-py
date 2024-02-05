@@ -111,7 +111,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"tracecontext,datadog"``.
+    The default value is ``"datadog,tracecontext"``.
 
 
     Examples::
@@ -272,6 +272,11 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
+        "_trace_enabled": _ConfigItem(
+            name="trace_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
@@ -291,6 +296,26 @@ def _default_config():
             name="tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
+        ),
+        "_tracing_enabled": _ConfigItem(
+            name="tracing_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+        ),
+        "_asm_enabled": _ConfigItem(
+            name="asm_enabled",
+            default=False,
+            envs=[("DD_APPSEC_ENABLED", asbool)],
+        ),
+        "_dsm_enabled": _ConfigItem(
+            name="dsm_enabled",
+            default=False,
+            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
     }
 
@@ -364,7 +389,6 @@ class Config(object):
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
@@ -731,6 +755,9 @@ class Config(object):
                 if tags:
                     tags = self._format_tags(lib_config["tracing_tags"])
                 base_rc_config["tags"] = tags
+
+            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
+                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
 
             if "tracing_header_tags" in lib_config:
                 tags = lib_config["tracing_header_tags"]
