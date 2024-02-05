@@ -3,9 +3,9 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace.processor import PeerServiceProcessor
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
+from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.span import Span
 
