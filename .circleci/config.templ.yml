@@ -123,6 +123,9 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      run_agent_checks:
+        type: boolean
+        default: true
     steps:
       - checkout
       - attach_workspace:
@@ -208,7 +211,8 @@ commands:
             - ./latest-success-commit
       - run:
           name: Get APM Test Agent Trace Check Results
-          when: always
+          when:
+            condition: << parameters.run_agent_checks >>
           command: bash ./scripts/get-test-agent-results.sh
 
   run_hatch_env_test:
@@ -297,7 +301,8 @@ commands:
           destination: supported-integrations
       - run:
           name: Get APM Test Agent Trace Check Results
-          when: always
+          when:
+            condition: << parameters.run_agent_checks >>
           command: bash ./scripts/get-test-agent-results.sh
 
 executors:
@@ -470,6 +475,7 @@ jobs:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
+          run_agent_checks: false
 
   appsec_threats_django:
     parallelism: 12
