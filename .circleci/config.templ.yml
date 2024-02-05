@@ -212,7 +212,8 @@ commands:
       - run:
           name: Get APM Test Agent Trace Check Results
           when:
-            condition: << parameters.run_agent_checks >>
+            condition:
+              << parameters.run_agent_checks >>
           command: bash ./scripts/get-test-agent-results.sh
 
   run_hatch_env_test:
@@ -305,7 +306,8 @@ commands:
       - run:
           name: Get APM Test Agent Trace Check Results
           when:
-            condition: << parameters.run_agent_checks >>
+            condition:
+              << parameters.run_agent_checks >>
           command: bash ./scripts/get-test-agent-results.sh
 
 executors:
