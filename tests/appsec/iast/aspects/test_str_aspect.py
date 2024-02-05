@@ -124,6 +124,21 @@ def test_str_utf16():
     # assert as_formatted_evidence(result) == expected_result
 
 
+def test_repr_utf16():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
+
+    obj = taint_pyobject(obj, source_name="test_repr_utf16", source_value=str(obj), source_origin=OriginType.PARAMETER)
+    result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+    assert result == repr(obj)
+
+    # FIXME: This looks like a bug
+    expected_result = ":+-<test_repr_utf16>b'\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85'<test_repr_utf16>-+:"  # noqa:E501
+    assert as_formatted_evidence(result) == expected_result
+
+
 @pytest.mark.parametrize(
     "obj, expected_result",
     [

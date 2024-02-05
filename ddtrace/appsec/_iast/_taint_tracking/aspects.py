@@ -405,7 +405,7 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], Any, Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function is not None and getattr(orig_function, "__name__", None) != "__repr__":
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -414,12 +414,7 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            if isinstance(args[0], (bytes, bytearray)):
-                check_offset = args[0].decode("utf-8")
-            else:
-                check_offset = args[0]
-            offset = result.index(check_offset)
-            copy_and_shift_ranges_from_strings(args[0], result, offset)
+            copy_and_shift_ranges_from_strings(args[0], result, 0)
         except Exception as e:
             _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e))
     return result
