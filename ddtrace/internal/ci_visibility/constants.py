@@ -50,6 +50,9 @@ SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 
+# Tracer configuration defaults:
+TRACER_PARTIAL_FLUSH_MIN_SPANS = 1
+
 
 class REQUESTS_MODE(IntEnum):
     AGENTLESS_EVENTS = 0

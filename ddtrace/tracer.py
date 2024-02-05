@@ -76,6 +76,9 @@ if TYPE_CHECKING:
     from .internal.writer import AgentResponse  # noqa: F401
 
 
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
+
 log = get_logger(__name__)
 
 
@@ -285,6 +288,7 @@ class Tracer(object):
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
+        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -1004,9 +1008,12 @@ class Tracer(object):
             deferred_processors = self._deferred_processors
             self._span_processors = []
             self._deferred_processors = []
+
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
+
+            telemetry.disable_and_flush()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
@@ -1076,6 +1083,15 @@ class Tracer(object):
 
         if "tags" in items:
             self._tags = cfg.tags.copy()
+
+        if "_tracing_enabled" in items:
+            if self.enabled:
+                if cfg._tracing_enabled is False:
+                    self.enabled = False
+            else:
+                # the product specification says not to allow tracing to be re-enabled remotely at runtime
+                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+                    self.enabled = True
 
         if "logs_injection" in items:
             if config.logs_injection:
