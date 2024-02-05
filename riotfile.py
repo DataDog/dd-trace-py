@@ -1545,6 +1545,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_AGENT_PORT": "9126",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
