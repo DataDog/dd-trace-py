@@ -121,6 +121,7 @@ benchmark-serverless:
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
+    branch: jordan.gonzalez/add-arm64-support
   variables:
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
