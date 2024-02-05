@@ -109,10 +109,16 @@ def test_slow_imports():
     meta_path = [BlockListFinder()]
     meta_path.extend(sys.meta_path)
 
+    deleted_modules = {}
+
     for mod in sys.modules.copy():
         if mod.startswith("ddtrace"):
+            deleted_modules[mod] = sys.modules[mod]
             del sys.modules[mod]
 
     with mock.patch("sys.meta_path", meta_path):
         import ddtrace
         import ddtrace.contrib.psycopg  # noqa:F401
+
+    for name, mod in deleted_modules.items():
+        sys.modules[name] = mod
