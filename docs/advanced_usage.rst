@@ -708,3 +708,18 @@ in use at the root level:
 
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+Duplicate Log Entries
+---------------------
+
+The ``ddtrace`` logger object is preconfigured with some log handlers that manage printing the logger's output to the console.
+If your app sets up its own log handling code on the root logger instance, you may observe duplicate log entries from the ``ddtrace``
+logger. This happens because the ``ddtrace`` logger is a child of the root logger and can inherit handlers set up for it.
+
+To avoid such duplicate log entries from ``ddtrace``, you can remove the automatically-configured log handlers from it:
+
+.. code-block:: python
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        ddtrace_logger.removeHandler(handler)

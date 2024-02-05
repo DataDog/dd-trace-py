@@ -1,3 +1,5 @@
+import sys
+
 import mock
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
@@ -86,3 +88,37 @@ def test_not_azure_function_consumption_plan():
 def test_not_azure_function_consumption_plan_wrong_sku():
     with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2", WEBSITE_SKU="Basic")):
         assert in_azure_function_consumption_plan() is False
+
+
+def test_slow_imports():
+    # We should lazy load certain modules to avoid slowing down the startup
+    # time when running in a serverless environment.  This test will fail if
+    # any of those modules are imported during the import of ddtrace.
+
+    blocklist = [
+        "ddtrace.appsec._iast._ast.ast_patching",
+    ]
+
+    class BlockListFinder:
+        def find_spec(self, fullname, *args):
+            for prefix in blocklist:
+                if fullname.startswith(prefix):
+                    raise ImportError(f"module {fullname} was imported!")
+            return None
+
+    meta_path = [BlockListFinder()]
+    meta_path.extend(sys.meta_path)
+
+    deleted_modules = {}
+
+    for mod in sys.modules.copy():
+        if mod.startswith("ddtrace"):
+            deleted_modules[mod] = sys.modules[mod]
+            del sys.modules[mod]
+
+    with mock.patch("sys.meta_path", meta_path):
+        import ddtrace
+        import ddtrace.contrib.psycopg  # noqa:F401
+
+    for name, mod in deleted_modules.items():
+        sys.modules[name] = mod

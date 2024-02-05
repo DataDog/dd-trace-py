@@ -273,8 +273,6 @@ class TraceMiddleware:
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)
             except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
