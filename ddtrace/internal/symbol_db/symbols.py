@@ -190,19 +190,22 @@ class Scope:
                 # We don't want to traverse other modules.
                 continue
 
-            if _isinstance(child, FunctionType):
-                child = undecorated(child, alias, module_origin)
-            scope = Scope._get_from(child, data)
-            if scope is not None:
-                scopes.append(scope)
-            elif not callable(child):
-                symbols.append(
-                    Symbol(
-                        symbol_type=SymbolType.STATIC_FIELD,
-                        name=alias,
-                        line=0,
+            try:
+                if _isinstance(child, FunctionType):
+                    child = undecorated(child, alias, module_origin)
+                scope = Scope._get_from(child, data)
+                if scope is not None:
+                    scopes.append(scope)
+                elif not callable(child):
+                    symbols.append(
+                        Symbol(
+                            symbol_type=SymbolType.STATIC_FIELD,
+                            name=alias,
+                            line=0,
+                        )
                     )
-                )
+            except Exception:
+                log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
         return Scope(
             scope_type=ScopeType.MODULE,

@@ -32,15 +32,32 @@ def _rc_callback(data, test_tracer=None):
         if metadata is None:
             continue
 
-        if isinstance(config, dict) and config.get("upload_symbols", False):
+        if not isinstance(config, dict):
+            continue
+
+        upload_symbols = config.get("upload_symbols")
+        if upload_symbols is None:
+            continue
+
+        if upload_symbols:
+            log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
             if not SymbolDatabaseUploader.is_installed():
-                log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
                 try:
                     SymbolDatabaseUploader.install()
+                    log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                 except Exception:
                     log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
                     remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
-            return
+        else:
+            log.debug("[PID %d] SymDB: Symbol DB RCM shutdown signal received", os.getpid())
+            if SymbolDatabaseUploader.is_installed():
+                try:
+                    SymbolDatabaseUploader.uninstall()
+                    log.debug("[PID %d] SymDB: Symbol DB uploader uninstalled", os.getpid())
+                except Exception:
+                    log.error("[PID %d] SymDB: Failed to uninstall Symbol DB uploader", os.getpid(), exc_info=True)
+                    remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+        break
 
 
 class SymbolDatabaseAdapter(PubSub):
