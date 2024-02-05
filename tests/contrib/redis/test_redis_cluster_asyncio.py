@@ -125,7 +125,7 @@ async def test_patch_unpatch(redis_cluster):
     patch()
 
     r = redis_cluster
-    Pin.get_from(r).clone(tracer=tracer).onto(r)
+    Pin.override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
@@ -145,12 +145,13 @@ async def test_patch_unpatch(redis_cluster):
     patch()
 
     r = redis_cluster
-    Pin.get_from(r).clone(tracer=tracer).onto(r)
+    Pin.override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
     assert spans, spans
     assert len(spans) == 1
+    unpatch()
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
