@@ -23,7 +23,10 @@ def test_symbol_from_code():
 
 
 def test_symbols_class():
-    class Sym:
+    class Sup:
+        pass
+
+    class Sym(Sup):
         def __init__(self):
             self._foo = "foo"
 
@@ -64,7 +67,7 @@ def test_symbols_class():
     assert class_scope.name == "tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym"
 
     assert class_scope.language_specifics == {
-        "super_classes": ["tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sym"]
+        "super_classes": ["tests.internal.symbol_db.test_symbols.test_symbols_class.<locals>.Sup"]
     }
 
     (field,) = (s for s in class_scope.symbols if s.symbol_type == SymbolType.FIELD)
@@ -85,9 +88,10 @@ def test_symbols_class():
         "return_type": "typing.Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
+    gen_line = Sym.gen.__code__.co_firstlineno + 1
     assert gen_scope.symbols == [
-        Symbol(symbol_type=SymbolType.ARG, name="n", line=47, type="int"),
-        Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=47, type=None),
+        Symbol(symbol_type=SymbolType.ARG, name="n", line=gen_line, type="int"),
+        Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=gen_line, type=None),
     ]
 
     assert next(_ for _ in class_scope.scopes if _.name == "foo").language_specifics == {"method_type": "property"}

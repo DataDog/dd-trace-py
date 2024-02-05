@@ -287,10 +287,11 @@ class Scope:
             start_line = end_line = SOF
 
         try:
-            mro = [type_qualname(_) for _ in obj.__mro__ if _ is not object]
+            # Exclude object and self from the MRO.
+            super_classes = [type_qualname(_) for _ in obj.__mro__ if _ is not object and _ is not obj]
         except Exception:
-            log.debug("Cannot get MRO for %r", obj, exc_info=True)
-            mro = []
+            log.debug("Cannot get super-classes for %r", obj, exc_info=True)
+            super_classes = []
 
         return Scope(
             scope_type=ScopeType.CLASS,
@@ -300,7 +301,7 @@ class Scope:
             end_line=end_line,
             symbols=symbols,
             scopes=scopes,
-            language_specifics={"super_classes": mro},
+            language_specifics={"super_classes": super_classes},
         )
 
     @_get_from.register
