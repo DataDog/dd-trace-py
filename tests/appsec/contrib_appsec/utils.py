@@ -283,7 +283,6 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", headers=headers)
             assert self.status(response) == 200
             if asm_enabled:
-                print(">>>", core.get_item("http.request.headers", span=root_span()))
                 assert get_tag(http.CLIENT_IP) == expected or (
                     expected is None and get_tag(http.CLIENT_IP) == "127.0.0.1"
                 )
