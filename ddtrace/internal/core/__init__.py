@@ -124,7 +124,7 @@ from .event_hub import reset as reset_listeners  # noqa:F401
 
 
 if TYPE_CHECKING:
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 try:

@@ -5,8 +5,8 @@ from typing import List
 from typing import Optional
 import uuid
 
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 
 from .base import BaseLLMIntegration
 

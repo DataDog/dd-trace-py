@@ -1,7 +1,7 @@
 import typing
 from typing import Optional
 
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 
 def init(
     env: Optional[str],

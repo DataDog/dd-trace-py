@@ -47,8 +47,9 @@ required_modules = ["asyncio"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from ddtrace._trace.provider import DefaultContextProvider
+
         from ...internal.compat import CONTEXTVARS_IS_AVAILABLE
-        from ...provider import DefaultContextProvider
         from .provider import AsyncioContextProvider
 
         if CONTEXTVARS_IS_AVAILABLE:

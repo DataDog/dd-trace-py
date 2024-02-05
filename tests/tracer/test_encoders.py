@@ -15,8 +15,9 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -29,7 +30,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.span import Span
 from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
@@ -816,8 +816,8 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
+    from ddtrace._trace.span import Span
     import ddtrace.internal.encoding as encoding
-    from ddtrace.span import Span
 
     encoder_class_name = os.getenv("encoder_cls")
 

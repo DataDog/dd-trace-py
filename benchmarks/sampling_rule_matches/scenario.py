@@ -4,7 +4,7 @@ import string
 
 import bm
 
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.sampling_rule import SamplingRule
 
 

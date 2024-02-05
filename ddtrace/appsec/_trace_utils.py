@@ -1,8 +1,8 @@
 from typing import Optional
 
-from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import constants
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE

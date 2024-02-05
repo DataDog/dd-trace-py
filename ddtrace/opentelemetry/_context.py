@@ -12,12 +12,12 @@ from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
 from ddtrace import tracer as ddtracer
-from ddtrace.context import Context as DDContext
+from ddtrace._trace.context import Context as DDContext
+from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
+from ddtrace._trace.span import Span as DDSpan
 from ddtrace.internal.logger import get_logger
 from ddtrace.opentelemetry._span import Span
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
-from ddtrace.span import Span as DDSpan
 
 
 log = get_logger(__name__)

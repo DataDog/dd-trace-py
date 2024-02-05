@@ -4,6 +4,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
@@ -14,7 +15,6 @@ from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.utils.http import Response
-from ddtrace.tracer import Tracer
 from tests.utils import override_env
 
 

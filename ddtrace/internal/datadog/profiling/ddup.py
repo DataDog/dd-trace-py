@@ -7,7 +7,7 @@ except ImportError:
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
     # Decorator for not-implemented
     def not_implemented(func):

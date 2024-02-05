@@ -14,6 +14,7 @@ from six.moves import socketserver
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import get_connection_response
@@ -25,7 +26,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
-from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env

@@ -21,6 +21,7 @@ from typing import cast
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._async import dd_coroutine_wrapper
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
@@ -73,7 +74,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
-from ddtrace.tracer import Tracer
 
 
 log = get_logger(__name__)

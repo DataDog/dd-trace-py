@@ -6,11 +6,11 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import SamplingRule
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION

@@ -471,7 +471,7 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    """Return the :class:`ddtrace.span.Span` instance associated with the
+    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     if _CIVisibility.enabled:

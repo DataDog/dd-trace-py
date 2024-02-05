@@ -5,8 +5,8 @@ from typing import Optional
 from urllib import parse
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind

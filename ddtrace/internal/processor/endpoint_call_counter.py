@@ -2,11 +2,11 @@ import typing
 
 import attr
 
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.span import Span  # noqa:F401
 
 
 EndpointCountsType = typing.Dict[str, int]

@@ -2,10 +2,10 @@ from unittest import TestCase
 
 import pytest
 
+from ddtrace._trace.span import Span
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.filters import TraceFilter
-from ddtrace.span import Span
 
 
 class FilterRequestOnUrlTests(TestCase):

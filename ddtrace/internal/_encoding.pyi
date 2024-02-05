@@ -3,7 +3,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 
 Trace = List[Span]
 

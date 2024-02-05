@@ -12,7 +12,7 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter

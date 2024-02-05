@@ -6,7 +6,8 @@ import pickle
 
 import pytest
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
@@ -28,7 +29,6 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.tracing._span_link import SpanLink
 from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
@@ -72,7 +72,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
@@ -99,7 +99,7 @@ def test_inject_128bit_trace_id_datadog():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
 def test_inject_128bit_trace_id_b3multi():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -121,7 +121,7 @@ def test_inject_128bit_trace_id_b3multi():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
 def test_inject_128bit_trace_id_b3_single_header():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -143,7 +143,7 @@ def test_inject_128bit_trace_id_b3_single_header():
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -1731,7 +1731,7 @@ def test_propagation_extract_env(name, styles, headers, expected_context, run_py
     code = """
 import json
 import pickle
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = HTTPPropagator.extract({!r})
@@ -2455,7 +2455,7 @@ def test_propagation_inject(name, styles, context, expected_headers, run_python_
     code = """
 import json
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -2522,7 +2522,7 @@ def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
     code = """
 import json
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})

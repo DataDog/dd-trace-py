@@ -2,8 +2,8 @@ from functools import partial
 import random
 import string
 
-from ddtrace import Span
 from ddtrace import __version__ as ddtrace_version
+from ddtrace._trace.span import Span
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 
 

@@ -10,6 +10,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
@@ -26,7 +27,6 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.utils.http import Response
-from ddtrace.span import Span
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import DummyTracer

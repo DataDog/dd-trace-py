@@ -1,7 +1,7 @@
 import pytest
 import tornado
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.contrib.tornado import TracerStackContext
 
 from .utils import TornadoTestCase

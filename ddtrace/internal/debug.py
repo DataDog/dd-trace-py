@@ -10,11 +10,11 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
-from ddtrace.sampler import DatadogSampler
 from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
@@ -113,7 +113,7 @@ def collect(tracer):
 
     pip_version = packages_available.get("pip", "N/A")
 
-    from ddtrace.tracer import log
+    from ddtrace._trace.tracer import log
 
     return dict(
         # Timestamp UTC ISO 8601
