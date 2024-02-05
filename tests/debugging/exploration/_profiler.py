@@ -12,6 +12,7 @@ from output import log
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import origin
 
@@ -72,6 +73,10 @@ class DeterministicProfiler(ExplorationDebugger):
     @classmethod
     def on_snapshot(cls, snapshot: Snapshot) -> None:
         if config.profiler.delete_probes:
+            # Change the state of the snapshot to avoid setting the emitting
+            # state. This would be too late, when the probe is already
+            # deleted from the registry.
+            snapshot.state = SignalState.NONE
             cls.delete_probe(snapshot.probe)
 
 
