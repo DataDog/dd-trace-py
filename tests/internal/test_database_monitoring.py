@@ -152,9 +152,8 @@ def test_dbm_dddbs_peer_service_enabled():
     sqlcomment = dbm_popagator._get_dbm_comment(dbspan_with_peer_service)
     # assert tags sqlcomment contains the correct value
     assert (
-        sqlcomment
-        == "/*dddbs='db-name-test',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ "
-        % (dbspan_with_peer_service.context._traceparent,)
+        sqlcomment == "/*dddb='db-name-test',dddbs='db-name-test',dde='staging',ddps='orders-app',"
+        "ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan_with_peer_service.context._traceparent,)
     ), sqlcomment
 
 
