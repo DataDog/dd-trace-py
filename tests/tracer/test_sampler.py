@@ -7,6 +7,8 @@ import mock
 import pytest
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import RateByServiceSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
@@ -18,12 +20,10 @@ from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.sampler import RateSampler
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateByServiceSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.sampling_rule import SamplingRule
 
 from ..subprocesstest import run_in_subprocess

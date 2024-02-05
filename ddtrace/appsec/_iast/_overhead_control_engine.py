@@ -8,7 +8,7 @@ import threading
 from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.sampler import RateSampler
+from ddtrace.internal.sampler import RateSampler
 
 
 if TYPE_CHECKING:  # pragma: no cover

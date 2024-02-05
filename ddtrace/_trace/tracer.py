@@ -20,6 +20,8 @@ from ddtrace import _hooks
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.sampler import BasePrioritySampler
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
@@ -48,6 +50,8 @@ from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceSamplingProcessor
 from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.sampler import BaseSampler
+from ddtrace.internal.sampler import RateSampler
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
@@ -61,10 +65,6 @@ from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BasePrioritySampler
-from ddtrace.sampler import BaseSampler
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 

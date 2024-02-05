@@ -14,8 +14,8 @@ from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.llmobs import LLMObsWriter
 from ddtrace.internal.log_writer import V2LogWriter
+from ddtrace.internal.sampler import RateSampler
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
 
 
