@@ -6,7 +6,7 @@ from msgpack import Unpacker
 from pytest import mark
 from pytest import raises
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 def test_unpack_array_header_from_file():

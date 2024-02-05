@@ -5,12 +5,12 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace._trace.writer._encoding import BufferFull
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
-from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 

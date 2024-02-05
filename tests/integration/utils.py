@@ -31,7 +31,7 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     t = Tracer()
     for client in t._writer._clients:
         client.encoder = encoder_cls()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
     return log

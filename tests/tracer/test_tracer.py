@@ -21,6 +21,10 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _is_top_level
 from ddtrace._trace.tracer import Tracer
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer import LogWriter
+from ddtrace._trace.writer._encoding import MsgpackEncoderV03
+from ddtrace._trace.writer._encoding import MsgpackEncoderV05
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -36,12 +40,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
-from ddtrace.internal._encoding import MsgpackEncoderV03
-from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess

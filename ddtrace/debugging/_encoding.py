@@ -13,11 +13,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace._trace.writer._encoding import BufferFull
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import forksafe
-from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
 
 

@@ -17,19 +17,19 @@ import pytest
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer._encoding import BufferFull
+from ddtrace._trace.writer._encoding import BufferItemTooLarge
+from ddtrace._trace.writer._encoding import ListStringTable
+from ddtrace._trace.writer._encoding import MsgpackStringTable
+from ddtrace._trace.writer.encoding import MSGPACK_ENCODERS
+from ddtrace._trace.writer.encoding import JSONEncoder
+from ddtrace._trace.writer.encoding import JSONEncoderV2
+from ddtrace._trace.writer.encoding import MsgpackEncoderV03
+from ddtrace._trace.writer.encoding import MsgpackEncoderV05
+from ddtrace._trace.writer.encoding import _EncoderBase
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
-from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal._encoding import BufferItemTooLarge
-from ddtrace.internal._encoding import ListStringTable
-from ddtrace.internal._encoding import MsgpackStringTable
-from ddtrace.internal.encoding import MSGPACK_ENCODERS
-from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoderV03
-from ddtrace.internal.encoding import MsgpackEncoderV05
-from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
@@ -817,7 +817,7 @@ def test_json_encoder_traces_bytes():
     import os
 
     from ddtrace._trace.span import Span
-    import ddtrace.internal.encoding as encoding
+    import ddtrace._trace.writer.encoding as encoding
 
     encoder_class_name = os.getenv("encoder_cls")
 

@@ -474,7 +474,7 @@ def test_civisibilitywriter_coverage_agentless_url():
         cov_client = dummy_writer._clients[1]
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+        with mock.patch("ddtrace._trace.writer.get_connection") as _get_connection:
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -493,7 +493,7 @@ def test_civisibilitywriter_coverage_agentless_with_intake_url_param():
         cov_client = dummy_writer._clients[1]
         assert cov_client._intake_url == "https://citestcov-intake.datadoghq.com"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+        with mock.patch("ddtrace._trace.writer.get_connection") as _get_connection:
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("https://citestcov-intake.datadoghq.com", 2.0)
 
@@ -511,7 +511,7 @@ def test_civisibilitywriter_coverage_evp_proxy_url():
         cov_client = dummy_writer._clients[1]
         assert cov_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcov"
 
-        with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
+        with mock.patch("ddtrace._trace.writer.get_connection") as _get_connection:
             dummy_writer._put("", {}, cov_client, no_trace=True)
             _get_connection.assert_called_once_with("http://localhost:8126", 2.0)
 

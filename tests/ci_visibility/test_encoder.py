@@ -7,6 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer.encoding import JSONEncoder
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -15,7 +16,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
-from ddtrace.internal.encoding import JSONEncoder
 from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase

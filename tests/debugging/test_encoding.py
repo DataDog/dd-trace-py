@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from ddtrace._trace.writer._encoding import BufferFull
 from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
@@ -16,7 +17,6 @@ from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
 from ddtrace.debugging._signal.snapshot import format_message
-from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
 from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
 from tests.debugging.test_config import debugger_config

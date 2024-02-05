@@ -3,7 +3,7 @@
 
 from msgpack import unpackb
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 def check(length, obj):

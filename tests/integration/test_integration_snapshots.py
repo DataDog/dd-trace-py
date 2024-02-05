@@ -8,10 +8,10 @@ import pytest
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace._trace.writer import AgentWriter
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config

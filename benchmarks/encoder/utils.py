@@ -4,7 +4,7 @@ import string
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
-from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace._trace.writer.encoding import MSGPACK_ENCODERS
 
 
 _Span = Span
@@ -16,7 +16,7 @@ if ddtrace_version.split(".")[0] == "0":
 try:
     # the introduction of the buffered encoder changed the internal api
     # see https://github.com/DataDog/dd-trace-py/pull/2422
-    from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
+    from ddtrace._trace.writer._encoding import BufferedEncoder  # noqa: F401
 
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
         return MSGPACK_ENCODERS[encoding](max_size, max_item_size)

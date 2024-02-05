@@ -1,9 +1,9 @@
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.writer import AgentWriter
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule

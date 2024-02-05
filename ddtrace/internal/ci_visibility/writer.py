@@ -4,13 +4,13 @@ from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.writer import HTTPWriter
+from ddtrace._trace.writer import WriterClientBase
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import agent
 from .. import service
 from ..runtime import get_runtime_id
-from ..writer import HTTPWriter
-from ..writer import WriterClientBase
 from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT

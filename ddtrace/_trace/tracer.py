@@ -28,6 +28,9 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer import LogWriter
+from ddtrace._trace.writer import TraceWriter
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
@@ -58,9 +61,6 @@ from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_a
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
@@ -70,7 +70,7 @@ from ddtrace.settings.peer_service import _ps_config
 
 
 if TYPE_CHECKING:
-    from ddtrace.internal.writer import AgentResponse  # noqa: F401
+    from ddtrace._trace.writer import AgentResponse  # noqa: F401
     from ddtrace.settings import Config  # noqa: F401
 
 log = get_logger(__name__)

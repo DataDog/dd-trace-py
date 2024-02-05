@@ -1,7 +1,7 @@
 import pytest
 
+from ddtrace._trace.writer import DEFAULT_SMA_WINDOW
 from ddtrace.internal.sma import SimpleMovingAverage
-from ddtrace.internal.writer import DEFAULT_SMA_WINDOW
 
 
 def test_min_size():
