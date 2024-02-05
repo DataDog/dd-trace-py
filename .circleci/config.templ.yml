@@ -209,12 +209,13 @@ commands:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
             - ./latest-success-commit
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when:
-            condition:
+      - when:
+          condition:
               << parameters.run_agent_checks >>
-          command: bash ./scripts/get-test-agent-results.sh
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
   run_hatch_env_test:
     description: "Run hatch env test"
@@ -303,12 +304,13 @@ commands:
       - store_artifacts:
           path: artifacts
           destination: supported-integrations
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when:
-            condition:
+      - when:
+          condition:
               << parameters.run_agent_checks >>
-          command: bash ./scripts/get-test-agent-results.sh
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
 executors:
   cimg_base:
