@@ -34,7 +34,6 @@ def multi_view(request, param_int=0, param_str=""):
     body = {
         "path_params": {"param_int": param_int, "param_str": param_str},
         "query_params": query_params,
-        "headers": dict(request.headers),
         "cookies": dict(request.COOKIES),
         "body": request.body.decode("utf-8"),
         "method": request.method,

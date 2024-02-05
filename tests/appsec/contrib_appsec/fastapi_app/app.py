@@ -45,7 +45,6 @@ def get_app():
         body = {
             "path_params": {"param_int": param_int, "param_str": param_str},
             "query_params": query_params,
-            "headers": dict(request.headers),
             "cookies": dict(request.cookies),
             "body": (await request.body()).decode("utf-8"),
             "method": request.method,

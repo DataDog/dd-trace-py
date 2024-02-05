@@ -242,7 +242,7 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "expected"),
         [
-            ({"x-real-ip": "8.8.8.8"}, "8.8.8.8"),
+            ({"X-Real-Ip": "8.8.8.8"}, "8.8.8.8"),
             ({"x-client-ip": "", "X-Forwarded-For": "4.4.4.4"}, "4.4.4.4"),
             ({"x-client-ip": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
             ({"x-client-ip": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
@@ -264,10 +264,10 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("env_var", "headers", "expected"),
         [
-            ("Fooipheader", {"Fooipheader": "", "x-real-ip": "8.8.8.8"}, None),
-            ("Fooipheader", {"Fooipheader": "invalid_ip", "x-real-ip": "8.8.8.8"}, None),
-            ("Fooipheader", {"Fooipheader": "", "x-real-ip": "アスダス"}, None),
-            ("X-Use-This", {"X-Use-This": "4.4.4.4", "x-real-ip": "8.8.8.8"}, "4.4.4.4"),
+            ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "8.8.8.8"}, None),
+            ("Fooipheader", {"Fooipheader": "invalid_ip", "X-Real-Ip": "8.8.8.8"}, None),
+            ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "アスダス"}, None),
+            ("X-Use-This", {"X-Use-This": "4.4.4.4", "X-Real-Ip": "8.8.8.8"}, "4.4.4.4"),
         ],
     )
     def test_client_ip_header_set_by_env_var(
@@ -293,14 +293,14 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),
         [
-            ({"x-real-ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
+            ({"X-Real-Ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "text/json"),
             (
-                {"x-real-ip": rules._IP.BLOCKED, "Accept": "text/html"},
+                {"X-Real-Ip": rules._IP.BLOCKED, "Accept": "text/html"},
                 True,
                 "BLOCKED_RESPONSE_HTML",
                 "text/html",
             ),
-            ({"x-real-ip": rules._IP.DEFAULT}, False, None, None),
+            ({"X-Real-Ip": rules._IP.DEFAULT}, False, None, None),
         ],
     )
     def test_request_ipblock(self, interface: Interface, get_tag, asm_enabled, headers, blocked, body, content_type):
@@ -750,6 +750,113 @@ class Contrib_TestClass_For_Threats:
                 self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], get_tag)
             else:
                 assert get_tag(APPSEC.JSON) is None
+
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("name", "expected_value"),
+        [
+            ("_dd.appsec.s.req.body", ([{"key": [8], "ids": [[[4]], {"len": 4}]}],)),
+            ("_dd.appsec.s.req.cookies", ([{"secret": [8]}],)),
+            (
+                "_dd.appsec.s.req.headers",
+                (
+                    [{"content-length": [8], "content-type": [8], "user-agent": [8]}],  # Django
+                    [  # FastAPI
+                        {
+                            "content-length": [8],
+                            "content-type": [8],
+                            "accept-encoding": [8],
+                            "user-agent": [8],
+                            "connection": [8],
+                            "accept": [8],
+                            "host": [8],
+                        }
+                    ],
+                    [{"content-length": [8], "content-type": [8], "host": [8], "user-agent": [8]}],  # Flask
+                ),
+            ),
+            (
+                "_dd.appsec.s.req.query",
+                (
+                    [{"y": [8], "x": [8]}],
+                    [{"y": [[[8]], {"len": 1}], "x": [[[8]], {"len": 1}]}],
+                ),
+            ),
+            ("_dd.appsec.s.req.params", ([{"param_int": [4], "param_str": [8]}],)),
+            ("_dd.appsec.s.res.headers", None),
+            (
+                "_dd.appsec.s.res.body",
+                (
+                    [
+                        {
+                            "method": [8],
+                            "body": [8],
+                            "query_params": [{"y": [8], "x": [8]}],
+                            "cookies": [{"secret": [8]}],
+                            "path_params": [{"param_str": [8], "param_int": [4]}],
+                        }
+                    ],
+                    [
+                        {
+                            "method": [8],
+                            "body": [8],
+                            "query_params": [{"y": [[[8]], {"len": 1}], "x": [[[8]], {"len": 1}]}],
+                            "cookies": [{"secret": [8]}],
+                            "path_params": [{"param_str": [8], "param_int": [4]}],
+                        }
+                    ],
+                ),
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("headers", "event", "blocked"),
+        [
+            ({"User-Agent": "dd-test-scanner-log-block"}, True, True),
+            ({"User-Agent": "Arachni/v1.5.1"}, True, False),
+            ({"User-Agent": "AllOK"}, False, False),
+        ],
+    )
+    def test_api_security_schemas(
+        self, interface: Interface, get_tag, apisec_enabled, name, expected_value, headers, event, blocked
+    ):
+        import base64
+        import gzip
+
+        from ddtrace.ext import http
+
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=1.0)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/324/huj/?x=1&y=2",
+                data='{"key": "passwd", "ids": [0, 1, 2, 3]}',
+                cookies={"secret": "aBcDeF"},
+                headers=headers,
+                content_type="application/json",
+            )
+            assert asm_config._api_security_enabled == apisec_enabled
+            assert asm_config._api_security_sample_rate == 1.0
+
+            assert self.status(response) == 403 if blocked else 200
+            assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
+            if event:
+                assert get_tag(APPSEC.JSON) is not None
+            else:
+                assert get_tag(APPSEC.JSON) is None
+            value = get_tag(name)
+            if apisec_enabled:
+                assert value, name
+                api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+                assert api, name
+                if expected_value is not None:
+                    if name == "_dd.appsec.s.res.body" and blocked:
+                        assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
+                    else:
+                        assert api in expected_value, (api, name)
+            else:
+                assert value is None, name
 
 
 @contextmanager
