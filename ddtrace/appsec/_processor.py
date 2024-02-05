@@ -13,7 +13,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
-from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC

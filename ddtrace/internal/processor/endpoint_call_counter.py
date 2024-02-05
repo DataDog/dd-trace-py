@@ -2,7 +2,7 @@ import typing
 
 import attr
 
-from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text

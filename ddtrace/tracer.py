@@ -17,7 +17,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule

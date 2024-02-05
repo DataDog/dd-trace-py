@@ -5,7 +5,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace._trace.processor.trace import TraceProcessor
+from ddtrace._trace.processor import TraceProcessor
 from ddtrace.ext import http
 
 

@@ -8,7 +8,7 @@ import uuid
 
 import attr
 
-from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.collector import SignalCollector

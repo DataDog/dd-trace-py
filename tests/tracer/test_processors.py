@@ -6,11 +6,11 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace._trace.processor.trace import SpanAggregator
-from ddtrace._trace.processor.trace import SpanProcessor
-from ddtrace._trace.processor.trace import SpanSamplingProcessor
-from ddtrace._trace.processor.trace import TraceProcessor
-from ddtrace._trace.processor.trace import TraceTagsProcessor
+from ddtrace._trace.processor import SpanAggregator
+from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.processor import SpanSamplingProcessor
+from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -49,7 +49,7 @@ def test_default_post_init():
         def on_span_finish(self, data):  # type: (Any) -> Any
             pass
 
-    with mock.patch("ddtrace._trace.processor.trace.log") as log:
+    with mock.patch("ddtrace._trace.processor.log") as log:
         p = MyProcessor()
 
     calls = [

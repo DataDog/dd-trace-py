@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import attr
 
-from ddtrace._trace.processor.trace import SpanProcessor
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
