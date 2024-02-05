@@ -414,7 +414,16 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            copy_and_shift_ranges_from_strings(args[0], result, 0)
+            if isinstance(args[0], (bytes, bytearray)):
+                check_offset = args[0].decode()
+            else:
+                check_offset = args[0]
+            try:
+                offset = result.index(check_offset)
+            except ValueError:
+                offset = 0
+
+            copy_and_shift_ranges_from_strings(args[0], result, offset)
         except Exception as e:
             _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e))
     return result
