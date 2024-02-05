@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "profile.hpp"
-#include "profile_builder.hpp"
+#include "sample.hpp"
+#include "sample_builder.hpp"
 #include "uploader_builder.hpp"
 
 #include <map>
@@ -15,25 +15,25 @@
 
 namespace Datadog {
 
-// Global state for profiling.  Manages thread-keys caches of profiles
-class ProfileGlobalStorage
+// Global state.  Manages thread-keys caches of samples
+class GlobalCache
 {
   private:
-    std::mutex profile_storage_mtx;
-    std::map<std::thread::id, Profile> profile_cache;
+    std::mutex sample_storage_mtx;
+    std::map<std::thread::id, Sample> sample_cache;
 
     // TODO delete some constructors?
-    //  ProfileGlobalStorage();
-    //  ProfileGlobalStorage(const ProfileGlobalStorage &) = delete;
-    //  ProfileGlobalStorage &operator=(const ProfileGlobalStorage &) = delete;
-    //  ProfileGlobalStorage(ProfileGlobalStorage &&) = delete;
+    //  GlobalCache();
+    //  GlobalCache(const GlobalCache &) = delete;
+    //  GlobalCache &operator=(const GlobalCache &) = delete;
+    //  GlobalCache(GlobalCache &&) = delete;
 
   public:
     inline static UploaderBuilder uploader_builder{};
-    inline static ProfileBuilder profile_builder{};
+    inline static SampleBuilder sample_builder{};
 
-    static ProfileGlobalStorage& get_singleton();
-    static Profile& get(std::thread::id id);
+    static GlobalCache& get_singleton();
+    static Sample& get(std::thread::id id);
     static void clear();
 };
 

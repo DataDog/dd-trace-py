@@ -1,7 +1,7 @@
 #pragma once
 
 namespace Datadog {
-enum ProfileType : unsigned int
+enum SampleType : unsigned int
 {
     CPU = 1 << 0,
     Wall = 1 << 1,

@@ -69,7 +69,7 @@ Uploader::upload(ddog_prof_Profile& profile)
     ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, nullptr);
     if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&res.err).ptr);
-        errmsg = err_to_msg(&res.err, "Error uploading");
+        errmsg = err_to_msg(&res.err, "Error uploading: ") + ddog_err;
         ddog_Error_drop(&res.err);
         ddog_Vec_Tag_drop(tags);
         std::cout << errmsg << std::endl;

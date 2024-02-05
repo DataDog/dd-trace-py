@@ -5,13 +5,15 @@
 
 #pragma once
 
-#include "libdatadog_helpers.hpp"
-#include "profile_shared.hpp"
 #include "types.hpp"
 
-#include <array>
+#include <atomic>
+#include <deque>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 extern "C"
@@ -21,77 +23,69 @@ extern "C"
 
 namespace Datadog {
 
+// Unordered containers don't get heterogeneous lookup until gcc-10, so for now use this
+// strategy to dedup + store strings.
+using StringTable = std::unordered_set<std::string_view>;
+
+// Serves to collect individual samples, as well as lengthen the scope of string data
 class Profile
 {
   private:
-    static inline ProfileSharedState shared_state{};
-    long profile_seq;
-    unsigned int max_nframes;
-    ProfileType type_mask;
-    std::string errmsg;
+    // Serialization for static state
+    // - string table
+    // - ddog_profile
+    std::atomic<bool> first_time{ true };
+    std::atomic<long> g_profile_seq{ 0 };
+    std::mutex profile_mtx{};
+    std::atomic<pid_t> current_pid{ 0 };
 
-    // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location> locations;
+    // Storage for strings
+    std::deque<std::string> string_storage{};
+    StringTable strings{};
+    std::mutex string_table_mtx{};
 
-    // Storage for labels
-    std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels;
-    size_t cur_label = 0;
+    // Configuration
+    SampleType type_mask{ 0 };
+    unsigned int max_nframes{ 128 };
+    ddog_prof_Period default_period{};
 
-    // Storage for values
-    std::vector<int64_t> values = {};
+    // Lookup for values
+    ValueIndex val_idx{};
 
-    // Helpers
-    bool push_label(const ExportLabelKey key, std::string_view val);
-    bool push_label(const ExportLabelKey key, int64_t val);
-    void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    // Configuration for the pprof exporter
+    std::vector<ddog_prof_ValueType> samplers{};
+
+    // Intermediate storage; this gets flushed to the exporter
+    // when it's time to upload.
+    ddog_prof_Profile cur_profile{};
+    ddog_prof_Profile last_profile{};
+
+    // Global state
+    inline static std::atomic<bool> dirty;
 
   public:
-    uint64_t samples = 0;
+    void one_time_init(SampleType type, unsigned int _max_nframes);
+    void setup_samplers();
+    bool cycle_buffers();
+    void entrypoint_check();
 
     // Getters
-    static ddog_prof_Profile& get_ddog_profile();
+    unsigned int get_max_nframes();
+    SampleType get_type_mask();
+    size_t get_sample_type_length();
+    long get_profile_seq();
+    ddog_prof_Profile& get_current_profile();
 
-    // Clears the current sample without flushing
-    static Profile& start_sample();
+    // String table manipulation
+    std::string_view insert_or_get(std::string_view sv);
 
-    // Add values
-    bool push_walltime(int64_t walltime, int64_t count);
-    bool push_cputime(int64_t cputime, int64_t count);
-    bool push_acquire(int64_t acquire_time, int64_t count);
-    bool push_release(int64_t lock_time, int64_t count);
-    bool push_alloc(uint64_t size, uint64_t count);
-    bool push_heap(uint64_t size);
+    // Value index getter
+    const ValueIndex& val();
 
-    // Adds metadata to sample
-    bool push_lock_name(std::string_view lock_name);
-    bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
-    bool push_task_id(int64_t task_id);
-    bool push_task_name(std::string_view task_name);
-    bool push_span_id(uint64_t span_id);
-    bool push_local_root_span_id(uint64_t local_root_span_id);
-    bool push_trace_type(std::string_view trace_type);
-    bool push_trace_resource_container(std::string_view trace_resource_container);
-    bool push_exceptioninfo(std::string_view exception_type, int64_t count);
-    bool push_class_name(std::string_view class_name);
+    // collect
+    bool collect(const ddog_prof_Sample& sample);
 
-    // Assumes frames are pushed in leaf-order
-    void push_frame(std::string_view name,     // for ddog_prof_Function
-                    std::string_view filename, // for ddog_prof_Function
-                    uint64_t address,          // for ddog_prof_Location
-                    int64_t line               // for ddog_prof_Location
-    );
-
-    // Flushes the current buffer, clearing it
-    bool flush_sample();
-
-    // Clears temporary things
-    void clear_stringtable();
-    void clear_buffers();
-
-    void zero_stats();
-
-    Profile(ProfileType type, unsigned int _max_nframes);
-    ~Profile() = default;
+    // Global manipulators
+    static void mark_dirty();
 };
-
 } // namespace Datadog

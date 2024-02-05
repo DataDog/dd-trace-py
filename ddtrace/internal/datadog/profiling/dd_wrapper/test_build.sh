@@ -72,6 +72,7 @@ if [ -n "$1" ]; then
       echo "  -n, --numerical   Clang + fsanitize=$NUMERICAL_OPTIONS"
       echo "  -d, --dataflow    Clang + fsanitize=$DATAFLOW_OPTIONS"
       echo "  -m  --memory      Clang + fsanitize=$MEMORY_OPTIONS"
+      echo "  -C  --cppcheck    Clang + cppcheck"
       echo "  -f, --fanalyze    GCC + -fanalyzer"
       echo "  -c, --clang       Clang (alone)"
       echo "  -g, --gcc         GCC (alone)"
@@ -102,6 +103,10 @@ if [ -n "$1" ]; then
       ;;
     -m|--memory)
       SANITIZE_OPTIONS=$MEMORY_OPTIONS
+      set_clang
+      ;;
+    -C|--cppcheck)
+      SANITIZE_OPTIONS="cppcheck"
       set_clang
       ;;
     -f|--fanalyze)
@@ -142,3 +147,6 @@ cmake_args=(
 # Run cmake
 cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }
 cmake --build . || { echo "build failed"; exit 1; }
+if [[ "$SANITIZE_OPTIONS" == "cppcheck" ]]; then
+  make cppcheck_run || { echo "cppcheck failed"; exit 1; }
+fi

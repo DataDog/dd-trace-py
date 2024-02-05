@@ -5,24 +5,24 @@
 
 #pragma once
 
-#include "profile.hpp"
+#include "sample.hpp"
 #include "types.hpp"
 
 #include <optional>
 
 namespace Datadog {
 
-class ProfileBuilder
+class SampleBuilder
 {
-    ProfileType type_mask = ProfileType::All;
+    SampleType type_mask = SampleType::All;
     unsigned int max_nframes = 64;
 
   public:
-    ProfileBuilder& add_type(ProfileType type);
-    ProfileBuilder& add_type(unsigned int type);
-    ProfileBuilder& set_max_nframes(unsigned int _max_nframes);
+    SampleBuilder& add_type(SampleType type);
+    SampleBuilder& add_type(unsigned int type);
+    SampleBuilder& set_max_nframes(unsigned int _max_nframes);
 
-    std::optional<Profile> build();
+    std::optional<Sample> build();
 };
 
 } // namespace Datadog

@@ -68,7 +68,7 @@ to_slice(std::string_view str)
 }
 
 inline std::string
-err_to_msg(ddog_Error* err, std::string_view msg)
+err_to_msg(const ddog_Error* err, std::string_view msg)
 {
     auto ddog_err = ddog_Error_message(err);
     std::string err_msg;

@@ -6,6 +6,7 @@
 #include "libdatadog_helpers.hpp"
 #include "types.hpp"
 
+#include <algorithm>
 #include <mutex>
 #include <string_view>
 
@@ -103,11 +104,11 @@ UploaderBuilder::build_ptr()
     }
 
     // Add the unsafe tags, if any
-    for (const auto& kv : user_tags) {
-        if (!add_tag_unsafe(tags, kv.first, kv.second, errmsg)) {
-            ddog_Vec_Tag_drop(tags);
-            return nullptr;
-        }
+    if (std::any_of(user_tags.begin(), user_tags.end(), [&](const auto& kv) {
+        return !add_tag_unsafe(tags, kv.first, kv.second, errmsg);
+    })) {
+        ddog_Vec_Tag_drop(tags);
+        return nullptr;
     }
 
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(
