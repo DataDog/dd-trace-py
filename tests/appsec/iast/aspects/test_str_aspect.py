@@ -4,6 +4,7 @@ import pytest
 
 try:
     from ddtrace.appsec._iast import oce
+    from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
