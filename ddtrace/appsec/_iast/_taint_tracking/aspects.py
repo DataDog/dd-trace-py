@@ -70,7 +70,9 @@ def str_aspect(orig_function, flag_added_args, *args, **kwargs):
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
-                check_offset = args[0].decode("utf-8")
+                encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
+                errors = parse_params(2, "errors", "strict", *args, **kwargs)
+                check_offset = args[0].decode(encoding, errors)
             else:
                 check_offset = args[0]
             offset = result.index(check_offset)
