@@ -318,12 +318,53 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert get_tag(http.URL) == "http://localhost:8000/"
                 assert get_tag(http.METHOD) == "GET"
+                self.check_single_rule_triggered("blk-001-001", get_tag)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == content_type
                 )
                 assert self.headers(response)["content-type"] == content_type
             else:
                 assert self.status(response) == 200
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("headers", "monitored", "bypassed"),
+        [
+            ({"X-Real-Ip": rules._IP.MONITORED}, True, False),
+            ({"X-Real-Ip": rules._IP.DEFAULT}, False, False),
+            ({"X-Real-Ip": rules._IP.BYPASS}, False, True),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("query", "blocked"), [("?x=MoNiToR_ThAt_VaLuE", False), ("?x=BlOcK_ThAt_VaLuE&y=1", True)]
+    )
+    def test_request_ipmonitor(
+        self, interface: Interface, get_tag, asm_enabled, headers, monitored, bypassed, query, blocked
+    ):
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
+        ):
+            headers["User-Agent"] = "Arachni/v1"
+            self.update_tracer(interface)
+            response = interface.client.get("/" + query, headers=headers)
+            print("monitored", monitored, "bypassed", bypassed, "blocked", blocked, "asm_enabled", asm_enabled)
+            code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
+            rule = "tst-421-001" if blocked else "tst-421-002"
+            print(get_tag(APPSEC.JSON))
+            assert self.status(response) == code
+            assert get_tag(http.STATUS_CODE) == str(code)
+            if asm_enabled and not bypassed:
+                assert get_tag(http.URL) == f"http://localhost:8000/{query}"
+                assert get_tag(http.METHOD) == "GET"
+                assert get_tag("actor.ip") == headers["X-Real-Ip"]
+                if monitored:
+                    self.check_rules_triggered(["blk-001-010", rule], get_tag)
+                else:
+                    self.check_rules_triggered([rule], get_tag)
+            else:
+                assert get_tag(APPSEC.JSON) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
@@ -817,8 +858,9 @@ class Contrib_TestClass_For_Threats:
             ({"User-Agent": "AllOK"}, False, False),
         ],
     )
+    @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
     def test_api_security_schemas(
-        self, interface: Interface, get_tag, apisec_enabled, name, expected_value, headers, event, blocked
+        self, interface: Interface, get_tag, apisec_enabled, name, expected_value, headers, event, blocked, sample_rate
     ):
         import base64
         import gzip
@@ -826,7 +868,7 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=1.0)
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=sample_rate)
         ):
             self.update_tracer(interface)
             response = interface.client.post(
@@ -837,7 +879,7 @@ class Contrib_TestClass_For_Threats:
                 content_type="application/json",
             )
             assert asm_config._api_security_enabled == apisec_enabled
-            assert asm_config._api_security_sample_rate == 1.0
+            assert asm_config._api_security_sample_rate == sample_rate
 
             assert self.status(response) == 403 if blocked else 200
             assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
@@ -846,7 +888,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_tag(APPSEC.JSON) is None
             value = get_tag(name)
-            if apisec_enabled:
+            if apisec_enabled and sample_rate:
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
@@ -857,6 +899,33 @@ class Contrib_TestClass_For_Threats:
                         assert api in expected_value, (api, name)
             else:
                 assert value is None, name
+
+    def test_request_invalid_rule_file(self, interface):
+        """
+        When the rule file is invalid, the tracer should not crash or prevent normal behavior
+        """
+        with override_global_config(dict(_asm_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_BAD_VERSION)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/")
+            assert self.status(response) == 200
+
+    def test_multiple_service_name(self, interface):
+        import time
+
+        with override_global_config(dict(_remote_config_enabled=True)):
+            self.update_tracer(interface)
+            assert ddtrace.config._remote_config_enabled
+            response = interface.client.get("/new_service/awesome_test")
+            assert self.status(response) == 200
+            assert self.body(response) == "awesome_test"
+            for _ in range(10):
+                if "awesome_test" in ddtrace.config._get_extra_services():
+                    break
+                time.sleep(1)
+            else:
+                raise AssertionError("extra service not found")
 
 
 @contextmanager

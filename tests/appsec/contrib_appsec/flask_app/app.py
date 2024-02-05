@@ -42,3 +42,12 @@ def multi_view(param_int=0, param_str=""):
         if len(vk) == 2:
             response_headers[vk[0]] = vk[1]
     return body, status, response_headers
+
+
+@app.route("/new_service/<string:service_name>/", methods=["GET", "POST", "OPTIONS"])
+@app.route("/new_service/<string:service_name>", methods=["GET", "POST", "OPTIONS"])
+def new_service(service_name: str):
+    import ddtrace
+
+    ddtrace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    return service_name

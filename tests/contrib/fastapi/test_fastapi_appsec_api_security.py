@@ -11,7 +11,6 @@ import ddtrace
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
-from tests.appsec.appsec.api_security.test_schema_fuzz import equal_with_meta
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
@@ -67,60 +66,6 @@ def get_schema(root_span, name):
     if value:
         return json.loads(gzip.decompress(base64.b64decode(value)).decode())
     return None
-
-
-@pytest.mark.parametrize(
-    ("name", "expected_value"),
-    [
-        (API_SECURITY.REQUEST_BODY, [{"key": [8], "ids": [[[4]], {"len": 4}]}]),
-        (
-            API_SECURITY.REQUEST_HEADERS_NO_COOKIES,
-            [
-                {
-                    "content-length": [8],
-                    "content-type": [8],
-                    "user-agent": [8],
-                    "accept-encoding": [8],
-                    "connection": [8],
-                    "accept": [8],
-                    "host": [8],
-                }
-            ],
-        ),
-        (API_SECURITY.REQUEST_COOKIES, [{"secret": [8]}]),
-        (API_SECURITY.REQUEST_QUERY, [{"extended": [[[8]], {"len": 1}], "x": [[[8]], {"len": 2}]}]),
-        (API_SECURITY.REQUEST_PATH_PARAMS, [{"str_param": [8]}]),
-        (
-            API_SECURITY.RESPONSE_HEADERS_NO_COOKIES,
-            [{"extended": [8], "x": [8], "content-type": [8], "content-length": [8]}],
-        ),
-        (API_SECURITY.RESPONSE_BODY, [{"ids": [[[4]], {"len": 4}], "key": [8], "validate": [2], "value": [8]}]),
-    ],
-)
-def test_api_security(app, client, tracer, test_spans, name, expected_value):
-    @app.post("/response-header-apisec/{str_param}")
-    async def specific_reponse(str_param, request: Request, response: Response):
-        data = await request.json()
-        query_params = request.query_params
-        data["validate"] = True
-        data["value"] = str_param
-        response.headers.update(query_params)
-        return data
-
-    payload = {"key": "secret", "ids": [0, 1, 2, 3]}
-
-    with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _api_security_sample_rate=1.0)):
-        _aux_appsec_prepare_tracer(tracer)
-        resp = client.post(
-            "/response-header-apisec/posting?x=2&extended=345&x=3",
-            data=json.dumps(payload),
-            headers={"content-type": "application/json"},
-            cookies={"secret": "a1b2c3d4e5f6"},  # cookies needs to be set there for compatibility with fastapi==0.86
-        )
-        root_span = get_root_span(test_spans)
-        assert resp.status_code == 200
-        api = get_schema(root_span, name)
-        assert equal_with_meta(api, expected_value), name
 
 
 def test_api_security_scanners(app, client, tracer, test_spans):
