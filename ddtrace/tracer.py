@@ -17,7 +17,6 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.processor import BaseServiceProcessor
 from ddtrace._trace.processor import PeerServiceProcessor
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -30,6 +29,7 @@ from ddtrace.filters import TraceFilter
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
