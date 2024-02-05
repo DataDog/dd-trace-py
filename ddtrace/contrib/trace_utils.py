@@ -197,7 +197,11 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     user_configured_ip_header = config.client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
-        ip_header_value = headers.get(user_configured_ip_header)
+        ip_header_value = get_header_value(
+            user_configured_ip_header.lower().replace("_", "-")
+            if headers_are_case_sensitive
+            else user_configured_ip_header
+        )
         if not ip_header_value:
             log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", user_configured_ip_header)
             return ""
