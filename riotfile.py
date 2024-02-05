@@ -310,7 +310,7 @@ venv = Venv(
         ),
         Venv(
             name="telemetry",
-            command="pytest {cmdargs} tests/telemetry/ -k 'test_writer.py'",
+            command="pytest {cmdargs} tests/telemetry/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
