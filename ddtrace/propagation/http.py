@@ -689,7 +689,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[int]]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -714,14 +714,25 @@ class _TraceContext:
             if origin:
                 # we encode "=" as "~" in tracestate so need to decode here
                 origin = _TraceContext.decode_tag_val(origin)
+
+            lpid = None  # type: Optional[int]
+            if "lp.id" in dd:
+                try:
+                    lpid = int(dd.get("lp.id", ""), 16)
+                    if lpid >= 2**64:
+                        log.debug("lpid value must be less than 2^64: %r", lpid)
+                        lpid = None
+                except ValueError:
+                    log.debug("invalid lpid value: %r", dd.get("lp"))
+
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
                 "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
-            return sampling_priority_ts_int, other_propagated_tags, origin
+            return sampling_priority_ts_int, other_propagated_tags, origin, lpid
         else:
-            return None, {}, None
+            return None, {}, None, None
 
     @staticmethod
     def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
@@ -792,8 +803,9 @@ class _TraceContext:
                     tracestate_values = None
 
                 if tracestate_values:
-                    sampling_priority_ts, other_propagated_tags, origin = tracestate_values
+                    sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
+                    meta["_dd.lp.id"] = str(lpid)
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
                 else:
@@ -815,6 +827,9 @@ class _TraceContext:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
             ts = span_context._tracestate
+            # Adds last parent_id to the datadog tracestate. This tag is used to reconnect a traces with missing spans
+            # span_context._tracestate must have at least one tag (sampling priority), so we can safely add to it
+            ts.replace("dd=", "dd=lp.id:{:016x};".format(span_context.span_id))  # type: ignore[str-format]
             if ts:
                 headers[_HTTP_HEADER_TRACESTATE] = ts
 
