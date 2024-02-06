@@ -405,10 +405,8 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], Any, Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
-    if (
-        orig_function is not None
-        and orig_function is not repr
-        and getattr(orig_function, "__name__", None) not in ("__repr__", "repr")
+    if orig_function is not None and not (
+        orig_function is repr or getattr(orig_function, "__name__", None) == "__repr__"
     ):
         if flag_added_args > 0:
             args = args[flag_added_args:]
