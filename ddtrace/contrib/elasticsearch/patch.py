@@ -132,6 +132,9 @@ def _get_perform_request_coro(transport):
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            if pin.tags:
+                span.set_tags(pin.tags)
+
             span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
 
             # set span.kind to the type of request being performed
