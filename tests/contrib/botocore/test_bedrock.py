@@ -538,9 +538,7 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_writer)
 
-    def test_llmobs_cohere_single_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, mock_llmobs_writer
-    ):
+    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
@@ -548,9 +546,7 @@ class TestLLMObsBedrock:
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, mock_llmobs_writer
-    ):
+    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,

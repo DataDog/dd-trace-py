@@ -2182,7 +2182,6 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
         assert err == b""
 
 
-
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
 def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
