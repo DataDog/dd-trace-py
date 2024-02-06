@@ -50,8 +50,8 @@ class Profile
     // Configuration for the pprof exporter
     std::vector<ddog_prof_ValueType> samplers{};
 
-    // Intermediate storage; this gets flushed to the exporter
-    // when it's time to upload.
+    // These are initialized here as skeleton objects, but they cannot be used until
+    // they're initialized by libdatadog
     ddog_prof_Profile cur_profile{};
     ddog_prof_Profile last_profile{};
 
@@ -59,10 +59,14 @@ class Profile
     inline static std::atomic<bool> dirty;
 
   public:
+    ~Profile();
+
+    // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
     void setup_samplers();
     bool cycle_buffers();
     void entrypoint_check();
+    void reset();
 
     // Getters
     unsigned int get_max_nframes();
@@ -74,7 +78,7 @@ class Profile
     // String table manipulation
     std::string_view insert_or_get(std::string_view sv);
 
-    // Value index getter
+    // constref getters
     const ValueIndex& val();
 
     // collect

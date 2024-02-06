@@ -330,3 +330,11 @@ ddup_upload()
     bool success = uploader->upload(upload_profile);
     return success;
 }
+
+void
+ddup_cleanup()
+{
+    // TODO some other stuff probably goes here.
+    Datadog::Sample::reset_profile();
+    Datadog::GlobalCache::clear();
+}

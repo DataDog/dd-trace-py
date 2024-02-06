@@ -82,8 +82,12 @@ class Sample
     // Clears temporary things
     void clear_stringtable();
     void clear_buffers();
-
     void zero_stats();
+
+    // Resets the static state
+    // NB this is probably only valuable in consolidating shut-down
+    // operations and testing
+    static void reset_profile();
 
     Sample(SampleType type, unsigned int _max_nframes);
     ~Sample() = default;

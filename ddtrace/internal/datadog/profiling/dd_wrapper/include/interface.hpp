@@ -44,6 +44,9 @@ extern "C"
     void ddup_set_runtime_id(const char* id, size_t sz);
     bool ddup_upload();
 
+    // Unusual interfaces (testing, mostly)
+    void ddup_cleanup();
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

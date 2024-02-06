@@ -35,3 +35,9 @@ dd_wrapper_add_test(initialization
 dd_wrapper_add_test(api
   api.cpp
 )
+dd_wrapper_add_test(threading
+  threading.cpp
+)
+dd_wrapper_add_test(forking
+  forking.cpp
+)

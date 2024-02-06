@@ -154,4 +154,4 @@ cmake --build . || { echo "build failed"; exit 1; }
 if [[ "$SANITIZE_OPTIONS" == "cppcheck" ]]; then
   make cppcheck_run || { echo "cppcheck failed"; exit 1; }
 fi
-ctest || { echo "tests failed!"; exit 1; }
+ctest --output-on-failure || { echo "tests failed!"; exit 1; }

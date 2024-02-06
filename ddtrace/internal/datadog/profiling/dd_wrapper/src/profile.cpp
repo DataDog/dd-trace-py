@@ -11,6 +11,26 @@
 
 using namespace Datadog;
 
+void
+Profile::reset() {
+    // Drop the profiles
+    if (cur_profile.inner != nullptr) {
+        ddog_prof_Profile_drop(&cur_profile);
+    }
+    if (last_profile.inner != nullptr) {
+        ddog_prof_Profile_drop(&last_profile);
+    }
+
+    // non-RAII heap storage has been dropped, state has been reinitialized
+    // we can pretend it's the first time all over again
+    first_time.store(true);
+}
+
+Profile::~Profile()
+{
+    reset();
+}
+
 bool
 Profile::cycle_buffers()
 {
@@ -42,10 +62,6 @@ Profile::entrypoint_check()
 void
 Profile::setup_samplers()
 {
-    // NB, should only be called one time
-    if (!first_time)
-        return;
-
     // TODO propagate error if no valid samplers are defined
     samplers.clear();
     auto get_value_idx = [this](std::string_view value, std::string_view unit) {
