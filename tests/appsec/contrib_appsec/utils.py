@@ -60,13 +60,15 @@ class Contrib_TestClass_For_Threats:
         tag = get_tag(APPSEC.JSON)
         assert tag is not None, "no JSON tag in root span"
         loaded = json.loads(tag)
-        assert [t["rule"]["id"] for t in loaded["triggers"]] == [rule_id]
+        result = [t["rule"]["id"] for t in loaded["triggers"]]
+        assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
     def check_rules_triggered(self, rule_id: List[str], get_tag):
         tag = get_tag(APPSEC.JSON)
         assert tag is not None, "no JSON tag in root span"
         loaded = json.loads(tag)
-        assert sorted([t["rule"]["id"] for t in loaded["triggers"]]) == rule_id
+        result = sorted([t["rule"]["id"] for t in loaded["triggers"]])
+        assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
         interface.tracer._asm_enabled = asm_config._asm_enabled
@@ -349,22 +351,22 @@ class Contrib_TestClass_For_Threats:
             headers["User-Agent"] = "Arachni/v1"
             self.update_tracer(interface)
             response = interface.client.get("/" + query, headers=headers)
-            print("monitored", monitored, "bypassed", bypassed, "blocked", blocked, "asm_enabled", asm_enabled)
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
             rule = "tst-421-001" if blocked else "tst-421-002"
-            print(get_tag(APPSEC.JSON))
-            assert self.status(response) == code
-            assert get_tag(http.STATUS_CODE) == str(code)
+            assert self.status(response) == code, f"status={self.status(response)}, expected={code}"
+            assert get_tag(http.STATUS_CODE) == str(code), f"status_code={get_tag(http.STATUS_CODE)}, expected={code}"
             if asm_enabled and not bypassed:
                 assert get_tag(http.URL) == f"http://localhost:8000/{query}"
-                assert get_tag(http.METHOD) == "GET"
-                assert get_tag("actor.ip") == headers["X-Real-Ip"]
+                assert get_tag(http.METHOD) == "GET", f"method={get_tag(http.METHOD)}, expected=GET"
+                assert (
+                    get_tag("actor.ip") == headers["X-Real-Ip"]
+                ), f"actor.ip={get_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
                 if monitored:
                     self.check_rules_triggered(["blk-001-010", rule], get_tag)
                 else:
                     self.check_rules_triggered([rule], get_tag)
             else:
-                assert get_tag(APPSEC.JSON) is None
+                assert get_tag(APPSEC.JSON) is None, f"asm JSON tag in root span {get_tag(APPSEC.JSON)}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
@@ -922,8 +924,8 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             response = interface.client.post(
-                "/asm/",
-                data=payload,
+                "/",
+                data=json.dumps(payload),
                 content_type="application/json",
             )
             assert self.status(response) == 200
