@@ -48,6 +48,7 @@ class AstVisitor(ast.NodeTransformer):
                 "extend": "ddtrace_aspects.bytearray_extend_aspect",
                 "upper": "ddtrace_aspects.upper_aspect",
                 "lower": "ddtrace_aspects.lower_aspect",
+                "replace": "ddtrace_aspects.replace_aspect",
                 "swapcase": "ddtrace_aspects.swapcase_aspect",
                 "title": "ddtrace_aspects.title_aspect",
                 "capitalize": "ddtrace_aspects.capitalize_aspect",
