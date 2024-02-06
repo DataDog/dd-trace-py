@@ -145,6 +145,50 @@ def test_repr_utf16():
     _iast_error_metric.assert_not_called()
 
 
+def test_repr_utf16_2():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = (
+            "\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85".encode(
+                "utf-16"
+            )
+        )
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_utf16_2", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "b':+-<test_repr_utf16_2>" + ascii(obj)[2:-1] + "<test_repr_utf16_2>-+:'"
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+def test_repr_nonascii():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = "記者 鄭啟源 羅智堅"
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_nonascii", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "':+-<test_repr_nonascii>" + obj + "<test_repr_nonascii>-+:'"
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
 def test_repr_bytearray():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
