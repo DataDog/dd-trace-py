@@ -17,11 +17,10 @@ class GlobalCache
     std::mutex sample_storage_mtx;
     std::map<std::thread::id, Sample> sample_cache;
 
-    // TODO delete some constructors?
-    //  GlobalCache();
-    //  GlobalCache(const GlobalCache &) = delete;
-    //  GlobalCache &operator=(const GlobalCache &) = delete;
-    //  GlobalCache(GlobalCache &&) = delete;
+    GlobalCache(const GlobalCache &) = delete;
+    GlobalCache &operator=(const GlobalCache &) = delete;
+    GlobalCache &operator=(GlobalCache &&) = delete;
+    GlobalCache(GlobalCache &&) = delete;
 
   public:
     inline static UploaderBuilder uploader_builder{};
