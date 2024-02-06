@@ -347,7 +347,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize(
-        ("query", "blocked"), [("?x=MoNiToR_ThAt_VaLuE", False), ("?x=BlOcK_ThAt_VaLuE&y=1", True)]
+        ("query", "blocked"),
+        [
+            ("?x=MoNiToR_ThAt_VaLuE", False),
+            ("?x=BlOcK_ThAt_VaLuE&y=1", True),
+            ("?x=monitor_that_value", False),
+            ("?x=block_that_value&y=1", True),
+        ],
     )
     def test_request_ipmonitor(
         self, interface: Interface, get_tag, asm_enabled, headers, monitored, bypassed, query, blocked
