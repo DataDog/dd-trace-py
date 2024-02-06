@@ -121,7 +121,7 @@ benchmark-serverless:
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
-    branch: jordan.gonzalez/add-arm64-support
+    branch: jordan.gonzalez/read-cold-start-from-logs
   allow_failure: false
   variables:
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
