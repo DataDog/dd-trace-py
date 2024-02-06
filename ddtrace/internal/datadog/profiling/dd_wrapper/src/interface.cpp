@@ -1,13 +1,8 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0. This product includes software
-// developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
-// Datadog, Inc.
-
 #include "interface.hpp"
 #include "global_cache.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
-#include "profile_shared.hpp"
+#include "sample.hpp"
 #include "uploader.hpp"
 
 #include <cstdlib>
@@ -20,15 +15,15 @@ bool g_prof_flag = true;
 
 // Store a pointer to the current profile.  This can be assumed set in inner
 // functions, but any function that may be called by a new thread should check
-thread_local Datadog::Profile* g_profile;
+thread_local Datadog::Sample* g_profile;
 
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
 void
 ddup_fork_handler()
 {
-    Datadog::ProfileSharedState::mark_dirty();
-    Datadog::ProfileGlobalStorage::clear();
+    Datadog::Profile::mark_dirty();
+    Datadog::GlobalCache::clear();
 }
 
 // Configuration
@@ -38,7 +33,7 @@ ddup_config_env(const char* env)
     if (!env || !*env)
         return;
 
-    Datadog::ProfileGlobalStorage::uploader_builder.set_env(env);
+    Datadog::GlobalCache::uploader_builder.set_env(env);
 }
 void
 ddup_config_service(const char* service)
@@ -47,51 +42,60 @@ ddup_config_service(const char* service)
         return;
     }
 
-    Datadog::ProfileGlobalStorage::uploader_builder.set_service(service);
+    Datadog::GlobalCache::uploader_builder.set_service(service);
 }
 void
 ddup_config_version(const char* version)
 {
     if (!version || !*version)
         return;
-    Datadog::ProfileGlobalStorage::uploader_builder.set_version(version);
+    Datadog::GlobalCache::uploader_builder.set_version(version);
 }
 void
 ddup_config_runtime(const char* runtime)
 {
-    Datadog::ProfileGlobalStorage::uploader_builder.set_runtime(runtime);
+    if (!runtime || !*runtime)
+        return;
+    Datadog::GlobalCache::uploader_builder.set_runtime(runtime);
 }
 void
 ddup_config_runtime_version(const char* runtime_version)
 {
-    Datadog::ProfileGlobalStorage::uploader_builder.set_runtime_version(runtime_version);
+    if (!runtime_version || !*runtime_version)
+        return;
+    Datadog::GlobalCache::uploader_builder.set_runtime_version(runtime_version);
 }
 void
 ddup_config_profiler_version(const char* profiler_version)
 {
-    Datadog::ProfileGlobalStorage::uploader_builder.set_profiler_version(profiler_version);
+    if (!profiler_version || !*profiler_version)
+        return;
+    Datadog::GlobalCache::uploader_builder.set_profiler_version(profiler_version);
 }
 void
 ddup_config_url(const char* url)
 {
-    if (url && *url)
-        Datadog::ProfileGlobalStorage::uploader_builder.set_url(url);
+    if (!url || !*url)
+        return;
+    Datadog::GlobalCache::uploader_builder.set_url(url);
 }
 void
 ddup_config_user_tag(const char* key, const char* val)
 {
-    Datadog::ProfileGlobalStorage::uploader_builder.set_tag(key, val);
+    if (!key || !*key || !val || !*val)
+        return;
+    Datadog::GlobalCache::uploader_builder.set_tag(key, val);
 }
 void
 ddup_config_sample_type(unsigned int type)
 {
-    Datadog::ProfileGlobalStorage::profile_builder.add_type(type);
+    Datadog::GlobalCache::sample_builder.add_type(type);
 }
 void
 ddup_config_max_nframes(int max_nframes)
 {
     if (max_nframes > 0)
-        Datadog::ProfileGlobalStorage::profile_builder.set_max_nframes(max_nframes);
+        Datadog::GlobalCache::sample_builder.set_max_nframes(max_nframes);
 }
 
 #if DDUP_BACKTRACE_ENABLE
@@ -147,6 +151,7 @@ ddup_is_initialized()
 void
 ddup_init()
 {
+    static int initialized_count = 0;
     static bool initialized = []() {
 #if DDUP_BACKTRACE_ENABLE
         // Install segfault handler
@@ -165,16 +170,17 @@ ddup_init()
         return true;
     }();
 
-    if (initialized) {
-        // We shouldn't actually call this multiple times, print warning
-        std::cerr << "ddup_init() called more than once" << std::endl;
+    if (initialized)
+        ++initialized_count;
+    if (initialized_count > 1) {
+        std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
     }
 }
 
 void
 ddup_start_sample()
 {
-    g_profile = &Datadog::Profile::start_sample();
+    g_profile = &Datadog::Sample::start_sample();
 }
 
 void
@@ -301,7 +307,7 @@ void
 ddup_set_runtime_id(const char* id, size_t sz)
 {
     if (id && *id)
-        Datadog::ProfileGlobalStorage::uploader_builder.set_runtime_id(std::string_view(id, sz));
+        Datadog::GlobalCache::uploader_builder.set_runtime_id(std::string_view(id, sz));
 }
 
 bool
@@ -312,15 +318,23 @@ ddup_upload()
         return false;
     }
 
-    ddog_prof_Profile upload_profile = Datadog::Profile::get_ddog_profile();
-    Datadog::ProfileSharedState::mark_dirty();
+    ddog_prof_Profile upload_profile = Datadog::Sample::get_ddog_profile();
+    Datadog::Profile::mark_dirty();
 
     // We create a new uploader just for this operation
-    auto uploader = Datadog::ProfileGlobalStorage::uploader_builder.build_ptr();
+    auto uploader = Datadog::GlobalCache::uploader_builder.build_ptr();
     if (!uploader) {
         std::cerr << "Failed to create uploader" << std::endl;
         return false;
     }
     bool success = uploader->upload(upload_profile);
     return success;
+}
+
+void
+ddup_cleanup()
+{
+    // TODO some other stuff probably goes here.
+    Datadog::Sample::reset_profile();
+    Datadog::GlobalCache::clear();
 }

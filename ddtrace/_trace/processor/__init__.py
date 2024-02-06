@@ -11,18 +11,14 @@ from typing import Union  # noqa:F401
 import attr
 
 from ddtrace import config
-from ddtrace.constants import BASE_SERVICE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span  # noqa:F401
@@ -68,6 +64,72 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         processed.
         """
         pass
+
+
+@attr.s
+class SpanProcessor(metaclass=abc.ABCMeta):
+    """A Processor is used to process spans as they are created and finished by a tracer."""
+
+    __processors__ = []  # type: List["SpanProcessor"]
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        """Default post initializer which logs the representation of the
+        Processor at the ``logging.DEBUG`` level.
+
+        The representation can be modified with the ``repr`` argument to the
+        attrs attribute::
+
+            @attr.s
+            class MyProcessor(Processor):
+                field_to_include = attr.ib(repr=True)
+                field_to_exclude = attr.ib(repr=False)
+        """
+        log.debug("initialized processor %r", self)
+
+    @abc.abstractmethod
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        """Called when a span is started.
+
+        This method is useful for making upfront decisions on spans.
+
+        For example, a sampling decision can be made when the span is created
+        based on its resource name.
+        """
+        pass
+
+    @abc.abstractmethod
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        """Called with the result of any previous processors or initially with
+        the finishing span when a span finishes.
+
+        It can return any data which will be passed to any processors that are
+        applied afterwards.
+        """
+        pass
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """Called when the processor is done being used.
+
+        Any clean-up or flushing should be performed with this method.
+        """
+        pass
+
+    def register(self):
+        # type: () -> None
+        """Register the processor with the global list of processors."""
+        SpanProcessor.__processors__.append(self)
+
+    def unregister(self):
+        # type: () -> None
+        """Unregister the processor from the global list of processors."""
+        try:
+            SpanProcessor.__processors__.remove(self)
+        except ValueError:
+            raise ValueError("Span processor %r not registered" % self)
 
 
 @attr.s
@@ -267,22 +329,16 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]:
-            if config._telemetry_enabled:
-                # Telemetry writer is disabled when a process shutsdown. This is to support py3.12.
-                # Here we submit the remanining span creation metrics without restarting the periodic thread.
-                # Note - Due to how atexit hooks are registered the telemetry writer is shutdown before the tracer.
-                telemetry.telemetry_writer._is_periodic = False
-                telemetry.telemetry_writer._enabled = True
-                # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-                # before the tracer is shutdown.
-                self._queue_span_count_metrics("spans_created", "integration_name", None)
-                # on_span_finish(...) queues span finish metrics in batches of 100.
-                # This ensures all remaining counts are sent before the tracer is shutdown.
-                self._queue_span_count_metrics("spans_finished", "integration_name", None)
-                telemetry.telemetry_writer.periodic(True)
-                # Disable the telemetry writer so no events/metrics/logs are queued during process shutdown
-                telemetry.telemetry_writer.disable()
+        if config._telemetry_enabled and (self._span_metrics["spans_created"] or self._span_metrics["spans_finished"]):
+            telemetry.telemetry_writer._is_periodic = False
+            telemetry.telemetry_writer._enabled = True
+            # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
+            # before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_created", "integration_name", None)
+            # on_span_finish(...) queues span finish metrics in batches of 100.
+            # This ensures all remaining counts are sent before the tracer is shutdown.
+            self._queue_span_count_metrics("spans_finished", "integration_name", None)
+            telemetry.telemetry_writer.periodic(True)
 
         try:
             self._writer.stop(timeout)
@@ -334,63 +390,3 @@ class SpanSamplingProcessor(SpanProcessor):
                     if config._trace_compute_stats:
                         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
-
-
-class PeerServiceProcessor(TraceProcessor):
-    def __init__(self, peer_service_config):
-        self._config = peer_service_config
-        self._set_defaults_enabled = self._config.set_defaults_enabled
-        self._mapping = self._config.peer_service_mapping
-
-    def process_trace(self, trace):
-        if not trace:
-            return
-
-        traces_to_process = []
-        if not self._set_defaults_enabled:
-            traces_to_process = filter(lambda x: x.get_tag(self._config.tag_name), trace)
-        else:
-            traces_to_process = filter(
-                lambda x: x.get_tag(self._config.tag_name) or x.get_tag(SPAN_KIND) in self._config.enabled_span_kinds,
-                trace,
-            )
-        any(map(lambda x: self._update_peer_service_tags(x), traces_to_process))
-
-        return trace
-
-    def _update_peer_service_tags(self, span):
-        tag = span.get_tag(self._config.tag_name)
-
-        if tag:  # If the tag already exists, assume it is user generated
-            span.set_tag_str(self._config.source_tag_name, self._config.tag_name)
-        else:
-            for data_source in self._config.prioritized_data_sources:
-                tag = span.get_tag(data_source)
-                if tag:
-                    span.set_tag_str(self._config.tag_name, tag)
-                    span.set_tag_str(self._config.source_tag_name, data_source)
-                    break
-
-        if tag in self._mapping:
-            span.set_tag_str(self._config.remap_tag_name, tag)
-            span.set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])
-
-
-class BaseServiceProcessor(TraceProcessor):
-    def __init__(self):
-        self._global_service = schematize_service_name((config.service or "").lower())
-
-    def process_trace(self, trace):
-        if not trace:
-            return
-
-        traces_to_process = filter(
-            lambda x: x.service and x.service.lower() != self._global_service,
-            trace,
-        )
-        any(map(lambda x: self._update_dd_base_service(x), traces_to_process))
-
-        return trace
-
-    def _update_dd_base_service(self, span):
-        span.set_tag_str(key=BASE_SERVICE_KEY, value=self._global_service)

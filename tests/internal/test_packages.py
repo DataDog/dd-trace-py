@@ -84,3 +84,5 @@ def test_filename_to_package():
 
     package = packages.filename_to_package(gp.__file__)
     assert package is None or package.name == "protobuf"
+
+    del packages._package_file_mapping.__closure__[0].cell_contents.__callonce_result__

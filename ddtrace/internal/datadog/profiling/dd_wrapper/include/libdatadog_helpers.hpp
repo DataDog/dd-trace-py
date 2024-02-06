@@ -1,8 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0. This product includes software
-// developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
-// Datadog, Inc.
-
 #pragma once
 
 #include <array>
@@ -68,7 +63,7 @@ to_slice(std::string_view str)
 }
 
 inline std::string
-err_to_msg(ddog_Error* err, std::string_view msg)
+err_to_msg(const ddog_Error* err, std::string_view msg)
 {
     auto ddog_err = ddog_Error_message(err);
     std::string err_msg;
