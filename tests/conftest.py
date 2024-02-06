@@ -26,6 +26,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
@@ -401,6 +402,8 @@ def telemetry_writer():
             yield telemetry_writer
 
     finally:
+        if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
+            telemetry_writer.disable()
         ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
 
 
