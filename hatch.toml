@@ -185,7 +185,7 @@ dependencies = [
 [envs.appsec_threats_django.scripts]
 test = [
     "pip freeze",
-    "DD_TRACE_DEBUG=true PYTHONPATH=. python -m pytest -vvv -s tests/appsec/contrib_appsec/test_django.py::Test_Django::test_request_ipmonitor"
+    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
 # python 3.12 should replace 3.11 in this list, but installation is failing on 3.12

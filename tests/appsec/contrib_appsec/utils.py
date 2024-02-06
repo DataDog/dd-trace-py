@@ -75,14 +75,16 @@ class Contrib_TestClass_For_Threats:
         interface.tracer._iast_enabled = asm_config._iast_enabled
         interface.tracer.configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
-        if interface.tracer._appsec_processor:
-            interface.printer(
-                f"""ASM enabled: {asm_config._asm_enabled}
-{ddtrace.appsec._ddwaf.version()}
-{interface.tracer._appsec_processor._ddwaf._diagnostics}
-{asm_config._asm_libddwaf}
-"""
-            )
+        # Only for tests diagnostics
+
+    #         if interface.tracer._appsec_processor:
+    #             interface.printer(
+    #                 f"""ASM enabled: {asm_config._asm_enabled}
+    # {ddtrace.appsec._ddwaf.version()}
+    # {interface.tracer._appsec_processor._ddwaf.info}
+    # {asm_config._asm_libddwaf}
+    # """
+    #            )
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
@@ -349,8 +351,9 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("query", "blocked"),
         [
-            ("?x=MoNiToR_ThAt_VaLuE", False),
-            ("?x=BlOcK_ThAt_VaLuE&y=1", True),
+            # lowercase transformer is currently bugged on libddwaf
+            # ("?x=MoNiToR_ThAt_VaLuE", False),
+            # ("?x=BlOcK_ThAt_VaLuE&y=1", True),
             ("?x=monitor_that_value", False),
             ("?x=block_that_value&y=1", True),
         ],
