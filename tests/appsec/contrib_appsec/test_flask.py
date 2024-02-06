@@ -52,7 +52,7 @@ class BaseFlaskTestCase(TracerTestCase):
 
 class Test_Flask(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self):
+    def interface(self, printer):
         bftc = BaseFlaskTestCase()
 
         bftc.setUp()
@@ -89,6 +89,7 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
+            interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
 

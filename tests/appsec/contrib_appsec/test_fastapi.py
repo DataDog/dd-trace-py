@@ -13,7 +13,7 @@ FASTAPI_VERSION = tuple(int(v) for v in fastapi.__version__.split("."))
 
 class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self, tracer):
+    def interface(self, tracer, printer):
         from fastapi.testclient import TestClient
 
         fastapi_patch()
@@ -62,6 +62,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
+            interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
             fastapi_unpatch()

@@ -77,7 +77,11 @@ class Contrib_TestClass_For_Threats:
         assert asm_config._asm_libddwaf_available
         if interface.tracer._appsec_processor:
             interface.printer(
-                f"ASM enabled: {asm_config._asm_enabled} {interface.tracer._appsec_processor._ddwaf._diagnostics}"
+                f"""ASM enabled: {asm_config._asm_enabled}
+{ddtrace.appsec._ddwaf.version()}
+{interface.tracer._appsec_processor._ddwaf._diagnostics}
+{asm_config._asm_libddwaf}
+"""
             )
 
     @pytest.mark.parametrize("asm_enabled", [True, False])

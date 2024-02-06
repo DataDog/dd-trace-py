@@ -34,7 +34,11 @@ def no_op(msg: str) -> None:  # noqa: ARG001
 @pytest.fixture(name="printer")
 def printer(request):
     terminal_reporter = request.config.pluginmanager.getplugin("terminalreporter")
-    if terminal_reporter is not None:  # pragma: no branch
-        return terminal_reporter.write_line
+    capture_manager = request.config.pluginmanager.get_plugin("capturemanager")
 
-    return no_op
+    def printer(*args, **kwargs):
+        with capture_manager.global_and_fixture_disabled():
+            if terminal_reporter is not None:  # pragma: no branch
+                terminal_reporter.write_line(*args, **kwargs)
+
+    return printer
