@@ -363,6 +363,9 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "tags":
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
+        elif cfg_name == "_tracing_enabled":
+            name = "tracing_enabled"
+            value = "true" if item.value() else "false"
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
@@ -389,6 +392,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
+                self._telemetry_entry("_tracing_enabled"),
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
