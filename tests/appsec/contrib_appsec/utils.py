@@ -75,6 +75,10 @@ class Contrib_TestClass_For_Threats:
         interface.tracer._iast_enabled = asm_config._iast_enabled
         interface.tracer.configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
+        if interface.tracer._appsec_processor:
+            interface.printer(
+                f"ASM enabled: {asm_config._asm_enabled} {interface.tracer._appsec_processor._ddwaf._diagnostics}"
+            )
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):

@@ -12,7 +12,7 @@ from tests.appsec.contrib_appsec import utils
 
 class Test_Django(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self):
+    def interface(self, printer):
         os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
         settings.DEBUG = False
         django.setup()
@@ -62,6 +62,7 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         interface = utils.Interface("django", django, client)
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
+            interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
         # unpatch failing in this case
