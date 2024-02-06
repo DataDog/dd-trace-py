@@ -449,6 +449,7 @@ jobs:
 
   appsec_iast:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'appsec_iast$'
@@ -867,6 +868,7 @@ jobs:
 
   graphql:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "graphql"
@@ -908,6 +910,7 @@ jobs:
 
   mariadb:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mariadb$'
@@ -1254,6 +1257,7 @@ jobs:
 
   langchain:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "langchain"
