@@ -788,7 +788,7 @@ jobs:
 
   elasticsearch:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 17
     steps:
       - run_test:
           pattern: 'elasticsearch'
