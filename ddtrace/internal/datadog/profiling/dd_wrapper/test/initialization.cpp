@@ -1,11 +1,13 @@
-#include <gtest/gtest.h>
 #include "interface.hpp"
+#include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
 //       "workaround" in the following link
 //       https://stackoverflow.com/a/71257678
 
-void simple_init() {
+void
+simple_init()
+{
     ddup_config_service("my_test_service");
     ddup_config_env("my_test_env");
     ddup_config_version("0.0.1");
@@ -18,11 +20,14 @@ void simple_init() {
     std::exit(0);
 }
 
-TEST(InitDeathTest, TestInit) {
+TEST(InitDeathTest, TestInit)
+{
     EXPECT_EXIT(simple_init(), ::testing::ExitedWithCode(0), "");
 }
 
-void empty_init() {
+void
+empty_init()
+{
     ddup_config_service("");
     ddup_config_env("");
     ddup_config_version("");
@@ -35,11 +40,14 @@ void empty_init() {
     std::exit(0);
 }
 
-TEST(DD_WrapperTest, TestInitWithEmpty) {
+TEST(DD_WrapperTest, TestInitWithEmpty)
+{
     EXPECT_EXIT(empty_init(), ::testing::ExitedWithCode(0), "");
 }
 
-void null_init() {
+void
+null_init()
+{
     ddup_config_service(nullptr);
     ddup_config_env(nullptr);
     ddup_config_version(nullptr);
@@ -52,20 +60,26 @@ void null_init() {
     std::exit(0);
 }
 
-TEST(DD_WrapperTest, TestInitWithNull) {
+TEST(DD_WrapperTest, TestInitWithNull)
+{
     EXPECT_EXIT(null_init(), ::testing::ExitedWithCode(0), "");
 }
 
-void minimal_init() {
-  ddup_init();
-  std::exit(0);
+void
+minimal_init()
+{
+    ddup_init();
+    std::exit(0);
 }
 
-TEST(DD_WrapperTest, TestInitWithMinimal) {
+TEST(DD_WrapperTest, TestInitWithMinimal)
+{
     EXPECT_EXIT(minimal_init(), ::testing::ExitedWithCode(0), "");
 }
 
-void short_lifetime_init() {
+void
+short_lifetime_init()
+{
     // This will probably work under normal circumstances, since there may not be extreme damage
     // to the stack between the two operations.  However, if there are defects they should be
     // evident under sanitizers.
@@ -87,16 +101,18 @@ void short_lifetime_init() {
         ddup_config_profiler_version(profiler_version.c_str());
     }
 
-
     ddup_init();
     std::exit(0);
 }
 
-TEST(DD_WrapperTest, TestInitWithShortLifetime) {
+TEST(DD_WrapperTest, TestInitWithShortLifetime)
+{
     EXPECT_EXIT(short_lifetime_init(), ::testing::ExitedWithCode(0), "");
 }
 
-int main(int argc, char** argv) {
+int
+main(int argc, char** argv)
+{
     ::testing::InitGoogleTest(&argc, argv);
     (void)(::testing::GTEST_FLAG(death_test_style) = "threadsafe");
     return RUN_ALL_TESTS();

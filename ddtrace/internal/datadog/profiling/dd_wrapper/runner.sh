@@ -5,4 +5,4 @@
 ./test_build.sh -t || { echo "Failed threading sanitizer"; exit 1; }
 ./test_build.sh -n || { echo "Failed numeric sanitizer"; exit 1; }
 ./test_build.sh -d || { echo "Failed dataflow sanitizer"; exit 1; }
-#./test_build.sh -m || { echo "Failed memory leak sanitizer"; exit 1; }
+#./test_build.sh -m || { echo "Failed memory leak sanitizer"; exit 1; } # Need to propagate msan configuration, currently failing in googletest internals

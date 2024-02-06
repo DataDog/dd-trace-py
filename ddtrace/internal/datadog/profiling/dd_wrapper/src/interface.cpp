@@ -1,8 +1,8 @@
 #include "interface.hpp"
 #include "global_cache.hpp"
 #include "libdatadog_helpers.hpp"
-#include "sample.hpp"
 #include "profile.hpp"
+#include "sample.hpp"
 #include "uploader.hpp"
 
 #include <cstdlib>
@@ -171,7 +171,7 @@ ddup_init()
     }();
 
     if (initialized)
-      ++initialized_count;
+        ++initialized_count;
     if (initialized_count > 1) {
         std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
     }

@@ -101,8 +101,8 @@ UploaderBuilder::build_ptr()
 
     // Add the unsafe tags, if any
     if (std::any_of(user_tags.begin(), user_tags.end(), [&](const auto& kv) {
-        return !add_tag_unsafe(tags, kv.first, kv.second, errmsg);
-    })) {
+            return !add_tag_unsafe(tags, kv.first, kv.second, errmsg);
+        })) {
         ddog_Vec_Tag_drop(tags);
         return nullptr;
     }

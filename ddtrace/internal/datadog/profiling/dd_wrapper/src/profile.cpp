@@ -120,7 +120,9 @@ Profile::get_type_mask()
 }
 
 static inline bool
-make_profile(const ddog_prof_Slice_ValueType& sample_types, const struct ddog_prof_Period* period, ddog_prof_Profile& profile)
+make_profile(const ddog_prof_Slice_ValueType& sample_types,
+             const struct ddog_prof_Period* period,
+             ddog_prof_Profile& profile)
 {
     ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
