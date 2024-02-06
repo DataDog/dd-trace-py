@@ -45,7 +45,6 @@ def get_app():
         body = {
             "path_params": {"param_int": param_int, "param_str": param_str},
             "query_params": query_params,
-            "headers": dict(request.headers),
             "cookies": dict(request.cookies),
             "body": (await request.body()).decode("utf-8"),
             "method": request.method,
@@ -73,5 +72,15 @@ def get_app():
         }
         status = int(query_params.get("status", "200"))
         return JSONResponse(body, status_code=status)
+
+    @app.get("/new_service/{service_name:str}/")
+    @app.post("/new_service/{service_name:str}/")
+    @app.get("/new_service/{service_name:str}")
+    @app.post("/new_service/{service_name:str}")
+    async def new_service(service_name: str, request: Request):  # noqa: B008
+        import ddtrace
+
+        ddtrace.Pin.override(app, service=service_name, tracer=ddtrace.tracer)
+        return HTMLResponse(service_name, 200)
 
     return app
