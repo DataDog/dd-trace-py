@@ -45,7 +45,6 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     vulnerability = list(span_report.vulnerabilities)[0]
     source = span_report.sources[0]
     assert vulnerability.type == VULN_SQL_INJECTION
-    print("JJJ valueParts: %s" % vulnerability.evidence.valueParts)
     assert vulnerability.evidence.valueParts == [
         {"value": "SELECT "},
         {"redacted": True},

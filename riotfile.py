@@ -200,7 +200,7 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.4.4",
+                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests

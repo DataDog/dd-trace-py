@@ -76,7 +76,7 @@ dependencies = [  # copied from library dependencies
     "opentracing>=2.0.0",
     "bytecode",
     "six>=1.12.0",
-    "sqlparse>=0.4.4",
+    "sqlparse>=0.2.2",
 ]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",

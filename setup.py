@@ -587,7 +587,7 @@ setup(
         "envier",
         "opentelemetry-api>=1",
         "setuptools; python_version>='3.12'",
-        "sqlparse>=0.4.4",
+        "sqlparse>=0.2.2",
     ]
     + bytecode,
     extras_require={
