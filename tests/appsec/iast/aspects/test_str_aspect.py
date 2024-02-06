@@ -139,9 +139,30 @@ def test_repr_utf16():
         assert result == repr(obj)
         assert is_pyobject_tainted(result)
 
-        # FIXME: This looks like a bug
-        # expected_result = "b':+-<test_repr_utf16>\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85-+:<test_repr_utf16>'"  # noqa:E501
-        # assert as_formatted_evidence(result) == expected_result
+        expected_result = "b':+-<test_repr_utf16>\\xe8\\xa8\\x98\\xe8\\x80\\x85 \\xe9\\x84\\xad\\xe5\\x95\\x9f\\xe6\\xba\\x90 \\xe7\\xbe\\x85\\xe6\\x99\\xba\\xe5\\xa0\\x85<test_repr_utf16>-+:'"  # noqa:E501
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+def test_repr_bytearray():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = bytearray(
+            b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
+        )
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_bytearray", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "bytearray(b':+-<test_repr_bytearray>\\xe8\\xa8\\x98\\xe8\\x80\\x85 \\xe9\\x84\\xad\\xe5\\x95\\x9f\\xe6\\xba\\x90 \\xe7\\xbe\\x85\\xe6\\x99\\xba\\xe5\\xa0\\x85<test_repr_bytearray>-+:')"  # noqa:E501
+        assert as_formatted_evidence(result) == expected_result
 
     _iast_error_metric.assert_not_called()
 
