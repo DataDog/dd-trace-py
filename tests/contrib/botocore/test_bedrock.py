@@ -399,9 +399,7 @@ def test_readlines_error(bedrock_client, request_vcr):
                 response.get("body").readlines()
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)]
-)
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
 class TestLLMObsBedrock:
     @staticmethod
     def _expected_llmobs_calls(span, n_output):

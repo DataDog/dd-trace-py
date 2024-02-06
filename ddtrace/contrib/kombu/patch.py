@@ -105,7 +105,7 @@ def traced_receive(func, instance, args, kwargs):
     # Signature only takes 2 args: (body, message)
     message = get_argument_value(args, kwargs, 1, "message")
 
-    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers)
+    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, int_config=config.kombu)
 
     with pin.tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
