@@ -349,7 +349,6 @@ class Contrib_TestClass_For_Threats:
         with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
             dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
         ):
-            headers["User-Agent"] = "Arachni/v1"
             self.update_tracer(interface)
             response = interface.client.get("/" + query, headers=headers)
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
