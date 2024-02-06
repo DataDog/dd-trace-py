@@ -286,9 +286,6 @@ class Contrib_TestClass_For_Threats:
     def test_client_ip_header_set_by_env_var(
         self, interface: Interface, get_tag, root_span, asm_enabled, env_var, headers, expected
     ):
-        # if interface.name in ("fastapi",):
-        #     raise pytest.skip(f"{interface.name} does not support this feature")
-
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=asm_enabled, client_ip_header=env_var)):
