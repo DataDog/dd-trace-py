@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
@@ -43,6 +44,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 98000,
@@ -59,6 +61,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 57000,
@@ -75,6 +78,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 30000,
@@ -91,6 +95,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 32000,
@@ -107,6 +112,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 25000,
@@ -123,6 +129,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 44000,
@@ -139,6 +146,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 28000,
@@ -155,6 +163,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 105000,
@@ -171,6 +180,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 38000,
@@ -187,6 +197,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django",
          "django.template.engine.class": "django.template.engine.Engine"
        },
@@ -204,6 +215,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 38000,
@@ -220,6 +232,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 30000,
@@ -236,6 +249,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 35000,
@@ -252,6 +266,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 30000,
@@ -268,6 +283,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 26000,
@@ -284,6 +300,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 34000,
@@ -300,6 +317,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
        "duration": 30000,

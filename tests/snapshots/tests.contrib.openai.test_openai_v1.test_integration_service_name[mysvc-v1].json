@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "mysvc",
+    "resource": "createCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65674d7f00000000",
+      "component": "openai",
+      "language": "python",
+      "openai.base_url": "https://api.openai.com/v1/",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "ada",
+      "openai.request.prompt.0": "hello world",
+      "openai.response.choices.0.finish_reason": "length",
+      "openai.response.choices.0.text": ", relax!\u201d I said to my laptop",
+      "openai.response.choices.1.finish_reason": "stop",
+      "openai.response.choices.1.text": " (1",
+      "openai.response.created": "1681852797",
+      "openai.response.id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
+      "openai.response.model": "ada",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "9c0b10fb2b774175bc608645b0df6b96"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sample_rate": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.organization.ratelimit.requests.limit": 3000,
+      "openai.organization.ratelimit.requests.remaining": 2999,
+      "openai.organization.ratelimit.tokens.limit": 250000,
+      "openai.organization.ratelimit.tokens.remaining": 249979,
+      "process_id": 20888
+    },
+    "duration": 16629000,
+    "start": 1701268863135046000
+  }]]

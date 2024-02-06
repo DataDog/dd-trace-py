@@ -6,7 +6,7 @@
       {
         "Name": "child_stats",
         "Resource": "child_stats",
-        "Service": null,
+        "service": "",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
@@ -20,7 +20,7 @@
       {
         "Name": "parent",
         "Resource": "parent",
-        "Service": null,
+        "service": "",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,

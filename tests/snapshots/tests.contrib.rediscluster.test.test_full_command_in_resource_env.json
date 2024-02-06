@@ -1,0 +1,74 @@
+[[
+  {
+    "name": "web-request",
+    "service": "test",
+    "resource": "web-request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "f771a3107ab24471ad9b83b6ca492fba"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 62002
+    },
+    "duration": 41534000,
+    "start": 1698858518117628000
+  },
+     {
+       "name": "redis.command",
+       "service": "rediscluster",
+       "resource": "GET put_key_in_resource",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "redis",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "rediscluster",
+         "db.system": "redis",
+         "redis.raw_command": "GET put_key_in_resource",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "db.row_count": 0,
+         "redis.args_length": 2
+       },
+       "duration": 2997000,
+       "start": 1698858518138810000
+     },
+     {
+       "name": "redis.command",
+       "service": "rediscluster",
+       "resource": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "rediscluster",
+         "db.system": "redis",
+         "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "redis.pipeline_length": 2
+       },
+       "duration": 17249000,
+       "start": 1698858518141893000
+     }]]

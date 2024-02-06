@@ -1,0 +1,69 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "GET put_key_in_resource",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "component": "redis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "localhost",
+      "redis.raw_command": "GET put_key_in_resource",
+      "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 0,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 65639,
+      "redis.args_length": 2
+    },
+    "duration": 2978000,
+    "start": 1698858795260743000
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "component": "redis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "localhost",
+      "redis.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2",
+      "runtime-id": "3a1f7ba9b1ab42f4858e5effd03877ef",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 65639,
+      "redis.pipeline_length": 2
+    },
+    "duration": 1408000,
+    "start": 1698858795278553000
+  }]]

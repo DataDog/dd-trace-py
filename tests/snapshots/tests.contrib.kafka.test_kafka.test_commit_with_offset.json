@@ -1,0 +1,74 @@
+[[
+  {
+    "name": "kafka.consume",
+    "service": "kafka",
+    "resource": "kafka.consume",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "kafka",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "test_key",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_commit_with_offset",
+      "language": "python",
+      "messaging.system": "kafka",
+      "pathway.hash": "4021738782978742731",
+      "runtime-id": "9beacd9920df4a5fa0d39cfeaa812223",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.message_offset": -1,
+      "kafka.partition": 0,
+      "process_id": 26320
+    },
+    "duration": 729442000,
+    "start": 1699562125840119000
+  }],
+[
+  {
+    "name": "kafka.produce",
+    "service": "kafka",
+    "resource": "kafka.produce",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "kafka",
+      "kafka.message_key": "test_key",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_commit_with_offset",
+      "language": "python",
+      "messaging.kafka.bootstrap.servers": "localhost:29092",
+      "messaging.system": "kafka",
+      "pathway.hash": "15545883688975169510",
+      "runtime-id": "9beacd9920df4a5fa0d39cfeaa812223",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.partition": -1,
+      "process_id": 26320
+    },
+    "duration": 417000,
+    "start": 1699562121816854000
+  }]]

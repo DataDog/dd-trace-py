@@ -1,0 +1,52 @@
+[[
+  {
+    "name": "test",
+    "service": "test",
+    "resource": "test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-1",
+      "_dd.p.tid": "656a1a2b00000000",
+      "language": "python",
+      "runtime-id": "701521214f1f4473abe1afca4813fbec"
+    },
+    "metrics": {
+      "_dd.agent_psr": 0.9999,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 86402
+    },
+    "duration": 59000,
+    "start": 1701452331028235000
+  }],
+[
+  {
+    "name": "",
+    "service": "",
+    "resource": "",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "656a1a2a00000000",
+      "language": "python",
+      "runtime-id": "701521214f1f4473abe1afca4813fbec"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 86402
+    },
+    "duration": 197000,
+    "start": 1701452330966062000
+  }]]

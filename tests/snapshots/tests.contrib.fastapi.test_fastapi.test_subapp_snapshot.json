@@ -11,11 +11,12 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/sub-app/hello/{name}",
       "http.status_code": "200",
-      "http.url": "http://testserver/sub-app/hello/name",
+      "http.url": "http://testserver/sub-app/hello/foo",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
@@ -42,10 +43,11 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "fastapi",
          "http.method": "GET",
          "http.status_code": "200",
-         "http.url": "http://testserver/sub-app/hello/name",
+         "http.url": "http://testserver/sub-app/hello/foo",
          "http.useragent": "testclient",
          "http.version": "1.1",
          "span.kind": "server"
@@ -63,7 +65,8 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.base_service": ""
+            "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000"
           },
           "duration": 45250,
           "start": 1692709944143732585

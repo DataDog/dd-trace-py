@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
@@ -33,7 +34,7 @@
   {
     "name": "redis.command",
     "service": "rediscluster",
-    "resource": "GET here...",
+    "resource": "GET",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -42,6 +43,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
@@ -54,6 +56,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "db.row_count": 0,
       "process_id": 19879,
       "redis.args_length": 2
     },

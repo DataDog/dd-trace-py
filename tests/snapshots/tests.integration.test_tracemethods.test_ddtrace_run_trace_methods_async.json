@@ -1,0 +1,100 @@
+[[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_async_test_method",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96569
+    },
+    "duration": 47000,
+    "start": 1695501452080827000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_async_test_method2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96569
+    },
+    "duration": 29000,
+    "start": 1695501452119379000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_Class.async_test_method",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96569
+    },
+    "duration": 18000,
+    "start": 1695501452130535000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_Class.async_test_method",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "235aacae84aa4495b4c4550b8d3ad954"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96569
+    },
+    "duration": 17000,
+    "start": 1695501452141662000
+  }]]

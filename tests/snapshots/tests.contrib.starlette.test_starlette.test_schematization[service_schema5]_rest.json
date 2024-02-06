@@ -2,7 +2,7 @@
   {
     "name": "http.server.request",
     "service": "mysvc",
-    "resource": "GET /sub-app/hello/name",
+    "resource": "GET /sub-app/hello/{name}",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,8 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "starlette",
       "http.method": "GET",
+      "http.route": "/sub-app/hello/{name}",
       "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
@@ -32,13 +34,14 @@
      {
        "name": "http.server.request",
        "service": "mysvc",
-       "resource": "GET /hello/name",
+       "resource": "GET /hello/{name}",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
        "error": 0,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "component": "starlette",
          "http.method": "GET",
          "http.status_code": "200",

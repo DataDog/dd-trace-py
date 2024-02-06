@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "flask",
       "flask.endpoint": "index",
       "flask.url_rule": "/",
@@ -45,6 +46,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask",
          "flask.endpoint": "index",
          "flask.url_rule": "/"
@@ -63,6 +65,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 27333,
@@ -79,6 +82,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 48833,
@@ -95,6 +99,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "flask"
              },
              "duration": 11708,
@@ -111,6 +116,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 13833,
@@ -127,6 +133,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 16750,
@@ -143,6 +150,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "flask"
           },
           "duration": 12250,
@@ -159,6 +167,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "flask"
        },
        "duration": 182834,

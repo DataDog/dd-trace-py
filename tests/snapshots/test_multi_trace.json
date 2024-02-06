@@ -1,11 +1,13 @@
 [[
   {
     "name": "root0",
-    "service": null,
+    "service": "",
     "resource": "root0",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -22,22 +24,26 @@
   },
      {
        "name": "child0",
-       "service": null,
+       "service": "",
        "resource": "child0",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 29000,
        "start": 1633030641740720000
      }],
 [
   {
     "name": "root1",
-    "service": null,
+    "service": "",
     "resource": "root1",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -54,11 +60,13 @@
   },
      {
        "name": "child1",
-       "service": null,
+       "service": "",
        "resource": "child1",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 15000,
        "start": 1633030641741273000
      }]]

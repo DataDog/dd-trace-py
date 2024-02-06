@@ -9,26 +9,24 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-0",
       "_dd.base_service": "",
+      "_dd.p.tid": "654a694400000000",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "d206e7a56f824bb1800585a5099be675",
+      "runtime-id": "2161c5835c094c75b8ddbd3c00e590d6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 10535
+      "process_id": 7611
     },
-    "duration": 1010458,
-    "start": 1691522435822868874
+    "duration": 578250,
+    "start": 1692650304974439298
   },
      {
        "name": "wsgi.application",
@@ -41,6 +39,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
        "duration": 362875,
@@ -57,6 +56,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -78,6 +78,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "wsgi"
              },
              "duration": 170750,
@@ -94,6 +95,7 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "",
+                  "_dd.p.tid": "654a694400000000",
                   "component": "wsgi",
                   "span.kind": "server"
                 },
@@ -111,6 +113,7 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "",
+               "_dd.p.tid": "654a694400000000",
                "component": "wsgi",
                "result_class": "list"
              },
@@ -128,6 +131,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "wsgi",
             "span.kind": "server"
           },
@@ -145,6 +149,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list_iterator"
        },

@@ -1,0 +1,65 @@
+[[
+  {
+    "name": "elasticsearch.query",
+    "service": "elasticsearch",
+    "resource": "PUT /ddtrace_index",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "elasticsearch",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "elasticsearch",
+      "elasticsearch.method": "PUT",
+      "elasticsearch.params": "ignore=400",
+      "elasticsearch.url": "/ddtrace_index",
+      "language": "python",
+      "runtime-id": "3240c93961714e949346dbdb4a9f964b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 624
+    },
+    "duration": 185128,
+    "start": 1696414416549766242
+  }],
+[
+  {
+    "name": "elasticsearch.query",
+    "service": "elasticsearch",
+    "resource": "DELETE /ddtrace_index",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "elasticsearch",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "elasticsearch",
+      "elasticsearch.method": "DELETE",
+      "elasticsearch.params": "ignore=%5B400%2C+404%5D",
+      "elasticsearch.url": "/ddtrace_index",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3240c93961714e949346dbdb4a9f964b",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 624
+    },
+    "duration": 196644,
+    "start": 1696414416658822439
+  }]]

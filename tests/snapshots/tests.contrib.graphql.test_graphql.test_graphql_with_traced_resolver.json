@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "graphql",
       "language": "python",
       "runtime-id": "13a9a43400594de89a6aa537a3cb7b8e"
@@ -36,6 +37,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -53,6 +55,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -70,6 +73,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -92,6 +96,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "graphql"
           },
           "duration": 18959,
