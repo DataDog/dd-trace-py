@@ -196,27 +196,27 @@ class TraceMiddleware:
                 if result:
                     receive, body = await result.value
 
-            client = scope.get("client")
-            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
-                peer_ip = client[0]
-            else:
-                peer_ip = None
+                client = scope.get("client")
+                if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
+                    peer_ip = client[0]
+                else:
+                    peer_ip = None
 
-            trace_utils.set_http_meta(
-                span,
-                self.integration_config,
-                method=method,
-                url=url,
-                query=query_string,
-                request_headers=headers,
-                raw_uri=url,
-                parsed_query=parsed_query,
-                request_body=body,
-                peer_ip=peer_ip,
-                headers_are_case_sensitive=True,
-            )
-            tags = _extract_versions_from_scope(scope, self.integration_config)
-            span.set_tags(tags)
+                trace_utils.set_http_meta(
+                    span,
+                    self.integration_config,
+                    method=method,
+                    url=url,
+                    query=query_string,
+                    request_headers=headers,
+                    raw_uri=url,
+                    parsed_query=parsed_query,
+                    request_body=body,
+                    peer_ip=peer_ip,
+                    headers_are_case_sensitive=True,
+                )
+                tags = _extract_versions_from_scope(scope, self.integration_config)
+                span.set_tags(tags)
 
                 async def wrapped_send(message):
                     try:
@@ -265,8 +265,8 @@ class TraceMiddleware:
                         core.dispatch("asgi.finalize_response", (None, headers))
                     elif message.get("type") == "http.response.body":
                         message["body"] = (
-                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
-                    )
+                            content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                        )
                         message["more_body"] = False
                         core.dispatch("asgi.finalize_response", (content, None))
                     try:
@@ -278,16 +278,16 @@ class TraceMiddleware:
                         if message.get("type") == "http.response.body" and span.error == 0:
                             span.finish()
 
-            try:
-                core.dispatch("asgi.start_request", ("asgi",))
-                return await self.app(scope, receive, wrapped_send)
-            except trace_utils.InterruptException:
-                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
-            except Exception as exc:
-                (exc_type, exc_val, exc_tb) = sys.exc_info()
-                span.set_exc_info(exc_type, exc_val, exc_tb)
-                self.handle_exception_span(exc, span)
-                raise
-            finally:
-                if span in scope["datadog"]["request_spans"]:
-                    scope["datadog"]["request_spans"].remove(span)
+                try:
+                    core.dispatch("asgi.start_request", ("asgi",))
+                    return await self.app(scope, receive, wrapped_send)
+                except trace_utils.InterruptException:
+                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                except Exception as exc:
+                    (exc_type, exc_val, exc_tb) = sys.exc_info()
+                    span.set_exc_info(exc_type, exc_val, exc_tb)
+                    self.handle_exception_span(exc, span)
+                    raise
+                finally:
+                    if span in scope["datadog"]["request_spans"]:
+                        scope["datadog"]["request_spans"].remove(span)
