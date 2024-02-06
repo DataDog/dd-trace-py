@@ -16,11 +16,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 include(ExternalProject)
 include(FindPython3)
-
-# Build the dd_wrapper
-# Need to specify that we're calling it via add_subdirectory, so that it knows to
-# propagate the right variables to its parent scope
-set(DD_WRAPPER_IS_SUBPROJECT ON)
 add_subdirectory(dd_wrapper "${LIB_INSTALL_DIR}")
 
 # Find the Python interpreter

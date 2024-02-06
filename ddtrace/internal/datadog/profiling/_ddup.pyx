@@ -12,7 +12,7 @@ from .utils import sanitize_string
 
 
 IF UNAME_SYSNAME == "Linux":
-    cdef extern from "types.hpp":
+    cdef extern from "exporter.hpp":
         ctypedef enum ProfileType "ProfileType":
             CPU         "ProfileType::CPU"
             Wall        "ProfileType::Wall"
