@@ -71,7 +71,7 @@ sample_in_2threads_and_fork()
     pid_t pid = fork();
     if (pid == 0) {
         // Child
-        std::this_thread::yield();  // Make sure parent can sit on wait
+        std::this_thread::yield(); // Make sure parent can sit on wait
         std::thread s1(emulate_sampler);
         std::thread s2(emulate_sampler);
         std::this_thread::sleep_for(std::chrono::seconds(1));

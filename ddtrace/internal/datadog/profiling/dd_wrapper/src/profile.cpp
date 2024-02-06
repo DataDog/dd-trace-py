@@ -12,7 +12,8 @@
 using namespace Datadog;
 
 void
-Profile::reset() {
+Profile::reset()
+{
     // Drop the profiles
     if (cur_profile.inner != nullptr) {
         ddog_prof_Profile_drop(&cur_profile);

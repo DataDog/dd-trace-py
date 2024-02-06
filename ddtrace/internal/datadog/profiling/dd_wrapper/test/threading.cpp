@@ -83,8 +83,8 @@ sample_in_2threads()
     std::thread t2(emulate_sampler);
     std::this_thread::sleep_for(std::chrono::seconds(1));
     done.store(true);
-    std::this_thread::yield();  // Let threads finish
-    ddup_upload();  // upload will fail right away, no need to wait
+    std::this_thread::yield(); // Let threads finish
+    ddup_upload();             // upload will fail right away, no need to wait
 
     // Do some cleanup.  This should probably prevent our memory leak, but
     // it doesn't.
@@ -123,8 +123,8 @@ sample_in_4threads()
     std::thread t4(emulate_sampler);
     std::this_thread::sleep_for(std::chrono::seconds(1));
     done.store(true);
-    std::this_thread::yield();  // Let threads finish
-    ddup_upload();  // upload will fail right away, no need to wait
+    std::this_thread::yield(); // Let threads finish
+    ddup_upload();             // upload will fail right away, no need to wait
 
     // Do some cleanup.  This should probably prevent our memory leak, but
     // it doesn't.
