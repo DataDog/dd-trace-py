@@ -287,7 +287,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if value is not None:
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
-                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+                    log.debug("[action] WAF got value %s: %s", SPAN_DATA_NAMES.get(key, key), data[waf_name])
 
         waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
         if waf_results and waf_results.data:
