@@ -1054,9 +1054,14 @@ def snapshot_context(
                     "Expected %r trace(s), got %r:\n%s" % (wait_for_num_traces, len(traces), traces), pytrace=False
                 )
 
+        time.sleep(0.5)
+
         # Query for the results of the test.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
+        conn.request(
+            "GET",
+            "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token),
+        )
         r = conn.getresponse()
         if r.status != 200:
             pytest.fail(to_unicode(r.read()), pytrace=False)
