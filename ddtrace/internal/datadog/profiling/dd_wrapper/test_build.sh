@@ -50,12 +50,14 @@ ANALYZE_OPTIONS="-fanalyzer"
 
 # helper function for setting the compiler
 set_clang() {
-  echo "Setting clang ($highest_clang)"
+  echo "================================================== setting clang =============================================="
+  echo "$highest_clang"
   export CC=$highest_clang
   export CXX=$highest_clangxx
 }
 set_gcc() {
-  echo "Setting gcc ($highest_gcc)"
+  echo "================================================== setting gcc ================================================"
+  echo "$highest_gcc"
   export CC=$highest_gcc
   export CXX=$highest_gxx
 }
@@ -138,6 +140,8 @@ cd $BUILD_DIR
 
 # cmake args
 cmake_args=(
+  -DCMAKE_CXX_COMPILER=$CXX  # This shouldn't be necessary, but it seems to be?
+  -DCMAKE_C_COMPILER=$CC
   -DCMAKE_BUILD_TYPE=$BUILD_MODE
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -150,3 +154,4 @@ cmake --build . || { echo "build failed"; exit 1; }
 if [[ "$SANITIZE_OPTIONS" == "cppcheck" ]]; then
   make cppcheck_run || { echo "cppcheck failed"; exit 1; }
 fi
+ctest || { echo "tests failed!"; exit 1; }

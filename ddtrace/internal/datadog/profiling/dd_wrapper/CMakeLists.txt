@@ -113,26 +113,6 @@ if (DO_CPPCHECK)
   endif()
 endif()
 
-### Testing
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG release-1.11.0
-)
-FetchContent_MakeAvailable(googletest)
-
 # Add the tests
-add_executable(test_init
-  test/initialization.cpp
-)
-target_include_directories(test_init PRIVATE
-  include
-)
-target_link_libraries(test_init PRIVATE
-  gtest_main
-  dd_wrapper
-)
-
-# Register
-include(GoogleTest)
-gtest_discover_tests(test_init)
+enable_testing()
+add_subdirectory(test)

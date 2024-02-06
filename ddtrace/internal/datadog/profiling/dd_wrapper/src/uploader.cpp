@@ -1,8 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0. This product includes software
-// developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
-// Datadog, Inc.
-
 #include "uploader.hpp"
 #include "libdatadog_helpers.hpp"
 
@@ -28,7 +23,7 @@ Uploader::upload(ddog_prof_Profile& profile)
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         errmsg = err_to_msg(&result.err, "Error serializing pprof");
         ddog_Error_drop(&result.err);
-        std::cout << errmsg << std::endl;
+        std::cerr << errmsg << std::endl;
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &result.ok;
@@ -60,7 +55,7 @@ Uploader::upload(ddog_prof_Profile& profile)
         errmsg = err_to_msg(&build_res.err, "Error building request");
         ddog_Error_drop(&build_res.err);
         ddog_Vec_Tag_drop(tags);
-        std::cout << errmsg << std::endl;
+        std::cerr << errmsg << std::endl;
         return false;
     }
 
@@ -68,11 +63,10 @@ Uploader::upload(ddog_prof_Profile& profile)
     ddog_prof_Exporter_Request* req = build_res.ok;
     ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, nullptr);
     if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
-        std::string ddog_err(ddog_Error_message(&res.err).ptr);
-        errmsg = err_to_msg(&res.err, "Error uploading: ") + ddog_err;
+        errmsg = err_to_msg(&res.err, "Error uploading");
         ddog_Error_drop(&res.err);
         ddog_Vec_Tag_drop(tags);
-        std::cout << errmsg << std::endl;
+        std::cerr << errmsg << std::endl;
         return false;
     }
 

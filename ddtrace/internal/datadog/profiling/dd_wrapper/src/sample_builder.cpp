@@ -20,8 +20,12 @@ SampleBuilder::add_type(unsigned int type)
 SampleBuilder&
 SampleBuilder::set_max_nframes(unsigned int _max_nframes)
 {
+    const unsigned int backend_max_nframes = 512;
+
     if (_max_nframes > 0)
         max_nframes = _max_nframes;
+    if (max_nframes > backend_max_nframes)
+        max_nframes = backend_max_nframes;
     return *this;
 }
 
