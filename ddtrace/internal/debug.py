@@ -10,6 +10,7 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
@@ -132,6 +133,7 @@ def collect(tracer):
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
+        statsd_url=agent.get_stats_url(),
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),

@@ -4,7 +4,6 @@ import sys
 from openai import version
 
 from ddtrace import config
-from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.llmobs.integrations import OpenAIIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -31,8 +30,6 @@ config._add(
         "llmobs_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
-        "_api_key": os.getenv("DD_API_KEY"),
-        "_app_key": os.getenv("DD_APP_KEY"),
     },
 )
 
@@ -153,11 +150,7 @@ def patch():
         return
 
     Pin().onto(openai)
-    integration = OpenAIIntegration(
-        config=config.openai,
-        openai=openai,
-        stats_url=get_stats_url(),
-    )
+    integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
 
     if OPENAI_VERSION >= (1, 0, 0):
         if OPENAI_VERSION >= (1, 8, 0):

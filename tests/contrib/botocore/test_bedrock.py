@@ -12,6 +12,7 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
+from tests.utils import override_global_config
 
 
 vcr = pytest.importorskip("vcr")
@@ -91,6 +92,19 @@ def request_vcr():
 
 
 @pytest.fixture
+def ddtrace_global_config():
+    config = {}
+    return config
+
+
+def default_global_config():
+    return {
+        "_dd_api_key": "<not-a-real-api_key>",
+        "_dd_app_key": "<not-a-real-app-key>",
+    }
+
+
+@pytest.fixture
 def ddtrace_config_botocore():
     return {}
 
@@ -106,13 +120,16 @@ def aws_credentials():
 
 
 @pytest.fixture
-def boto3(aws_credentials, mock_llmobs_writer, ddtrace_config_botocore):
-    with override_config("botocore", ddtrace_config_botocore):
-        patch()
-        import boto3
+def boto3(aws_credentials, mock_llmobs_writer, ddtrace_global_config, ddtrace_config_botocore):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("botocore", ddtrace_config_botocore):
+            patch()
+            import boto3
 
-        yield boto3
-        unpatch()
+            yield boto3
+            unpatch()
 
 
 @pytest.fixture
@@ -383,15 +400,7 @@ def test_readlines_error(bedrock_client, request_vcr):
 
 
 @pytest.mark.parametrize(
-    "ddtrace_config_botocore",
-    [
-        dict(
-            llmobs_enabled=True,
-            _api_key="<not-a-real-api-key",
-            _app_key="<not-a-real-app-key>",
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
+    "ddtrace_config_botocore", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)]
 )
 class TestLLMObsBedrock:
     @staticmethod

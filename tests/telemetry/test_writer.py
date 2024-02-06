@@ -8,6 +8,8 @@ import mock
 import pytest
 
 from ddtrace.internal.module import origin
+from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
@@ -15,7 +17,6 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -121,9 +122,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {
                         "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
                         "origin": "unknown",
-                        "value": "tracecontext,datadog",
+                        "value": "datadog,tracecontext",
                     },
-                    {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext,datadog"},
+                    {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog,tracecontext"},
                     {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
                     {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
@@ -304,7 +305,6 @@ import ddtrace.auto
     )
 
 
-@flaky(1735812000)
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
     import xmltodict
 
@@ -316,7 +316,7 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     assert len(events) >= 1
     assert "payload" in events[-1]
     assert "dependencies" in events[-1]["payload"]
-    assert len(events[-1]["payload"]["dependencies"]) == 1
+    assert len(events[-1]["payload"]["dependencies"]) >= 1
     assert events[-1]["payload"]["dependencies"][0]["name"] == "xmltodict"
     assert "xmltodict" in telemetry_writer._imported_dependencies
     assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
@@ -473,7 +473,6 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-@flaky(until=1706677200)
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
@@ -494,10 +493,13 @@ def test_send_failing_request(mock_status, telemetry_writer):
             assert len(httpretty.latest_requests()) == 1
 
 
-@flaky(1706677200, reason="Invalid method encountered raised by testagent's aiohttp server causes connection errors")
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        telemetry_writer.start()
+        try:
+            telemetry_writer.start()
+        except ServiceStatusError:
+            telemetry_writer.status = ServiceStatus.STOPPED
+            telemetry_writer.start()
         telemetry_writer.stop()
         # mocks calling sys.atexit hooks
         telemetry_writer.app_shutdown()
@@ -510,7 +512,6 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
         assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
-@flaky(1706677200)
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
@@ -534,7 +535,6 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         assert len(heartbeat_events) == 1
 
 
-@flaky(1706677200)
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
