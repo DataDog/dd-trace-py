@@ -80,7 +80,7 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
  * @param self The Python extension module.
  * @param args An array of Python objects containing the candidate text and text aspect.
  *   @param args[0] PyObject, string to set the ranges
- *   @param args[1] long. Lenght of the string
+ *   @param args[1] long. Length of the string
  *   @param args[2] string. source name
  *   @param args[3] string. source value
  *   @param args[4] int. origin type
@@ -355,13 +355,13 @@ pyexport_taintrange(py::module& m)
           py::return_value_policy::move,
           "source_taint_range"_a,
           "offset"_a,
-          "new_lenght"_a);
+          "new_length"_a = -1);
     m.def("shift_taint_ranges",
           &api_shift_taint_ranges,
           py::return_value_policy::move,
           "ranges"_a,
           "offset"_a,
-          "new_length"_a);
+          "new_length"_a = -1);
 
     m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
@@ -372,7 +372,7 @@ pyexport_taintrange(py::module& m)
           "str_1"_a,
           "str_2"_a,
           "offset"_a,
-          "new_length"_a);
+          "new_length"_a = -1);
 
     m.def("get_ranges",
           py::overload_cast<PyObject*>(&get_ranges),
