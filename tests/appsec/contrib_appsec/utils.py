@@ -900,6 +900,45 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert value is None, name
 
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("payload", "expected_value"),
+        [
+            (
+                {"mastercard": "5123456789123456"},
+                [{"mastercard": [8, {"card_type": "mastercard", "category": "payment", "type": "card"}]}],
+            ),
+            ({"SSN": "123-45-6789"}, [{"SSN": [8, {"category": "pii", "type": "us_ssn"}]}]),
+        ],
+    )
+    def test_api_security_scanners(self, interface: Interface, get_tag, apisec_enabled, payload, expected_value):
+        import base64
+        import gzip
+
+        from ddtrace.ext import http
+
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=1.0)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/",
+                data=payload,
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+            assert asm_config._api_security_sample_rate == 1.0
+
+            value = get_tag("_dd.appsec.s.req.body")
+            if apisec_enabled:
+                assert value
+                api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
+                assert api == expected_value
+            else:
+                assert value is None
+
     def test_request_invalid_rule_file(self, interface):
         """
         When the rule file is invalid, the tracer should not crash or prevent normal behavior
