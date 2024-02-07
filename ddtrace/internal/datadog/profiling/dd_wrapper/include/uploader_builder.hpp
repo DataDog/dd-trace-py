@@ -12,40 +12,35 @@ namespace Datadog {
 class UploaderBuilder
 {
     using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
-
-    // Mutex
-    std::mutex mtx;
-
-    // Internal/queryable state
-    std::string errmsg;
+    static inline std::mutex tag_mutex{};
 
     // Building parameters
     // TODO Are these the right defaults?
-    std::string env = "";
-    std::string service = "";
-    std::string version = "";
-    std::string runtime = "cython";
-    std::string runtime_version = "";
-    std::string runtime_id = "";
-    std::string profiler_version = ""; // TODO get this at build time
-    std::string url = "http://localhost:8126";
-    ExporterTagset user_tags;
+    static inline std::string env{ "" };
+    static inline std::string service{ "" };
+    static inline std::string version{ "" };
+    static inline std::string runtime{ "cython" };
+    static inline std::string runtime_version{ "" };
+    static inline std::string runtime_id{ "" };
+    static inline std::string profiler_version{ "" }; // TODO get this at build time
+    static inline std::string url{ "http://localhost:8126" };
+    static inline ExporterTagset user_tags{};
 
-    static constexpr std::string_view language = "python";
-    static constexpr std::string_view family = "python";
+    static constexpr std::string_view language{ "python" };
+    static constexpr std::string_view family{ "python" };
 
   public:
-    UploaderBuilder& set_env(std::string_view _env);
-    UploaderBuilder& set_service(std::string_view _service);
-    UploaderBuilder& set_version(std::string_view _version);
-    UploaderBuilder& set_runtime(std::string_view _runtime);
-    UploaderBuilder& set_runtime_version(std::string_view _runtime_version);
-    UploaderBuilder& set_runtime_id(std::string_view _runtime_id);
-    UploaderBuilder& set_profiler_version(std::string_view _profiler_version);
-    UploaderBuilder& set_url(std::string_view _url);
-    UploaderBuilder& set_tag(std::string_view _key, std::string_view _val);
+    static void set_env(std::string_view _env);
+    static void set_service(std::string_view _service);
+    static void set_version(std::string_view _version);
+    static void set_runtime(std::string_view _runtime);
+    static void set_runtime_version(std::string_view _runtime_version);
+    static void set_runtime_id(std::string_view _runtime_id);
+    static void set_profiler_version(std::string_view _profiler_version);
+    static void set_url(std::string_view _url);
+    static void set_tag(std::string_view _key, std::string_view _val);
 
-    std::unique_ptr<Uploader> build_ptr();
+    static Uploader build();
 };
 
 } // namespace Datadog

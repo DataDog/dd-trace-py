@@ -27,6 +27,7 @@ class Sample
 
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
+    size_t dropped_frames = 0;
 
     // Storage for labels
     std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels{};
@@ -39,6 +40,7 @@ class Sample
     bool push_label(const ExportLabelKey key, std::string_view val);
     bool push_label(const ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    void clear_buffers();
 
   public:
     uint64_t samples = 0;
@@ -47,7 +49,7 @@ class Sample
     static ddog_prof_Profile& get_ddog_profile();
 
     // Clears the current sample without flushing
-    static Sample& start_sample();
+    void start_sample();
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
@@ -81,7 +83,6 @@ class Sample
 
     // Clears temporary things
     void clear_stringtable();
-    void clear_buffers();
     void zero_stats();
 
     // Resets the static state

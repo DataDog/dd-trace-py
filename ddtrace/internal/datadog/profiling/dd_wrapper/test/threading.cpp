@@ -99,7 +99,7 @@ TEST(ThreadingDeathTest, SampleIn2Threads)
     // Currently we have a memory leak here.  It's about 2 pages and it appears to
     // be a fixed cost per thread.
     // TODO #SERIOUS fix this
-    EXPECT_EXIT(sample_in_2threads(), ::testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(sample_in_2threads(), ::testing::ExitedWithCode(0), "");
 }
 
 void
@@ -137,7 +137,7 @@ sample_in_4threads()
 TEST(ThreadingDeathTest, SampleIn4Threads)
 {
     // This is a test to quickly verify the scaling properties of the leak
-    EXPECT_EXIT(sample_in_4threads(), ::testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(sample_in_4threads(), ::testing::ExitedWithCode(0), "");
 }
 
 int

@@ -4,109 +4,130 @@
 
 #include <algorithm>
 #include <mutex>
+#include <numeric>
 #include <string_view>
+#include <vector>
+#include <utility>
 
 using namespace Datadog;
 
-UploaderBuilder&
+void
 UploaderBuilder::set_env(std::string_view _env)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_env.empty())
         env = _env;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_service(std::string_view _service)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_service.empty())
         service = _service;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_version(std::string_view _version)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_version.empty())
         version = _version;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_runtime(std::string_view _runtime)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_runtime.empty())
-        this->runtime = _runtime;
-    return *this;
+        runtime = _runtime;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_runtime_version.empty())
         runtime_version = _runtime_version;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_profiler_version.empty())
         profiler_version = _profiler_version;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_url(std::string_view _url)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_url.empty())
         url = _url;
-    return *this;
 }
-UploaderBuilder&
+void
 UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
-    std::lock_guard<std::mutex> lock(mtx);
-    if (!_key.empty() && !_val.empty())
+
+    if (!_key.empty() && !_val.empty()) {
+        std::lock_guard<std::mutex> lock(tag_mutex);
         user_tags[_key] = _val;
-    return *this;
+    }
 }
 
-UploaderBuilder&
+void
 UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_runtime_id.empty())
         runtime_id = _runtime_id;
-    return *this;
 }
 
-std::unique_ptr<Uploader>
-UploaderBuilder::build_ptr()
+std::string
+join(const std::vector<std::string>& vec, const std::string& delim)
+{
+    return std::accumulate(
+        vec.begin(),
+        vec.end(),
+        std::string(),
+        [&delim](const std::string& a, const std::string& b) -> std::string {
+            if (!a.empty()) // Use !a.empty() for clarity
+                return a + delim + b;
+            else
+                return b;
+        }
+    );
+}
+
+Uploader
+UploaderBuilder::build()
 {
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
-    // Add the tags, emitting the first failure
-    if (!add_tag(tags, ExportTagKey::env, env, errmsg) || !add_tag(tags, ExportTagKey::service, service, errmsg) ||
-        !add_tag(tags, ExportTagKey::version, version, errmsg) ||
-        !add_tag(tags, ExportTagKey::language, language, errmsg) ||
-        !add_tag(tags, ExportTagKey::runtime, runtime, errmsg) ||
-        !add_tag(tags, ExportTagKey::runtime_version, runtime_version, errmsg) ||
-        !add_tag(tags, ExportTagKey::profiler_version, profiler_version, errmsg)) {
-        ddog_Vec_Tag_drop(tags);
-        return nullptr;
+    // Add the tags.  In the average case, the user has a structural problem with
+    // one of their tags, but it's really annoying to have to iteratively fix several
+    // tags, so we'll just collect all the reasons and report them all at once.
+    std::vector<std::string> reasons{};
+    std::vector<std::pair<ExportTagKey, std::string_view>> tagData = {
+        {ExportTagKey::env, env},
+        {ExportTagKey::service, service},
+        {ExportTagKey::version, version},
+        {ExportTagKey::language, language},
+        {ExportTagKey::runtime, runtime},
+        {ExportTagKey::runtime_version, runtime_version},
+        {ExportTagKey::profiler_version, profiler_version},
+    };
+
+    for (const auto& [tag, data] : tagData) {
+        std::string errmsg;
+        if (!add_tag(tags, tag, data, errmsg)) {
+            reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
+        }
     }
 
-    // Add the unsafe tags, if any
-    if (std::any_of(user_tags.begin(), user_tags.end(), [&](const auto& kv) {
-            return !add_tag_unsafe(tags, kv.first, kv.second, errmsg);
-        })) {
-        ddog_Vec_Tag_drop(tags);
-        return nullptr;
+    // Add the user-defined tags, if any.
+    for (const auto& tag: user_tags) {
+        std::string errmsg;
+        if (!add_tag(tags, tag.first, tag.second, errmsg)) {
+            reasons.push_back(std::string(tag.first) + ": " + errmsg);
+        }
     }
 
+    // If any mistakes were made, report on them now and throw
+    if (reasons.size() > 0) {
+        ddog_Vec_Tag_drop(tags);
+        throw std::runtime_error("Error initializing exporter: missing or bad configuration: " + join(reasons, ", "));
+    }
+
+    // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(
       to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family), &tags, ddog_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
@@ -115,10 +136,10 @@ UploaderBuilder::build_ptr()
     if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
         ddog_exporter = res.ok;
     } else {
-        errmsg = err_to_msg(&res.err, "Error initializing exporter");
+        std::string errmsg = err_to_msg(&res.err, "Error initializing exporter");
         ddog_Error_drop(&res.err);
-        return nullptr;
+        throw std::runtime_error(errmsg);
     }
 
-    return std::make_unique<Uploader>(url, ddog_exporter);
+    return Uploader(url, ddog_exporter);
 }

@@ -1,6 +1,6 @@
 # dd_wrapper
 
-This is experimental code that uses libdatadog for the collection and propagation of profiling data.  In theory this should just be a thin wrapper, but in practice some more state management.
+This is experimental code that uses libdatadog for the collection and propagation of profiling data.  In theory this should just be a thin wrapper, but in practice handling the edge-cases (threads+forks) around even a thin wrapper requires some amount of state management.
 
 ## Historical context
 
@@ -41,7 +41,7 @@ Roughly, the data is organized in the following way
 
 ### Samples
 
-Samples are stored on the heap.  They are managed by a GlobalCache object.  GlobalCache provides a `get()` method which takes a thread ID and returns a Sample (or creates a sample if needed).  Samples form the basis of a single collection operation.
+Samples are stored in thread-local storage.  This is a form of heap storage which is managed by NPTL on Linux.
 
 Samples are interacted with transactionally, for example
 
@@ -53,7 +53,9 @@ The act of flushing a sample stores its data in a ddog_prof_Profile object (whic
 
 There's one wrinkle here.  The navigation through frame data (unwinding) may result in temporary strings.  We need to cache these strings.  In order to minimize overhead, strings are cached (and de-duplicated) in a cache attached to the Profile rather than the Sample.
 
-After `start_sample()`, the current sample in the current thread is saved in `thread_local` storage, removing the need for the thread to call into global cache.
+The first time a thread attempts to initiate a sample (with start_sample), its thread-local storage is populated with a sample for it to use for that and future samples.
+
+After a `fork()` operation these thread-local storage areas are CoW in the child, even if they become non-addressable.  Normally this isn't a problem because the regions are page-aligned, making it difficult to fault those pages in the child unless some weird pointer-passing was done before the `fork()`.  We don't do anything to clean these up for now.
 
 ### Profile
 

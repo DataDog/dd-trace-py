@@ -9,15 +9,15 @@ namespace Datadog {
 
 class SampleBuilder
 {
-    SampleType type_mask = SampleType::All;
-    unsigned int max_nframes = 64;
+    inline static SampleType type_mask{ SampleType::All };
+    inline static unsigned int max_nframes{ 64 };
 
   public:
-    SampleBuilder& add_type(SampleType type);
-    SampleBuilder& add_type(unsigned int type);
-    SampleBuilder& set_max_nframes(unsigned int _max_nframes);
+    static void add_type(SampleType type);
+    static void add_type(unsigned int type);
+    static void set_max_nframes(unsigned int _max_nframes);
 
-    std::optional<Sample> build();
+    static Sample build();
 };
 
 } // namespace Datadog

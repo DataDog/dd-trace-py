@@ -1,5 +1,5 @@
 #include "sample.hpp"
-#include "global_cache.hpp"
+#include "sample_builder.hpp"
 
 #include <thread>
 
@@ -28,16 +28,9 @@ Sample::get_ddog_profile()
     return profile_state.get_current_profile();
 }
 
-Sample&
-Sample::start_sample()
-{
-    profile_state.entrypoint_check();
-
-    // This initializes the sampling state of the profile.  In particular, it
-    // acquires a collection object from global storage on behalf of the user,
-    // creating it if it isn't already present.
-    auto thread_id = std::this_thread::get_id();
-    return GlobalCache::get(thread_id);
+void
+Sample::start_sample() {
+    clear_buffers();
 }
 
 void
@@ -74,6 +67,8 @@ Sample::push_frame(std::string_view name, std::string_view filename, uint64_t ad
 
     if (locations.size() <= max_nframes)
         push_frame_impl(name, filename, address, line);
+    else
+        ++dropped_frames;
 }
 
 bool
@@ -84,7 +79,7 @@ Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     // Get the sv for the key
-    std::string_view key_sv = str_from_key(key);
+    std::string_view key_sv = to_string(key);
 
     // If either the val or the key are empty, we don't add the label, but
     // we don't return error
@@ -111,7 +106,7 @@ Sample::push_label(const ExportLabelKey key, int64_t val)
     // Get the sv for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
-    std::string_view key_sv = str_from_key(key);
+    std::string_view key_sv = to_string(key);
     if (key_sv.empty())
         return true;
 
@@ -130,6 +125,7 @@ Sample::clear_buffers()
     std::fill(std::begin(labels), std::end(labels), ddog_prof_Label{});
     locations.clear();
     cur_label = 0;
+    dropped_frames = 0;
 }
 
 bool
@@ -137,8 +133,7 @@ Sample::flush_sample()
 {
     // Samples are local to threads, meaning they are local to processes.  We can only arrive here if
     // we're flushing in the same process.
-    if (locations.size() > max_nframes) {
-        auto dropped_frames = locations.size() - max_nframes;
+    if (dropped_frames > 0) {
         std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);

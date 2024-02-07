@@ -94,7 +94,7 @@ sample_in_2threads_and_fork()
 TEST(ForkDeathTest, SampleIn2ThreadsAndFork)
 {
     // Same memory leak as before--whatever
-    EXPECT_EXIT(sample_in_2threads_and_fork(), ::testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(sample_in_2threads_and_fork(), ::testing::ExitedWithCode(0), "");
 }
 
 int

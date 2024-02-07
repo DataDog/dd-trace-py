@@ -66,8 +66,8 @@ set_gcc() {
 if [ -n "$1" ]; then
   case "$1" in
     -h|--help)
-      echo "Usage: $0 [options]"
-      echo "Mode (one of)"
+      echo "Usage: $0 [options] [build_mode]"
+      echo "Options (one of)"
       echo "  -h, --help        Show this help message and exit"
       echo "  -s, --safety      Clang + fsanitize=$SAFETY_OPTIONS"
       echo "  -t, --thread      Clang + fsanitize=$THREAD_OPTIONS"
@@ -78,6 +78,14 @@ if [ -n "$1" ]; then
       echo "  -f, --fanalyze    GCC + -fanalyzer"
       echo "  -c, --clang       Clang (alone)"
       echo "  -g, --gcc         GCC (alone)"
+      echo ""
+      echo "Build Modes:"
+      echo "  Debug (default)"
+      echo "  Release"
+      echo "  RelWithDebInfo"
+      echo ""
+      echo "(any possible others, depending on what cmake supports for"
+      echo "BUILD_TYPE out of the box)"
       echo ""
       echo "-------------------------------------------------"
       echo "Diagnostic parameters"

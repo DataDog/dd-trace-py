@@ -43,7 +43,6 @@ add_compile_options(
 add_library(dd_wrapper SHARED
     src/uploader_builder.cpp
     src/sample_builder.cpp
-    src/global_cache.cpp
     src/profile.cpp
     src/uploader.cpp
     src/sample.cpp

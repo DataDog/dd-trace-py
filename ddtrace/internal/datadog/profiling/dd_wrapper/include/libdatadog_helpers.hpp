@@ -15,7 +15,8 @@ namespace Datadog {
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
 // referenced in `add_tag()`.
-// There are two columns because runtime-id has a dash.
+// There are two columns because runtime-id has a dash, which can't be used
+// within a C++ symbol name.
 #define EXPORTER_TAGS(X)                                                                                               \
     X(language, "language")                                                                                            \
     X(env, "env")                                                                                                      \
@@ -27,6 +28,8 @@ namespace Datadog {
     X(profiler_version, "profiler_version")                                                                            \
     X(profile_seq, "profile_seq")
 
+// Here there are two columns because the Datadog backend expects these labels
+// to have spaces in the names.
 #define EXPORTER_LABELS(X)                                                                                             \
     X(exception_type, "exception type")                                                                                \
     X(thread_id, "thread id")                                                                                          \
@@ -55,7 +58,6 @@ enum class ExportLabelKey
     EXPORTER_LABELS(X_ENUM) _Length
 };
 
-// Utility functions
 inline ddog_CharSlice
 to_slice(std::string_view str)
 {
@@ -67,41 +69,40 @@ err_to_msg(const ddog_Error* err, std::string_view msg)
 {
     auto ddog_err = ddog_Error_message(err);
     std::string err_msg;
-    return std::string{ msg } + "(" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
+    return std::string{ msg } + " (" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
 }
 
-inline static bool
-add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
-{
-    // NB the storage of `val` needs to be guaranteed until the tags are flushed
+inline std::string_view
+to_string(ExportTagKey key) {
     constexpr size_t num_keys = static_cast<size_t>(ExportTagKey::_Length);
     constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_TAGS(X_STR) };
-    std::string_view key_sv = keys[static_cast<size_t>(key)];
+    constexpr std::string_view invalid = "";
 
-    // Can't add empty tags. This isn't an error.
-    if (val.empty())
-        return true;
-
-    // Add
-    ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key_sv), to_slice(val));
-    if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        errmsg = err_to_msg(&res.err, "Error pushing tag");
-        errmsg += "(val:'" + std::string(val) + "')";
-        ddog_Error_drop(&res.err);
-        return false;
-    }
-    return true;
+    if (static_cast<size_t>(key) >= num_keys)
+        return invalid;
+    return keys[static_cast<size_t>(key)];
 }
 
-inline static bool
-add_tag_unsafe(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
+inline std::string_view
+to_string(ExportLabelKey key) {
+    constexpr size_t num_keys = static_cast<size_t>(ExportLabelKey::_Length);
+    constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_LABELS(X_STR) };
+    constexpr std::string_view invalid = "";
+
+    if (static_cast<size_t>(key) >= num_keys)
+        return invalid;
+    return keys[static_cast<size_t>(key)];
+}
+
+inline bool
+add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
 {
     if (key.empty() || val.empty())
         return false;
 
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        errmsg = err_to_msg(&res.err, "Error pushing tag (unsafe)");
+        errmsg = err_to_msg(&res.err, "");
         ddog_Error_drop(&res.err);
         std::cout << errmsg << std::endl;
         return false;
@@ -109,17 +110,14 @@ add_tag_unsafe(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, s
     return true;
 }
 
-inline static std::string_view
-str_from_key(const ExportLabelKey key)
+inline bool
+add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
 {
-    constexpr std::array<std::string_view, static_cast<size_t>(ExportLabelKey::_Length)> keys = { EXPORTER_LABELS(
-      X_STR) };
+    std::string_view key_sv = to_string(key);
+    if (val.empty() || key_sv.empty())
+        return false;
 
-    // Handle invalid keys
-    if (static_cast<size_t>(key) >= keys.size())
-        return "";
-
-    return keys[static_cast<size_t>(key)];
+    return add_tag(tags, key_sv, val, errmsg);
 }
 
 // Keep macros from propagating
