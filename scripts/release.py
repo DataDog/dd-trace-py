@@ -81,7 +81,8 @@ def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
     rn = clean_release_notes(generate_release_notes(release_branch))
     version_string = "%s.0rc%s" % (base, str(new_rc_version))
-    return ReleaseParameters(release_branch, version_string, "v%s" % version_string, dd_repo, rn, True)
+    tag_name = "v%s" % version_string
+    return ReleaseParameters(release_branch, version_string, tag_name, dd_repo, rn, True)
 
 
 def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
