@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
 from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
-from ddtrace.provider import DefaultContextProvider
 from tests.utils import flaky
 
 
