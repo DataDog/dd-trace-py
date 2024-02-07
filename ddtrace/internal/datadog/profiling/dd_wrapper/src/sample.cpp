@@ -29,7 +29,8 @@ Sample::get_ddog_profile()
 }
 
 void
-Sample::start_sample() {
+Sample::start_sample()
+{
     clear_buffers();
 }
 

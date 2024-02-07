@@ -6,8 +6,8 @@
 #include <mutex>
 #include <numeric>
 #include <string_view>
-#include <vector>
 #include <utility>
+#include <vector>
 
 using namespace Datadog;
 
@@ -74,16 +74,12 @@ std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {
     return std::accumulate(
-        vec.begin(),
-        vec.end(),
-        std::string(),
-        [&delim](const std::string& a, const std::string& b) -> std::string {
-            if (!a.empty()) // Use !a.empty() for clarity
-                return a + delim + b;
-            else
-                return b;
-        }
-    );
+      vec.begin(), vec.end(), std::string(), [&delim](const std::string& a, const std::string& b) -> std::string {
+          if (!a.empty()) // Use !a.empty() for clarity
+              return a + delim + b;
+          else
+              return b;
+      });
 }
 
 Uploader
@@ -97,13 +93,13 @@ UploaderBuilder::build()
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
     std::vector<std::pair<ExportTagKey, std::string_view>> tagData = {
-        {ExportTagKey::env, env},
-        {ExportTagKey::service, service},
-        {ExportTagKey::version, version},
-        {ExportTagKey::language, language},
-        {ExportTagKey::runtime, runtime},
-        {ExportTagKey::runtime_version, runtime_version},
-        {ExportTagKey::profiler_version, profiler_version},
+        { ExportTagKey::env, env },
+        { ExportTagKey::service, service },
+        { ExportTagKey::version, version },
+        { ExportTagKey::language, language },
+        { ExportTagKey::runtime, runtime },
+        { ExportTagKey::runtime_version, runtime_version },
+        { ExportTagKey::profiler_version, profiler_version },
     };
 
     for (const auto& [tag, data] : tagData) {
@@ -114,7 +110,7 @@ UploaderBuilder::build()
     }
 
     // Add the user-defined tags, if any.
-    for (const auto& tag: user_tags) {
+    for (const auto& tag : user_tags) {
         std::string errmsg;
         if (!add_tag(tags, tag.first, tag.second, errmsg)) {
             reasons.push_back(std::string(tag.first) + ": " + errmsg);

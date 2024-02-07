@@ -73,7 +73,8 @@ err_to_msg(const ddog_Error* err, std::string_view msg)
 }
 
 inline std::string_view
-to_string(ExportTagKey key) {
+to_string(ExportTagKey key)
+{
     constexpr size_t num_keys = static_cast<size_t>(ExportTagKey::_Length);
     constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_TAGS(X_STR) };
     constexpr std::string_view invalid = "";
@@ -84,7 +85,8 @@ to_string(ExportTagKey key) {
 }
 
 inline std::string_view
-to_string(ExportLabelKey key) {
+to_string(ExportLabelKey key)
+{
     constexpr size_t num_keys = static_cast<size_t>(ExportLabelKey::_Length);
     constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_LABELS(X_STR) };
     constexpr std::string_view invalid = "";

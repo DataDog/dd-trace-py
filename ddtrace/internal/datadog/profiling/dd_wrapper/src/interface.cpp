@@ -2,9 +2,9 @@
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
+#include "sample_builder.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
-#include "sample_builder.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -13,7 +13,6 @@
 // State
 bool is_ddup_initialized = false;
 bool g_prof_flag = true;
-
 
 // Each sampler needs to write to its own private area, which is then merged
 // into a global ddog_prof_Profile. After a `fork()`, this Sample will be non-
@@ -60,7 +59,7 @@ void
 ddup_config_runtime_version(const char* runtime_version)
 {
     if (runtime_version)
-    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+        Datadog::UploaderBuilder::set_runtime_version(runtime_version);
 }
 void
 ddup_config_profiler_version(const char* profiler_version)
