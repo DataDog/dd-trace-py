@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Fixes bug that was causing spans to be created when ``DD_BOTOCORE_EMPTY_POLL_ENABLED=false`` is set and ``sqs.receiveMessage`` and ``kinesis.getRecords`` operations
+    return no records. 
