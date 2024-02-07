@@ -13,7 +13,6 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.settings.config import Config
@@ -73,8 +72,6 @@ config._add(
         "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "_api_key": os.getenv("DD_API_KEY"),
-        "_app_key": os.getenv("DD_APP_KEY"),
         "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
     },
@@ -91,7 +88,7 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    botocore._datadog_integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
+    botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)

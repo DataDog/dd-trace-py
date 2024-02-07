@@ -139,6 +139,9 @@ def override_global_config(values):
         "propagation_http_baggage_enabled",
         "_telemetry_enabled",
         "_telemetry_dependency_collection",
+        "_dd_site",
+        "_dd_api_key",
+        "_dd_app_key",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
