@@ -35,11 +35,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             "Accept": "text/plain",
         }
 
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         if di_config._tags_in_qs and di_config.tags:
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
@@ -47,7 +43,7 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
         # Make it retryable
         self._write_with_backoff = fibonacci_backoff_with_jitter(
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
             attempts=self.RETRY_ATTEMPTS,
         )(self._write)
 

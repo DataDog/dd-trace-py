@@ -1,10 +1,13 @@
 import errno
 import os
 import re
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import attr
 
+from ..constants import CONTAINER_ID_HEADER_NAME
+from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
 
 
@@ -125,3 +128,21 @@ def get_container_info(pid="self"):
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
     return None
+
+
+def update_headers_with_container_info(self, headers: Dict[str, str], container_info: CGroupInfo) -> None:
+    if container_info is None:
+        return
+    if container_info.container_id:
+        headers.update(
+            {
+                CONTAINER_ID_HEADER_NAME: container_info.container_id,
+                ENTITY_ID_HEADER_NAME: f"cid-{container_info.container_id}",
+            }
+        )
+    elif container_info.node_inode:
+        headers.update(
+            {
+                ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+            }
+        )
