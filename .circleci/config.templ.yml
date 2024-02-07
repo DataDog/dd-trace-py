@@ -449,7 +449,7 @@ jobs:
 
   appsec_iast:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 12
     steps:
       - run_test:
           pattern: 'appsec_iast$'
