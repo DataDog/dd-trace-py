@@ -1,7 +1,8 @@
 import gevent
 
-from ...provider import BaseContextProvider
-from ...provider import DatadogContextMixin
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.provider import DatadogContextMixin
+
 from ...span import Span
 
 
