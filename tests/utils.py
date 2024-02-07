@@ -1061,9 +1061,17 @@ def snapshot_context(
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         r = conn.getresponse()
         result = to_unicode(r.read())
-        print(result)
-        if r.status != 200 and "received unmatched traces" not in result.lower():
-            pytest.fail(to_unicode(r.read()), pytrace=False)
+        if r.status != 200:
+            if "received unmatched traces" not in result.lower():
+                pytest.fail(result, pytrace=False)
+            # we don't know why "received unmatched traces" happens, but it does sometimes in an unpredictable manner
+            # it seems to have to do with using the same test agent across many tests - maybe the test agent
+            # occasionally mixes up traces between sessions. regardless of why they happen, we have been treating
+            # these test failures as unactionable in the vast majority of cases and thus ignore them here to reduce
+            # the toil involved in getting CI to green. revisit this approach once we understand why
+            # "received unmatched traces" can sometimes happen
+            else:
+                pytest.xfail(result)
     except Exception as e:
         # Even though it's unlikely any traces have been sent, make the
         # final request to the test agent so that the test case is finished.
