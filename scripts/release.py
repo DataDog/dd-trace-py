@@ -1,8 +1,11 @@
 from collections import namedtuple
+import inspect
 import json
 import os
 import re
 import subprocess
+from typing import Any
+from typing import Callable
 
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
@@ -53,6 +56,7 @@ Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
 DEFAULT_BRANCH = "main"
+DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
 
 
 def _ensure_current_checkout():
@@ -211,13 +215,15 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
             )
         )
     else:
-        dd_repo.create_git_release(
-            name=release_parameters.name,
-            tag=release_parameters.tag,
-            prerelease=release_parameters.prerelease,
-            draft=True,
-            target_commitish=base_branch,
-            message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
+        _dry(
+            lambda: dd_repo.create_git_release(
+                name=release_parameters.name,
+                tag=release_parameters.tag,
+                prerelease=release_parameters.prerelease,
+                draft=True,
+                target_commitish=base_branch,
+                message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
+            )
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
@@ -360,7 +366,7 @@ def create_notebook(dd_repo, name, rn, base):
         "DD-APPLICATION-KEY": dd_app_key,
     }
     # create new release notebook
-    requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers)
+    _dry(lambda: requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers))
 
     configuration = Configuration()
     configuration.api_key["apiKeyAuth"] = dd_api_key
@@ -386,6 +392,15 @@ Check the release notebook {nb_url} for asynchronous updates on the release proc
             version=name, author_slack_handles=author_slack_handles, nb_url=nb_url
         )
     )
+
+
+def _dry(fn: Callable) -> Any:
+    if DRY_RUN:
+        print("Dry run - would call:")
+        print(inspect.getsource(fn))
+        print(fn.__closure__[0])
+    else:
+        return fn()
 
 
 if __name__ == "__main__":
