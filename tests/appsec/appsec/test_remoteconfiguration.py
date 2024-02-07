@@ -29,8 +29,7 @@ from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
-from tests.appsec.appsec.test_processor import ROOT_DIR
-from tests.appsec.appsec.test_processor import Config
+import tests.appsec.rules as rules
 from tests.appsec.utils import Either
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -119,11 +118,11 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "A/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "C/w="),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
-        (True, "false", ""),
+        (True, "false", "CAA="),
         (False, "false", ""),
-        (True, "", "Ag=="),  # ASM_ACTIVATION
+        (True, "", "CAI="),  # ASM_ACTIVATION
         (False, "", ""),
     ],
 )
@@ -144,8 +143,8 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "A/4="),  # All capabilities
-        ({"DD_APPSEC_RULES": DEFAULT.RULES}, "Ag=="),  # Only ASM_FEATURES
+        ({}, "C/4="),  # All capabilities
+        ({"DD_APPSEC_RULES": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
@@ -906,7 +905,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
             assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
@@ -937,7 +936,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
             assert span.get_tag(APPSEC.JSON) is None
 
@@ -967,14 +966,16 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
                 set_http_meta(
                     span,
-                    Config(),
+                    rules.Config(),
                 )
             assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
             assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
 def test_rc_rules_data(tracer):
-    RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(ROOT_DIR))), "ddtrace/appsec/rules.json")
+    RULES_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
+    )
     with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
         RULES_PATH, "r"
     ) as dd_rules:

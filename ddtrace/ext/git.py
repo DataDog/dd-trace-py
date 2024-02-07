@@ -16,8 +16,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
@@ -57,6 +55,9 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
+
+# Python main package
+MAIN_PACKAGE = "python_main_package"
 
 _RE_REFS = re.compile(r"^refs/(heads/)?")
 _RE_ORIGIN = re.compile(r"^origin/")
@@ -111,7 +112,7 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
 def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
     # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
-    if isinstance(cmd, six.string_types):
+    if isinstance(cmd, str):
         cmd = cmd.split(" ")
 
     stdout, stderr, _, returncode = _git_subprocess_cmd_with_details(*cmd, cwd=cwd, std_in=None)
@@ -127,7 +128,7 @@ def _set_safe_directory():
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
-        log.error("Error setting safe directory", exc_info=True)
+        log.error("Error setting safe directory")
 
 
 def _extract_clone_defaultremotename_with_details(cwd):

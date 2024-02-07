@@ -10,11 +10,25 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
-FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/sql_injection.py"
+DDBBS = [
+    (
+        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_sqlite3.py",
+        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlite3",
+    ),
+    (
+        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_psycopg2.py",
+        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_psycopg2",
+    ),
+    (
+        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_sqlalchemy.py",
+        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlalchemy",
+    ),
+]
 
 
-def test_sql_injection(iast_span_defaults):
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.sql_injection")
+@pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
+def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
+    mod = _iast_patched_module(fixture_module)
     table = taint_pyobject(
         pyobject="students",
         source_name="test_ossystem",
@@ -39,15 +53,16 @@ def test_sql_injection(iast_span_defaults):
     assert source.origin == OriginType.PARAMETER
     assert source.value == "students"
 
-    line, hash_value = get_line_and_hash("test_sql_injection", VULN_SQL_INJECTION, filename=FIXTURES_PATH)
+    line, hash_value = get_line_and_hash("test_sql_injection", VULN_SQL_INJECTION, filename=fixture_path)
     assert vulnerability.location.line == line
-    assert vulnerability.location.path == FIXTURES_PATH
+    assert vulnerability.location.path == fixture_path
     assert vulnerability.hash == hash_value
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_sql_injection_deduplication(num_vuln_expected, iast_span_deduplication_enabled):
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.sql_injection")
+@pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
+def test_sql_injection_deduplication(fixture_path, fixture_module, num_vuln_expected, iast_span_deduplication_enabled):
+    mod = _iast_patched_module(fixture_module)
 
     table = taint_pyobject(
         pyobject="students",

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    otel: Ensures all otel sampling decisions are consistent with Datadog Spans. This prevents otel spans in a distrbuted trace from being sampled differently than Datadog spans in the same trace.

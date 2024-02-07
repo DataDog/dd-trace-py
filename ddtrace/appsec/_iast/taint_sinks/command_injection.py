@@ -6,8 +6,6 @@ from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -105,7 +103,7 @@ class CommandInjection(VulnerabilityBase):
     def _extract_sensitive_tokens(cls, vulns_to_text):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         ret = {}  # type: Dict[int, Dict[str, Any]]
-        for vuln, text in six.iteritems(vulns_to_text):
+        for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {
                 "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),
@@ -172,7 +170,7 @@ class CommandInjection(VulnerabilityBase):
             return report
 
         all_tokens = set()  # type: Set[str]
-        for _, value_dict in six.iteritems(vulns_to_tokens):
+        for _, value_dict in vulns_to_tokens.items():
             all_tokens.update(value_dict["tokens"])
 
         # Iterate over all the sources, if one of the tokens match it, redact it

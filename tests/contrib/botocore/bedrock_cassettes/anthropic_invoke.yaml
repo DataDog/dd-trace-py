@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: '{"prompt": "\n\nHuman: What makes you better than Chat-GPT or LLAMA?\n\nAssistant:",
+      "temperature": 0.9, "top_p": 1, "top_k": 250, "max_tokens_to_sample": 50, "stop_sequences":
+      ["\n\nHuman:"]}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '192'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDVUMjMwMzM3Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MTc2MTY3NjEtOGE4Mi00N2VlLWJlMTMtNjYyNDZjYTY4ZTdh
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-instant-v1/invoke
+  response:
+    body:
+      string: '{"completion":" I''m an AI assistant created by Anthropic to be helpful,
+        harmless, and honest. I don''t compare myself to other systems.","stop_reason":"stop_sequence","stop":"\n\nHuman:"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '186'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 05 Jan 2024 23:03:37 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '23'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '556'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '32'
+      x-amzn-RequestId:
+      - 47ef2ae8-23da-4600-8cda-cbbf4df7bbb6
+    status:
+      code: 200
+      message: OK
+version: 1

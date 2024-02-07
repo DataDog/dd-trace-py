@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: '{"inputText": "Command: can you explain what Datadog is to someone not
+      in the tech industry?", "textGenerationConfig": {"maxTokenCount": 50, "stopSequences":
+      [], "temperature": 0, "topP": 0.9}}'
+    headers:
+      Content-Length:
+      - '193'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC42IG1kL0JvdG9jb3JlIzEuMzQuNiB1YS8yLjAgb3MvbWFjb3MjMjMuMi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC41IG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9yZXRy
+        eS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjY=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNDAxMDhUMTgyNTIxWg==
+      X-Amzn-Bedrock-Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MDI3ZjRjMTgtZTNmYy00NWMwLTk1ZjktMGI4MTBmNGY5YmJj
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAADMwAAAEvkOfeJCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SnZkWFJ3ZFhSVVpYaDBJ
+        am9pWEc1RVlYUmhaRzluSUdseklHRWdiVzl1YVhSdmNtbHVaeUJoYm1RZ1lXNWhiSGwwYVdOeklI
+        QnNZWFJtYjNKdElIUm9ZWFFnYUdWc2NITWdZblZ6YVc1bGMzTmxjeUIwY21GamF5QmhibVFnYjNC
+        MGFXMXBlbVVnZEdobGFYSWdaR2xuYVhSaGJDQnBibVp5WVhOMGNuVmpkSFZ5WlM0Z1NYUWdjSEp2
+        ZG1sa1pYTWdZU0JqYjIxd2NtVm9aVzV6YVhabElITmxkQ0J2WmlCMGIyOXNjeUJoYm1RZ2MyVnlk
+        bWxqWlhNZ1ptOXlJRzF2Ym1sMGIzSnBibWNnYzJWeWRtVnlJSEJsY21admNtMWhibU5sTENCaGNI
+        QnNhV05oZEdsdmJpQm9aV0ZzZEdnc0lHRnVaQ0IxYzJWeUlHSmxhR0YyYVc5eUxpQlhhWFJvSUVS
+        aGRHRmtiMmNzSUdKMWMybHVaWE56WlhNZ1kyRnVJR2xrWlc1MGFXWjVJSEJsY21admNtMWhibU5s
+        SWl3aWFXNWtaWGdpT2pBc0luUnZkR0ZzVDNWMGNIVjBWR1Y0ZEZSdmEyVnVRMjkxYm5RaU9qVXhM
+        Q0pqYjIxd2JHVjBhVzl1VW1WaGMyOXVJam9pVEVWT1IxUklJaXdpYVc1d2RYUlVaWGgwVkc5clpX
+        NURiM1Z1ZENJNk1UZ3NJbUZ0WVhwdmJpMWlaV1J5YjJOckxXbHVkbTlqWVhScGIyNU5aWFJ5YVdO
+        eklqcDdJbWx1Y0hWMFZHOXJaVzVEYjNWdWRDSTZNVGdzSW05MWRIQjFkRlJ2YTJWdVEyOTFiblFp
+        T2pVeExDSnBiblp2WTJGMGFXOXVUR0YwWlc1amVTSTZNVGd3TkN3aVptbHljM1JDZVhSbFRHRjBa
+        VzVqZVNJNk1UZ3dOSDE5In0A0vq5
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Mon, 08 Jan 2024 18:25:22 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - a4b0a846-cd84-41b5-a567-1bf5e341c30c
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -2,7 +2,7 @@
 
 ## 0.44.0+
 
-Changelogs are now managed automatically by reno and located at https://ddtrace.readthedocs.io/en/stable/release_notes.html.
+Changelogs beyond this version can be found at https://github.com/DataDog/dd-trace-py/releases
 
 ---
 
@@ -30,7 +30,7 @@ Changelogs are now managed automatically by reno and located at https://ddtrace.
 - fix(falcon): set span error for 5xx responses
 - fix(core): always store span_type as str on span
 - feat(pymongo): trace tcp connections
-- fix(logging): cast span_id and trace_id as string when adding to the record. 
+- fix(logging): cast span_id and trace_id as string when adding to the record.
 - fix(gevent): patch ssl modules on import
 - feat(core): add trace_utils module
 - fix(core): expose http setting on global config
@@ -365,7 +365,7 @@ This patch release includes fixes for install problems with Alpine Linux as well
 This release introduces mainly bug fixes as well as some new configuration options for the profiling library.
 
 ## Profiler
-New environment variables have been added to allow you to easily configure and describe your application in Datadog. 
+New environment variables have been added to allow you to easily configure and describe your application in Datadog.
 
 - `DD_SITE`: Specify which site to use for uploading profiles. Set to ``datadoghq.eu`` to use EU site.
 - `DD_API_KEY`:  an alias to `DD_PROFILING_API_KEY`.
@@ -378,7 +378,7 @@ New environment variables have been added to allow you to easily configure and d
 
 ## Bug fixes
 - tracer: stop previous writer if a new one is created (#1356)
-- Fix task context management for asyncio in Python <3.7 (#1353) 
+- Fix task context management for asyncio in Python <3.7 (#1353)
 - fix(profiling): pthread_t is defined as unsigned long, not int (#1347)
 - span: handle non-string tag keys (#1345)
 - fix(profiling): use formats.asbool to convert bool from env (#1342)
@@ -450,7 +450,7 @@ By providing the following settings, `ddtrace` will tag your application's trace
 - `DD_VERSION` environment variable or `ddtrace.config.version`: the version of your application. eg: `1.2.3`, `6c44da20`, `2020.02.13`
 - `DD_SERVICE` environment variable or `ddtrace.config.service`: the service which your application represents.
 
-In you are using our logging integration manually, please update your formatter to also include the `dd.env`, `dd.service` and `dd.version` attributes as well. See our docs on [Logs Injection](http://pypi.datadoghq.com/trace/docs/advanced_usage.html?highlight=injection#logs-injection) for more details. 
+In you are using our logging integration manually, please update your formatter to also include the `dd.env`, `dd.service` and `dd.version` attributes as well. See our docs on [Logs Injection](http://pypi.datadoghq.com/trace/docs/advanced_usage.html?highlight=injection#logs-injection) for more details.
 
 ## Profiling
 If you are using the profiler, please note that `ddtrace.profile` has been renamed to `ddtrace.profiling`.
@@ -484,7 +484,7 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 
 ## Opentracing
 
-- Add uds_path to ddtrace.opentracer.Tracer (#1275 -- thanks @worldwise001) 
+- Add uds_path to ddtrace.opentracer.Tracer (#1275 -- thanks @worldwise001)
 
 
 ## Documentation
@@ -602,9 +602,9 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.34.0
 ## 0.34.0 (21/02/2020)
 ## Upgrading to 0.34.0
 
-This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](https://ddtrace.readthedocs.io/en/latest/integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](https://ddtrace.readthedocs.io/en/v0.50.3/integrations.html#migration-from-ddtrace-0-33-0) of the documentation. 
+This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](https://ddtrace.readthedocs.io/en/latest/integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](https://ddtrace.readthedocs.io/en/v0.50.3/integrations.html#migration-from-ddtrace-0-33-0) of the documentation.
 
-While we are now vendoring `psutil`, `msgpack` will no longer be vendored and instead specified as a requirement. 
+While we are now vendoring `psutil`, `msgpack` will no longer be vendored and instead specified as a requirement.
 
 Finally, improvements have been made to the testing and continuous integration.
 
@@ -725,7 +725,7 @@ This release addresses issues with the gRPC, Celery, Elasticsearch integrations.
 
 ### Integrations
 
-- celery: use strongrefs for celery signals (#1122) fixes #1011 
+- celery: use strongrefs for celery signals (#1122) fixes #1011
 - elasticsearch: Add support for elasticsearch6 module (#1089)
 - grpc: improve handling exceptions (#1117, #1119) and use callbacks to avoid waits (#1097)
 - opentracing: fix for compatibility tags (#1096 -- thanks @marshallbrekka)
@@ -787,7 +787,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.30.0
 ## 0.30.0 (11/10/2019)
 ## Upgrading to 0.30.0
 
-In addition to resolving several integration related issues, this release improves critical core components for tracing and runtime metrics. 
+In addition to resolving several integration related issues, this release improves critical core components for tracing and runtime metrics.
 
 ## Changes
 
@@ -899,7 +899,7 @@ This patch release includes performance fix which is highly recommended for anyo
 
 # Changes
 
-* 0.27 Performance Fix #1000 
+* 0.27 Performance Fix #1000
 
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.27.0...v0.27.1)
 ---
@@ -938,7 +938,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.26.0
 ## 0.26.0 (05/06/2019)
 ## Upgrading to 0.26.0
 
-This release introduces several core improvements and continues addressing pain points in our tooling and testing. 
+This release introduces several core improvements and continues addressing pain points in our tooling and testing.
 
 ## Changes
 
@@ -1022,7 +1022,7 @@ This release includes several core improvements and addresses pain points in our
 ## 0.24.0 (15/04/2019)
 ## Upgrading to 0.24.0
 
-This release introduces a new feature (disabled by default), supports new versions of integrations and improves our testing and tooling. 
+This release introduces a new feature (disabled by default), supports new versions of integrations and improves our testing and tooling.
 
 ## Changes
 
@@ -1448,7 +1448,7 @@ Due to some limitations with our Celery integration, we changed our instrumentat
 
 **Breaking changes**
 Using the signal based approach increase the stability of our instrumentation, but it limits what is currently traced. This is a list of changes that are considered breaking changes in the behavior and not in the API, so no changes are needed in your code unless you want a different behavior:
-- By default all tasks will be traced if they use the Celery signals API, so tasks invoked with methods like `apply()`,  `apply_async()` and `delay()` will be traced but tasks invoked with `run()` will **not** be traced. 
+- By default all tasks will be traced if they use the Celery signals API, so tasks invoked with methods like `apply()`,  `apply_async()` and `delay()` will be traced but tasks invoked with `run()` will **not** be traced.
 - `patch_task()` is deprecated; if it's used, all tasks will be instrumented
 
 **Bug fixes**
@@ -1758,11 +1758,11 @@ Read the [full changeset][2].
 * Add support for `boto` (>=2.29.0) and `botocore` (>= 1.4.51) #209 . Currently these integrations are ignored by autopatching, but can be enabled via `patch_all(boto=True, botocore=True)`
 
 **New features**
-* Add the `ddtrace-run` command-line entrypoint to provide tracing without explicit additions to code. More information here http://pypi.datadoghq.com/trace/docs/#get-started #169 
+* Add the `ddtrace-run` command-line entrypoint to provide tracing without explicit additions to code. More information here http://pypi.datadoghq.com/trace/docs/#get-started #169
 
 **Bugfixes**
-* [dbapi] Ensure cursors play well with context managers #231 
-* [django] Provide a unique `datadog_django` app label to avoid clashes with existing app configs #235 
+* [dbapi] Ensure cursors play well with context managers #231
+* [django] Provide a unique `datadog_django` app label to avoid clashes with existing app configs #235
 * [pyramid] Ensure pyramid spans have method and route metadata consistent with other web frameworks #220 (thanks @johnpkennedy)
 ---
 
@@ -1826,7 +1826,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.4.
 
 ## Enhancements
 - `tracer.set_tags()` will add tags to all spans created by a tracer.
-- `span.tracer()` will return the tracer that created a given span 
+- `span.tracer()` will return the tracer that created a given span
 
 ## Bug Fixes
 - correctly set service types on the Mongo and Falcon integrations.
@@ -1839,12 +1839,12 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.3.
 
 ## 0.5.3 (23/12/2016)
 **Bugfixes**
-- [ElasticSearch] use ElasticSearch serializer so that the serialization works with dates, decimals and UUIDs #131 
-- [Django] use an integer value for `AGENT_PORT` because Django recast strings as unicode strings, which invalidate the input for `getaddrinfo()` in Python 2.7 #140 
-- [Tracer] downgrade high throughput log messages to debug so that it doesn't flood users logs #143 
+- [ElasticSearch] use ElasticSearch serializer so that the serialization works with dates, decimals and UUIDs #131
+- [Django] use an integer value for `AGENT_PORT` because Django recast strings as unicode strings, which invalidate the input for `getaddrinfo()` in Python 2.7 #140
+- [Tracer] downgrade high throughput log messages to debug so that it doesn't flood users logs #143
 
 **Compatibility**
-- don't check if `django.contrib.auth` is installed through the `django.apps` module. This improves the best-effort support for `Django < 1.7` #136 
+- don't check if `django.contrib.auth` is installed through the `django.apps` module. This improves the best-effort support for `Django < 1.7` #136
 
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.2...v0.5.3)
 
@@ -1903,7 +1903,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.4.0.
 ### Bug Fixes
 - correctly trace django without auth middleware (see #116)
 
-### 
+###
 
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.3.16...v0.4.0).
 
@@ -1911,7 +1911,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.3.16
 
 ## v0.3.16 (03/11/2016)
 ### Bugfixes
-- Handle memory leaks when tracing happens in a forked process (Issue #84) 
+- Handle memory leaks when tracing happens in a forked process (Issue #84)
 - Fix error code in spans from the request library (thanks @brettlangdon)
 - Better handling of unicode tags (thanks @brettlangdon)
 - Allow easy configuration of host & port in the Django integration.

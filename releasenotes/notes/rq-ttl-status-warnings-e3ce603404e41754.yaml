@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    rq: Fixed a bug where the RQ integration would emit a warning when setting ``job.status`` span tag.

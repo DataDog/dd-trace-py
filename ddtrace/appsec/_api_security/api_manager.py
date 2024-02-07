@@ -4,7 +4,7 @@ import json
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -127,6 +127,8 @@ class APIManager(Service):
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
+            if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
+                continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)

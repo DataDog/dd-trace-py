@@ -9,7 +9,6 @@ from ddtrace.internal.constants import COMPONENT
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
-from ...internal.compat import iteritems
 from ...internal.schema import SpanDirection
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
@@ -28,7 +27,7 @@ class TraceMiddleware(object):
 
     def process_request(self, req, resp):
         # Falcon uppercases all header names.
-        headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
+        headers = dict((k.lower(), v) for k, v in req.headers.items())
         trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
         span = self.tracer.trace(

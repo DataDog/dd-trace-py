@@ -32,6 +32,7 @@ class LLMObsEvent(TypedDict):
     input: Dict[str, Union[float, int, List[str]]]
     model: str
     model_provider: str
+    ddtags: List[str]
     output: Dict[str, List[Dict[str, str]]]
     # Additional attributes can be specified on the event
     # including dd.trace_id and dd.span_id to correlate a trace
@@ -89,34 +90,25 @@ class LLMObsWriter(PeriodicService):
         with self._lock:
             if not self._buffer:
                 return
-            llm_records = [self._buffer.pop()]
-            # This is a workaround the fact that the record ingest API only accepts a single model/model_provider
-            #  for the whole payload, so we need to send all records with the same model/model_provider together
-            while self._buffer:
-                record = self._buffer[0]
-                if record["model"] != llm_records[0]["model"]:
-                    break
-                if record["model_provider"] != llm_records[0]["model_provider"]:
-                    break
-                llm_records.append(self._buffer.pop())
+            # This is a workaround the fact that the record ingest API only accepts a single model/model_provider/tags
+            # per payload, so we default to sending one record per payload at a time.
+            num_llm_records = 1
+            llm_record = self._buffer.pop()
 
-        model = llm_records[0]["model"]
-        model_provider = llm_records[0]["model_provider"]
-        for record in llm_records:
-            record.pop("model", None)  # type: ignore[misc]
-            record.pop("model_provider", None)  # type: ignore[misc]
+        model = llm_record.pop("model", None)  # type: ignore[misc]
+        model_provider = llm_record.pop("model_provider", None)  # type: ignore[misc]
+
         data = {
             "data": {
                 "type": "records",
                 "attributes": {
-                    "tags": ["src:integration"],
-                    "model": model,
-                    "model_provider": model_provider,
-                    "records": llm_records,
+                    "tags": llm_record.pop("ddtags") or [],  # type: ignore[misc]
+                    "model": model or "",
+                    "model_provider": model_provider or "",
+                    "records": [llm_record],
                 },
             }
         }
-        num_llm_records = len(llm_records)
         try:
             enc_llm_records = json.dumps(data)
         except TypeError:

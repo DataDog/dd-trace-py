@@ -1,8 +1,6 @@
 import re
 from typing import TYPE_CHECKING  # noqa:F401
 
-import six
-
 from .. import oce
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _scrub_get_tokens_positions
@@ -36,7 +34,7 @@ class SqlInjection(VulnerabilityBase):
     def _extract_sensitive_tokens(cls, vulns_to_text):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
         ret = {}  # type: Dict[int, Dict[str, Any]]
-        for vuln, text in six.iteritems(vulns_to_text):
+        for vuln, text in vulns_to_text.items():
             vuln_hash = hash(vuln)
             ret[vuln_hash] = {
                 "tokens": set(_INSIDE_QUOTES_REGEXP.findall(text)),

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensures span links are serialized with the expected traceflag when ``DD_TRACE_API_VERSION=v0.4``

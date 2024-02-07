@@ -1,3 +1,7 @@
+import os.path
+from platform import machine
+from platform import system
+
 from envier import Env
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -13,16 +17,38 @@ def _validate_sample_rate(r: float) -> None:
         raise ValueError("sample rate value must be between 0.0 and 1.0")
 
 
+def build_libddwaf_filename() -> str:
+    """
+    Build the filename of the libddwaf library to load.
+    """
+    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
+    FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
+    ARCHI = machine().lower()
+    # 32-bit-Python on 64-bit-Windows
+    if system() == "Windows" and ARCHI == "amd64":
+        from sys import maxsize
+
+        if maxsize <= (1 << 32):
+            ARCHI = "x86"
+    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
+    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+    return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
+
+
 class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
+    _iast_enabled = Env.var(bool, IAST_ENV, default=False)
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
-    _iast_enabled = Env.var(bool, IAST_ENV, default=False)
-    _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=False)
+    _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_rate = Env.var(float, API_SECURITY.SAMPLE_RATE, validator=_validate_sample_rate, default=0.1)
+    _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _asm_libddwaf = build_libddwaf_filename()
+    _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+
     _waf_timeout = Env.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
@@ -48,5 +74,28 @@ class ASMConfig(Env):
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
 
+    # for tests purposes
+    _asm_config_keys = [
+        "_asm_enabled",
+        "_iast_enabled",
+        "_automatic_login_events_mode",
+        "_user_model_login_field",
+        "_user_model_email_field",
+        "_user_model_name_field",
+        "_api_security_enabled",
+        "_api_security_sample_rate",
+        "_api_security_parse_response_body",
+        "_waf_timeout",
+        "_iast_redaction_enabled",
+        "_iast_redaction_name_pattern",
+        "_iast_redaction_value_pattern",
+        "_iast_lazy_taint",
+        "_asm_config_keys",
+    ]
+
 
 config = ASMConfig()
+
+if not config._asm_libddwaf_available:
+    config._asm_enabled = False
+    config._iast_enabled = False

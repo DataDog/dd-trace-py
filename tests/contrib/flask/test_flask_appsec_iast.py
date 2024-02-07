@@ -348,6 +348,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _asm_enabled=True,
             )
         ), override_env(IAST_ENV):
             oce.reconfigure()

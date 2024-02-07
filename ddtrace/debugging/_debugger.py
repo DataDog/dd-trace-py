@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections import deque
 from itertools import chain
 import linecache
 import os
@@ -9,6 +10,7 @@ from types import CoroutineType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
+from typing import Deque
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -22,8 +24,8 @@ from ddtrace import config as ddconfig
 from ddtrace.debugging._async import dd_coroutine_wrapper
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._config import ed_config
-from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
+from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._exception.auto_instrument import SpanExceptionProcessor
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedWrappedFunction
@@ -47,9 +49,10 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.metric_sample import MetricSample
-from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.tracing import DynamicSpan
 from ddtrace.debugging._signal.tracing import SpanDecoration
@@ -226,18 +229,15 @@ class Debugger(Service):
         self._tracer = tracer or ddtrace.tracer
         service_name = di_config.service_name
 
-        self._encoder = BatchJsonEncoder(
-            item_encoders={
-                LogSignal: LogSignalJsonEncoder(service_name),
-                str: str,
-            },
+        self._signal_queue = SignalQueue(
+            encoder=LogSignalJsonEncoder(service_name),
             on_full=self._on_encoder_buffer_full,
         )
-        status_logger = self.__logger__(service_name, self._encoder)
+        self._status_logger = status_logger = self.__logger__(service_name)
 
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
-        self._uploader = self.__uploader__(self._encoder)
-        self._collector = self.__collector__(self._encoder)
+        self._uploader = self.__uploader__(self._signal_queue)
+        self._collector = self.__collector__(self._signal_queue)
         self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
@@ -323,6 +323,9 @@ class Debugger(Service):
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
             self._collector.push(signal)
 
+            if signal.state is SignalState.DONE:
+                self._probe_registry.set_emitting(probe)
+
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
 
@@ -343,11 +346,23 @@ class Debugger(Service):
             actual_frame = sys._getframe(1)
             allargs = list(chain(zip(argnames, args), kwargs.items()))
             thread = threading.current_thread()
-            trace_context = self._tracer.current_trace_context()
 
-            open_contexts = []
+            open_contexts: Deque[SignalContext] = deque()
             signal: Optional[Signal] = None
-            for probe in wrappers.values():
+
+            # Group probes on the basis of whether they create new context.
+            context_creators: List[Probe] = []
+            context_consumers: List[Probe] = []
+            for p in wrappers.values():
+                (context_creators if p.__context_creator__ else context_consumers).append(p)
+
+            # Trigger the context creators first, so that the new context can be
+            # consumed by the consumers.
+            for probe in chain(context_creators, context_consumers):
+                # Because new context might be created, we need to recompute it
+                # for each probe.
+                trace_context = self._tracer.current_trace_context()
+
                 if isinstance(probe, MetricFunctionProbe):
                     signal = MetricSample(
                         probe=probe,
@@ -384,7 +399,10 @@ class Debugger(Service):
                     log.error("Unsupported probe type: %s", type(probe))
                     continue
 
-                open_contexts.append(self._collector.attach(signal))
+                # Open probe signal contexts are ordered, with those that have
+                # created new tracing context first. We need to finalise them in
+                # reverse order, so we append them to the beginning.
+                open_contexts.appendleft(self._collector.attach(signal))
 
             if not open_contexts:
                 return wrapped(*args, **kwargs)
@@ -407,6 +425,9 @@ class Debugger(Service):
 
             for context in open_contexts:
                 context.exit(retval, exc_info, end_time - start_time)
+                signal = context.signal
+                if signal.state is SignalState.DONE:
+                    self._probe_registry.set_emitting(signal.probe)
 
             exc = exc_info[1]
             if exc is not None:

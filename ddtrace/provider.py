@@ -5,8 +5,6 @@ from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-import six
-
 from . import _hooks
 from .context import Context  # noqa:F401
 from .internal.logger import get_logger
@@ -25,7 +23,7 @@ _DD_CI_CONTEXTVAR = contextvars.ContextVar(
 )  # type: contextvars.ContextVar[Optional[Union[Context, Span]]]
 
 
-class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
+class BaseContextProvider(metaclass=abc.ABCMeta):
     """
     A ``ContextProvider`` is an interface that provides the blueprint
     for a callable class, capable to retrieve the current active

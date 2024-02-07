@@ -1,8 +1,6 @@
 import os
 
 import httpx
-from six import ensure_binary
-from six import ensure_text
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -13,6 +11,8 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
