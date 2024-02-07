@@ -30,7 +30,6 @@ class Profile
     // - string table
     // - ddog_profile
     std::atomic<bool> first_time{ true };
-    std::atomic<long> g_profile_seq{ 0 };
     std::mutex profile_mtx{};
     std::atomic<pid_t> current_pid{ 0 };
 
@@ -43,6 +42,9 @@ class Profile
     SampleType type_mask{ 0 };
     unsigned int max_nframes{ 128 };
     ddog_prof_Period default_period{};
+
+    // Sampler setup
+    void setup_samplers();
 
     // Lookup for values
     ValueIndex val_idx{};
@@ -59,11 +61,8 @@ class Profile
     static inline std::atomic<bool> dirty;
 
   public:
-    ~Profile();
-
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
-    void setup_samplers();
     bool cycle_buffers();
     void entrypoint_check();
     void reset();
@@ -72,7 +71,6 @@ class Profile
     unsigned int get_max_nframes();
     SampleType get_type_mask();
     size_t get_sample_type_length();
-    long get_profile_seq();
     ddog_prof_Profile& get_current_profile();
 
     // String table manipulation

@@ -42,7 +42,7 @@ add_compile_options(
 # Library sources
 add_library(dd_wrapper SHARED
     src/uploader_builder.cpp
-    src/sample_builder.cpp
+    src/sample_manager.cpp
     src/profile.cpp
     src/uploader.cpp
     src/sample.cpp

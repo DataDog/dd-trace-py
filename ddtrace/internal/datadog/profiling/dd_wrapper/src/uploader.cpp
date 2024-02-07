@@ -30,7 +30,6 @@ Uploader::upload(ddog_prof_Profile& profile)
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
-    add_tag(tags, ExportTagKey::profile_seq, std::to_string(profile_seq), errmsg);
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
@@ -107,6 +106,8 @@ Uploader::unlock()
 void
 Uploader::cancel_inflight()
 {
+    // According to the rust docs, the `cancel()` call is synchronous
+    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
     if (cancel) {
         ddog_CancellationToken_cancel(cancel);
         ddog_CancellationToken_drop(cancel);

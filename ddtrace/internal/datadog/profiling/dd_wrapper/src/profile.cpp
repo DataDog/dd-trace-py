@@ -27,16 +27,10 @@ Profile::reset()
     first_time.store(true);
 }
 
-Profile::~Profile()
-{
-    reset();
-}
-
 bool
 Profile::cycle_buffers()
 {
     std::lock_guard<std::mutex> lock(profile_mtx);
-    ++g_profile_seq;
     std::swap(last_profile, cur_profile);
 
     // Clear the profile before using it
@@ -110,12 +104,6 @@ size_t
 Profile::get_sample_type_length()
 {
     return samplers.size();
-}
-
-long
-Profile::get_profile_seq()
-{
-    return g_profile_seq.load();
 }
 
 ddog_prof_Profile&

@@ -24,7 +24,6 @@ class Uploader
     static inline std::mutex upload_lock{};
 
   public:
-    size_t profile_seq = 0;
     std::string runtime_id;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
     std::string url;

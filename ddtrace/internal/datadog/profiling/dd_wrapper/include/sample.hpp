@@ -16,11 +16,12 @@ extern "C"
 
 namespace Datadog {
 
+class SampleManager; // friend
+
 class Sample
 {
   private:
     static inline Profile profile_state{};
-    long profile_seq; // TODO is this being used properly?
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;
@@ -28,6 +29,7 @@ class Sample
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
+    uint64_t samples = 0;
 
     // Storage for labels
     std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels{};
@@ -36,20 +38,14 @@ class Sample
     // Storage for values
     std::vector<int64_t> values = {};
 
+    // Initialization and stuff
+    void start_sample();
+
     // Helpers
     bool push_label(const ExportLabelKey key, std::string_view val);
     bool push_label(const ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void clear_buffers();
-
-  public:
-    uint64_t samples = 0;
-
-    // Getters
-    static ddog_prof_Profile& get_ddog_profile();
-
-    // Clears the current sample without flushing
-    void start_sample();
 
     // Add values
     bool push_walltime(int64_t walltime, int64_t count);
@@ -81,16 +77,12 @@ class Sample
     // Flushes the current buffer, clearing it
     bool flush_sample();
 
-    // Clears temporary things
-    void clear_stringtable();
-    void zero_stats();
+    // Allows SampleManager to control Sample
+    friend class SampleManager;
 
-    // Resets the static state
-    // NB this is probably only valuable in consolidating shut-down
-    // operations and testing
-    static void reset_profile();
-
-    Sample(SampleType type, unsigned int _max_nframes);
+  public:
+    static ddog_prof_Profile& get_ddog_profile();
+    Sample(SampleType _type_mask, unsigned int _max_nframes);
     ~Sample() = default;
 };
 

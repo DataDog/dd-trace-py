@@ -39,7 +39,7 @@ IF UNAME_SYSNAME == "Linux":
 
         void ddup_init()
 
-        void ddup_start_sample()
+        int ddup_start_sample(int handle)
         void ddup_push_walltime(int64_t walltime, int64_t count)
         void ddup_push_cputime(int64_t cputime, int64_t count)
         void ddup_push_acquire(int64_t acquire_time, int64_t count)
@@ -60,6 +60,12 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
         bint ddup_upload() nogil
+
+    # Hardcoding this isn't the best, but for now it's better than passing raw ints
+    SAMPLE_STACK = 1
+    SAMPLE_LOCK = 2
+    SAMPLE_ALLOCATION = 3
+    SAMPLE_HEAP = 4
 
     def init(
             service: Optional[str],

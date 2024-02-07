@@ -1,23 +1,18 @@
 #include "sample.hpp"
-#include "sample_builder.hpp"
 
 #include <thread>
 
 using namespace Datadog;
 
-Sample::Sample(SampleType type, unsigned int _max_nframes)
+Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
+  : max_nframes{ _max_nframes }
+  , type_mask{ _type_mask }
 {
-
-    profile_state.one_time_init(type, _max_nframes);
-
     // Initialize values
     values.resize(profile_state.get_sample_type_length());
     std::fill(values.begin(), values.end(), 0);
-    max_nframes = profile_state.get_max_nframes();
-    type_mask = profile_state.get_type_mask();
 
     // Initialize other state
-    profile_seq = profile_state.get_profile_seq();
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
     cur_label = 0;
 }
@@ -31,13 +26,10 @@ Sample::get_ddog_profile()
 void
 Sample::start_sample()
 {
+    // Clearing the buffers isn't necessary if the sample was just initialized or uploaded, but is necessary
+    // if we just forked or had to interrupt a previous sample for whatever reason.  This shouldn't be too
+    // expensive in the common case, so we just do it.  Pop a flag here if it's too annoying.
     clear_buffers();
-}
-
-void
-Sample::reset_profile()
-{
-    profile_state.reset();
 }
 
 void

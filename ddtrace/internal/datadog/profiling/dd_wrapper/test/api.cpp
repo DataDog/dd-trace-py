@@ -19,9 +19,9 @@ single_sample_noframe()
     ddup_init();
 
     // Collect and flush one sample
-    ddup_start_sample();
-    ddup_push_walltime(1.0, 1);
-    ddup_flush_sample();
+    auto h = ddup_start_sample(1);
+    ddup_push_walltime(h, 1.0, 1);
+    ddup_flush_sample(h);
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -48,10 +48,10 @@ single_oneframe_sample()
     ddup_init();
 
     // Collect and flush one sample with one frame
-    ddup_start_sample();
-    ddup_push_walltime(1.0, 1);
-    ddup_push_frame("my_test_frame", "my_test_file", 1, 1);
-    ddup_flush_sample();
+    auto h = ddup_start_sample(1);
+    ddup_push_walltime(h, 1.0, 1);
+    ddup_push_frame(h, "my_test_frame", "my_test_file", 1, 1);
+    ddup_flush_sample(h);
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -78,8 +78,8 @@ single_manyframes_sample()
     ddup_init();
 
     // Collect and flush one sample with one frame
-    ddup_start_sample();
-    ddup_push_walltime(1.0, 1);
+    auto h = ddup_start_sample(h);
+    ddup_push_walltime(h, 1.0, 1);
 
     // Populate the frames; we add exactly 512, which ought to
     // be the limit
@@ -88,9 +88,9 @@ single_manyframes_sample()
     for (int i = 0; i < 1024; i++) {
         std::string name = base_func + std::to_string(i);
         std::string file = base_file + std::to_string(i);
-        ddup_push_frame(name.c_str(), file.c_str(), 1, 1);
+        ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
     }
-    ddup_flush_sample();
+    ddup_flush_sample(h);
 
     // Upload.  It'll fail, but whatever
     ddup_upload();

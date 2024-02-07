@@ -2,7 +2,7 @@
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
-#include "sample_builder.hpp"
+#include "sample_manager.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
@@ -12,15 +12,6 @@
 
 // State
 bool is_ddup_initialized = false;
-bool g_prof_flag = true;
-
-// Each sampler needs to write to its own private area, which is then merged
-// into a global ddog_prof_Profile. After a `fork()`, this Sample will be non-
-// addressable.  Currently, we make no attempt at handling this case.
-// DAS24.02.06: I think pthreads allocates TLS on new pages, so CoW would ensure
-//              the overhead isn't attributable to the child.  Nevertheless,
-//              any access on the page would invalidate this assumption.
-thread_local std::optional<Datadog::Sample> g_profile = std::nullopt;
 
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
@@ -100,12 +91,12 @@ ddup_config_user_tag(const char* key, const char* val)
 void
 ddup_config_sample_type(unsigned int _type)
 {
-    Datadog::SampleBuilder::add_type(_type);
+    Datadog::SampleManager::add_type(_type);
 }
 void
 ddup_config_max_nframes(int max_nframes)
 {
-    Datadog::SampleBuilder::set_max_nframes(max_nframes);
+    Datadog::SampleManager::set_max_nframes(max_nframes);
 }
 
 bool
@@ -134,126 +125,142 @@ ddup_init()
     }
 }
 
-void
-ddup_start_sample()
+unsigned int
+ddup_start_sample(unsigned int requested)
 {
-    if (!g_profile)
-        g_profile = Datadog::SampleBuilder::build();
-    g_profile->start_sample();
-}
-
-void
-ddup_push_walltime(int64_t walltime, int64_t count)
-{
-    g_profile->push_walltime(walltime, count);
-}
-
-void
-ddup_push_cputime(int64_t cputime, int64_t count)
-{
-    g_profile->push_cputime(cputime, count);
-}
-
-void
-ddup_push_acquire(int64_t acquire_time, int64_t count)
-{
-    g_profile->push_acquire(acquire_time, count);
-}
-
-void
-ddup_push_release(int64_t release_time, int64_t count)
-{
-    g_profile->push_release(release_time, count);
-}
-
-void
-ddup_push_alloc(uint64_t size, uint64_t count)
-{
-    g_profile->push_alloc(size, count);
-}
-
-void
-ddup_push_heap(uint64_t size)
-{
-    g_profile->push_heap(size);
-}
-
-void
-ddup_push_lock_name(const char* lock_name)
-{
-    g_profile->push_lock_name(lock_name);
-}
-
-void
-ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char* thread_name)
-{
-    g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
-}
-
-void
-ddup_push_task_id(int64_t task_id)
-{
-    g_profile->push_task_id(task_id);
-}
-
-void
-ddup_push_task_name(const char* task_name)
-{
-    g_profile->push_task_name(task_name);
-}
-
-void
-ddup_push_span_id(int64_t span_id)
-{
-    g_profile->push_span_id(span_id);
-}
-
-void
-ddup_push_local_root_span_id(int64_t local_root_span_id)
-{
-    g_profile->push_local_root_span_id(local_root_span_id);
-}
-
-void
-ddup_push_trace_type(const char* trace_type)
-{
-    g_profile->push_trace_type(trace_type);
-}
-
-void
-ddup_push_trace_resource_container(const char* trace_resource_container)
-{
-    g_profile->push_trace_resource_container(trace_resource_container);
-}
-
-void
-ddup_push_exceptioninfo(const char* exception_type, int64_t count)
-{
-    g_profile->push_exceptioninfo(exception_type, count);
-}
-
-void
-ddup_push_class_name(const char* class_name)
-{
-    g_profile->push_class_name(class_name);
-}
-
-void
-ddup_push_frame(const char* name, const char* fname, uint64_t address, int64_t line)
-{
-    g_profile->push_frame(name, fname, address, line);
-}
-
-void
-ddup_flush_sample()
-{
-    g_profile->flush_sample();
+    return static_cast<unsigned int>(Datadog::SampleManager::start_sample(requested));
 }
 
 void
 ddup_set_runtime_id(const char* id, size_t sz)
 {
     Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
+}
+
+void
+ddup_push_walltime(unsigned int _handle, int64_t walltime, int64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_walltime(handle, walltime, count);
+}
+
+void
+ddup_push_cputime(unsigned int _handle, int64_t cputime, int64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_cputime(handle, cputime, count);
+}
+
+void
+ddup_push_acquire(unsigned int _handle, int64_t acquire_time, int64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_acquire(handle, acquire_time, count);
+}
+
+void
+ddup_push_release(unsigned int _handle, int64_t release_time, int64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_release(handle, release_time, count);
+}
+
+void
+ddup_push_alloc(unsigned int _handle, uint64_t size, uint64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_alloc(handle, size, count);
+}
+
+void
+ddup_push_heap(unsigned int _handle, uint64_t size)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_heap(handle, size);
+}
+
+void
+ddup_push_lock_name(unsigned int _handle, const char* lock_name)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_lock_name(handle, lock_name);
+}
+
+void
+ddup_push_threadinfo(unsigned int _handle, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_threadinfo(handle, thread_id, thread_native_id, thread_name);
+}
+
+void
+ddup_push_task_id(unsigned int _handle, int64_t task_id)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_task_id(handle, task_id);
+}
+
+void
+ddup_push_task_name(unsigned int _handle, const char* task_name)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_task_name(handle, task_name);
+}
+
+void
+ddup_push_span_id(unsigned int _handle, int64_t span_id)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_span_id(handle, span_id);
+}
+
+void
+ddup_push_local_root_span_id(unsigned int _handle, int64_t local_root_span_id)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_local_root_span_id(handle, local_root_span_id);
+}
+
+void
+ddup_push_trace_type(unsigned int _handle, const char* trace_type)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_trace_type(handle, trace_type);
+}
+
+void
+ddup_push_trace_resource_container(unsigned int _handle, const char* trace_resource_container)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_trace_resource_container(handle, trace_resource_container);
+}
+
+void
+ddup_push_exceptioninfo(unsigned int _handle, const char* exception_type, int64_t count)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_exceptioninfo(handle, exception_type, count);
+}
+
+void
+ddup_push_class_name(unsigned int _handle, const char* class_name)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_class_name(handle, class_name);
+}
+
+void
+ddup_push_frame(unsigned int _handle, const char* _name, const char* _filename, uint64_t address, int64_t line)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::push_frame(handle, _name, _filename, address, line);
+}
+
+void
+ddup_flush_sample(unsigned int _handle)
+{
+    auto handle = static_cast<Datadog::SampleHandle>(_handle);
+    Datadog::SampleManager::flush_sample(handle);
 }
 
 bool
@@ -290,5 +297,5 @@ void
 ddup_cleanup()
 {
     // TODO some other stuff probably goes here.
-    Datadog::Sample::reset_profile();
+    Datadog::SampleManager::reset_profile();
 }
