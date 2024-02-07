@@ -622,8 +622,9 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-# snapshot_client has issues making websocket call
-def test_traced_websocket(client, test_spans):
+@snapshot()
+def test_traced_websocket(test_spans, snapshot_app):
+    client = TestClient(snapshot_app)
     with override_global_config(dict(_trace_asgi_websocket=True)):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
