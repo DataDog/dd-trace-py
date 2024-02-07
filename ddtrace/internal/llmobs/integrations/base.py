@@ -11,6 +11,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
@@ -136,6 +137,7 @@ class BaseLLMIntegration:
             "%s.request" % self._integration_name,
             resource=operation_id,
             service=int_service(pin, self.integration_config),
+            span_type=SpanTypes.LLMOBS,
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)

@@ -11,6 +11,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
+from ddtrace.llmobs import LLMObs
 
 from ...pin import Pin
 from . import _endpoint_hooks
@@ -146,6 +147,9 @@ def patch():
 
     if getattr(openai, "__datadog_patch", False):
         return
+
+    if config._llmobs_enabled:
+        LLMObs.enable()
 
     Pin().onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
