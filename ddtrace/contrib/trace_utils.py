@@ -209,7 +209,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
             for ip_header in IP_PATTERNS:
                 if ip_header in new_headers:
-                    ip_header_value = headers[ip_header]
+                    ip_header_value = new_headers[ip_header]
                     break
         else:
             for ip_header in IP_PATTERNS:
