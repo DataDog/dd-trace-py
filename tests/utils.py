@@ -1065,7 +1065,8 @@ def snapshot_context(
             lowered = result.lower()
             if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
                 pytest.fail(result, pytrace=False)
-            # we don't know why "received unmatched traces" happens, but it does sometimes in an unpredictable manner
+            # we don't know why the test agent occasionally receives a different number of traces than it expects
+            # during snapshot tests, but that does sometimes in an unpredictable manner
             # it seems to have to do with using the same test agent across many tests - maybe the test agent
             # occasionally mixes up traces between sessions. regardless of why they happen, we have been treating
             # these test failures as unactionable in the vast majority of cases and thus ignore them here to reduce
