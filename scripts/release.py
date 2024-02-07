@@ -1,11 +1,11 @@
 from collections import namedtuple
-import inspect
 import json
 import os
 import re
 import subprocess
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
@@ -223,7 +223,10 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
                 draft=True,
                 target_commitish=base_branch,
                 message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
-            )
+            ),
+            f"create_git_release(name={release_parameters.name}, tag={release_parameters.tag}, "
+            f"prerelease={release_parameters.prerelease}, draft=True, target_commitish={base_branch}, "
+            f"message={release_parameters.rn[:100]}...)",
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
@@ -394,11 +397,10 @@ Check the release notebook {nb_url} for asynchronous updates on the release proc
     )
 
 
-def _dry(fn: Callable) -> Any:
+def _dry(fn: Callable, description: Optional[str] = None) -> Any:
     if DRY_RUN:
         print("Dry run - would call:")
-        print(inspect.getsource(fn))
-        print(fn.__closure__[0])
+        print(description or fn.__name__)
     else:
         return fn()
 
@@ -432,7 +434,7 @@ if __name__ == "__main__":
     name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if rc:
-        if os.getenv("NOTEBOOK", 1):
+        if not DRY_RUN and os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
             create_notebook(dd_repo, name, rn, base)
         else:
