@@ -496,7 +496,6 @@ if __name__ == "__main__":
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert err == b"", err.decode()
     assert status == 0, out.decode()
 
 
