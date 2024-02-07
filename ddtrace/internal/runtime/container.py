@@ -1,8 +1,8 @@
 import errno
 import os
 import re
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 import attr
 
@@ -130,7 +130,7 @@ def get_container_info(pid="self"):
     return None
 
 
-def update_headers_with_container_info(headers: Dict[str, str], container_info: CGroupInfo) -> None:
+def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
     if container_info is None:
         return
     if container_info.container_id:
