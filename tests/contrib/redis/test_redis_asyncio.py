@@ -35,7 +35,8 @@ def single_pool_redis_client():
     yield r
 
 
-def setup():
+async def setup():
+    await redis_client.flushall()
     patch()
 
 
