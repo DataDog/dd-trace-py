@@ -398,7 +398,7 @@ The following environment variables for the tracer are supported:
          connection is closed, which can result in long running spans.
 
      version_added:
-       v1.16.0:
+       v2.7.0:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
