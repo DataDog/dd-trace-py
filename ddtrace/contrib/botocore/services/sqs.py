@@ -147,7 +147,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         - func_run and message_received: Received a message when polling
         - config.empty_poll_enabled: We want to trace empty poll operations
     """
-    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
+    if (func_run and message_received) or config.botocore.empty_poll_enabled or not func_run:
         with pin.tracer.start_span(
             trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
