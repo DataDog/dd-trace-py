@@ -1,4 +1,5 @@
 import errno
+import os
 import re
 from typing import Optional  # noqa:F401
 
@@ -12,16 +13,13 @@ log = get_logger(__name__)
 
 @attr.s(slots=True)
 class CGroupInfo(object):
-    """
-    CGroup class for container information parsed from a group cgroup file
-    """
-
     id = attr.ib(default=None)
     groups = attr.ib(default=None)
     path = attr.ib(default=None)
     container_id = attr.ib(default=None)
     controllers = attr.ib(default=None)
     pod_id = attr.ib(default=None)
+    node_inode = attr.ib(default=None)
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
@@ -81,7 +79,21 @@ class CGroupInfo(object):
             if match:
                 pod_id = match.group(1)
 
-        return cls(id=id_, groups=groups, path=path, container_id=container_id, controllers=controllers, pod_id=pod_id)
+        try:
+            node_inode = os.stat(f"/sys/fs/cgroup/{path}").st_ino
+        except Exception:
+            log.debug("Failed to stat cgroup node file for path %r", path, exc_info=True)
+            node_inode = None
+
+        return cls(
+            id=id_,
+            groups=groups,
+            path=path,
+            container_id=container_id,
+            controllers=controllers,
+            pod_id=pod_id,
+            node_inode=node_inode,
+        )
 
 
 def get_container_info(pid="self"):

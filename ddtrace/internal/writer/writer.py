@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 from typing import TextIO  # noqa:F401
 
 import ddtrace
+from ddtrace.internal.constants import ENTITY_ID_HEADER_NAME
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
@@ -185,7 +186,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
@@ -509,12 +510,8 @@ class AgentWriter(HTTPWriter):
         if headers:
             _headers.update(headers)
         self._container_info = container.get_container_info()
-        if self._container_info and self._container_info.container_id:
-            _headers.update(
-                {
-                    "Datadog-Container-Id": self._container_info.container_id,
-                }
-            )
+        if self._container_info:
+            self._update_headers_with_container_info(_headers)
 
         _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
@@ -554,6 +551,21 @@ class AgentWriter(HTTPWriter):
     @property
     def _agent_endpoint(self):
         return self._intake_endpoint(client=None)
+
+    def _update_headers_with_container_info(self, _headers):
+        if self._container_info.container_id:
+            _headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                    ENTITY_ID_HEADER_NAME: f"cid-{self._container_info.container_id}",
+                }
+            )
+        elif self._container_info.node_inode:
+            _headers.update(
+                {
+                    ENTITY_ID_HEADER_NAME: f"in-{self._container_info.node_inode}",
+                }
+            )
 
     def _downgrade(self, payload, response, client):
         if client.ENDPOINT == "v0.5/traces":
