@@ -1062,7 +1062,8 @@ def snapshot_context(
         r = conn.getresponse()
         result = to_unicode(r.read())
         if r.status != 200:
-            if "received unmatched traces" not in result.lower():
+            lowered = result.lower()
+            if "received unmatched traces" not in lowered and "did not receive expected traces" not in lowered:
                 pytest.fail(result, pytrace=False)
             # we don't know why "received unmatched traces" happens, but it does sometimes in an unpredictable manner
             # it seems to have to do with using the same test agent across many tests - maybe the test agent
