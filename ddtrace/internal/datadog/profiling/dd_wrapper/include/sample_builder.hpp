@@ -9,8 +9,8 @@ namespace Datadog {
 
 class SampleBuilder
 {
-    inline static SampleType type_mask{ SampleType::All };
-    inline static unsigned int max_nframes{ 64 };
+    static inline SampleType type_mask{ SampleType::All };
+    static inline unsigned int max_nframes{ 64 };
 
   public:
     static void add_type(SampleType type);

@@ -56,7 +56,7 @@ class Profile
     ddog_prof_Profile last_profile{};
 
     // Global state
-    inline static std::atomic<bool> dirty;
+    static inline std::atomic<bool> dirty;
 
   public:
     ~Profile();

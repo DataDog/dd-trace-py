@@ -39,7 +39,6 @@ Uploader::upload(ddog_prof_Profile& profile)
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
     const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
-
     auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
                                                       encoded->start,
                                                       encoded->end,
@@ -59,20 +58,58 @@ Uploader::upload(ddog_prof_Profile& profile)
         return false;
     }
 
-    // Build and check the response object
-    ddog_prof_Exporter_Request* req = build_res.ok;
-    ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, nullptr);
-    if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
-        errmsg = err_to_msg(&res.err, "Error uploading");
-        ddog_Error_drop(&res.err);
-        ddog_Vec_Tag_drop(tags);
-        std::cerr << errmsg << std::endl;
-        return false;
+    // If we're here, we're about to create a new upload, so cancel any inflight ones
+    cancel_inflight();
+
+    // Create a new cancellation token.  Maybe we can get away without doing this, but
+    // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
+    // NB `cancel_inflight()` already drops the old token.
+    cancel = ddog_CancellationToken_new();
+    auto* cancel_for_request = ddog_CancellationToken_clone(cancel);
+
+    // The upload operation sets up some global state in libdatadog (the tokio runtime), so
+    // we ensure exclusivity here.
+    {
+        std::lock_guard<std::mutex> lock_guard(upload_lock);
+
+        // Build and check the response object
+        ddog_prof_Exporter_Request* req = build_res.ok;
+        ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request);
+        if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
+            errmsg = err_to_msg(&res.err, "Error uploading");
+            ddog_Error_drop(&res.err);
+            ddog_Vec_Tag_drop(tags);
+            std::cerr << errmsg << std::endl;
+            return false;
+        }
+        ddog_prof_Exporter_Request_drop(&req);
     }
 
     // Cleanup
-    ddog_prof_Exporter_Request_drop(&req);
     ddog_Vec_Tag_drop(tags);
+    ddog_CancellationToken_drop(cancel_for_request);
 
     return true;
+}
+
+void
+Uploader::lock()
+{
+    upload_lock.lock();
+}
+
+void
+Uploader::unlock()
+{
+    upload_lock.unlock();
+}
+
+void
+Uploader::cancel_inflight()
+{
+    if (cancel) {
+        ddog_CancellationToken_cancel(cancel);
+        ddog_CancellationToken_drop(cancel);
+    }
+    cancel = nullptr;
 }

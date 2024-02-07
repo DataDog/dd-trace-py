@@ -25,9 +25,27 @@ thread_local std::optional<Datadog::Sample> g_profile = std::nullopt;
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
 void
-ddup_fork_handler()
+ddup_postfork_child()
 {
     Datadog::Profile::mark_dirty();
+    Datadog::Uploader::unlock();
+}
+
+void
+ddup_postfork_parent()
+{
+    Datadog::Uploader::unlock();
+}
+
+// Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
+// after a `fork()`, we just outright prevent uploads from happening during a `fork()` operation.  Since a
+// new upload may be scheduled _just_ as `fork()` is entered, we also need to prevent new uploads from happening.
+// This mutex is released in both the child and the parent.
+void
+ddup_prefork()
+{
+    Datadog::Uploader::lock();
+    Datadog::Uploader::cancel_inflight();
 }
 
 // Configuration
@@ -103,7 +121,7 @@ ddup_init()
     static bool initialized = []() {
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
-        pthread_atfork(nullptr, nullptr, ddup_fork_handler);
+        pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -253,6 +271,13 @@ ddup_upload()
     bool success = false;
     try {
         auto uploader = Datadog::UploaderBuilder::build();
+
+        // NB, upload() cancels any inflight uploads in order to ensure only
+        // one is active at a time.  This simplifies the fork/thread logic.
+        // This is usually fine, but when the user specifies a profiling
+        // upload interval less than the upload timeout, we have a potential
+        // backlog situation which isn't handled.  This is against recommended
+        // practice, but it wouldn't be crazy to add a small backlog queue.
         success = uploader.upload(upload_profile);
     } catch (const std::exception& e) {
         std::cerr << "Failed to create uploader: " << e.what() << std::endl;
