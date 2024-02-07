@@ -108,21 +108,20 @@ def test_str_aspect_args(obj, args):
     assert ddtrace_aspects.str_aspect(str, 0, obj, *args) == str(obj, *args)
 
 
-def test_str_utf16():
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-16"])
+def test_str_utf(encoding):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
     obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
 
-    obj = taint_pyobject(
-        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
-    )
-    result = ddtrace_aspects.str_aspect(str, 0, obj, **{"encoding": "utf-16", "errors": "strict"})
+    obj = taint_pyobject(obj, source_name="test_str_utf", source_value=obj, source_origin=OriginType.PARAMETER)
+    result = ddtrace_aspects.str_aspect(str, 0, obj, **{"encoding": encoding, "errors": "strict"})
+    orig_result = str(obj, **{"encoding": encoding, "errors": "strict"})
 
-    assert result == str(obj, **{"encoding": "utf-16", "errors": "strict"})
+    assert result == orig_result
 
-    # FIXME: This looks like a bug
-    # expected_result = ":+-<test_str_aspect_tainting>記者 鄭啟源 羅智堅<test_str_aspect_tainting>-+:"
-    # assert as_formatted_evidence(result) == expected_result
+    formatted_result = ":+-<test_str_utf>" + orig_result + "<test_str_utf>-+:"
+    assert as_formatted_evidence(result) == formatted_result
 
 
 def test_repr_utf16():
