@@ -35,16 +35,12 @@ def single_pool_redis_client():
     yield r
 
 
-@pytest.mark.asyncio
-@pytest.fixture(autouse=True)
-async def traced_redis(redis_client):
-    await redis_client.flushall()
-
+def setup():
     patch()
-    try:
-        yield
-    finally:
-        unpatch()
+
+
+async def teardown():
+    unpatch()
     await redis_client.flushall()
 
 
