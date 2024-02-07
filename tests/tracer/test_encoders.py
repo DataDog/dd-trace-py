@@ -15,8 +15,8 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace.context import Context
 from ddtrace.constants import ORIGIN_KEY
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
