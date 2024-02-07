@@ -205,11 +205,17 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return ""
 
     else:
-        for ip_header in IP_PATTERNS:
-            tmp_ip_header_value = get_header_value(ip_header)
-            if tmp_ip_header_value:
-                ip_header_value = tmp_ip_header_value
-                break
+        if headers_are_case_sensitive:
+            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
+            for ip_header in IP_PATTERNS:
+                if ip_header in new_headers:
+                    ip_header_value = headers[ip_header]
+                    break
+        else:
+            for ip_header in IP_PATTERNS:
+                if ip_header in headers:
+                    ip_header_value = headers[ip_header]
+                    break
 
     private_ip_from_headers = ""
 
