@@ -9,9 +9,9 @@ from celery.exceptions import Retry
 import pytest
 
 from ddtrace import Pin
+from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.context import Context
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
 import ddtrace.internal.forksafe as forksafe
