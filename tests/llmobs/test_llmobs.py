@@ -5,7 +5,7 @@ import mock
 import pytest
 import vcr
 
-from ddtrace.internal.llmobs import LLMObsWriter
+from ddtrace.llmobs._writer import LLMObsWriter
 from tests.utils import request_token
 
 
@@ -37,7 +37,7 @@ def vcr_logs(request):
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.internal.llmobs.writer.logger") as m:
+    with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
 
 
@@ -219,11 +219,11 @@ import atexit
 import os
 import time
 
-from ddtrace.internal.llmobs import LLMObsWriter
-from tests.internal.test_llmobs import _completion_record
-from tests.internal.test_llmobs import logs_vcr
+from ddtrace.llmobs._writer import LLMObsWriter
+from tests.llmobs.test_llmobs import _completion_record
+from tests.llmobs.test_llmobs import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml")
+ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs.test_send_on_exit.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_writer = LLMObsWriter(

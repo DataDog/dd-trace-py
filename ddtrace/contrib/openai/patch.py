@@ -4,7 +4,6 @@ import sys
 from openai import version
 
 from ddtrace import config
-from ddtrace.internal.llmobs.integrations import OpenAIIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
@@ -12,6 +11,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._integrations import OpenAIIntegration
 
 from ...pin import Pin
 from . import _endpoint_hooks

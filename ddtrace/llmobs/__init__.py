@@ -5,8 +5,7 @@ To start the service manually, invoke the ``enable`` method::
     from ddtrace.llmobs import LLMObs
     LLMObs.enable()
 """
-
-from .llmobs import LLMObs
+from ._llmobs import LLMObs
 
 
 __all__ = ["LLMObs"]

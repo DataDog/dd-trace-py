@@ -13,9 +13,9 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 

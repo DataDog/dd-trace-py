@@ -5,7 +5,7 @@ import mock
 import pytest
 import vcr
 
-from ddtrace.internal.log_writer import V2LogWriter
+from ddtrace.llmobs._log_writer import V2LogWriter
 from tests.utils import request_token
 
 
@@ -118,8 +118,8 @@ def test_send_on_exit():
     import os
     import time
 
-    from ddtrace.internal.log_writer import V2LogWriter
-    from tests.internal.test_logger import logs_vcr
+    from ddtrace.llmobs._log_writer import V2LogWriter
+    from tests.llmobs.test_logger import logs_vcr
 
     ctx = logs_vcr.use_cassette("tests.internal.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()

@@ -15,9 +15,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
-from ddtrace.internal.llmobs import LLMObsWriter
-from ddtrace.internal.log_writer import V2LogWriter
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._log_writer import V2LogWriter
+from ddtrace.llmobs._writer import LLMObsWriter
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
 
