@@ -93,8 +93,10 @@ if config._otel_enabled:
 
         set_tracer_provider(TracerProvider())
 
+
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
+
     LLMObs.enable()
 
 if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
