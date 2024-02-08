@@ -20,6 +20,7 @@ class LLMObs(Service):
     enabled = False
 
     def __init__(self, tracer=None):
+        super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_writer = LLMObsWriter(
             site=config._dd_site,
