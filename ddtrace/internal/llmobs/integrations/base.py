@@ -73,7 +73,7 @@ class BaseLLMIntegration:
                 interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
                 timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
             )
-            self._llmobs_pc_sampler = RateSampler(sample_rate=integration_config.llmobs_prompt_completion_sample_rate)
+            self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
             self.start_llm_writer()
 
     @property
@@ -92,10 +92,8 @@ class BaseLLMIntegration:
 
     @property
     def llmobs_enabled(self) -> bool:
-        """Return whether submitting llmobs payloads is enabled for this integration, or global config if not set."""
-        if hasattr(self.integration_config, "llmobs_enabled"):
-            return asbool(self.integration_config.llmobs_enabled)
-        return False
+        """Return whether submitting llmobs payloads is enabled."""
+        return config._llmobs_enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
