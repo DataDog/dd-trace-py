@@ -11,6 +11,7 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+import ddtrace.constants as constants
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
@@ -87,7 +88,7 @@ class APIManager(Service):
         # type: () -> None
         add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env):
+    def _should_collect_schema(self, env, priority):
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         sample_rate = asm_config._api_security_sample_rate
@@ -97,7 +98,10 @@ class APIManager(Service):
             return False
         # Rate limit per route
         self.current_sampling_value += sample_rate
-        if self.current_sampling_value >= 1.0:
+        # Keep most of manual keep spans and sample only on auto keep spans. Other spans are not considered.
+        if (priority == constants.USER_KEEP and self.current_sampling_value >= -3.0) or (
+            priority == constants.AUTO_KEEP and self.current_sampling_value >= 1.0
+        ):
             self.current_sampling_value -= 1.0
             return True
         return False
@@ -112,7 +116,7 @@ class APIManager(Service):
             return
 
         try:
-            if not self._should_collect_schema(env):
+            if not self._should_collect_schema(env, root.context.sampling_priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
