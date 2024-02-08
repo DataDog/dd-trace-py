@@ -19,7 +19,7 @@ TYPE = "langchain.request.type"
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    def _set_base_span_tags(  # type: ignore[override]
+    def _set_base_span_tags(
         self,
         span: Span,
         interface_type: str = "",
