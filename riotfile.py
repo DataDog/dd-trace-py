@@ -1592,8 +1592,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/urllib3",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4", latest]},
+                    # Support removed for Python 3.7 before v2
+                    pys="3.7",
+                    pkgs={"urllib3": ["~=1.25.0", "~=1.26.0"]},
+                ),
+                Venv(
+                    pys="3.8",
+                    pkgs={"urllib3": ["~=1.25.0", latest]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
