@@ -101,7 +101,7 @@ class FilterOrg(TraceFilter):
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
