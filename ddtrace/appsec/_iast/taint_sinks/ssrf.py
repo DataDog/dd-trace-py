@@ -33,6 +33,7 @@ _QUERY_FRAGMENT_REGEXP = re.compile(r"[?#&]([^=&;]+)=(?P<QUERY>[^?#&]+)")
 class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
     evidence_type = EVIDENCE_SSRF
+    redact_report = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
