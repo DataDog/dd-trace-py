@@ -10,6 +10,7 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace._trace.context import Context
 from ddtrace.tracing._span_link import SpanLink
 
 from . import config
@@ -28,7 +29,6 @@ from .constants import SPAN_MEASURED_KEY
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .constants import VERSION_KEY
-from .context import Context
 from .ext import http
 from .ext import net
 from .internal._rand import rand64bits as _rand64bits

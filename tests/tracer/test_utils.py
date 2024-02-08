@@ -7,7 +7,7 @@ import unittest
 import mock
 import pytest
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value

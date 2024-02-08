@@ -17,8 +17,8 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.appsec._constants import IAST
-from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
