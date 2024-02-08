@@ -5,12 +5,13 @@ from typing import Optional
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.processor import TraceProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
-from ddtrace.internal.logger import get_logger
-from ddtrace._trace.processor import TraceProcessor
 from ddtrace.internal.llmobs.writer import LLMObsWriter
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+
 
 log = get_logger(__name__)
 
