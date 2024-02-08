@@ -30,13 +30,13 @@ const unsigned int g_default_nframes = 64; // TODO is this the actual default?
 class SampleManager
 {
   private:
-    static inline std::array<std::atomic<bool>, static_cast<size_t>(SampleHandle::Length_)> handler_state{};
-    static inline std::optional<SampleStorage> storage{};
+    static inline std::array<std::atomic<bool>, static_cast<size_t>(SampleHandle::Length_)> handle_state{};
+    static inline SampleStorage storage{};
     static inline unsigned int max_nframes{ g_default_nframes };
 
     // Helpers
-    static bool take_handler(SampleHandle handle);
-    static void release_handler(SampleHandle handle);
+    static bool take_handle(SampleHandle handle);
+    static void release_handle(SampleHandle handle);
     static inline SampleType type_mask{ SampleType::All };
     static inline void build_storage();
 
@@ -46,7 +46,7 @@ class SampleManager
     static void add_type(unsigned int type);
     static void set_max_nframes(unsigned int _max_nframes);
 
-    // Tries to check out the requested handler, clearing its storage if successful
+    // Tries to check out the requested handle, clearing its storage if successful
     static SampleHandle start_sample(SampleHandle requested);
     static SampleHandle start_sample(unsigned int requested);
 
@@ -65,7 +65,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_label(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_label(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -74,7 +74,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return;
         }
-        storage->at(static_cast<size_t>(handle)).push_frame(std::forward<Args>(args)...);
+        storage.at(static_cast<size_t>(handle)).push_frame(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -83,7 +83,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return;
         }
-        storage->at(static_cast<size_t>(handle)).clear_buffers(std::forward<Args>(args)...);
+        storage.at(static_cast<size_t>(handle)).clear_buffers(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -92,7 +92,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_walltime(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_walltime(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -101,7 +101,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_cputime(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_cputime(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -110,7 +110,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_acquire(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_acquire(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -119,7 +119,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_release(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_release(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -128,7 +128,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_alloc(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_alloc(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -137,7 +137,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_heap(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_heap(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -146,7 +146,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_lock_name(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_lock_name(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -155,7 +155,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_threadinfo(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_threadinfo(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -164,7 +164,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_task_id(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_task_id(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -173,7 +173,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_task_name(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_task_name(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -182,7 +182,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_span_id(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_span_id(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -191,7 +191,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_local_root_span_id(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_local_root_span_id(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -200,7 +200,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_trace_type(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_trace_type(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -209,7 +209,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_trace_resource_container(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_trace_resource_container(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -218,7 +218,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_exceptioninfo(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_exceptioninfo(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -227,7 +227,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        return storage->at(static_cast<size_t>(handle)).push_class_name(std::forward<Args>(args)...);
+        return storage.at(static_cast<size_t>(handle)).push_class_name(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -236,7 +236,7 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return;
         }
-        storage->at(static_cast<size_t>(handle)).push_frame(std::forward<Args>(args)...);
+        storage.at(static_cast<size_t>(handle)).push_frame(std::forward<Args>(args)...);
     }
 
     template<typename... Args>
@@ -245,10 +245,10 @@ class SampleManager
         if (handle == SampleHandle::Invalid) {
             return false;
         }
-        auto ret = storage->at(static_cast<size_t>(handle)).flush_sample(std::forward<Args>(args)...);
+        auto ret = storage.at(static_cast<size_t>(handle)).flush_sample(std::forward<Args>(args)...);
 
         // When we flush, we're done with the sample handle and can release it
-        release_handler(handle);
+        release_handle(handle);
         return ret;
     }
 };

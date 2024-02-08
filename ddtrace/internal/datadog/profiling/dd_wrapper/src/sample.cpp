@@ -125,8 +125,6 @@ Sample::clear_buffers()
 bool
 Sample::flush_sample()
 {
-    // Samples are local to threads, meaning they are local to processes.  We can only arrive here if
-    // we're flushing in the same process.
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";

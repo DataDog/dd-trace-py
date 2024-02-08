@@ -32,28 +32,31 @@ SampleManager::set_max_nframes(unsigned int _max_nframes)
 }
 
 bool
-SampleManager::take_handler(SampleHandle handle)
+SampleManager::take_handle(SampleHandle handle)
 {
     // Bounds check
-    if (handle == SampleHandle::Invalid || static_cast<size_t>(handle) >= handler_state.size()) {
+    const unsigned int idx = static_cast<unsigned int>(handle);
+    if (handle == SampleHandle::Invalid || idx >= static_cast<size_t>(SampleHandle::Length_)) {
         return false;
     }
 
-    // If there's no active handler in that category, take it
-    if (handler_state[static_cast<size_t>(handle)].exchange(true)) {
-        return false;
+    // If there's no active handle in that category, take it
+    bool expected = false;
+    if (handle_state[idx].compare_exchange_strong(expected, true)) {
+        return true;
     }
-    return true;
+    return false;
 }
 
 void
-SampleManager::release_handler(SampleHandle handle)
+SampleManager::release_handle(SampleHandle handle)
 {
     // Bounds check
-    if (handle == SampleHandle::Invalid || static_cast<size_t>(handle) >= handler_state.size()) {
+    const unsigned int idx = static_cast<unsigned int>(handle);
+    if (handle == SampleHandle::Invalid || idx >= static_cast<size_t>(SampleHandle::Length_)) {
         return;
     }
-    handler_state[static_cast<size_t>(handle)].exchange(false);
+    handle_state[static_cast<size_t>(handle)].store(false);
 }
 
 void
@@ -64,11 +67,9 @@ SampleManager::build_storage()
 
     // Since the construct for Sample might throw, note we have to catch it eventually
     // Strongly assume that by the time we get here, the user is done trying to configure us.
-    if (storage.has_value()) {
-        storage->clear();
-        for (size_t i = 0; i < handler_state.size(); ++i) {
-            storage->emplace_back(type_mask, max_nframes);
-        }
+    storage.clear();
+    for (size_t i = 0; i < handle_state.size(); ++i) {
+        storage.emplace_back(type_mask, max_nframes);
     }
 }
 
@@ -78,14 +79,14 @@ SampleManager::start_sample(SampleHandle requested)
     constexpr unsigned int max_failures = 3;
     auto ret = SampleHandle::Invalid;
 
-    // take_handler will do the bounds check on `requested`
-    if (take_handler(requested)) {
+    // take_handle will do the bounds check on `requested`
+    if (take_handle(requested)) {
         ret = requested;
 
         // If the storage hasn't been initialized yet, do so now
         // If we've failed to initialize it too many times, give up forever
         static unsigned int failure_count = 0;
-        if (!storage.has_value() && failure_count < max_failures) {
+        if (storage.size() < handle_state.size() && failure_count < max_failures) {
             try {
                 build_storage();
             } catch (const std::exception& e) {
@@ -95,13 +96,13 @@ SampleManager::start_sample(SampleHandle requested)
             }
         }
 
-        // If somehow we _still_ don't have storage, give up until next time
-        if (!storage.has_value()) {
+        // If somehow we _still_ don't have storage, give up forever
+        if (storage.size() < handle_state.size()) {
             return SampleHandle::Invalid;
         }
 
         // If we're here, the handle was taken and the storage was initialized, call whatever setup the sample needs
-        storage->at(static_cast<size_t>(ret)).start_sample();
+        storage[static_cast<size_t>(ret)].start_sample();
     }
     return ret;
 }

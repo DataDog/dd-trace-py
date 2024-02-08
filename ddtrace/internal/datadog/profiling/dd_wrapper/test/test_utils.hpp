@@ -31,10 +31,10 @@ configure(
 void
 send_sample(unsigned int id)
 {
-    // NB, valid ids are in [1, 4]
+    // NB, valid ids are in [0, 3]
     auto h = ddup_start_sample(id);
     if (id != h) {
-        std::cerr << "Failed to start sample" << std::endl;
+        std::cerr << "Failed to start sample, got " << h << " expected " << id << std::endl;
         std::exit(1);
     }
 
