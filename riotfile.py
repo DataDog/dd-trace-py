@@ -2548,7 +2548,7 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
-            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.7", max_version="3.9"),
             pkgs={
                 "boto3": latest,
