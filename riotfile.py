@@ -2555,6 +2555,7 @@ venv = Venv(
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+                "envier": "==0.5.1",
             },
         ),
         Venv(
