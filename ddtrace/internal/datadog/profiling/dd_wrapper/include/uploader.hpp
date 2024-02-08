@@ -33,6 +33,9 @@ class Uploader
     static void cancel_inflight();
     static void lock();
     static void unlock();
+    static void prefork();
+    static void postfork_parent();
+    static void postfork_child();
 
     Uploader(std::string_view _url, ddog_prof_Exporter* ddog_exporter);
 };

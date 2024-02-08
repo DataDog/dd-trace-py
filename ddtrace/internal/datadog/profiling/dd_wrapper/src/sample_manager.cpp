@@ -76,29 +76,26 @@ SampleManager::build_storage()
 SampleHandle
 SampleManager::start_sample(SampleHandle requested)
 {
-    constexpr unsigned int max_failures = 3;
     auto ret = SampleHandle::Invalid;
 
     // take_handle will do the bounds check on `requested`
     if (take_handle(requested)) {
+        // `take_handle()` splits co-temporal threads with the same calling ID, but if two threads with
+        // different request IDs arrive here at the same time, then one of them needs block so we can
+        // safely handle initialization
+        std::lock_guard<std::mutex> lock(init_mutex);
         ret = requested;
 
-        // If the storage hasn't been initialized yet, do so now
-        // If we've failed to initialize it too many times, give up forever
-        static unsigned int failure_count = 0;
-        if (storage.size() < handle_state.size() && failure_count < max_failures) {
+        // If the storage is not initialized, do so
+        if (storage.size() < handle_state.size()) {
             try {
+                // Assume:  if storage is initialzed, it is initialized in entirety
                 build_storage();
             } catch (const std::exception& e) {
                 std::cerr << "Failed to initialize storage: " << e.what() << std::endl;
-                ++failure_count;
+                storage.clear();
                 return SampleHandle::Invalid;
             }
-        }
-
-        // If somehow we _still_ don't have storage, give up forever
-        if (storage.size() < handle_state.size()) {
-            return SampleHandle::Invalid;
         }
 
         // If we're here, the handle was taken and the storage was initialized, call whatever setup the sample needs
@@ -114,7 +111,17 @@ SampleManager::start_sample(unsigned int requested)
 }
 
 void
-SampleManager::reset_profile()
+SampleManager::postfork_child()
 {
-    Sample::profile_state.reset();
+    handles_release();
+    Sample::postfork_child();
+}
+
+void
+SampleManager::handles_release()
+{
+    // When we fork, we need to release all the handles
+    for (size_t i = 0; i < handle_state.size(); ++i) {
+        handle_state[i].store(false);
+    }
 }

@@ -18,14 +18,14 @@ bool is_ddup_initialized = false;
 void
 ddup_postfork_child()
 {
-    Datadog::Profile::mark_dirty();
-    Datadog::Uploader::unlock();
+    Datadog::Uploader::postfork_child();
+    Datadog::SampleManager::postfork_child();
 }
 
 void
 ddup_postfork_parent()
 {
-    Datadog::Uploader::unlock();
+    Datadog::Uploader::postfork_parent();
 }
 
 // Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
@@ -35,16 +35,15 @@ ddup_postfork_parent()
 void
 ddup_prefork()
 {
-    Datadog::Uploader::lock();
-    Datadog::Uploader::cancel_inflight();
+    Datadog::Uploader::prefork();
 }
 
 // Configuration
 void
-ddup_config_env(const char* env)
+ddup_config_env(const char* dd_env)
 {
-    if (env) {
-        Datadog::UploaderBuilder::set_env(env);
+    if (dd_env) {
+        Datadog::UploaderBuilder::set_env(dd_env);
     }
 }
 void
@@ -113,10 +112,10 @@ ddup_is_initialized()
     return is_ddup_initialized;
 }
 
+std::atomic<int> initialized_count{ 0 };
 void
 ddup_init()
 {
-    static std::atomic<int> initialized_count{ 0 };
     const static bool initialized = []() {
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
@@ -140,7 +139,7 @@ ddup_start_sample(unsigned int requested)
 }
 
 void
-ddup_set_runtime_id(const char* id, size_t sz)
+ddup_set_runtime_id(const char* id, size_t sz) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
 }
@@ -279,31 +278,30 @@ ddup_upload()
         return false;
     }
 
-    ddog_prof_Profile upload_profile = Datadog::Sample::get_ddog_profile();
-    Datadog::Profile::mark_dirty();
-
-    // We create a new uploader just for this operation
     bool success = false;
-    try {
-        auto uploader = Datadog::UploaderBuilder::build();
+    {
+        // The borrow operation takes a reference, then locks the areas where
+        // the ddog_prof_Profile might be modified.  We need to return it
+        ddog_prof_Profile upload_profile = Datadog::Sample::profile_borrow();
 
-        // NB, upload() cancels any inflight uploads in order to ensure only
-        // one is active at a time.  This simplifies the fork/thread logic.
-        // This is usually fine, but when the user specifies a profiling
-        // upload interval less than the upload timeout, we have a potential
-        // backlog situation which isn't handled.  This is against recommended
-        // practice, but it wouldn't be crazy to add a small backlog queue.
-        success = uploader.upload(upload_profile);
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to create uploader: " << e.what() << std::endl;
-        return false;
+        // We create a new uploader just for this operation
+        try {
+            auto uploader = Datadog::UploaderBuilder::build();
+
+            // NB, upload() cancels any inflight uploads in order to ensure only
+            // one is active at a time.  This simplifies the fork/thread logic.
+            // This is usually fine, but when the user specifies a profiling
+            // upload interval less than the upload timeout, we have a potential
+            // backlog situation which isn't handled.  This is against recommended
+            // practice, but it wouldn't be crazy to add a small backlog queue.
+            success = uploader.upload(upload_profile);
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to create uploader: " << e.what() << std::endl;
+        }
+
+        // We're done with the profile
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
     }
     return success;
-}
-
-void
-ddup_cleanup()
-{
-    // TODO some other stuff probably goes here.
-    Datadog::SampleManager::reset_profile();
 }

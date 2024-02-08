@@ -17,9 +17,15 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 }
 
 ddog_prof_Profile&
-Sample::get_ddog_profile()
+Sample::profile_borrow()
 {
-    return profile_state.get_current_profile();
+    return profile_state.profile_borrow();
+}
+
+void
+Sample::profile_release()
+{
+    profile_state.profile_release();
 }
 
 void
@@ -29,6 +35,12 @@ Sample::start_sample()
     // if we just forked or had to interrupt a previous sample for whatever reason.  This shouldn't be too
     // expensive in the common case, so we just do it.  Pop a flag here if it's too annoying.
     clear_buffers();
+}
+
+void
+Sample::profile_clear_state()
+{
+    profile_state.cycle_buffers();
 }
 
 void
@@ -320,4 +332,10 @@ Sample::push_class_name(std::string_view class_name)
         return false;
     }
     return true;
+}
+
+void
+Sample::postfork_child()
+{
+    profile_state.postfork_child();
 }

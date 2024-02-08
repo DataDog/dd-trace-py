@@ -5,6 +5,7 @@
 
 #include <array>
 #include <atomic>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -33,12 +34,13 @@ class SampleManager
     static inline std::array<std::atomic<bool>, static_cast<size_t>(SampleHandle::Length_)> handle_state{};
     static inline SampleStorage storage{};
     static inline unsigned int max_nframes{ g_default_nframes };
+    static inline SampleType type_mask{ SampleType::All };
+    static inline std::mutex init_mutex{};
 
     // Helpers
     static bool take_handle(SampleHandle handle);
     static void release_handle(SampleHandle handle);
-    static inline SampleType type_mask{ SampleType::All };
-    static inline void build_storage();
+    static void build_storage();
 
   public:
     // Configuration
@@ -54,6 +56,10 @@ class SampleManager
     // NB this is probably only valuable in consolidating shut-down
     // operations and testing
     static void reset_profile();
+
+    // Only post-fork (child)
+    static void handles_release();
+    static void postfork_child();
 
     //-------------------------------------------------------------------------
     // Setup some variadic templates with perfect forwarding--this prevents the Manager from having to

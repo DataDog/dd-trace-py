@@ -1,5 +1,5 @@
-#include "test_utils.hpp"
 #include "interface.hpp"
+#include "test_utils.hpp"
 #include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
@@ -9,8 +9,7 @@
 void
 simple_init()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython",
-              "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
     std::exit(0);
 }
 

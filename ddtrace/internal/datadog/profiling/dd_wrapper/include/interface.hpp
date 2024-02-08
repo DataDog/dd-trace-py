@@ -7,7 +7,7 @@
 extern "C"
 {
 #endif
-    void ddup_config_env(const char* env);
+    void ddup_config_env(const char* dd_env);
     void ddup_config_service(const char* service);
     void ddup_config_version(const char* version);
     void ddup_config_runtime(const char* runtime);
@@ -21,7 +21,10 @@ extern "C"
 
     bool ddup_is_initialized();
     void ddup_init();
+    void ddup_set_runtime_id(unsigned int handle, const char* id, size_t sz);
+    bool ddup_upload();
 
+    // Proxy functions to the underlying sample
     unsigned int ddup_start_sample(unsigned int requested);
     void ddup_push_walltime(unsigned int handle, int64_t walltime, int64_t count);
     void ddup_push_cputime(unsigned int handle, int64_t cputime, int64_t count);
@@ -44,11 +47,6 @@ extern "C"
     void ddup_push_class_name(unsigned int handle, const char* class_name);
     void ddup_push_frame(unsigned int handle, const char* _name, const char* _filename, uint64_t address, int64_t line);
     void ddup_flush_sample(unsigned int handle);
-    void ddup_set_runtime_id(unsigned int handle, const char* id, size_t sz);
-    bool ddup_upload();
-
-    // Unusual interfaces (testing, mostly)
-    void ddup_cleanup();
 
 #ifdef __cplusplus
 } // extern "C"

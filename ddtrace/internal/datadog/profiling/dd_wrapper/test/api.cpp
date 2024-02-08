@@ -6,13 +6,11 @@
 //       "workaround" in the following link
 //       https://stackoverflow.com/a/71257678
 
-
 void
 single_sample_noframe()
 {
 
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
-              "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample
     auto h = ddup_start_sample(1);
@@ -33,8 +31,7 @@ TEST(UploadDeathTest, SingleSample)
 void
 single_oneframe_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
-              "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample(1);
@@ -56,8 +53,7 @@ TEST(UploadDeathTest, SingleSampleOneFrame)
 void
 single_manyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
-              "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample(1);
@@ -88,8 +84,7 @@ TEST(UploadDeathTest, SingleSampleManyFrames)
 void
 single_toomanyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
-              "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample(1);
@@ -120,8 +115,7 @@ TEST(UploadDeathTest, SingleSampleTooManyFrames)
 void
 lotsa_frames_lotsa_samples()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
-              "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // 60 seconds @ 100 hertz
     unsigned int h = 0;

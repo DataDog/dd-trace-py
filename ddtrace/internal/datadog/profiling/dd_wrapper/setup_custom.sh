@@ -49,18 +49,31 @@ MEMORY_OPTIONS="memory"
 ANALYZE_OPTIONS="-fanalyzer"
 
 # helper function for setting the compiler
+# Final cmake args
+cmake_args=(
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  -DCMAKE_VERBOSE_MAKEFILE=ON
+)
+
 set_clang() {
-  echo "================================================== setting clang =============================================="
-  echo "$highest_clang"
   export CC=$highest_clang
   export CXX=$highest_clangxx
+  cmake_args+=(
+    -DCMAKE_C_COMPILER=$CC
+    -DCMAKE_CXX_COMPILER=$CXX
+  )
 }
+
 set_gcc() {
-  echo "================================================== setting gcc ================================================"
-  echo "$highest_gcc"
   export CC=$highest_gcc
   export CXX=$highest_gxx
+  cmake_args+=(
+    -DCMAKE_C_COMPILER=$CC
+    -DCMAKE_CXX_COMPILER=$CXX
+  )
 }
+
+
 
 # Check input
 if [ -n "$1" ]; then
@@ -78,6 +91,7 @@ if [ -n "$1" ]; then
       echo "  -f, --fanalyze    GCC + -fanalyzer"
       echo "  -c, --clang       Clang (alone)"
       echo "  -g, --gcc         GCC (alone)"
+      echo "  --                Don't do anything special"
       echo ""
       echo "Build Modes:"
       echo "  Debug (default)"
@@ -96,31 +110,31 @@ if [ -n "$1" ]; then
       exit 0
       ;;
     -s|--safety)
-      SANITIZE_OPTIONS=$SAFETY_OPTIONS
+      cmake_args+=(-DSANITIZE_OPTIONS=$SAFETY_OPTIONS)
       set_clang
       ;;
     -t|--thread)
-      SANITIZE_OPTIONS=$THREAD_OPTIONS
+      cmake_args+=(-DSANITIZE_OPTIONS=$THREAD_OPTIONS)
       set_clang
       ;;
     -n|--numerical)
-      SANITIZE_OPTIONS=$NUMERICAL_OPTIONS
+      cmake_args+=(-DSANITIZE_OPTIONS=$NUMERICAL_OPTIONS)
       set_clang
       ;;
     -d|--dataflow)
-      SANITIZE_OPTIONS=$DATAFLOW_OPTIONS
+      cmake_args+=(-DSANITIZE_OPTIONS=$DATAFLOW_OPTIONS)
       set_clang
       ;;
     -m|--memory)
-      SANITIZE_OPTIONS=$MEMORY_OPTIONS
+      cmake_args+=(-DSANITIZE_OPTIONS=$MEMORY_OPTIONS)
       set_clang
       ;;
     -C|--cppcheck)
-      SANITIZE_OPTIONS="cppcheck"
+      cmake_args+=(-DDO_CPPCHECK=ON)
       set_clang
       ;;
     -f|--fanalyze)
-      SANITIZE_OPTIONS="fanalyzer"
+      cmake_args+=(-DDO_FANALYZE=ON)
       set_gcc
       ;;
     -c|--clang)
@@ -128,6 +142,8 @@ if [ -n "$1" ]; then
       ;;
     -g|--gcc)
       set_gcc
+      ;;
+    --)
       ;;
     *)
       echo "Unknown option: $1"
@@ -140,21 +156,11 @@ fi
 
 # If there are two arguments, override build mode
 BUILD_MODE=${2:-Debug}
+cmake_args+=(-DCMAKE_BUILD_TYPE=$BUILD_MODE)
 
 # Setup cmake stuff
 BUILD_DIR="build"
-mkdir -p $BUILD_DIR
-cd $BUILD_DIR
-
-# cmake args
-cmake_args=(
-  -DCMAKE_CXX_COMPILER=$CXX  # This shouldn't be necessary, but it seems to be?
-  -DCMAKE_C_COMPILER=$CC
-  -DCMAKE_BUILD_TYPE=$BUILD_MODE
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-  -DCMAKE_VERBOSE_MAKEFILE=ON
-  -DSANITIZE_OPTIONS=$SANITIZE_OPTIONS
-)
+mkdir -p $BUILD_DIR && cd $BUILD_DIR || { echo "Failed to create build directory"; exit 1; }
 
 # Run cmake
 cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }

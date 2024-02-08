@@ -19,7 +19,7 @@ namespace Datadog {
 // within a C++ symbol name.
 #define EXPORTER_TAGS(X)                                                                                               \
     X(language, "language")                                                                                            \
-    X(env, "env")                                                                                                      \
+    X(dd_env, "env")                                                                                                   \
     X(service, "service")                                                                                              \
     X(version, "version")                                                                                              \
     X(runtime_version, "runtime_version")                                                                              \

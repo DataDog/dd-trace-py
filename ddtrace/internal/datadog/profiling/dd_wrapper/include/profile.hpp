@@ -59,21 +59,17 @@ class Profile
     ddog_prof_Profile cur_profile{};
     ddog_prof_Profile last_profile{};
 
-    // Global state
-    static inline std::atomic<bool> dirty;
-
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
     bool cycle_buffers();
-    void entrypoint_check();
     void reset();
+    void postfork_child();
 
     // Getters
-    unsigned int get_max_nframes() const;
-    SampleType get_type_mask();
     size_t get_sample_type_length();
-    ddog_prof_Profile& get_current_profile();
+    ddog_prof_Profile& profile_borrow();
+    void profile_release();
 
     // String table manipulation
     std::string_view insert_or_get(std::string_view sv);
@@ -83,8 +79,5 @@ class Profile
 
     // collect
     bool collect(const ddog_prof_Sample& sample);
-
-    // Global manipulators
-    static void mark_dirty();
 };
 } // namespace Datadog

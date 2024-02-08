@@ -114,3 +114,22 @@ Uploader::cancel_inflight()
     }
     cancel = nullptr;
 }
+
+void
+Uploader::prefork()
+{
+    lock();
+    cancel_inflight();
+}
+
+void
+Uploader::postfork_parent()
+{
+    unlock();
+}
+
+void
+Uploader::postfork_child()
+{
+    unlock();
+}

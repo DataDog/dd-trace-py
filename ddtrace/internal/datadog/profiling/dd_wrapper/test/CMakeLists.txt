@@ -28,6 +28,13 @@ function(dd_wrapper_add_test name)
   gtest_discover_tests(${name})
 endfunction()
 
+# Shouldn't be necessary, but whatever
+add_compile_options(
+  "$<$<CONFIG:Debug>:-Og;-ggdb3;-fno-omit-frame-pointer>"
+  "$<$<CONFIG:Release>:-O3>"
+  -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
+)
+
 # Add the tests
 dd_wrapper_add_test(initialization
   initialization.cpp

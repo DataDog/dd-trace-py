@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-
 // Inline helpers
 namespace {
 
@@ -18,6 +17,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
              const struct ddog_prof_Period* period,
              ddog_prof_Profile& profile)
 {
+    // Private helper function for creating a ddog_prof_Profile from arguments
     ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
         const std::string errmsg = Datadog::err_to_msg(&res.err, "Error initializing profile");
@@ -36,6 +36,8 @@ using namespace Datadog;
 void
 Profile::reset()
 {
+    const std::lock_guard<std::mutex> lock(profile_mtx);
+
     // Drop the profiles
     if (cur_profile.inner != nullptr) {
         ddog_prof_Profile_drop(&cur_profile);
@@ -53,6 +55,7 @@ bool
 Profile::cycle_buffers()
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
+
     std::swap(last_profile, cur_profile);
 
     // Clear the profile before using it
@@ -64,16 +67,6 @@ Profile::cycle_buffers()
         return false;
     }
     return true;
-}
-
-void
-Profile::entrypoint_check()
-{
-    if (dirty.load()) {
-        const std::lock_guard<std::mutex> lock(profile_mtx);
-        cycle_buffers();
-        dirty.store(false);
-    }
 }
 
 void
@@ -129,21 +122,18 @@ Profile::get_sample_type_length()
 }
 
 ddog_prof_Profile&
-Profile::get_current_profile()
+Profile::profile_borrow()
 {
+    // We could wrap this in an object for better RAII, but since this
+    // sequence is only used in a single place, we'll hold off on that sidequest.
+    profile_mtx.lock();
     return cur_profile;
 }
 
-unsigned int
-Profile::get_max_nframes() const
+void
+Profile::profile_release()
 {
-    return max_nframes;
-}
-
-SampleType
-Profile::get_type_mask()
-{
-    return type_mask;
+    profile_mtx.unlock();
 }
 
 void
@@ -222,7 +212,8 @@ Profile::collect(const ddog_prof_Sample& sample)
 }
 
 void
-Profile::mark_dirty()
+Profile::postfork_child()
 {
-    dirty.store(true);
+    profile_mtx.unlock();
+    cycle_buffers();
 }

@@ -6,24 +6,24 @@
 #include <vector>
 
 inline static void
-configure(
-    const char* service,
-    const char* env,
-    const char* version,
-    const char* url,
-    const char* runtime,
-    const char* runtime_version,
-    const char* profiler_version,
-    int max_nframes) {
-  ddup_config_service(service);
-  ddup_config_env(env);
-  ddup_config_version(version);
-  ddup_config_url(url);
-  ddup_config_runtime(runtime);
-  ddup_config_runtime_version(runtime_version);
-  ddup_config_profiler_version(profiler_version);
-  ddup_config_max_nframes(max_nframes);
-  ddup_init();
+configure(const char* service,
+          const char* env,
+          const char* version,
+          const char* url,
+          const char* runtime,
+          const char* runtime_version,
+          const char* profiler_version,
+          int max_nframes)
+{
+    ddup_config_service(service);
+    ddup_config_env(env);
+    ddup_config_version(version);
+    ddup_config_url(url);
+    ddup_config_runtime(runtime);
+    ddup_config_runtime_version(runtime_version);
+    ddup_config_profiler_version(profiler_version);
+    ddup_config_max_nframes(max_nframes);
+    ddup_init();
 }
 
 // This is a generic function for sending a small, fake sample to the profiler
@@ -40,21 +40,21 @@ send_sample(unsigned int id)
 
     // Emulate the fields that are sent by a given id
     switch (id) {
-      case 1: //stack
-        ddup_push_walltime(h, 1.0, 1);
-        ddup_push_cputime(h, 1.0, 1);
-        ddup_push_exceptioninfo(h, "BadException", 1);
-        break;
-      case 2: // lock
-        ddup_push_acquire(h, 1.0, 1);
-        ddup_push_lock_name(h, "GoodLock");
-        break;
-      case 3: // memory
-        ddup_push_alloc(h, 1.0, 1);
-        break;
-      case 4: // heap
-        ddup_push_heap(h, 1);
-        break;
+        case 1: // stack
+            ddup_push_walltime(h, 1.0, 1);
+            ddup_push_cputime(h, 1.0, 1);
+            ddup_push_exceptioninfo(h, "BadException", 1);
+            break;
+        case 2: // lock
+            ddup_push_acquire(h, 1.0, 1);
+            ddup_push_lock_name(h, "GoodLock");
+            break;
+        case 3: // memory
+            ddup_push_alloc(h, 1.0, 1);
+            break;
+        case 4: // heap
+            ddup_push_heap(h, 1);
+            break;
     }
 
     for (int i = 0; i < 16; i++) {
@@ -82,16 +82,20 @@ emulate_sampler(unsigned int id, std::atomic<bool>& done)
 
 // Launches the specified number of threads, each of which emulates a different sampler
 // The done flag is used to signal the samplers to stop
-void launch_samplers(std::vector<unsigned int> &ids, std::vector<std::thread> &threads, std::atomic<bool>& done) {
+void
+launch_samplers(std::vector<unsigned int>& ids, std::vector<std::thread>& threads, std::atomic<bool>& done)
+{
     threads.clear();
     for (auto id : ids) {
         threads.push_back(std::thread(emulate_sampler, id, std::ref(done)));
     }
 }
 
-void join_samplers(std::vector<std::thread> &threads, std::atomic<bool>& done) {
+void
+join_samplers(std::vector<std::thread>& threads, std::atomic<bool>& done)
+{
     done.store(true);
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 }
