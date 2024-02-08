@@ -17,6 +17,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import SpanSamplingProcessor
@@ -24,6 +25,7 @@ from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
@@ -39,7 +41,6 @@ from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import VERSION_KEY
-from .context import Context
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -62,7 +63,6 @@ from .internal.utils.http import verify_url
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
-from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
