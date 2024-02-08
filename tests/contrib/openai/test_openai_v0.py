@@ -2182,8 +2182,8 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
         assert err == b""
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)])
-def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2266,8 +2266,8 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)])
-def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2362,9 +2362,9 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)])
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
 def test_llmobs_chat_completion_function_call(
-    openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer
+    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
 ):
     """Test that function call chat completion calls are recorded as LLMObs events correctly."""
     if not hasattr(openai, "ChatCompletion"):
@@ -2429,8 +2429,8 @@ def test_llmobs_chat_completion_function_call(
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)])
-def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
     with pytest.raises(Exception):
         with openai_vcr.use_cassette("completion_error.yaml"):
@@ -2486,8 +2486,8 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(llmobs_enabled=True, llmobs_prompt_completion_sample_rate=1.0)])
-def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")

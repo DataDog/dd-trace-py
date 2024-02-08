@@ -43,7 +43,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.1"
+LIBDDWAF_VERSION = "1.16.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -592,6 +592,7 @@ setup(
         "envier",
         "opentelemetry-api>=1",
         "setuptools; python_version>='3.12'",
+        "sqlparse>=0.2.2",
     ]
     + bytecode,
     extras_require={

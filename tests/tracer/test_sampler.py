@@ -6,6 +6,7 @@ import unittest
 import mock
 import pytest
 
+from ddtrace._trace.context import Context
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
@@ -15,7 +16,6 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.context import Context
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
