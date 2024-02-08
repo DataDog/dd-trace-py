@@ -716,7 +716,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
 
             # Get last datadog parent id, this field is used to reconnect traces with missing spans
-            lpid = dd.get("lp.id")
+            lpid = dd.get("lp.id", "0000000000000000")
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
