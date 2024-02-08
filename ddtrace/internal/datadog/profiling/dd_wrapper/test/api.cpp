@@ -1,22 +1,18 @@
 #include "interface.hpp"
+#include "test_utils.hpp"
 #include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
 //       "workaround" in the following link
 //       https://stackoverflow.com/a/71257678
 
+
 void
 single_sample_noframe()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(256);
-    ddup_init();
+
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
+              "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample
     auto h = ddup_start_sample(1);
@@ -37,15 +33,8 @@ TEST(UploadDeathTest, SingleSample)
 void
 single_oneframe_sample()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(256);
-    ddup_init();
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
+              "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample(1);
@@ -67,18 +56,11 @@ TEST(UploadDeathTest, SingleSampleOneFrame)
 void
 single_manyframes_sample()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(512);
-    ddup_init();
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
+              "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
-    auto h = ddup_start_sample(h);
+    auto h = ddup_start_sample(1);
     ddup_push_walltime(h, 1.0, 1);
 
     // Populate the frames; we add exactly 512, which ought to
@@ -106,19 +88,12 @@ TEST(UploadDeathTest, SingleSampleManyFrames)
 void
 single_toomanyframes_sample()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(512);
-    ddup_init();
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
+              "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
-    ddup_start_sample();
-    ddup_push_walltime(1.0, 1);
+    auto h = ddup_start_sample(1);
+    ddup_push_walltime(h, 1.0, 1);
 
     // Now, for something completely different, we
     // add way too many frames
@@ -127,9 +102,9 @@ single_toomanyframes_sample()
     for (int i = 0; i < 1024; i++) {
         std::string name = base_func + std::to_string(i);
         std::string file = base_file + std::to_string(i);
-        ddup_push_frame(name.c_str(), file.c_str(), 1, 1);
+        ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
     }
-    ddup_flush_sample();
+    ddup_flush_sample(h);
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -145,29 +120,23 @@ TEST(UploadDeathTest, SingleSampleTooManyFrames)
 void
 lotsa_frames_lotsa_samples()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(512);
-    ddup_init();
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126",
+              "cpython", "3.10.6", "3.100", 512);
 
     // 60 seconds @ 100 hertz
+    unsigned int h = 0;
     for (int i = 0; i < 60 * 100; i++) {
-        ddup_start_sample();
-        ddup_push_cputime(1.0, 1);
-        ddup_push_walltime(1.0, 1);
-        ddup_push_exceptioninfo("WowThisIsBad", 1);
-        ddup_push_alloc(100, 1);
-        ddup_push_heap(100);
-        ddup_push_acquire(66, 1);
-        ddup_push_release(66, 1);
-        ddup_push_threadinfo(i + 1024, i * 200 % 11, "MyFavoriteThreadEver");
-        ddup_push_task_id(i);
-        ddup_push_task_name("MyFavoriteTaskEver");
+        h = ddup_start_sample(1);
+        ddup_push_cputime(h, 1.0, 1);
+        ddup_push_walltime(h, 1.0, 1);
+        ddup_push_exceptioninfo(h, "WowThisIsBad", 1);
+        ddup_push_alloc(h, 100, 1);
+        ddup_push_heap(h, 100);
+        ddup_push_acquire(h, 66, 1);
+        ddup_push_release(h, 66, 1);
+        ddup_push_threadinfo(h, i + 1024, i * 200 % 11, "MyFavoriteThreadEver");
+        ddup_push_task_id(h, i);
+        ddup_push_task_name(h, "MyFavoriteTaskEver");
 
         // Now, for something completely different, we
         // add way too many frames
@@ -176,9 +145,9 @@ lotsa_frames_lotsa_samples()
         for (int j = 0; j < 64; j++) {
             std::string name = base_func + std::to_string(j) + "." + std::to_string(i);
             std::string file = base_file + std::to_string(j) + "." + std::to_string(i);
-            ddup_push_frame(name.c_str(), file.c_str(), 1, 1);
+            ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
         }
-        ddup_flush_sample();
+        ddup_flush_sample(h);
     }
 
     // Upload.  It'll fail, but whatever

@@ -20,8 +20,9 @@ SampleManager::set_max_nframes(unsigned int _max_nframes)
 {
     const unsigned int backend_max_nframes = 512;
 
-    if (_max_nframes > 0)
+    if (_max_nframes > 0) {
         max_nframes = _max_nframes;
+    }
 
     // If the user has requested more than we're allowed to give, reduce the limit and warn the user.
     if (max_nframes > backend_max_nframes) {
@@ -63,16 +64,17 @@ SampleManager::build_storage()
 
     // Since the construct for Sample might throw, note we have to catch it eventually
     // Strongly assume that by the time we get here, the user is done trying to configure us.
-    storage->clear();
-    for (size_t i = 0; i < handler_state.size(); ++i) {
-        storage->emplace_back(type_mask, max_nframes);
+    if (storage.has_value()) {
+        storage->clear();
+        for (size_t i = 0; i < handler_state.size(); ++i) {
+            storage->emplace_back(type_mask, max_nframes);
+        }
     }
 }
 
 SampleHandle
 SampleManager::start_sample(SampleHandle requested)
 {
-    static unsigned int failure_count = 0;
     constexpr unsigned int max_failures = 3;
     auto ret = SampleHandle::Invalid;
 
@@ -82,6 +84,7 @@ SampleManager::start_sample(SampleHandle requested)
 
         // If the storage hasn't been initialized yet, do so now
         // If we've failed to initialize it too many times, give up forever
+        static unsigned int failure_count = 0;
         if (!storage.has_value() && failure_count < max_failures) {
             try {
                 build_storage();
@@ -90,6 +93,11 @@ SampleManager::start_sample(SampleHandle requested)
                 ++failure_count;
                 return SampleHandle::Invalid;
             }
+        }
+
+        // If somehow we _still_ don't have storage, give up until next time
+        if (!storage.has_value()) {
+            return SampleHandle::Invalid;
         }
 
         // If we're here, the handle was taken and the storage was initialized, call whatever setup the sample needs

@@ -18,6 +18,8 @@ extern "C"
 
 namespace Datadog {
 
+constexpr unsigned int g_default_max_nframes = 128;
+
 // Unordered containers don't get heterogeneous lookup until gcc-10, so for now use this
 // strategy to dedup + store strings.
 using StringTable = std::unordered_set<std::string_view>;
@@ -40,7 +42,7 @@ class Profile
 
     // Configuration
     SampleType type_mask{ 0 };
-    unsigned int max_nframes{ 128 };
+    unsigned int max_nframes{ g_default_max_nframes };
     ddog_prof_Period default_period{};
 
     // Sampler setup
@@ -68,7 +70,7 @@ class Profile
     void reset();
 
     // Getters
-    unsigned int get_max_nframes();
+    unsigned int get_max_nframes() const;
     SampleType get_type_mask();
     size_t get_sample_type_length();
     ddog_prof_Profile& get_current_profile();

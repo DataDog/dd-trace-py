@@ -43,50 +43,58 @@ ddup_prefork()
 void
 ddup_config_env(const char* env)
 {
-    if (env)
+    if (env) {
         Datadog::UploaderBuilder::set_env(env);
+    }
 }
 void
 ddup_config_service(const char* service)
 {
-    if (service)
+    if (service) {
         Datadog::UploaderBuilder::set_service(service);
+    }
 }
 void
 ddup_config_version(const char* version)
 {
-    if (version)
+    if (version) {
         Datadog::UploaderBuilder::set_version(version);
+    }
 }
 void
 ddup_config_runtime(const char* runtime)
 {
-    if (runtime)
+    if (runtime) {
         Datadog::UploaderBuilder::set_runtime(runtime);
+    }
 }
 void
 ddup_config_runtime_version(const char* runtime_version)
 {
-    if (runtime_version)
+    if (runtime_version) {
         Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    }
 }
 void
 ddup_config_profiler_version(const char* profiler_version)
 {
-    if (profiler_version)
+    if (profiler_version) {
         Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    }
 }
 void
 ddup_config_url(const char* url)
 {
-    if (url)
+    if (url) {
         Datadog::UploaderBuilder::set_url(url);
+    }
 }
 void
 ddup_config_user_tag(const char* key, const char* val)
 {
-    if (key && val)
+    if (key && val) {
         Datadog::UploaderBuilder::set_tag(key, val);
+    }
 }
 void
 ddup_config_sample_type(unsigned int _type)
@@ -109,7 +117,7 @@ void
 ddup_init()
 {
     static std::atomic<int> initialized_count{ 0 };
-    static bool initialized = []() {
+    const static bool initialized = []() {
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);

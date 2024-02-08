@@ -10,8 +10,8 @@ DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
 }
 
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
-  : ddog_exporter{ _ddog_exporter }
-  , url{ _url }
+  : url{ _url }
+  , ddog_exporter{ _ddog_exporter }
 {
 }
 
@@ -33,7 +33,7 @@ Uploader::upload(ddog_prof_Profile& profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
-    ddog_prof_Exporter_File file = {
+    const ddog_prof_Exporter_File file = {
         .name = to_slice("auto.pprof"),
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
@@ -69,7 +69,7 @@ Uploader::upload(ddog_prof_Profile& profile)
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
     {
-        std::lock_guard<std::mutex> lock_guard(upload_lock);
+        const std::lock_guard<std::mutex> lock_guard(upload_lock);
 
         // Build and check the response object
         ddog_prof_Exporter_Request* req = build_res.ok;

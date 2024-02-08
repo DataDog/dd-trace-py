@@ -32,7 +32,7 @@ class Sample
     uint64_t samples = 0;
 
     // Storage for labels
-    std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::_Length)> labels{};
+    std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::Length_)> labels{};
     size_t cur_label = 0;
 
     // Storage for values
@@ -42,8 +42,8 @@ class Sample
     void start_sample();
 
     // Helpers
-    bool push_label(const ExportLabelKey key, std::string_view val);
-    bool push_label(const ExportLabelKey key, int64_t val);
+    bool push_label(ExportLabelKey key, std::string_view val);
+    bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void clear_buffers();
 
@@ -83,7 +83,6 @@ class Sample
   public:
     static ddog_prof_Profile& get_ddog_profile();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
-    ~Sample() = default;
 };
 
 } // namespace Datadog

@@ -50,12 +50,12 @@ namespace Datadog {
 
 enum class ExportTagKey
 {
-    EXPORTER_TAGS(X_ENUM) _Length
+    EXPORTER_TAGS(X_ENUM) Length_
 };
 
 enum class ExportLabelKey
 {
-    EXPORTER_LABELS(X_ENUM) _Length
+    EXPORTER_LABELS(X_ENUM) Length_
 };
 
 inline ddog_CharSlice
@@ -75,32 +75,35 @@ err_to_msg(const ddog_Error* err, std::string_view msg)
 inline std::string_view
 to_string(ExportTagKey key)
 {
-    constexpr size_t num_keys = static_cast<size_t>(ExportTagKey::_Length);
+    constexpr auto num_keys = static_cast<size_t>(ExportTagKey::Length_);
     constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_TAGS(X_STR) };
-    constexpr std::string_view invalid = "";
+    constexpr std::string_view invalid; // just the empty string (but can be referenced)
 
-    if (static_cast<size_t>(key) >= num_keys)
+    if (static_cast<size_t>(key) >= num_keys) {
         return invalid;
+    }
     return keys[static_cast<size_t>(key)];
 }
 
 inline std::string_view
 to_string(ExportLabelKey key)
 {
-    constexpr size_t num_keys = static_cast<size_t>(ExportLabelKey::_Length);
+    constexpr auto num_keys = static_cast<size_t>(ExportLabelKey::Length_);
     constexpr std::array<std::string_view, num_keys> keys = { EXPORTER_LABELS(X_STR) };
-    constexpr std::string_view invalid = "";
+    constexpr std::string_view invalid; // just the empty string (but can be referenced)
 
-    if (static_cast<size_t>(key) >= num_keys)
+    if (static_cast<size_t>(key) >= num_keys) {
         return invalid;
+    }
     return keys[static_cast<size_t>(key)];
 }
 
 inline bool
 add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
 {
-    if (key.empty() || val.empty())
+    if (key.empty() || val.empty()) {
         return false;
+    }
 
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
@@ -115,9 +118,10 @@ add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::str
 inline bool
 add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
 {
-    std::string_view key_sv = to_string(key);
-    if (val.empty() || key_sv.empty())
+    const std::string_view key_sv = to_string(key);
+    if (val.empty() || key_sv.empty()) {
         return false;
+    }
 
     return add_tag(tags, key_sv, val, errmsg);
 }

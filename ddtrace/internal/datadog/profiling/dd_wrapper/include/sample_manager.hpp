@@ -11,7 +11,7 @@
 namespace Datadog {
 
 // Tradeoff: either Invalid is 0 (nice: uninitialized state is invalid) or
-//           it's >_Length (nice: can place real sample types in an array + index by enum)
+//           it's >Length_ (nice: can place real sample types in an array + index by enum)
 // Choosing the latter for simplicity and because we own all downstream consumption for now
 enum class SampleHandle
 {
@@ -19,18 +19,20 @@ enum class SampleHandle
     Lock,
     Allocation,
     Heap,
-    _Length,
+    Length_,
     Invalid,
 };
 
 using SampleStorage = std::vector<Sample>;
 
+const unsigned int g_default_nframes = 64; // TODO is this the actual default?
+
 class SampleManager
 {
   private:
-    static inline std::array<std::atomic<bool>, static_cast<size_t>(SampleHandle::_Length)> handler_state{};
+    static inline std::array<std::atomic<bool>, static_cast<size_t>(SampleHandle::Length_)> handler_state{};
     static inline std::optional<SampleStorage> storage{};
-    static inline unsigned int max_nframes{ 64 };
+    static inline unsigned int max_nframes{ g_default_nframes };
 
     // Helpers
     static bool take_handler(SampleHandle handle);

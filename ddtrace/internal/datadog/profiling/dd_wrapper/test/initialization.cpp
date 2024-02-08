@@ -1,3 +1,4 @@
+#include "test_utils.hpp"
 #include "interface.hpp"
 #include <gtest/gtest.h>
 
@@ -8,15 +9,8 @@
 void
 simple_init()
 {
-    ddup_config_service("my_test_service");
-    ddup_config_env("my_test_env");
-    ddup_config_version("0.0.1");
-    ddup_config_url("https://localhost:8126");
-    ddup_config_runtime("cpython");
-    ddup_config_runtime_version("3.10.6");
-    ddup_config_profiler_version("3.100");
-    ddup_config_max_nframes(256);
-    ddup_init();
+    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython",
+              "3.10.6", "3.100", 256);
     std::exit(0);
 }
 
@@ -28,15 +22,7 @@ TEST(InitDeathTest, TestInit)
 void
 empty_init()
 {
-    ddup_config_service("");
-    ddup_config_env("");
-    ddup_config_version("");
-    ddup_config_url("");
-    ddup_config_runtime("");
-    ddup_config_runtime_version("");
-    ddup_config_profiler_version("");
-    ddup_config_max_nframes(0);
-    ddup_init();
+    configure("", "", "", "", "", "", "", 0);
     std::exit(0);
 }
 
@@ -48,15 +34,7 @@ TEST(DD_WrapperTest, TestInitWithEmpty)
 void
 null_init()
 {
-    ddup_config_service(nullptr);
-    ddup_config_env(nullptr);
-    ddup_config_version(nullptr);
-    ddup_config_url(nullptr);
-    ddup_config_runtime(nullptr);
-    ddup_config_runtime_version(nullptr);
-    ddup_config_profiler_version(nullptr);
-    ddup_config_max_nframes(0);
-    ddup_init();
+    configure(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
     std::exit(0);
 }
 
@@ -68,7 +46,6 @@ TEST(DD_WrapperTest, TestInitWithNull)
 void
 minimal_init()
 {
-    ddup_init();
     std::exit(0);
 }
 

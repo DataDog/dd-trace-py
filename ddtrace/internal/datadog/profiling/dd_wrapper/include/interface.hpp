@@ -22,7 +22,7 @@ extern "C"
     bool ddup_is_initialized();
     void ddup_init();
 
-    unsigned int ddup_start_sample(unsigned int handle);
+    unsigned int ddup_start_sample(unsigned int requested);
     void ddup_push_walltime(unsigned int handle, int64_t walltime, int64_t count);
     void ddup_push_cputime(unsigned int handle, int64_t cputime, int64_t count);
     void ddup_push_acquire(unsigned int handle, int64_t acquire_time, int64_t count);
@@ -45,7 +45,7 @@ extern "C"
     void ddup_push_frame(unsigned int handle, const char* _name, const char* _filename, uint64_t address, int64_t line);
     void ddup_flush_sample(unsigned int handle);
     void ddup_set_runtime_id(unsigned int handle, const char* id, size_t sz);
-    bool ddup_upload(unsigned int handle);
+    bool ddup_upload();
 
     // Unusual interfaces (testing, mostly)
     void ddup_cleanup();

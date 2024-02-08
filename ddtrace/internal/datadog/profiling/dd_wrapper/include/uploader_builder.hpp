@@ -16,13 +16,13 @@ class UploaderBuilder
 
     // Building parameters
     // TODO Are these the right defaults?
-    static inline std::string env{ "" };
-    static inline std::string service{ "" };
-    static inline std::string version{ "" };
+    static inline std::string env;
+    static inline std::string service;
+    static inline std::string version;
     static inline std::string runtime{ "cython" };
-    static inline std::string runtime_version{ "" };
-    static inline std::string runtime_id{ "" };
-    static inline std::string profiler_version{ "" }; // TODO get this at build time
+    static inline std::string runtime_version;
+    static inline std::string runtime_id;
+    static inline std::string profiler_version; // TODO: get this at build time
     static inline std::string url{ "http://localhost:8126" };
     static inline ExporterTagset user_tags{};
 

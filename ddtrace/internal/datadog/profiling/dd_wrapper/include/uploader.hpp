@@ -22,22 +22,19 @@ class Uploader
 {
   private:
     static inline std::mutex upload_lock{};
-
-  public:
-    std::string runtime_id;
-    std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
-    std::string url;
-
     std::string errmsg;
-
     static inline ddog_CancellationToken* cancel{ nullptr };
+    std::string runtime_id;
+    std::string url;
+    std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
 
   public:
-    Uploader(std::string_view _url, ddog_prof_Exporter* ddog_exporter);
     bool upload(ddog_prof_Profile& profile);
     static void cancel_inflight();
     static void lock();
     static void unlock();
+
+    Uploader(std::string_view _url, ddog_prof_Exporter* ddog_exporter);
 };
 
 } // namespace Datadog

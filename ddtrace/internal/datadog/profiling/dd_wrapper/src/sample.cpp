@@ -14,7 +14,6 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 
     // Initialize other state
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
-    cur_label = 0;
 }
 
 ddog_prof_Profile&
@@ -39,7 +38,7 @@ Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64
     name = profile_state.insert_or_get(name);
     filename = profile_state.insert_or_get(filename);
 
-    ddog_prof_Location loc = {
+    const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
           .name = to_slice(name),
@@ -58,10 +57,10 @@ void
 Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (locations.size() <= max_nframes)
+    if (locations.size() <= max_nframes) {
         push_frame_impl(name, filename, address, line);
-    else
-        ++dropped_frames;
+    }
+    ++dropped_frames;
 }
 
 bool
@@ -72,13 +71,14 @@ Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     // Get the sv for the key
-    std::string_view key_sv = to_string(key);
+    const std::string_view key_sv = to_string(key);
 
     // If either the val or the key are empty, we don't add the label, but
     // we don't return error
     // TODO is this what we want?
-    if (val.empty() || key_sv.empty())
+    if (val.empty() || key_sv.empty()) {
         return true;
+    }
 
     // Otherwise, persist the val string and add the label
     val = profile_state.insert_or_get(val);
@@ -99,9 +99,10 @@ Sample::push_label(const ExportLabelKey key, int64_t val)
     // Get the sv for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
-    std::string_view key_sv = to_string(key);
-    if (key_sv.empty())
+    const std::string_view key_sv = to_string(key);
+    if (key_sv.empty()) {
         return true;
+    }
 
     labels[cur_label].key = to_slice(key_sv);
     labels[cur_label].str = to_slice("");
@@ -127,18 +128,18 @@ Sample::flush_sample()
     // Samples are local to threads, meaning they are local to processes.  We can only arrive here if
     // we're flushing in the same process.
     if (dropped_frames > 0) {
-        std::string name =
+        const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
     }
 
-    ddog_prof_Sample sample = {
+    const ddog_prof_Sample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
         .labels = { labels.data(), cur_label },
     };
 
-    bool ret = profile_state.collect(sample);
+    const bool ret = profile_state.collect(sample);
     clear_buffers();
     return ret;
 }
@@ -194,10 +195,10 @@ Sample::push_acquire(int64_t acquire_time, int64_t count)
 }
 
 bool
-Sample::push_release(int64_t release_time, int64_t count)
+Sample::push_release(int64_t lock_time, int64_t count)
 {
     if (type_mask & SampleType::LockRelease) {
-        values[profile_state.val().lock_release_time] += release_time;
+        values[profile_state.val().lock_release_time] += lock_time;
         values[profile_state.val().lock_release_count] += count;
         return true;
     }
@@ -274,7 +275,7 @@ Sample::push_task_name(std::string_view task_name)
 bool
 Sample::push_span_id(uint64_t span_id)
 {
-    int64_t recoded_id = reinterpret_cast<int64_t&>(span_id);
+    const int64_t recoded_id = reinterpret_cast<int64_t&>(span_id);
     if (!push_label(ExportLabelKey::span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
@@ -285,7 +286,7 @@ Sample::push_span_id(uint64_t span_id)
 bool
 Sample::push_local_root_span_id(uint64_t local_root_span_id)
 {
-    int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id);
+    const int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id);
     if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
