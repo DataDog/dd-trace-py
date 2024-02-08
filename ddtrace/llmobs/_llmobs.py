@@ -8,9 +8,9 @@ from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
-from ddtrace.llmobs._writer import LLMObsWriter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.llmobs._writer import LLMObsWriter
 
 
 log = get_logger(__name__)
