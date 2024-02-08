@@ -34,7 +34,7 @@ def vcr_logs(request):
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.internal.log_writer.logger") as m:
+    with mock.patch("ddtrace.llmobs._log_writer.logger") as m:
         yield m
 
 
@@ -121,7 +121,7 @@ def test_send_on_exit():
     from ddtrace.llmobs._log_writer import V2LogWriter
     from tests.llmobs.test_logger import logs_vcr
 
-    ctx = logs_vcr.use_cassette("tests.internal.test_logger.test_send_on_exit.yaml")
+    ctx = logs_vcr.use_cassette("tests.llmobs.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()
     # Save the cassette at exit, this atexit handler has to be
     # registered before logger.start() is called so that the request
