@@ -19,7 +19,6 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Sample::start_sample()
 {
-    profile_state.one_time_init(type_mask, max_nframes);
 }
 
 void

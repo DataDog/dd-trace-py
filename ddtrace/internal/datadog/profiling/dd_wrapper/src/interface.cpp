@@ -132,6 +132,9 @@ void
 ddup_init()
 {
     const static bool initialized = []() {
+        // Perform any one-time startup operations
+        Datadog::SampleManager::init();
+
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
@@ -278,7 +281,6 @@ void
 ddup_flush_sample(Datadog::Sample *sample)
 {
     sample->flush_sample();
-    delete sample;
 }
 
 bool

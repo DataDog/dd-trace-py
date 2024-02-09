@@ -83,6 +83,9 @@ public:
     static void profile_clear_state();
     static void postfork_child();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
+
+    // friend class SampleManager;
+    friend class SampleManager;
 };
 
 } // namespace Datadog

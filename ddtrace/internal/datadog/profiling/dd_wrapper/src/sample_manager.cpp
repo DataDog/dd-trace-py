@@ -52,3 +52,9 @@ SampleManager::postfork_child()
 {
     Sample::postfork_child();
 }
+
+void
+SampleManager::init()
+{
+    Sample::profile_state.one_time_init(type_mask, max_nframes);
+}

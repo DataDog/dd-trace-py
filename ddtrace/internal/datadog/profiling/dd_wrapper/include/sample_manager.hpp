@@ -27,24 +27,14 @@ class SampleManager
     static void add_type(unsigned int type);
     static void set_max_nframes(unsigned int _max_nframes);
 
-    // Tries to check out the requested handle, clearing its storage if successful
+    // Sampling entrypoint (this could also be called `build_ptr()`)
     static Sample *start_sample();
 
-    // Only post-fork (child)
-    static void handles_release();
+    // Handles state management after forks
     static void postfork_child();
 
-    // flush_sample is special, since it frees/invalidates the sample.  After this point,
-    // the sample is no longer valid.
-    template<typename... Args>
-    static inline bool flush_sample(Sample *sample, Args&&... args)
-    {
-        auto ret = sample->flush_sample(std::forward<Args>(args)...);
-        delete sample;
-        return ret;
-    }
-
-    void drop_sample(Sample *sample);
+    // Initialization
+    static void init();
 };
 
 // Prevent leaking the macro
