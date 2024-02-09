@@ -22,7 +22,7 @@ from .visitor import AstVisitor
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
+IAST_ALLOWLIST = ("tests.appsec.iast", "sqlalchemy")  # type: tuple[str, ...]
 IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
 
 
