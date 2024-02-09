@@ -12,6 +12,7 @@
             "scripts/run-test-suite",
             "hatch.toml",
             "tests/conftest.py",
+            "tests/utils.py",
             "tests/__init__.py",
             "tests/.suitespec.json",
             ".circleci/*"
@@ -726,6 +727,7 @@
             "@wsgi",
             "@django",
             "@dbapi",
+            "@asgi",
             "@pg",
             "tests/appsec/*",
             "tests/contrib/django/*",

@@ -1,18 +1,19 @@
 import logging
 import os
+import sysconfig
+from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import Path
+from ddtrace.internal.module import origin
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
-
-
-try:
-    import pathlib  # noqa: F401
-except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
 
 
 LOG = logging.getLogger(__name__)
 
+if t.TYPE_CHECKING:
+    import pathlib  # noqa
 
 try:
     fspath = os.fspath
@@ -43,11 +44,10 @@ except AttributeError:
                 raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
         if isinstance(path_repr, (str, bytes)):
             return path_repr
-        else:
-            raise TypeError(
-                "expected {}.__fspath__() to return str or bytes, "
-                "not {}".format(path_type.__name__, type(path_repr).__name__)
-            )
+        raise TypeError(
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
+        )
 
 
 # We don't store every file of every package but filter commonly used extensions
@@ -132,3 +132,23 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
+
+
+def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
+    """Returns the package distribution for a module"""
+    return filename_to_package(str(origin(module)))
+
+
+stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
+platstdlib_path = Path(sysconfig.get_path("platstdlib")).resolve()
+purelib_path = Path(sysconfig.get_path("purelib")).resolve()
+platlib_path = Path(sysconfig.get_path("platlib")).resolve()
+
+
+@cached()
+def is_stdlib(path: Path) -> bool:
+    rpath = path.resolve()
+
+    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
+        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    )

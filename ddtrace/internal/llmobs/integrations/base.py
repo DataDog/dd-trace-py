@@ -8,8 +8,10 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import Span
+from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.llmobs import LLMObsWriter
@@ -22,7 +24,7 @@ from ddtrace.settings import IntegrationConfig
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
-    def __init__(self, config: IntegrationConfig, stats_url: str) -> None:
+    def __init__(self, integration_config: IntegrationConfig) -> None:
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
@@ -30,74 +32,68 @@ class BaseLLMIntegration:
         self._log_writer = None
         self._llmobs_writer = None
         self._statsd = None
-        self._config = config
-        self._span_pc_sampler = RateSampler(sample_rate=config.span_prompt_completion_sample_rate)
-
-        _dd_api_key = os.getenv("DD_API_KEY", config.get("_api_key"))
-        _dd_app_key = os.getenv("DD_APP_KEY", config.get("_app_key"))
-        _dd_site = os.getenv("DD_SITE", "datadoghq.com")
+        self.integration_config = integration_config
+        self._span_pc_sampler = RateSampler(sample_rate=integration_config.span_prompt_completion_sample_rate)
 
         if self.metrics_enabled:
-            self._statsd = get_dogstatsd_client(stats_url, namespace=self._integration_name)
+            self._statsd = get_dogstatsd_client(get_stats_url(), namespace=self._integration_name)
         if self.logs_enabled:
-            if not _dd_api_key:
+            if not config._dd_api_key:
                 raise ValueError(
                     f"DD_API_KEY is required for sending logs from the {self._integration_name} integration. "
                     f"To use the {self._integration_name} integration without logs, "
                     f"set `DD_{self._integration_name.upper()}_LOGS_ENABLED=false`."
                 )
             self._log_writer = V2LogWriter(
-                site=_dd_site,
-                api_key=_dd_api_key,
+                site=config._dd_site,
+                api_key=config._dd_api_key,
                 interval=float(os.getenv("_DD_%s_LOG_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
                 timeout=float(os.getenv("_DD_%s_LOG_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
             )
-            self._log_pc_sampler = RateSampler(sample_rate=config.log_prompt_completion_sample_rate)
+            self._log_pc_sampler = RateSampler(sample_rate=integration_config.log_prompt_completion_sample_rate)
             self.start_log_writer()
 
         if self.llmobs_enabled:
-            if not _dd_api_key:
+            if not config._dd_api_key:
                 raise ValueError(
                     f"DD_API_KEY is required for sending LLMObs data from the {self._integration_name} integration. "
                     f"To use the {self._integration_name} integration without LLMObs, "
                     f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
                 )
-            if not _dd_app_key:
+            if not config._dd_app_key:
                 raise ValueError(
                     f"DD_APP_KEY is required for sending LLMObs payloads from the {self._integration_name} integration."
                     f" To use the {self._integration_name} integration without LLMObs, "
                     f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
                 )
             self._llmobs_writer = LLMObsWriter(
-                site=_dd_site,
-                api_key=_dd_api_key,
-                app_key=_dd_app_key,
+                site=config._dd_site,
+                api_key=config._dd_api_key,
+                app_key=config._dd_app_key,
                 interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
                 timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
             )
-            self._llmobs_pc_sampler = RateSampler(sample_rate=config.llmobs_prompt_completion_sample_rate)
+            self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
             self.start_llm_writer()
 
     @property
     def metrics_enabled(self) -> bool:
         """Return whether submitting metrics is enabled for this integration, or global config if not set."""
-        if hasattr(self._config, "metrics_enabled"):
-            return asbool(self._config.metrics_enabled)
+        if hasattr(self.integration_config, "metrics_enabled"):
+            return asbool(self.integration_config.metrics_enabled)
         return False
 
     @property
     def logs_enabled(self) -> bool:
         """Return whether submitting logs is enabled for this integration, or global config if not set."""
-        if hasattr(self._config, "logs_enabled"):
-            return asbool(self._config.logs_enabled)
+        if hasattr(self.integration_config, "logs_enabled"):
+            return asbool(self.integration_config.logs_enabled)
         return False
 
     @property
     def llmobs_enabled(self) -> bool:
-        """Return whether submitting llmobs payloads is enabled for this integration, or global config if not set."""
-        if hasattr(self._config, "llmobs_enabled"):
-            return asbool(self._config.llmobs_enabled)
-        return False
+        """Return whether submitting llmobs payloads is enabled."""
+        return config._llmobs_enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
         if not span.sampled:
@@ -137,7 +133,9 @@ class BaseLLMIntegration:
         Eventually those should also be internal service spans once peer.service is implemented.
         """
         span = pin.tracer.trace(
-            "%s.request" % self._integration_name, resource=operation_id, service=int_service(pin, self._config)
+            "%s.request" % self._integration_name,
+            resource=operation_id,
+            service=int_service(pin, self.integration_config),
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
@@ -201,8 +199,8 @@ class BaseLLMIntegration:
         if not text:
             return text
         text = text.replace("\n", "\\n").replace("\t", "\\t")
-        if len(text) > self._config.span_char_limit:
-            text = text[: self._config.span_char_limit] + "..."
+        if len(text) > self.integration_config.span_char_limit:
+            text = text[: self.integration_config.span_char_limit] + "..."
         return text
 
     @classmethod

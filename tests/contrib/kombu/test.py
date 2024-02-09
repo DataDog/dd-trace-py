@@ -122,6 +122,30 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    def _gen_distributed_spans(self):
+        self._publish_consume()
+        spans = self.get_spans()
+        rcv = [s for s in spans if s.name == "kombu.receive"][0]
+        send = [s for s in spans if s.name == "kombu.publish"][0]
+        return rcv, send
+
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_distributed_tracing_basic_default(self):
+        rcv, send = self._gen_distributed_spans()
+        assert rcv.trace_id == send.trace_id, f"rcv.trace_id {rcv.trace_id}!= send.trace_id {send.trace_id}"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_KOMBU_DISTRIBUTED_TRACING="True"))
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_distributed_tracing_basic_force_on(self):
+        rcv, send = self._gen_distributed_spans()
+        assert rcv.trace_id == send.trace_id, f"rcv.trace_id {rcv.trace_id}!= send.trace_id {send.trace_id}"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_KOMBU_DISTRIBUTED_TRACING="False"))
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+    def test_distributed_tracing_basic_force_off(self):
+        rcv, send = self._gen_distributed_spans()
+        assert rcv.trace_id != send.trace_id, f"rcv.trace_id {rcv.trace_id} == send.trace_id {send.trace_id}"
+
 
 class TestKombuSettings(TracerTestCase):
     def setUp(self):

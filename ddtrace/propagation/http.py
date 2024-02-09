@@ -16,12 +16,12 @@ else:
 
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
-from ..context import Context
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError

@@ -15,6 +15,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -47,6 +48,11 @@ if profiling_config.enabled:
         import ddtrace.profiling.auto  # noqa: F401
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
+
+if symdb_config.enabled:
+    from ddtrace.internal import symbol_db
+
+    symbol_db.bootstrap()
 
 if di_config.enabled or ed_config.enabled:
     from ddtrace.debugging import DynamicInstrumentation

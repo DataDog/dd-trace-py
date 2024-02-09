@@ -6,7 +6,7 @@ import pickle
 
 import pytest
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
@@ -72,7 +72,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
@@ -99,7 +99,7 @@ def test_inject_128bit_trace_id_datadog():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
 def test_inject_128bit_trace_id_b3multi():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -121,7 +121,7 @@ def test_inject_128bit_trace_id_b3multi():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
 def test_inject_128bit_trace_id_b3_single_header():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -143,7 +143,7 @@ def test_inject_128bit_trace_id_b3_single_header():
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
-    from ddtrace.context import Context
+    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -1413,23 +1413,17 @@ EXTRACT_FIXTURES = [
         None,
         ALL_HEADERS,
         {
-            "trace_id": TRACE_ID,
-            "span_id": 67667974448284343,
-            "sampling_priority": 2,
-            "dd_origin": "rum",
-            "meta": {
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
-                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                "_dd.p.dm": "-4",
-                "_dd.p.usr.id": "baz64",
-            },
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
             "span_links": [
                 SpanLink(
-                    trace_id=13088165645273925489,
-                    span_id=5678,
-                    tracestate=None,
+                    trace_id=TRACE_ID,
+                    span_id=67667974448284343,
+                    tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                     flags=1,
-                    attributes={"reason": "terminated_context", "context_headers": "datadog"},
+                    attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
         },
@@ -1737,7 +1731,7 @@ def test_propagation_extract_env(name, styles, headers, expected_context, run_py
     code = """
 import json
 import pickle
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = HTTPPropagator.extract({!r})
@@ -1751,6 +1745,7 @@ assert context == expected_context, f"Expected {{expected_context}} but got {{co
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    print(stderr, stdout)
     assert status == 0, (stdout, stderr)
 
 
@@ -2036,12 +2031,12 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
 
     spans = fastapi_test_spans.pop_traces()
     assert spans[0][0].name == "fastapi.request"
-    assert spans[0][0]._links.get(5678) == SpanLink(
-        trace_id=13088165645273925489,
-        span_id=5678,
-        tracestate=None,
+    assert spans[0][0]._links.get(67667974448284343) == SpanLink(
+        trace_id=171395628812617415352188477958425669623,
+        span_id=67667974448284343,
+        tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         flags=1,
-        attributes={"reason": "terminated_context", "context_headers": "datadog"},
+        attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
 
@@ -2460,7 +2455,7 @@ def test_propagation_inject(name, styles, context, expected_headers, run_python_
     code = """
 import json
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -2527,7 +2522,7 @@ def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
     code = """
 import json
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})

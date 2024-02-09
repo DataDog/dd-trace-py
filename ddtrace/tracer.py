@@ -17,10 +17,21 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
+from ddtrace._trace.context import Context
+from ddtrace._trace.processor import SpanAggregator
+from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.processor import SpanSamplingProcessor
+from ddtrace._trace.processor import TopLevelSpanProcessor
+from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor import TraceSamplingProcessor
+from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -30,7 +41,6 @@ from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import VERSION_KEY
-from .context import Context
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -42,15 +52,6 @@ from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
-from .internal.processor import SpanProcessor
-from .internal.processor.trace import BaseServiceProcessor
-from .internal.processor.trace import PeerServiceProcessor
-from .internal.processor.trace import SpanAggregator
-from .internal.processor.trace import SpanSamplingProcessor
-from .internal.processor.trace import TopLevelSpanProcessor
-from .internal.processor.trace import TraceProcessor
-from .internal.processor.trace import TraceSamplingProcessor
-from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.serverless import has_aws_lambda_agent_extension
 from .internal.serverless import in_aws_lambda
@@ -62,7 +63,6 @@ from .internal.utils.http import verify_url
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
-from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler

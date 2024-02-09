@@ -271,23 +271,13 @@ async def test_acompletion(
 
 
 @pytest.mark.xfail(reason="An API key is required when logs are enabled")
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(_api_key="", logs_enabled=True)])
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True)])
 def test_logs_no_api_key(openai, ddtrace_config_openai, mock_tracer):
     """When no DD_API_KEY is set, the patching fails"""
     pass
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for completion endpoints when configured.
 
@@ -323,10 +313,7 @@ def test_logs_completions(openai_vcr, openai, ddtrace_config_openai, mock_logs, 
     )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(_api_key="<not-real-but-it's-something>", logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(openai_vcr, ddtrace_config_openai, openai, mock_metrics, mock_logs, mock_tracer):
     """
     When the global config UST tags are set
@@ -545,17 +532,7 @@ async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapsh
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for edit endpoint when configured.
 
@@ -638,17 +615,7 @@ async def test_image_acreate(api_key_in_env, request_api_key, openai, openai_vcr
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_image_create(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for image endpoints when configured.
 
@@ -733,17 +700,7 @@ async def test_image_aedit(api_key_in_env, request_api_key, openai, openai_vcr, 
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_image_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for image endpoints when configured.
 
@@ -828,17 +785,7 @@ async def test_image_avariation(api_key_in_env, request_api_key, openai, openai_
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_image_variation(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for image endpoints when configured.
 
@@ -1033,17 +980,7 @@ async def test_atranscribe(api_key_in_env, request_api_key, openai, openai_vcr, 
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_transcribe(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for audio endpoints when configured.
 
@@ -1133,17 +1070,7 @@ async def test_atranslate(api_key_in_env, request_api_key, openai, openai_vcr, s
             )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_logs_translate(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
     """Ensure logs are emitted for audio endpoints when configured.
 
@@ -2022,15 +1949,7 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer):
                     assert len(completion.replace("...", "")) == limit
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            span_prompt_completion_sample_rate=0,
-        )
-    ],
-)
+@pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
 def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
     if not hasattr(openai, "Embedding"):
         pytest.skip("embedding not supported for this version of openai")
@@ -2045,14 +1964,7 @@ def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_confi
 
 @pytest.mark.parametrize(
     "ddtrace_config_openai",
-    [
-        dict(
-            _api_key="<not-real-but-it's-something>",
-            logs_enabled=True,
-            log_prompt_completion_sample_rate=r,
-        )
-        for r in [0, 0.25, 0.75, 1]
-    ],
+    [dict(logs_enabled=True, log_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
 )
 def test_logs_sample_rate(openai, openai_vcr, ddtrace_config_openai, mock_logs, mock_tracer):
     total_calls = 200
@@ -2270,19 +2182,8 @@ with get_openai_vcr(subdirectory_name="v0").use_cassette("completion.yaml"):
         assert err == b""
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2365,19 +2266,8 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmob
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2472,20 +2362,9 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_config_openai, mock_
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
 def test_llmobs_chat_completion_function_call(
-    openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer
+    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
 ):
     """Test that function call chat completion calls are recorded as LLMObs events correctly."""
     if not hasattr(openai, "ChatCompletion"):
@@ -2550,19 +2429,8 @@ def test_llmobs_chat_completion_function_call(
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
     with pytest.raises(Exception):
         with openai_vcr.use_cassette("completion_error.yaml"):
@@ -2618,19 +2486,8 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_config_openai, mock
         assert span.duration >= record[0][0]["output"]["durations"][0]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [
-        # Default service, env, version
-        dict(
-            _api_key="<not-a-real-api-key>",
-            _app_key="<not-a-real-app-key",
-            llmobs_enabled=True,
-            llmobs_prompt_completion_sample_rate=1.0,
-        ),
-    ],
-)
-def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_config_openai, mock_llmobs_writer, mock_tracer):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
     if not hasattr(openai, "ChatCompletion"):
         pytest.skip("ChatCompletion not supported for this version of openai")
