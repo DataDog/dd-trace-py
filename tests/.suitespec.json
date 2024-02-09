@@ -97,7 +97,7 @@
             "ddtrace/ext/test.py"
         ],
         "llmobs": [
-            "ddtrace/internal/llmobs/*"
+            "ddtrace/llmobs/*"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -568,6 +568,7 @@
             "@core",
             "@contrib",
             "@tracing",
+            "@llmobs",
             "@botocore",
             "tests/contrib/botocore/*"
         ],
