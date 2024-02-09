@@ -12,6 +12,7 @@ IPv
 MySQL
 OpenTracing
 Runtimes
+RuntimeErrors
 SpanContext
 aiobotocore
 aiohttp
