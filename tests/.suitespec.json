@@ -95,7 +95,12 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/ci.py",
+            "ddtrace/ext/git.py",
             "ddtrace/ext/test.py"
+        ],
+        "coverage": [
+            "ddtrace/contrib/coverage/*"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -309,7 +314,8 @@
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
-            "ddtrace/contrib/pytest_bdd/*"
+            "ddtrace/contrib/pytest_bdd/*",
+            "ddtrace/contrib/pytest_benchmark/*"
         ],
         "unittest": [
             "ddtrace/contrib/unittest/*"
@@ -502,6 +508,7 @@
             "@tracing",
             "@ci_visibility",
             "@pytest",
+            "@coverage",
             "tests/ci_visibility/*"
         ],
         "sourcecode": [
@@ -911,13 +918,19 @@
             "@tracing",
             "@pytest",
             "@ci_visibility",
-            "tests/contrib/pytest/*"
+            "@coverage",
+            "tests/contrib/pytest/*",
+            "tests/contrib/pytest_benchmark/*",
+            "tests/contrib/pytest_bdd/*",
+            "tests/snapshots/tests.contrib.pytest.*"
         ],
         "unittest": [
             "@contrib",
             "@unittest",
             "@ci_visibility",
-            "tests/contrib/unittest_plugin/*"
+            "@coverage",
+            "tests/contrib/unittest/*",
+            "tests/snapshots/tests.contrib.unittest.*"
         ],
         "asynctest": [
             "@bootstrap",
@@ -926,14 +939,6 @@
             "@tracing",
             "@asynctest",
             "tests/contrib/asynctest/*"
-        ],
-        "pytestbdd": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@pytest",
-            "tests/contrib/pytest_bdd/*"
         ],
         "pymemcache": [
             "@bootstrap",
