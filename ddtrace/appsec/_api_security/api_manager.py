@@ -89,19 +89,18 @@ class APIManager(Service):
         add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, env, priority):
+        sample_rate = asm_config._api_security_sample_rate
+        # Rate limit per route
+        self.current_sampling_value += sample_rate
+
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        sample_rate = asm_config._api_security_sample_rate
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
-        # Rate limit per route
-        self.current_sampling_value += sample_rate
-        # Keep most of manual keep spans and sample only on auto keep spans. Other spans are not considered.
-        if (priority == constants.USER_KEEP and self.current_sampling_value >= -3.0) or (
-            priority == constants.AUTO_KEEP and self.current_sampling_value >= 1.0
-        ):
+        # Keep most of manual keep spans and auto keep spans. Other spans are not considered.
+        if self.current_sampling_value >= 1.0 and (priority == constants.USER_KEEP or priority == constants.AUTO_KEEP):
             self.current_sampling_value -= 1.0
             return True
         return False
