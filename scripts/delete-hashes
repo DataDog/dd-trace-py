@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+#delete hashes to regenerate latest
+
+# Check if argument is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <argument>"
+    exit 1
+fi
+
+# Assign the first command-line argument to the variable 'argument'
+argument="$1"
+
+# Run 'riot list <ARGUMENT> --hash-only' to get a list of hashes
+hashes=$(riot list "$argument" --hash-only)
+
+# Print the list of hashes
+echo "List of hashes for '$argument':"
+echo "$hashes"
+
+echo "Removing hashfiles for '$argument'"
+
+for hash in "${hashes[@]}"
+do
+    for file in .riot/requirements/*.txt
+    do
+        file_hash=$(echo "$file" | tr "/" "\n" | grep '.txt' | sed 's/\.txt//')
+        if [[ $hash =~ $file_hash ]]
+        then
+            rm "$file"
+        fi
+    done
+done
+
+echo "All done!"

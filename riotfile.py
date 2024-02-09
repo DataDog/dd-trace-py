@@ -2437,14 +2437,29 @@ venv = Venv(
             pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(
-                    # tornado added support for Python 3.8/3.9 in 6.1
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"tornado": ["~=6.1", "~=6.2"]},
+                    # Support for Python 3.7 added in 5.1
+                    pys="3.7",
+                    pkgs={"tornado": ["~=5.1", latest]},
                 ),
                 Venv(
-                    # tornado added support for Python 3.10 in 6.2
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={"tornado": ["==6.2", "==6.3.1"]},
+                    # Support for Python 3.8 added in 6.0.4
+                    pys="3.8",
+                    pkgs={"tornado": ["~=6.0.4", latest]},
+                ),
+                Venv(
+                    # Support for Python 3.9 added in 6.1.0
+                    pys="3.9",
+                    pkgs={"tornado": ["~=6.1.0", latest]},
+                ),
+                Venv(
+                    # Support for Python 3.10 added in 6.2.0
+                    pys="3.10",
+                    pkgs={"tornado": ["~=6.2.0", latest]},
+                ),
+                Venv(
+                    # Support for Python 3.11 added in 6.3.0
+                    pys="3.11",
+                    pkgs={"tornado": ["~=6.3.0", latest]},
                 ),
             ],
         ),
