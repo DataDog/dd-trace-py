@@ -76,7 +76,7 @@ def get_distributions():
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name, version=version))
+            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
 
