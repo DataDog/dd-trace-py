@@ -31,14 +31,9 @@ configure(const char* service,
 void
 send_sample(unsigned int id)
 {
-    // NB, valid ids are in [0, 3]
-    auto h = ddup_start_sample(id);
-    if (id != h) {
-        std::cerr << "Failed to start sample, got " << h << " expected " << id << std::endl;
-        std::exit(1);
-    }
+    auto h = ddup_start_sample();
 
-    // Emulate the fields that are sent by a given id
+    // Use ID to determine what kind of sample to send
     switch (id) {
         case 1: // stack
             ddup_push_walltime(h, 1.0, 1);

@@ -31,97 +31,24 @@ SampleManager::set_max_nframes(unsigned int _max_nframes)
     }
 }
 
-bool
-SampleManager::take_handle(SampleHandle handle)
+Sample*
+SampleManager::start_sample()
 {
-    // Bounds check
-    const unsigned int idx = static_cast<unsigned int>(handle);
-    if (handle == SampleHandle::Invalid || idx >= static_cast<size_t>(SampleHandle::Length_)) {
-        return false;
-    }
-
-    // If there's no active handle in that category, take it
-    bool expected = false;
-    if (handle_state[idx].compare_exchange_strong(expected, true)) {
-        return true;
-    }
-    return false;
+    auto sample = new Sample(type_mask, max_nframes);
+    sample->start_sample();
+    return sample;
 }
 
 void
-SampleManager::release_handle(SampleHandle handle)
+drop_sample(Sample* sample)
 {
-    // Bounds check
-    const unsigned int idx = static_cast<unsigned int>(handle);
-    if (handle == SampleHandle::Invalid || idx >= static_cast<size_t>(SampleHandle::Length_)) {
-        return;
+    if (sample != nullptr) {
+        delete sample;
     }
-    handle_state[static_cast<size_t>(handle)].store(false);
-}
-
-void
-SampleManager::build_storage()
-{
-    // Initialize the static storage for Profile state
-    Sample::profile_state.one_time_init(type_mask, max_nframes);
-
-    // Since the construct for Sample might throw, note we have to catch it eventually
-    // Strongly assume that by the time we get here, the user is done trying to configure us.
-    storage.clear();
-    for (size_t i = 0; i < handle_state.size(); ++i) {
-        storage.emplace_back(type_mask, max_nframes);
-    }
-}
-
-SampleHandle
-SampleManager::start_sample(SampleHandle requested)
-{
-    auto ret = SampleHandle::Invalid;
-
-    // take_handle will do the bounds check on `requested`
-    if (take_handle(requested)) {
-        // `take_handle()` splits co-temporal threads with the same calling ID, but if two threads with
-        // different request IDs arrive here at the same time, then one of them needs block so we can
-        // safely handle initialization
-        std::lock_guard<std::mutex> lock(init_mutex);
-        ret = requested;
-
-        // If the storage is not initialized, do so
-        if (storage.size() < handle_state.size()) {
-            try {
-                // Assume:  if storage is initialzed, it is initialized in entirety
-                build_storage();
-            } catch (const std::exception& e) {
-                std::cerr << "Failed to initialize storage: " << e.what() << std::endl;
-                storage.clear();
-                return SampleHandle::Invalid;
-            }
-        }
-
-        // If we're here, the handle was taken and the storage was initialized, call whatever setup the sample needs
-        storage[static_cast<size_t>(ret)].start_sample();
-    }
-    return ret;
-}
-
-SampleHandle
-SampleManager::start_sample(unsigned int requested)
-{
-    return start_sample(static_cast<SampleHandle>(requested));
 }
 
 void
 SampleManager::postfork_child()
 {
-    handles_release();
     Sample::postfork_child();
-}
-
-void
-SampleManager::handles_release()
-{
-    // When we fork, we need to release all the handles
-    for (size_t i = 0; i < handle_state.size(); ++i) {
-        handle_state[i].store(false);
-    }
 }

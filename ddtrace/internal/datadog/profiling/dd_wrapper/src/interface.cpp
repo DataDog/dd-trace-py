@@ -46,6 +46,7 @@ ddup_config_env(const char* dd_env)
         Datadog::UploaderBuilder::set_env(dd_env);
     }
 }
+
 void
 ddup_config_service(const char* service)
 {
@@ -53,6 +54,7 @@ ddup_config_service(const char* service)
         Datadog::UploaderBuilder::set_service(service);
     }
 }
+
 void
 ddup_config_version(const char* version)
 {
@@ -60,6 +62,7 @@ ddup_config_version(const char* version)
         Datadog::UploaderBuilder::set_version(version);
     }
 }
+
 void
 ddup_config_runtime(const char* runtime)
 {
@@ -67,6 +70,7 @@ ddup_config_runtime(const char* runtime)
         Datadog::UploaderBuilder::set_runtime(runtime);
     }
 }
+
 void
 ddup_config_runtime_version(const char* runtime_version)
 {
@@ -74,6 +78,7 @@ ddup_config_runtime_version(const char* runtime_version)
         Datadog::UploaderBuilder::set_runtime_version(runtime_version);
     }
 }
+
 void
 ddup_config_profiler_version(const char* profiler_version)
 {
@@ -81,6 +86,7 @@ ddup_config_profiler_version(const char* profiler_version)
         Datadog::UploaderBuilder::set_profiler_version(profiler_version);
     }
 }
+
 void
 ddup_config_url(const char* url)
 {
@@ -88,6 +94,7 @@ ddup_config_url(const char* url)
         Datadog::UploaderBuilder::set_url(url);
     }
 }
+
 void
 ddup_config_user_tag(const char* key, const char* val)
 {
@@ -95,6 +102,13 @@ ddup_config_user_tag(const char* key, const char* val)
         Datadog::UploaderBuilder::set_tag(key, val);
     }
 }
+
+void
+ddup_set_runtime_id(const char* id, size_t sz) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
+}
+
 void
 ddup_config_sample_type(unsigned int _type)
 {
@@ -105,6 +119,7 @@ ddup_config_max_nframes(int max_nframes)
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
 }
+
 
 bool
 ddup_is_initialized()
@@ -132,142 +147,138 @@ ddup_init()
     }
 }
 
-unsigned int
-ddup_start_sample(unsigned int requested)
+Datadog::Sample*
+ddup_start_sample()
 {
-    return static_cast<unsigned int>(Datadog::SampleManager::start_sample(requested));
+    return Datadog::SampleManager::start_sample();
 }
 
 void
-ddup_set_runtime_id(const char* id, size_t sz) // cppcheck-suppress unusedFunction
+ddup_push_walltime(Datadog::Sample *sample, int64_t walltime, int64_t count)
 {
-    Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
+
+    sample->push_walltime(walltime, count);
 }
 
 void
-ddup_push_walltime(unsigned int _handle, int64_t walltime, int64_t count)
+ddup_push_cputime(Datadog::Sample *sample, int64_t cputime, int64_t count)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_walltime(handle, walltime, count);
+    sample->push_cputime(cputime, count);
 }
 
 void
-ddup_push_cputime(unsigned int _handle, int64_t cputime, int64_t count)
+ddup_push_acquire(Datadog::Sample *sample, int64_t acquire_time, int64_t count)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_cputime(handle, cputime, count);
+    sample->push_acquire(acquire_time, count);
 }
 
 void
-ddup_push_acquire(unsigned int _handle, int64_t acquire_time, int64_t count)
+ddup_push_release(Datadog::Sample *sample, int64_t release_time, int64_t count)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_acquire(handle, acquire_time, count);
+    sample->push_release(release_time, count);
 }
 
 void
-ddup_push_release(unsigned int _handle, int64_t release_time, int64_t count)
+ddup_push_alloc(Datadog::Sample *sample, uint64_t size, uint64_t count)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_release(handle, release_time, count);
+    sample->push_alloc(size, count);
 }
 
 void
-ddup_push_alloc(unsigned int _handle, uint64_t size, uint64_t count)
+ddup_push_heap(Datadog::Sample *sample, uint64_t size)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_alloc(handle, size, count);
+    sample->push_heap(size);
 }
 
 void
-ddup_push_heap(unsigned int _handle, uint64_t size)
+ddup_push_lock_name(Datadog::Sample *sample, const char* lock_name)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_heap(handle, size);
+    if (lock_name) {
+        sample->push_lock_name(lock_name);
+    }
 }
 
 void
-ddup_push_lock_name(unsigned int _handle, const char* lock_name)
+ddup_push_threadinfo(Datadog::Sample *sample, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_lock_name(handle, lock_name);
+    if (thread_name) {
+        sample->push_threadinfo(thread_id, thread_native_id, thread_name);
+    } else {
+        sample->push_threadinfo(thread_id, thread_native_id, "");
+    }
 }
 
 void
-ddup_push_threadinfo(unsigned int _handle, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
+ddup_push_task_id(Datadog::Sample *sample, int64_t task_id)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_threadinfo(handle, thread_id, thread_native_id, thread_name);
+    sample->push_task_id(task_id);
 }
 
 void
-ddup_push_task_id(unsigned int _handle, int64_t task_id)
+ddup_push_task_name(Datadog::Sample *sample, const char* task_name)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_task_id(handle, task_id);
+    if (task_name) {
+        sample->push_task_name(task_name);
+    }
 }
 
 void
-ddup_push_task_name(unsigned int _handle, const char* task_name)
+ddup_push_span_id(Datadog::Sample *sample, int64_t span_id)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_task_name(handle, task_name);
+    sample->push_span_id(span_id);
 }
 
 void
-ddup_push_span_id(unsigned int _handle, int64_t span_id)
+ddup_push_local_root_span_id(Datadog::Sample *sample, int64_t local_root_span_id)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_span_id(handle, span_id);
+    sample->push_local_root_span_id(local_root_span_id);
 }
 
 void
-ddup_push_local_root_span_id(unsigned int _handle, int64_t local_root_span_id)
+ddup_push_trace_type(Datadog::Sample *sample, const char* trace_type)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_local_root_span_id(handle, local_root_span_id);
+    if (trace_type) {
+        sample->push_trace_type(trace_type);
+    }
 }
 
 void
-ddup_push_trace_type(unsigned int _handle, const char* trace_type)
+ddup_push_trace_resource_container(Datadog::Sample *sample, const char* trace_resource_container)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_trace_type(handle, trace_type);
+    if (trace_resource_container) {
+        sample->push_trace_resource_container(trace_resource_container);
+    }
 }
 
 void
-ddup_push_trace_resource_container(unsigned int _handle, const char* trace_resource_container)
+ddup_push_exceptioninfo(Datadog::Sample *sample, const char* exception_type, int64_t count)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_trace_resource_container(handle, trace_resource_container);
+    if (exception_type) {
+        sample->push_exceptioninfo(exception_type, count);
+    }
 }
 
 void
-ddup_push_exceptioninfo(unsigned int _handle, const char* exception_type, int64_t count)
+ddup_push_class_name(Datadog::Sample *sample, const char* class_name)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_exceptioninfo(handle, exception_type, count);
+    if (class_name) {
+        sample->push_class_name(class_name);
+    }
 }
 
 void
-ddup_push_class_name(unsigned int _handle, const char* class_name)
+ddup_push_frame(Datadog::Sample *sample, const char* _name, const char* _filename, uint64_t address, int64_t line)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_class_name(handle, class_name);
+    if (_name && _filename) {
+        sample->push_frame(_name, _filename, address, line);
+    }
 }
 
 void
-ddup_push_frame(unsigned int _handle, const char* _name, const char* _filename, uint64_t address, int64_t line)
+ddup_flush_sample(Datadog::Sample *sample)
 {
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::push_frame(handle, _name, _filename, address, line);
-}
-
-void
-ddup_flush_sample(unsigned int _handle)
-{
-    auto handle = static_cast<Datadog::SampleHandle>(_handle);
-    Datadog::SampleManager::flush_sample(handle);
+    sample->flush_sample();
+    delete sample;
 }
 
 bool

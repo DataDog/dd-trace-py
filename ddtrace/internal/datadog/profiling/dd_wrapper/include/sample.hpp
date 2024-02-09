@@ -38,6 +38,7 @@ class Sample
     // Storage for values
     std::vector<int64_t> values = {};
 
+public:
     // Initialization and stuff
     void start_sample();
 
@@ -77,10 +78,6 @@ class Sample
     // Flushes the current buffer, clearing it
     bool flush_sample();
 
-    // Allows SampleManager to control Sample
-    friend class SampleManager;
-
-  public:
     static ddog_prof_Profile& profile_borrow();
     static void profile_release();
     static void profile_clear_state();

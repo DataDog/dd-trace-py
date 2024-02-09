@@ -13,7 +13,7 @@ single_sample_noframe()
     configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample
-    auto h = ddup_start_sample(1);
+    auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
     ddup_flush_sample(h);
 
@@ -34,7 +34,7 @@ single_oneframe_sample()
     configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
 
     // Collect and flush one sample with one frame
-    auto h = ddup_start_sample(1);
+    auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
     ddup_push_frame(h, "my_test_frame", "my_test_file", 1, 1);
     ddup_flush_sample(h);
@@ -56,7 +56,7 @@ single_manyframes_sample()
     configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
-    auto h = ddup_start_sample(1);
+    auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
 
     // Populate the frames; we add exactly 512, which ought to
@@ -87,7 +87,7 @@ single_toomanyframes_sample()
     configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // Collect and flush one sample with one frame
-    auto h = ddup_start_sample(1);
+    auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
 
     // Now, for something completely different, we
@@ -118,9 +118,8 @@ lotsa_frames_lotsa_samples()
     configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 512);
 
     // 60 seconds @ 100 hertz
-    unsigned int h = 0;
     for (int i = 0; i < 60 * 100; i++) {
-        h = ddup_start_sample(1);
+        auto h = ddup_start_sample();
         ddup_push_cputime(h, 1.0, 1);
         ddup_push_walltime(h, 1.0, 1);
         ddup_push_exceptioninfo(h, "WowThisIsBad", 1);

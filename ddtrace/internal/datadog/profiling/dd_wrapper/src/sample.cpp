@@ -16,25 +16,10 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
 }
 
-ddog_prof_Profile&
-Sample::profile_borrow()
-{
-    return profile_state.profile_borrow();
-}
-
-void
-Sample::profile_release()
-{
-    profile_state.profile_release();
-}
-
 void
 Sample::start_sample()
 {
-    // Clearing the buffers isn't necessary if the sample was just initialized or uploaded, but is necessary
-    // if we just forked or had to interrupt a previous sample for whatever reason.  This shouldn't be too
-    // expensive in the common case, so we just do it.  Pop a flag here if it's too annoying.
-    clear_buffers();
+    profile_state.one_time_init(type_mask, max_nframes);
 }
 
 void
@@ -333,6 +318,19 @@ Sample::push_class_name(std::string_view class_name)
     }
     return true;
 }
+
+ddog_prof_Profile&
+Sample::profile_borrow()
+{
+    return profile_state.profile_borrow();
+}
+
+void
+Sample::profile_release()
+{
+    profile_state.profile_release();
+}
+
 
 void
 Sample::postfork_child()
