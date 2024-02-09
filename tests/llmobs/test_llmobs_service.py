@@ -23,9 +23,8 @@ def test_llmobs_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         dummy_tracer = DummyTracer()
         LLMObs.enable(tracer=dummy_tracer)
-        llmobs_instance = LLMObs._instance
         LLMObs.disable()
-        assert llmobs_instance is None
+        assert LLMObs._instance is None
         assert LLMObs.enabled is False
 
 
