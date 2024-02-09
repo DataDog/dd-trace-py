@@ -3060,26 +3060,131 @@ class PytestTestCase(TracerTestCase):
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
     def test_pytest_ddtrace_test_names(self):
-        """Tests that the default naming behavior for pytest works as expected"""
-        package_outer_dir = self.testdir.mkpydir("test_package")
-        os.chdir(str(package_outer_dir))
-        with open("test_names.py", "w+") as fd:
-            fd.write(
+        """Tests that the default naming behavior for pytest works as expected
+
+        The test structure is:
+        test_outermost_tests.py
+        test_outer_package/__init__.py
+        test_outer_package/test_outer_package_tests.py
+        test_outer_package/test_outer_package_module/test_outer_package_module_tests.py
+        test_outer_package/test_inner_package/__init__.py
+        test_outer_package/test_inner_package/test_inner_package_tests.py
+        test_outer_package/test_inner_package/test_inner_package_module/test_inner_package_module_tests.py
+
+        26 total spans
+        1 session
+        - 5 modules:
+          - (empty string)
+            - 1 suite: test_outermost_tests.py: 3 tests
+          - test_outer_package
+            - 1 suite: test_outer_package_tests.py: 3 tests
+          - test_outer_package.test_outer_package_module
+            - 1 suite: test_outer_package_module_tests.py: 3 tests
+          - test_outer_package.test_inner_package
+            - 1 suite: test_inner_package_tests.py: 3 tests
+          - test_outer_package.test_inner_package.test_inner_package_module
+            - 1 suite: test_inner_package_module_tests.py: 3 tests
+        """
+        self.testdir.chdir()
+        with open("test_outermost_tests.py", "w") as test_outermost_tests_fd:
+            test_outermost_tests_fd.write(
                 textwrap.dedent(
                     (
                         """
-                    def test_ok():
+                    def test_outermost_test_ok():
                         assert True
 
-                    class TestClassOne():
-                        def test_ok(self):
+                    class TestOuterMostClassOne():
+                        def test_outermost_ok(self):
                             assert True
 
-                    class TestClassTwo():
-                        def test_ok(self):
+                    class TestOuterMostClassTwo():
+                        def test_outermost_ok(self):
                             assert True
                     """
                     )
+                )
+            )
+
+        _ = self.testdir.mkpydir("test_outer_package")
+        with open("test_outer_package/test_outer_package_tests.py", "w") as outer_fd:
+            outer_fd.write(
+                textwrap.dedent(
+                    (
+                        """
+                    def test_outer_package_ok():
+                        assert True
+
+                    class TestOuterPackageClassOne():
+                        def test_outer_package_class_one_ok(self):
+                            assert True
+
+                    class TestOuterPackageClassTwo():
+                        def test_outer_package_class_two_ok(self):
+                            assert True
+                    """
+                    )
+                )
+            )
+
+        _ = self.testdir.mkdir("test_outer_package/test_outer_package_module")
+        with open(
+            "test_outer_package/test_outer_package_module/test_outer_package_module_tests.py", "w"
+        ) as outer_package_module_tests_fd:
+            outer_package_module_tests_fd.write(
+                textwrap.dedent(
+                    """
+                def test_outer_package_module_ok():
+                    assert True
+
+                class TestOuterPackageModuleClassOne():
+                    def test_outer_package_module_class_one_ok(self):
+                        assert True
+
+                class TestOuterPackageModuleClassTwo():
+                    def test_outer_package_module_class_two_ok(self):
+                        assert True
+                """
+                )
+            )
+
+        _ = self.testdir.mkpydir("test_outer_package/test_inner_package")
+        with open("test_outer_package/test_inner_package/test_inner_package_tests.py", "w") as inner_package_tests_fd:
+            inner_package_tests_fd.write(
+                textwrap.dedent(
+                    """
+                def test_inner_package_ok():
+                    assert True
+
+                class TestInnerPackageClassOne():
+                    def test_inner_package_class_one_ok(self):
+                        assert True
+
+                class TestInnerPackageClassTwo():
+                    def test_inner_package_class_two_ok(self):
+                        assert True
+                """
+                )
+            )
+
+        _ = self.testdir.mkdir("test_outer_package/test_inner_package/test_inner_package_module")
+        with open(
+            "test_outer_package/test_inner_package/test_inner_package_module/test_inner_package_module_tests.py", "w"
+        ) as inner_package_module_tests_fd:
+            inner_package_module_tests_fd.write(
+                textwrap.dedent(
+                    """
+                def test_inner_package_module_test_ok():
+                    assert True
+
+                class TestInnerPackageModuleClassOne():
+                    def test_inner_package_module_class_one_ok(self):
+                        assert True
+
+                class TestInnerPackageModuleClassTwo():
+                    def test_inner_package_module_class_two_ok(self):
+                        assert True
+                """
                 )
             )
 
@@ -3087,31 +3192,54 @@ class PytestTestCase(TracerTestCase):
         self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
-        assert len(spans) == 6
+        assert len(spans) == 26
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.status") == "pass"
 
-        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
-        assert module_span.get_tag("test.module") == "test_package"
+        sorted_module_names = sorted(
+            [span.get_tag("test.module") for span in spans if span.get_tag("type") == "test_module_end"]
+        )
+        assert len(sorted_module_names) == 5
+        assert sorted_module_names == [
+            "",
+            "test_outer_package",
+            "test_outer_package.test_inner_package",
+            "test_outer_package.test_inner_package.test_inner_package_module",
+            "test_outer_package.test_outer_package_module",
+        ]
 
-        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
-        assert suite_span.get_tag("test.module") == "test_package"
-        assert suite_span.get_tag("test.suite") == "test_names.py"
+        sorted_suite_names = sorted(
+            [span.get_tag("test.suite") for span in spans if span.get_tag("type") == "test_suite_end"]
+        )
+        assert len(sorted_suite_names) == 5
+        assert sorted_suite_names == [
+            "test_inner_package_module_tests.py",
+            "test_inner_package_tests.py",
+            "test_outer_package_module_tests.py",
+            "test_outer_package_tests.py",
+            "test_outermost_tests.py",
+        ]
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert len(test_spans) == 3
-        assert test_spans[0].get_tag("test.module") == "test_package"
-        assert test_spans[0].get_tag("test.suite") == "test_names.py"
-        assert test_spans[0].get_tag("test.name") == "test_ok"
-
-        assert test_spans[1].get_tag("test.module") == "test_package"
-        assert test_spans[1].get_tag("test.suite") == "test_names.py"
-        assert test_spans[1].get_tag("test.name") == "test_ok"
-
-        assert test_spans[2].get_tag("test.module") == "test_package"
-        assert test_spans[2].get_tag("test.suite") == "test_names.py"
-        assert test_spans[2].get_tag("test.name") == "test_ok"
+        sorted_test_names = sorted([span.get_tag("test.name") for span in spans if span.get_tag("type") == "test"])
+        assert len(sorted_test_names) == 15
+        assert sorted_test_names == [
+            "test_inner_package_class_one_ok",
+            "test_inner_package_class_two_ok",
+            "test_inner_package_module_class_one_ok",
+            "test_inner_package_module_class_two_ok",
+            "test_inner_package_module_test_ok",
+            "test_inner_package_ok",
+            "test_outer_package_class_one_ok",
+            "test_outer_package_class_two_ok",
+            "test_outer_package_module_class_one_ok",
+            "test_outer_package_module_class_two_ok",
+            "test_outer_package_module_ok",
+            "test_outer_package_ok",
+            "test_outermost_ok",
+            "test_outermost_ok",
+            "test_outermost_test_ok",
+        ]
 
     def test_pytest_ddtrace_test_names_include_class_opt(self):
         package_outer_dir = self.testdir.mkpydir("test_package")

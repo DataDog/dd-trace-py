@@ -70,6 +70,12 @@ log = get_logger(__name__)
 _global_skipped_elements = 0
 
 
+def _is_pytest_8_or_later():
+    if hasattr(pytest, "version_tuple"):
+        return pytest.version_tuple >= (8, 0, 0)
+    return False
+
+
 def encode_test_parameter(parameter):
     param_repr = repr(parameter)
     # if the representation includes an id() we'll remove it
@@ -227,14 +233,6 @@ def _get_module_path(item):
     return item.nodeid.rpartition("/")[0]
 
 
-def _get_module_name(item, is_package=True):
-    """Extract module name (fully qualified) from a `pytest.Item` instance."""
-    # type (pytest.Item) -> str
-    if is_package:
-        return item.module.__name__
-    return item.nodeid.rpartition("/")[0].replace("/", ".")
-
-
 def _is_test_unskippable(item):
     return any(
         [
@@ -248,6 +246,10 @@ def _is_test_unskippable(item):
 
 
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
+    # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
+    if _is_pytest_8_or_later():
+        return isinstance(pytest_module_item.parent, pytest.Package)
+
     if pytest_package_item is None and pytest_module_item is not None:
         return False
     return True
@@ -840,8 +842,22 @@ def pytest_ddtrace_get_item_module_name(item):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
+    # breakpoint()
     if _module_is_package(pytest_package_item, pytest_module_item):
+        if _is_pytest_8_or_later():
+            # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by concatenating
+            # parent package names in reverse until we hit a non-Package-type item
+            # https://github.com/pytest-dev/pytest/issues/11137
+            package_names = []
+            current_package = pytest_package_item
+            while isinstance(current_package, pytest.Package):
+                package_names.append(str(current_package.name))
+                current_package = current_package.parent
+
+            return ".".join(package_names[::-1])
+
         return pytest_package_item.module.__name__
+
     return pytest_module_item.nodeid.rpartition("/")[0].replace("/", ".")
 
 
