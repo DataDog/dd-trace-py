@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rpayload.proto\x12\x0b\x64\x61tapathspb\"Z\n\x12\x44\x61taPathAPIPayload\x12!\n\x04node\x18\x01 \x01(\x0b\x32\x13.datapathspb.NodeID\x12!\n\x05paths\x18\x02 \x03(\x0b\x32\x12.datapathspb.Paths\"J\n\x06NodeID\x12\x0f\n\x07service\x18\x01 \x01(\t\x12\x0b\n\x03\x65nv\x18\x02 \x01(\t\x12\x0c\n\x04host\x18\x03 \x01(\t\x12\x14\n\x0cprimary_tags\x18\x04 \x03(\t\";\n\x06\x45\x64geID\x12#\n\x04type\x18\x01 \x01(\x0e\x32\x15.datapathspb.EdgeType\x12\x0c\n\x04name\x18\x02 \x01(\t\"Z\n\x0bPathwayInfo\x12\x11\n\tnode_hash\x18\x02 \x01(\x04\x12\x13\n\x0bparent_hash\x18\x03 \x01(\x04\x12\x11\n\troot_hash\x18\x06 \x01(\x04J\x04\x08\x01\x10\x02J\x04\x08\x04\x10\x05J\x04\x08\x05\x10\x06\"X\n\x05Paths\x12\r\n\x05start\x18\x01 \x01(\x04\x12\x10\n\x08\x64uration\x18\x02 \x01(\x04\x12(\n\x05stats\x18\x04 \x03(\x0b\x32\x19.datapathspb.PathwayStatsJ\x04\x08\x03\x10\x04\"\x84\x01\n\x0cPathwayStats\x12!\n\x04\x65\x64ge\x18\x01 \x01(\x0b\x32\x13.datapathspb.EdgeID\x12&\n\x04info\x18\x02 \x01(\x0b\x32\x18.datapathspb.PathwayInfo\x12)\n\tlatencies\x18\x03 \x01(\x0b\x32\x16.datapathspb.Latencies\"\x8d\x01\n\x12UnresolvedDataPath\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12\x31\n\x08\x64\x61tapath\x18\x02 \x01(\x0b\x32\x1f.datapathspb.DataPathAPIPayload\x12\x0e\n\x06org_id\x18\x03 \x01(\x05\x12#\n\x06source\x18\x04 \x01(\x0e\x32\x13.datapathspb.Source\"y\n\x0f\x44\x61taPathPayload\x12\x0e\n\x06org_id\x18\x01 \x01(\x05\x12\x31\n\x08\x64\x61tapath\x18\x02 \x01(\x0b\x32\x1f.datapathspb.DataPathAPIPayload\x12#\n\x06source\x18\x03 \x01(\x0e\x32\x13.datapathspb.Source\".\n\x0eStoredNodeInfo\x12\x0f\n\x07service\x18\x01 \x01(\t\x12\x0b\n\x03\x65nv\x18\x02 \x01(\t\"B\n\tLatencies\x12\x12\n\nok_latency\x18\x03 \x01(\x0c\x12\x15\n\rerror_latency\x18\x04 \x01(\x0cJ\x04\x08\x01\x10\x02J\x04\x08\x02\x10\x03*+\n\x08\x45\x64geType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04HTTP\x10\x01\x12\x08\n\x04GRPC\x10\x02*#\n\x06Source\x12\n\n\x06\x43LIENT\x10\x00\x12\r\n\tBREAKDOWN\x10\x01\x42/Z-github.com/DataDog/dd-go/pb/trace/datapathspbb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rpayload.proto\x12\x0b\x64\x61tapathspb\"Z\n\x12\x44\x61taPathAPIPayload\x12!\n\x04node\x18\x01 \x01(\x0b\x32\x13.datapathspb.NodeID\x12!\n\x05paths\x18\x02 \x03(\x0b\x32\x12.datapathspb.Paths\"J\n\x06NodeID\x12\x0f\n\x07service\x18\x01 \x01(\t\x12\x0b\n\x03\x65nv\x18\x02 \x01(\t\x12\x0c\n\x04host\x18\x03 \x01(\t\x12\x14\n\x0cprimary_tags\x18\x04 \x03(\t\"\\\n\x06\x45\x64geID\x12#\n\x04type\x18\x01 \x01(\x0e\x32\x15.datapathspb.EdgeType\x12\x15\n\rresource_name\x18\x02 \x01(\t\x12\x16\n\x0eoperation_name\x18\x03 \x01(\t\"Z\n\x0bPathwayInfo\x12\x11\n\tnode_hash\x18\x02 \x01(\x04\x12\x13\n\x0bparent_hash\x18\x03 \x01(\x04\x12\x11\n\troot_hash\x18\x06 \x01(\x04J\x04\x08\x01\x10\x02J\x04\x08\x04\x10\x05J\x04\x08\x05\x10\x06\"X\n\x05Paths\x12\r\n\x05start\x18\x01 \x01(\x04\x12\x10\n\x08\x64uration\x18\x02 \x01(\x04\x12(\n\x05stats\x18\x04 \x03(\x0b\x32\x19.datapathspb.PathwayStatsJ\x04\x08\x03\x10\x04\"\x84\x01\n\x0cPathwayStats\x12!\n\x04\x65\x64ge\x18\x01 \x01(\x0b\x32\x13.datapathspb.EdgeID\x12&\n\x04info\x18\x02 \x01(\x0b\x32\x18.datapathspb.PathwayInfo\x12)\n\tlatencies\x18\x03 \x01(\x0b\x32\x16.datapathspb.Latencies\"\x8d\x01\n\x12UnresolvedDataPath\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12\x31\n\x08\x64\x61tapath\x18\x02 \x01(\x0b\x32\x1f.datapathspb.DataPathAPIPayload\x12\x0e\n\x06org_id\x18\x03 \x01(\x05\x12#\n\x06source\x18\x04 \x01(\x0e\x32\x13.datapathspb.Source\"y\n\x0f\x44\x61taPathPayload\x12\x0e\n\x06org_id\x18\x01 \x01(\x05\x12\x31\n\x08\x64\x61tapath\x18\x02 \x01(\x0b\x32\x1f.datapathspb.DataPathAPIPayload\x12#\n\x06source\x18\x03 \x01(\x0e\x32\x13.datapathspb.Source\".\n\x0eStoredNodeInfo\x12\x0f\n\x07service\x18\x01 \x01(\t\x12\x0b\n\x03\x65nv\x18\x02 \x01(\t\"B\n\tLatencies\x12\x12\n\nok_latency\x18\x03 \x01(\x0c\x12\x15\n\rerror_latency\x18\x04 \x01(\x0cJ\x04\x08\x01\x10\x02J\x04\x08\x02\x10\x03*+\n\x08\x45\x64geType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x08\n\x04HTTP\x10\x01\x12\x08\n\x04GRPC\x10\x02*#\n\x06Source\x12\n\n\x06\x43LIENT\x10\x00\x12\r\n\tBREAKDOWN\x10\x01\x42/Z-github.com/DataDog/dd-go/pb/trace/datapathspbb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'payload_pb2', globals())
@@ -21,28 +21,28 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'Z-github.com/DataDog/dd-go/pb/trace/datapathspb'
-  _EDGETYPE._serialized_start=959
-  _EDGETYPE._serialized_end=1002
-  _SOURCE._serialized_start=1004
-  _SOURCE._serialized_end=1039
+  _EDGETYPE._serialized_start=992
+  _EDGETYPE._serialized_end=1035
+  _SOURCE._serialized_start=1037
+  _SOURCE._serialized_end=1072
   _DATAPATHAPIPAYLOAD._serialized_start=30
   _DATAPATHAPIPAYLOAD._serialized_end=120
   _NODEID._serialized_start=122
   _NODEID._serialized_end=196
   _EDGEID._serialized_start=198
-  _EDGEID._serialized_end=257
-  _PATHWAYINFO._serialized_start=259
-  _PATHWAYINFO._serialized_end=349
-  _PATHS._serialized_start=351
-  _PATHS._serialized_end=439
-  _PATHWAYSTATS._serialized_start=442
-  _PATHWAYSTATS._serialized_end=574
-  _UNRESOLVEDDATAPATH._serialized_start=577
-  _UNRESOLVEDDATAPATH._serialized_end=718
-  _DATAPATHPAYLOAD._serialized_start=720
-  _DATAPATHPAYLOAD._serialized_end=841
-  _STOREDNODEINFO._serialized_start=843
-  _STOREDNODEINFO._serialized_end=889
-  _LATENCIES._serialized_start=891
-  _LATENCIES._serialized_end=957
+  _EDGEID._serialized_end=290
+  _PATHWAYINFO._serialized_start=292
+  _PATHWAYINFO._serialized_end=382
+  _PATHS._serialized_start=384
+  _PATHS._serialized_end=472
+  _PATHWAYSTATS._serialized_start=475
+  _PATHWAYSTATS._serialized_end=607
+  _UNRESOLVEDDATAPATH._serialized_start=610
+  _UNRESOLVEDDATAPATH._serialized_end=751
+  _DATAPATHPAYLOAD._serialized_start=753
+  _DATAPATHPAYLOAD._serialized_end=874
+  _STOREDNODEINFO._serialized_start=876
+  _STOREDNODEINFO._serialized_end=922
+  _LATENCIES._serialized_start=924
+  _LATENCIES._serialized_end=990
 # @@protoc_insertion_point(module_scope)

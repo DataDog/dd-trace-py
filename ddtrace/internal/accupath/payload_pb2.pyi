@@ -30,12 +30,14 @@ class DataPathPayload(_message.Message):
     def __init__(self, org_id: Optional[int] = ..., datapath: Optional[Union[DataPathAPIPayload, Mapping]] = ..., source: Optional[Union[Source, str]] = ...) -> None: ...
 
 class EdgeID(_message.Message):
-    __slots__ = ["name", "type"]
-    NAME_FIELD_NUMBER: ClassVar[int]
+    __slots__ = ["operation_name", "resource_name", "type"]
+    OPERATION_NAME_FIELD_NUMBER: ClassVar[int]
+    RESOURCE_NAME_FIELD_NUMBER: ClassVar[int]
     TYPE_FIELD_NUMBER: ClassVar[int]
-    name: str
+    operation_name: str
+    resource_name: str
     type: EdgeType
-    def __init__(self, type: Optional[Union[EdgeType, str]] = ..., name: Optional[str] = ...) -> None: ...
+    def __init__(self, type: Optional[Union[EdgeType, str]] = ..., resource_name: Optional[str] = ..., operation_name: Optional[str] = ...) -> None: ...
 
 class Latencies(_message.Message):
     __slots__ = ["error_latency", "ok_latency"]
