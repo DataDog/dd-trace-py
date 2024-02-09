@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace import Span
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt
@@ -106,7 +107,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
             )
         if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-            self._datadog_integration.generate_llm_record(
+            self._datadog_integration.llmobs_set_tags(
                 self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
             )
 
@@ -116,7 +117,7 @@ def _handle_exception(span, integration, prompt, exc_info):
     span.set_exc_info(*exc_info)
     span.finish()
     if integration.is_pc_sampled_llmobs(span):
-        integration.generate_llm_record(span, formatted_response=None, prompt=prompt, err=1)
+        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -291,10 +292,11 @@ def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: 
     span.set_tag_str("bedrock.request.model", model_name)
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and integration.is_pc_sampled_span(span):
-            v = integration.trunc(str(v))
-        if k == "prompt" and integration.is_pc_sampled_llmobs(span):
-            prompt = v
+        if k == "prompt":
+            if integration.is_pc_sampled_llmobs(span):
+                prompt = v
+            if integration.is_pc_sampled_span(span):
+                v = integration.trunc(str(v))
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
     return prompt
 
@@ -329,6 +331,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         resource=operation,
         activate=False,
+        span_type=SpanTypes.LLMOBS,
     )
     prompt = None
     try:

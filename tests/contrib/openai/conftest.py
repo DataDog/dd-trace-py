@@ -146,10 +146,7 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {
-        "_dd_api_key": "<not-a-real-api_key>",
-        "_dd_app_key": "<not-a-real-app-key",
-    }
+    return {"_dd_api_key": "<not-a-real-api_key>"}
 
 
 @pytest.fixture

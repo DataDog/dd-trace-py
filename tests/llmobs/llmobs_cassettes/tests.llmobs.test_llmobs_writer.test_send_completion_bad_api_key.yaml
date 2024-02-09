@@ -11,8 +11,6 @@ interactions:
       - application/json
       DD-API-KEY:
       - XXXXXX
-      DD-APPLICATION-KEY:
-      - XXXXXX
     method: POST
     uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
   response:

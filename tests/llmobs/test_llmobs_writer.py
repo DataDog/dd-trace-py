@@ -5,7 +5,7 @@ import mock
 import pytest
 import vcr
 
-from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.internal.llmobs import LLMObsWriter
 from tests.utils import request_token
 
 
@@ -37,7 +37,7 @@ def vcr_logs(request):
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.llmobs._writer.logger") as m:
+    with mock.patch("ddtrace.internal.llmobs.writer.logger") as m:
         yield m
 
 
@@ -117,17 +117,15 @@ def _chat_completion_record():
 
 
 def test_buffer_limit(mock_logs):
-    llmobs_writer = LLMObsWriter(site="datadoghq.com", api_key="asdf", app_key="asdf", interval=1000, timeout=1)
+    llmobs_writer = LLMObsWriter(site="datadoghq.com", api_key="asdf", interval=1000, timeout=1)
     for _ in range(1001):
         llmobs_writer.enqueue({})
-    mock_logs.warning.assert_called_with("LLMobs record buffer full (limit is %d), dropping record", 1000)
+    mock_logs.warning.assert_called_with("LLMobs event buffer full (limit is %d), dropping record", 1000)
 
 
 @pytest.mark.vcr_logs
 def test_send_completion(mock_logs):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=1, timeout=1
-    )
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
     llmobs_writer.start()
     mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
     llmobs_writer.enqueue(_completion_record())
@@ -138,9 +136,7 @@ def test_send_completion(mock_logs):
 
 @pytest.mark.vcr_logs
 def test_send_chat_completion(mock_logs):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=1, timeout=1
-    )
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
     llmobs_writer.start()
     mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
     llmobs_writer.enqueue(_chat_completion_record())
@@ -151,27 +147,7 @@ def test_send_chat_completion(mock_logs):
 
 @pytest.mark.vcr_logs
 def test_send_completion_bad_api_key(mock_logs):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key="<not-a-real-api-key>", app_key=os.getenv("DD_APP_KEY"), interval=1, timeout=1
-    )
-    llmobs_writer.start()
-    llmobs_writer.enqueue(_completion_record())
-    llmobs_writer.periodic()
-    mock_logs.error.assert_called_with(
-        "failed to send %d LLM records to %r, got response code %r, status: %r",
-        1,
-        INTAKE_ENDPOINT,
-        403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com",'
-        b'"twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
-    )
-
-
-@pytest.mark.vcr_logs
-def test_send_completion_bad_app_key(mock_logs):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key="<not-a-real-app-key>", interval=1, timeout=1
-    )
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
     llmobs_writer.start()
     llmobs_writer.enqueue(_completion_record())
     llmobs_writer.periodic()
@@ -187,9 +163,7 @@ def test_send_completion_bad_app_key(mock_logs):
 
 @pytest.mark.vcr_logs
 def test_send_timed_records(mock_logs):
-    llmobs_writer = LLMObsWriter(
-        site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=0.01, timeout=1
-    )
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1)
     llmobs_writer.start()
     mock_logs.reset_mock()
 
@@ -219,16 +193,14 @@ import atexit
 import os
 import time
 
-from ddtrace.llmobs._writer import LLMObsWriter
-from tests.llmobs.test_llmobs_writer import _completion_record
-from tests.llmobs.test_llmobs_writer import logs_vcr
+from ddtrace.internal.llmobs import LLMObsWriter
+from tests.internal.test_llmobs import _completion_record
+from tests.internal.test_llmobs import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_writer.test_send_on_exit.yaml")
+ctx = logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
-llmobs_writer = LLMObsWriter(
-    site="datad0g.com", api_key=os.getenv("DD_API_KEY"), app_key=os.getenv("DD_APP_KEY"), interval=0.01, timeout=1
-)
+llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1)
 llmobs_writer.start()
 llmobs_writer.enqueue(_completion_record())
 """,
