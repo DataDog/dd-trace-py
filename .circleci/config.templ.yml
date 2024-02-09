@@ -549,6 +549,12 @@ jobs:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
+  llmobs:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "llmobs"
+
   subprocess:
     <<: *contrib_job_small
     steps:

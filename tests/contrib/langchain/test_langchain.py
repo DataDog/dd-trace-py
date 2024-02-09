@@ -80,7 +80,7 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
@@ -94,7 +94,7 @@ def mock_logs(scope="session"):
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
     """
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.V2LogWriter")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
