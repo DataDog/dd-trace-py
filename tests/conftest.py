@@ -483,9 +483,9 @@ def test_agent_session(telemetry_writer, request):
             conn.request("GET", "/test/session/start?test_session_token=%s" % token)
             conn.getresponse()
             break
-        except BaseException as err:
+        except BaseException:
             if try_nb == MAX_RETRY - 1:
-                raise RuntimeError("Failed to connect to test agent") from err
+                pytest.xfail("Failed to connect to test agent")
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
