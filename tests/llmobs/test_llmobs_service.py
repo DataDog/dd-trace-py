@@ -4,8 +4,8 @@ import pytest
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 
-from tests.utils import override_global_config
 from tests.utils import DummyTracer
+from tests.utils import override_global_config
 
 
 def test_llmobs_service_enable():
