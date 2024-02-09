@@ -10,6 +10,7 @@ import six
 
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -430,6 +431,26 @@ def test_validate_headers_in_payload_to_intake():
     assert headers.get("X-Datadog-Trace-Count") == "1"
     if container.get_container_info():
         assert "Datadog-Container-Id" in headers
+        assert "Datadog-Entity-ID" in headers
+        assert headers["Datadog-Entity-ID"].startswith("cid")
+
+
+@skip_if_testagent
+@parametrize_with_all_encodings
+def test_inode_entity_id_header_present():
+    import mock
+
+    from ddtrace import tracer as t
+
+    t._writer._put = mock.Mock(wraps=t._writer._put)
+    with mock.patch("container.get_container_info") as gcimock:
+        gcimock.return_value = container.CGroupInfo(node_inode=12345)
+        t.trace("op").finish()
+        t.shutdown()
+    assert t._writer._put.call_count == 1
+    headers = t._writer._put.call_args[0][1]
+    assert "Datadog-Entity-ID" in headers
+    assert headers["Datadog-Entity-ID"].startswith("in")
 
 
 @skip_if_testagent
