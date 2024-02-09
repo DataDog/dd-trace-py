@@ -3060,6 +3060,7 @@ class PytestTestCase(TracerTestCase):
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
     def test_pytest_ddtrace_test_names(self):
+        """Tests that the default naming behavior for pytest works as expected"""
         package_outer_dir = self.testdir.mkpydir("test_package")
         os.chdir(str(package_outer_dir))
         with open("test_names.py", "w+") as fd:
@@ -3166,6 +3167,7 @@ class PytestTestCase(TracerTestCase):
         assert test_spans[2].get_tag("test.name") == "TestClassTwo.test_ok"
 
     def test_pytest_ddtrace_name_hooks(self):
+        """This only tests that whatever hooks a user defines are being used"""
         with open("conftest.py", "w") as fd:
             fd.write(
                 textwrap.dedent(
@@ -3435,7 +3437,7 @@ class PytestTestCase(TracerTestCase):
                         """
                     from tools import add_two_number_list
 
-                    def test_add_two_number_list():
+                    def test_add_two_number_lis7418t():
                         a_list = [1,2,3,4,5,6,7,8]
                         b_list = [2,3,4,5,6,7,8,9]
                         actual_output = add_two_number_list(a_list, b_list)
