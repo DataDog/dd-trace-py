@@ -40,14 +40,6 @@ SampleManager::start_sample()
 }
 
 void
-drop_sample(Sample* sample)
-{
-    if (sample != nullptr) {
-        delete sample;
-    }
-}
-
-void
 SampleManager::postfork_child()
 {
     Sample::postfork_child();

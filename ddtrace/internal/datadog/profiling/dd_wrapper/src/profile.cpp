@@ -33,24 +33,6 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 
 using namespace Datadog;
 
-void
-Profile::reset()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-
-    // Drop the profiles
-    if (cur_profile.inner != nullptr) {
-        ddog_prof_Profile_drop(&cur_profile);
-    }
-    if (last_profile.inner != nullptr) {
-        ddog_prof_Profile_drop(&last_profile);
-    }
-
-    // non-RAII heap storage has been dropped, state has been reinitialized
-    // we can pretend it's the first time all over again
-    first_time.store(true);
-}
-
 bool
 Profile::cycle_buffers()
 {

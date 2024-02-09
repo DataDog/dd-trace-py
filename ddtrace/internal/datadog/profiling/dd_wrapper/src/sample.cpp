@@ -330,7 +330,6 @@ Sample::profile_release()
     profile_state.profile_release();
 }
 
-
 void
 Sample::postfork_child()
 {

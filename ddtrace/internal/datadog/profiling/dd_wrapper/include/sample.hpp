@@ -38,7 +38,7 @@ class Sample
     // Storage for values
     std::vector<int64_t> values = {};
 
-public:
+  public:
     // Initialization and stuff
     void start_sample();
 

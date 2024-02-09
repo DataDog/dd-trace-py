@@ -104,7 +104,7 @@ ddup_config_user_tag(const char* key, const char* val)
 }
 
 void
-ddup_set_runtime_id(const char* id, size_t sz) // cppcheck-suppress unusedFunction
+ddup_set_runtime_id(const char* id, size_t sz)
 {
     Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
 }
@@ -119,7 +119,6 @@ ddup_config_max_nframes(int max_nframes)
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
 }
-
 
 bool
 ddup_is_initialized()
@@ -157,44 +156,44 @@ ddup_start_sample()
 }
 
 void
-ddup_push_walltime(Datadog::Sample *sample, int64_t walltime, int64_t count)
+ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count)
 {
 
     sample->push_walltime(walltime, count);
 }
 
 void
-ddup_push_cputime(Datadog::Sample *sample, int64_t cputime, int64_t count)
+ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count)
 {
     sample->push_cputime(cputime, count);
 }
 
 void
-ddup_push_acquire(Datadog::Sample *sample, int64_t acquire_time, int64_t count)
+ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count)
 {
     sample->push_acquire(acquire_time, count);
 }
 
 void
-ddup_push_release(Datadog::Sample *sample, int64_t release_time, int64_t count)
+ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count)
 {
     sample->push_release(release_time, count);
 }
 
 void
-ddup_push_alloc(Datadog::Sample *sample, uint64_t size, uint64_t count)
+ddup_push_alloc(Datadog::Sample* sample, uint64_t size, uint64_t count)
 {
     sample->push_alloc(size, count);
 }
 
 void
-ddup_push_heap(Datadog::Sample *sample, uint64_t size)
+ddup_push_heap(Datadog::Sample* sample, uint64_t size)
 {
     sample->push_heap(size);
 }
 
 void
-ddup_push_lock_name(Datadog::Sample *sample, const char* lock_name)
+ddup_push_lock_name(Datadog::Sample* sample, const char* lock_name)
 {
     if (lock_name) {
         sample->push_lock_name(lock_name);
@@ -202,7 +201,7 @@ ddup_push_lock_name(Datadog::Sample *sample, const char* lock_name)
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample *sample, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
+ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
 {
     if (thread_name) {
         sample->push_threadinfo(thread_id, thread_native_id, thread_name);
@@ -212,13 +211,13 @@ ddup_push_threadinfo(Datadog::Sample *sample, int64_t thread_id, int64_t thread_
 }
 
 void
-ddup_push_task_id(Datadog::Sample *sample, int64_t task_id)
+ddup_push_task_id(Datadog::Sample* sample, int64_t task_id)
 {
     sample->push_task_id(task_id);
 }
 
 void
-ddup_push_task_name(Datadog::Sample *sample, const char* task_name)
+ddup_push_task_name(Datadog::Sample* sample, const char* task_name)
 {
     if (task_name) {
         sample->push_task_name(task_name);
@@ -226,19 +225,19 @@ ddup_push_task_name(Datadog::Sample *sample, const char* task_name)
 }
 
 void
-ddup_push_span_id(Datadog::Sample *sample, int64_t span_id)
+ddup_push_span_id(Datadog::Sample* sample, int64_t span_id)
 {
     sample->push_span_id(span_id);
 }
 
 void
-ddup_push_local_root_span_id(Datadog::Sample *sample, int64_t local_root_span_id)
+ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id)
 {
     sample->push_local_root_span_id(local_root_span_id);
 }
 
 void
-ddup_push_trace_type(Datadog::Sample *sample, const char* trace_type)
+ddup_push_trace_type(Datadog::Sample* sample, const char* trace_type)
 {
     if (trace_type) {
         sample->push_trace_type(trace_type);
@@ -246,7 +245,7 @@ ddup_push_trace_type(Datadog::Sample *sample, const char* trace_type)
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample *sample, const char* trace_resource_container)
+ddup_push_trace_resource_container(Datadog::Sample* sample, const char* trace_resource_container)
 {
     if (trace_resource_container) {
         sample->push_trace_resource_container(trace_resource_container);
@@ -254,7 +253,7 @@ ddup_push_trace_resource_container(Datadog::Sample *sample, const char* trace_re
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample *sample, const char* exception_type, int64_t count)
+ddup_push_exceptioninfo(Datadog::Sample* sample, const char* exception_type, int64_t count)
 {
     if (exception_type) {
         sample->push_exceptioninfo(exception_type, count);
@@ -262,7 +261,7 @@ ddup_push_exceptioninfo(Datadog::Sample *sample, const char* exception_type, int
 }
 
 void
-ddup_push_class_name(Datadog::Sample *sample, const char* class_name)
+ddup_push_class_name(Datadog::Sample* sample, const char* class_name)
 {
     if (class_name) {
         sample->push_class_name(class_name);
@@ -270,7 +269,7 @@ ddup_push_class_name(Datadog::Sample *sample, const char* class_name)
 }
 
 void
-ddup_push_frame(Datadog::Sample *sample, const char* _name, const char* _filename, uint64_t address, int64_t line)
+ddup_push_frame(Datadog::Sample* sample, const char* _name, const char* _filename, uint64_t address, int64_t line)
 {
     if (_name && _filename) {
         sample->push_frame(_name, _filename, address, line);
@@ -278,9 +277,15 @@ ddup_push_frame(Datadog::Sample *sample, const char* _name, const char* _filenam
 }
 
 void
-ddup_flush_sample(Datadog::Sample *sample)
+ddup_flush_sample(Datadog::Sample* sample)
 {
     sample->flush_sample();
+}
+
+void
+ddup_drop_sample(Datadog::Sample* sample)
+{
+    delete sample;
 }
 
 bool

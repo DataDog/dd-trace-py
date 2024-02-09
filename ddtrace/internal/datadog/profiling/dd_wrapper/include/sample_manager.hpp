@@ -28,7 +28,7 @@ class SampleManager
     static void set_max_nframes(unsigned int _max_nframes);
 
     // Sampling entrypoint (this could also be called `build_ptr()`)
-    static Sample *start_sample();
+    static Sample* start_sample();
 
     // Handles state management after forks
     static void postfork_child();
