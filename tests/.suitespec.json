@@ -94,7 +94,7 @@
             "ddtrace/settings/exception_debugging.py"
         ],
         "ci": [
-            "ddtrace/ext/ci.py",
+            "ddtrace/ext/ci.py"
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
@@ -133,7 +133,7 @@
             "ddtrace/contrib/gevent/*"
         ],
         "git": [
-            "ddtrace/ext/git.py",
+            "ddtrace/ext/git.py"
         ],
         "graphene": [
             "ddtrace/contrib/graphene/*"
