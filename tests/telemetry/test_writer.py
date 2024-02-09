@@ -317,7 +317,8 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     assert "payload" in events[-1]
     assert "dependencies" in events[-1]["payload"]
     assert len(events[-1]["payload"]["dependencies"]) >= 1
-    assert events[-1]["payload"]["dependencies"][0]["name"] == "xmltodict"
+    xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
+    assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
     assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
     assert telemetry_writer._imported_dependencies["xmltodict"].version
