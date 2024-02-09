@@ -69,6 +69,7 @@ config._add(
         ),
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
+        trace_asgi_websocket=os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False),
     ),
 )
 

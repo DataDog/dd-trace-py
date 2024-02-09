@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Any
 from typing import Mapping
@@ -28,7 +29,12 @@ log = get_logger(__name__)
 
 config._add(
     "asgi",
-    dict(service_name=config._get_service(default="asgi"), request_span_name="asgi.request", distributed_tracing=True),
+    dict(
+        service_name=config._get_service(default="asgi"),
+        request_span_name="asgi.request",
+        distributed_tracing=True,
+        trace_asgi_websocket=os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False),
+    ),
 )
 
 ASGI_VERSION = "asgi.version"
@@ -111,7 +117,7 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             method = scope["method"]
-        elif scope["type"] == "websocket" and config._trace_asgi_websocket:
+        elif scope["type"] == "websocket" and config.trace_asgi_websocket:
             method = "WEBSOCKET"
         else:
             return await self.app(scope, receive, send)
@@ -125,7 +131,7 @@ class TraceMiddleware:
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
         resource = " ".join([method, scope["path"]])
-        
+
         # in the case of websockets we don't currently schematize the operation names
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         if scope["type"] == "http":
