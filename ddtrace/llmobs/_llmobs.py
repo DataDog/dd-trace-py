@@ -53,9 +53,6 @@ class LLMObs(Service):
         if not config._dd_api_key:
             cls.enabled = False
             raise ValueError("DD_API_KEY is required for sending LLMObs data")
-        if not config._dd_app_key:
-            cls.enabled = False
-            raise ValueError("DD_APP_KEY is required for sending LLMObs data")
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
@@ -91,23 +88,24 @@ class LLMObsTraceProcessor(TraceProcessor):
         self._writer = llmobs_writer
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
-        if trace:
-            trace_contains_llm = False
-            for span in trace:
-                if span.span_type == SpanTypes.LLMOBS:
-                    trace_contains_llm = True
-            if not trace_contains_llm:
-                return trace
+        if not trace:
+            return
+        trace_contains_llm = False
+        for span in trace:
+            if span.span_type == SpanTypes.LLMOBS:
+                trace_contains_llm = True
+        if not trace_contains_llm:
+            return trace
 
         for span in trace:
             if self._has_children(trace, span):
-                span.set_tag_str("ml_obs.span_type", "chain")
+                span.set_tag_str("ml_obs.kind", "chain")
             else:
-                span.set_tag_str("ml_obs.span_type", "task")
+                span.set_tag_str("ml_obs.kind", "task")
 
-        # TODO: Need to submit to LLMObsWriter, need to implement that as well
+        # TODO: Need to infer span kind and submit to LLMObsWriter
 
-        return None
+        return trace
 
     @staticmethod
     def _has_children(trace: List[Span], span: Span) -> bool:

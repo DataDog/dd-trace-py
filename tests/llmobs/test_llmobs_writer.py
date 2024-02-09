@@ -220,10 +220,10 @@ import os
 import time
 
 from ddtrace.llmobs._writer import LLMObsWriter
-from tests.llmobs.test_llmobs import _completion_record
-from tests.llmobs.test_llmobs import logs_vcr
+from tests.llmobs.test_llmobs_writer import _completion_record
+from tests.llmobs.test_llmobs_writer import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs.test_send_on_exit.yaml")
+ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_writer.test_send_on_exit.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_writer = LLMObsWriter(
