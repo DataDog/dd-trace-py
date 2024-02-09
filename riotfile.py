@@ -1820,7 +1820,7 @@ venv = Venv(
                 Venv(
                     # urllib3 added support for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12", latest]},
+                    pkgs={"urllib3": ["~=1.25.8", latest]},
                 ),
                 Venv(
                     # urllib3 added support for Python 3.10 in 1.26.6
