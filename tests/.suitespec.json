@@ -46,7 +46,9 @@
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
-            "ddtrace/settings/integration.py"
+            "ddtrace/settings/integration.py",
+            "ddtrace/_trace/*",
+            "ddtrace/_trace/processor/*"
         ],
         "runtime": [
             "ddtrace/runtime/__init__.py"
