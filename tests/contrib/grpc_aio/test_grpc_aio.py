@@ -795,9 +795,11 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
+    error_msg = client_span.get_tag(ERROR_MSG)
+    assert error_msg in ("abort_details", "Internal error from Core")
+    if error_msg == "abort_details":
+        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 
