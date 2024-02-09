@@ -6,7 +6,6 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -81,35 +80,11 @@ class LLMObsTraceProcessor(TraceProcessor):
     2. any leaf spans in this trace will be marked as task-type spans.
     3. any non-leaf spans in this trace will be marked as chain/workflow-type spans.
 
-    # FIXME: handle distributed cases (need to propagate LLMObs status in the response)
+    # TODO: handle distributed cases (need to propagate LLMObs status in the response)
     """
 
     def __init__(self, llmobs_writer):
         self._writer = llmobs_writer
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
-        if not trace:
-            return
-        trace_contains_llm = False
-        for span in trace:
-            if span.span_type == SpanTypes.LLMOBS:
-                trace_contains_llm = True
-        if not trace_contains_llm:
-            return trace
-
-        for span in trace:
-            if self._has_children(trace, span):
-                span.set_tag_str("ml_obs.kind", "chain")
-            else:
-                span.set_tag_str("ml_obs.kind", "task")
-
-        # TODO: Need to infer span kind and submit to LLMObsWriter
-
         return trace
-
-    @staticmethod
-    def _has_children(trace: List[Span], span: Span) -> bool:
-        for s in trace:
-            if s.parent_id == span.span_id:
-                return True
-        return False
