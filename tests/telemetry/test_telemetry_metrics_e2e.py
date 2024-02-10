@@ -73,7 +73,7 @@ def parse_payload(data):
 
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
-    assert len(test_agent_session.get_events()) == 0
+    initial_event_count = len(test_agent_session.get_events())
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -86,6 +86,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         assert response.status_code == 200
 
     events = test_agent_session.get_events()
+    assert len(events) > initial_event_count
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
     assert len(metrics) == 1
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"

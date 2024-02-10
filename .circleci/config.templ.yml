@@ -532,6 +532,7 @@ jobs:
     <<: *contrib_job_small
     steps:
       - run_test:
+          store_coverage: false
           pattern: "datastreams"
 
   tracer:
@@ -547,6 +548,12 @@ jobs:
       - run_test:
           pattern: "ci_visibility"
           trace_agent_url: ""
+
+  llmobs:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "llmobs"
 
   subprocess:
     <<: *contrib_job_small
@@ -758,6 +765,7 @@ jobs:
         - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
+          store_coverage: false
           pattern: 'celery'
 
   cherrypy:
