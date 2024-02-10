@@ -1967,3 +1967,26 @@ def test_installed_excepthook():
     assert sys.excepthook is telemetry._excepthook
     # Reset exception hooks
     telemetry.uninstall_excepthook()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="pkg resources was deprecated in 3.12")
+def test_tracer_pkg_resources_warning(run_python_code_in_subprocess):
+    code = """
+import logging
+logging.basicConfig(level=logging.WARNING)
+log = logging.getLogger(__name__)
+
+try:
+    import ddtrace
+    ddtrace.patch(fastapi=True)
+    import fastapi
+except DeprecationWarning as e:
+    log.warning("importing ddtrace generated a DeprecationWarning: %s", e)
+    exit(1)
+"""
+
+    env = os.environ.copy()
+    env["PYTHONWARNINGS"] = "always"
+
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err + out

@@ -110,12 +110,13 @@ def _create_import_hook_from_entrypoint(entrypoint):
     return import_hook
 
 def discover_post_import_hooks(group):
+    # ddtrace: Replace deprecated pkg_resources with importlib
     try:
-        import pkg_resources
+        from importlib.metadata import entry_points
     except ImportError:
-        return
+        from importlib_metadata import entry_points
 
-    for entrypoint in pkg_resources.iter_entry_points(group=group):
+    for entrypoint in entry_points(group=group):
         callback = _create_import_hook_from_entrypoint(entrypoint)
         register_post_import_hook(callback, entrypoint.name)
 
