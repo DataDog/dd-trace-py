@@ -84,11 +84,10 @@ def test_iter_events():
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             assert thread_id == threading.main_thread().ident
             if sys.version_info < (3, 12):
-                assert stack[1] == (__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+                assert stack[1] == (__file__, _ALLOC_LINE_NUMBER, "_allocate_1k")
             object_count += 1
 
     assert object_count >= 1000
@@ -137,12 +136,11 @@ def test_iter_events_multi_thread():
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             if thread_id == threading.main_thread().ident:
                 count_object += 1
                 if sys.version_info < (3, 12):
-                    assert stack[1] == (__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+                    assert stack[1] == (__file__, _ALLOC_LINE_NUMBER, "_allocate_1k")
             elif thread_id == t.ident:
                 count_thread += 1
                 entry = 2 if sys.version_info < (3, 12) else 1
@@ -170,13 +168,13 @@ def test_memory_collector():
         last_call = event.frames[0]
         assert event.size > 0
         if last_call == DDFrame(
-            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k", ""
+            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k"
         ):
             assert event.thread_id == threading.main_thread().ident
             assert event.thread_name == "MainThread"
             count_object += 1
             entry = 2 if sys.version_info < (3, 12) else 1
-            assert event.frames[entry] == DDFrame(__file__, 161, "test_memory_collector", "")
+            assert event.frames[entry] == DDFrame(__file__, 161, "test_memory_collector")
 
     assert count_object > 0
 
@@ -237,7 +235,7 @@ def test_heap():
             thread_found = True
         assert isinstance(thread_id, int)
         if stack[0] == DDFrame(
-            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k", ""
+            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k"
         ):
             break
     else:
@@ -249,7 +247,7 @@ def test_heap():
         assert size > 0
         assert isinstance(thread_id, int)
         if stack[0] == DDFrame(
-            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k", ""
+            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k"
         ):
             break
     else:
@@ -263,7 +261,7 @@ def test_heap():
         entry = 2 if sys.version_info < (3, 12) else 1
         if (
             stack[0]
-            == DDFrame(__file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k", "")
+            == DDFrame(__file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k")
             and stack[entry].function_name == "test_heap"
         ):
             pytest.fail("Allocated memory still in heap")

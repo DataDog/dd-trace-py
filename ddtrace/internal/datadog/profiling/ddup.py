@@ -74,10 +74,6 @@ except ImportError:
         pass
 
     @not_implemented
-    def push_class_name(class_name):  # type: (str) -> None
-        pass
-
-    @not_implemented
     def push_span(span, endpoint_collection_enabled):  # type: (Optional[Span], bool) -> None
         pass
 

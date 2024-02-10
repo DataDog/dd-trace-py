@@ -653,13 +653,3 @@ Profile::push_trace_resource_container(std::string_view trace_resource_container
     }
     return true;
 }
-
-bool
-Profile::push_class_name(std::string_view class_name)
-{
-    if (!push_label(ExportLabelKey::class_name, class_name)) {
-        std::cout << "bad push" << std::endl;
-        return false;
-    }
-    return true;
-}

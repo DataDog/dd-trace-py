@@ -94,6 +94,88 @@ traceback_free(traceback_t* tb)
     PyMem_RawFree(tb);
 }
 
+/* Helper function for extracting the classname from a PyFrameObject */
+static const char*
+get_class_name(PyFrameObject* frame)
+{
+    const char* result = "";
+    PyCodeObject* code = NULL;
+    PyObject* varnames = NULL;
+    PyObject* name = NULL;
+    PyObject* locals = NULL;
+    PyObject* value = NULL;
+    PyObject* clsname = NULL;
+
+    // Get code object
+#if PY_VERSION_HEX >= 0x03090000
+    code = PyFrame_GetCode(frame);
+#else
+    code = frame->f_code;
+    Py_INCREF(code);
+#endif
+    if (!code)
+        goto final;
+
+#if PY_VERSION_HEX >= 0x030B0000
+    varnames = PyCode_GetVarnames(code);
+#else
+    varnames = code->co_varnames;
+    Py_INCREF(varnames);
+#endif
+
+    if (!varnames || !PyTuple_Check(varnames) || PyTuple_Size(varnames) <= 0)
+        goto final;
+
+    name = PyTuple_GetItem(varnames, 0); // Borrowed reference, no need to DECREF.
+    if (!name)
+        goto final;
+
+#if PY_VERSION_HEX >= 0x030B0000
+    locals = PyFrame_GetLocals(frame);
+#else
+    locals = frame->f_locals;
+    Py_XINCREF(locals); // Increment reference count if locals is not NULL
+#endif
+
+    if (!locals)
+        goto final;
+
+    value = PyDict_GetItem(locals, name); // Borrowed reference, no need to DECREF.
+    if (!value)
+        goto final;
+
+    // Check if 'self' or 'cls' and get type
+    if (PyUnicode_CompareWithASCIIString(name, "self") == 0) {
+        value = PyObject_Type(value); // New reference
+        if (!value)
+            goto final;
+    } else if (PyUnicode_CompareWithASCIIString(name, "cls") != 0) {
+        goto final;
+    }
+
+    clsname = PyObject_GetAttrString(value, "__name__"); // New reference
+    if (!clsname)
+        goto final;
+
+    result = PyUnicode_AsUTF8(clsname);
+
+final:
+    // Clean-up
+    Py_XDECREF(clsname);
+    Py_XDECREF(value);
+#if PY_VERSION_HEX >= 0x030B0000
+    Py_XDECREF(varnames);
+#endif
+#if PY_VERSION_HEX >= 0x03090000
+    Py_XDECREF(locals);
+    Py_DECREF(code);
+#else
+    Py_XDECREF(locals);
+    Py_DECREF(code);
+#endif
+    return result ? result : "";
+}
+
 /* Convert PyFrameObject to a frame_t that we can store in memory */
 static void
 memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
@@ -125,7 +207,19 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
     else
         frame->name = unknown_name;
 
-    Py_INCREF(frame->name);
+    // Get the class name and prepend to the function name.
+    const char* class_name = get_class_name(pyframe);
+    if (!class_name || !*class_name) {
+        PyObject* new_name = PyUnicode_FromFormat("%s.%U", class_name, frame->name);
+        if (new_name) {
+            Py_DECREF(frame->name);
+            frame->name = new_name;
+        } else {
+            // If we couldn't get the class name, just use the function name,
+            // but increment the reference count.
+            Py_INCREF(frame->name);
+        }
+    }
 
     if (filename)
         frame->filename = filename;
