@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    wsgi: Previously ``StopIteration`` exceptions which are expected to be raised after closing a websocket connection,
+    marked the span as an error. With this change, ``StopIteration`` exceptions in this context will be ignored.
