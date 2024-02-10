@@ -225,7 +225,7 @@ class TraceMiddleware:
                         log.warning("failed to extract response headers", exc_info=True)
                         response_headers = None
                     log.debug("teague.bick - in wrapped send")
-                    core.dispatch('http.response.header.injection', [response_headers, resource])
+                    core.dispatch('http.response.header.injection', [response_headers, resource, operation_name])
 
                     if span and message.get("type") == "http.response.start" and "status" in message:
                         status_code = message["status"]

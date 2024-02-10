@@ -168,7 +168,8 @@ def _generate_payload_v0(
 
     # REPRESENT THIS EDGE
     edge = EdgeID()
-    edge.name = path_key_info.resource_name or ""
+    edge.resource_name = path_key_info.resource_name or ""
+    edge.operation_name = path_key_info.operation_name or ""
     edge.type = EdgeType.HTTP
     log.debug(f"Setting resource name to: {path_key_info.resource_name}")
 
@@ -181,7 +182,7 @@ def _generate_payload_v0(
         f"Time Bucket: {bucket_start_time}",
         f"root: {pathway.root_hash}",
         f"parent: {pathway.parent_hash}",
-        f"current: {pathway.node_hash} - ({current_node_info.service}, {current_node_info.env})",
+    f"current: {pathway.node_hash} - ({current_node_info.service}, {current_node_info.env})",
         f"resource: {path_key_info.resource_name}"
     ])
     log.debug(f"accupath payload -  {pathway_string}")
@@ -223,11 +224,12 @@ def _generate_payload_v0(
 
 
 class PathKey:
-    def __init__(self, request_pathway_id, node_hash, request_id, resource_name, root_hash):
+    def __init__(self, request_pathway_id, node_hash, request_id, resource_name, operation_name, root_hash):
         self.request_pathway_id = request_pathway_id
         self.request_id = request_id
         self.node_hash = node_hash
         self.resource_name = resource_name
+        self.operation_name = operation_name
         self.root_hash = root_hash
 
     def __eq__(self, __value: object) -> bool:
@@ -256,6 +258,7 @@ def submit_metrics():
             node_hash = current_pathway_context.node_hash,
             request_id = current_pathway_context.uid,
             resource_name = current_pathway_context.resource_name,
+            operation_name = current_pathway_context.operation_name,
             root_hash = current_pathway_context.root_hash,
         )
 

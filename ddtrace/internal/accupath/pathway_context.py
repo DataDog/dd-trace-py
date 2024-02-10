@@ -18,6 +18,7 @@ class AccuPathPathwayContext:
         self.uid = str(uuid.uuid4())
         self.tag = tag
         self.resource_name = "undefined"
+        self.operation_name = "undefined"
         self.current_node_info = current_node
         self.node_hash = current_node.to_hash()
         self.root_hash = 0
@@ -48,6 +49,7 @@ class AccuPathPathwayContext:
             "parent_hash": str(self.parent_hash),
             "node_hash": str(self.node_hash),
             "resource_name": self.resource_name,
+            "operation_name": self.operation_name,
             "tag": self.tag,
             "root_checkpoint_time": str(self.root_checkpoint_time),
             #"checkpoint_times": self.checkpoint_times,

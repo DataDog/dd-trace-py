@@ -42,11 +42,12 @@ def handle_response_in(headers, status_code, *args, **kwargs):
         log.debug("Error in handle_request_in", exc_info=True)
 
 
-def handle_response_out(headers, resource_name, *args, **kwargs):
+def handle_response_out(headers, resource_name, operation_name, *args, **kwargs):
     try:
         current_pathway_context = _get_current_pathway_context()
         current_pathway_context.checkpoint("response_out", time.time_ns())
         current_pathway_context.resource_name = resource_name
+        current_pathway_context.operation_name = operation_name 
         log.debug(f"AccuPath - response_out {current_pathway_context.uid}")
         submit_metrics()
     except Exception as e:
