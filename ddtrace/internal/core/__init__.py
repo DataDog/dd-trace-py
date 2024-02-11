@@ -281,7 +281,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def get_item(data_key, span=None):
-    log.debug(f"teague.bick.core - getting {data_key} in context {_CURRENT_CONTEXT.get().identifier}")
+    #log.debug(f"teague.bick.core - getting {data_key} in context {_CURRENT_CONTEXT.get().identifier}")
     # type: (str, Optional[Span]) -> Optional[Any]
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:

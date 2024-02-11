@@ -114,7 +114,7 @@ def _wrap_send(func, instance, args, kwargs):
         analytics_enabled = cfg.get("analytics_enabled")
         if analytics_enabled:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
-        core.dispatch("http.request.start", [])  # Must be before propagator injection
+        core.dispatch("http.request.start", [span.resource, span.name])  # Must be before propagator injection
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
@@ -133,7 +133,7 @@ def _wrap_send(func, instance, args, kwargs):
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
-                    core.dispatch("http.response.header.extraction", [response_headers, response.status_code])
+                    core.dispatch("http.response.header.extraction", [response.status_code])
 
                 trace_utils.set_http_meta(
                     span,

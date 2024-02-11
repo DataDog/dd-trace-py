@@ -225,10 +225,10 @@ class TraceMiddleware:
                         log.warning("failed to extract response headers", exc_info=True)
                         response_headers = None
                     log.debug("teague.bick - in wrapped send")
-                    core.dispatch('http.response.header.injection', [response_headers, resource, operation_name])
 
                     if span and message.get("type") == "http.response.start" and "status" in message:
                         status_code = message["status"]
+                        core.dispatch('http.response.header.injection', [response_headers, resource, operation_name, status_code])
                         trace_utils.set_http_meta(
                             span, self.integration_config, status_code=status_code, response_headers=response_headers
                         )
@@ -254,7 +254,8 @@ class TraceMiddleware:
 
                 async def wrapped_blocked_send(message):
                     result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
-                    core.dispatch('http.response.header.injection', headers, status)
+                    log.debug("teague.bick - in wrapped send 2")
+                    core.dispatch('http.response.header.injection', headers, resource, operation_name, status)
                     if result:
                         status, headers, content = result.value
                     else:
@@ -278,12 +279,16 @@ class TraceMiddleware:
                         if message.get("type") == "http.response.body" and span.error == 0:
                             span.finish()
 
+                log.debug("teague.bick - A")
                 try:
                     core.dispatch("asgi.start_request", ("asgi",))
+                    log.debug("teague.bick - B")
                     return await self.app(scope, receive, wrapped_send)
                 except trace_utils.InterruptException:
+                    log.debug("teague.bick - C")
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 except Exception as exc:
+                    log.debug("teague.bick - D")
                     (exc_type, exc_val, exc_tb) = sys.exc_info()
                     span.set_exc_info(exc_type, exc_val, exc_tb)
                     self.handle_exception_span(exc, span)

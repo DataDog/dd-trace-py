@@ -87,8 +87,9 @@ class _AccuPathProcessor(PeriodicService):
     def _flush_stats(self, trace_context):
         from ddtrace.propagation.http import HTTPPropagator
         headers = {"DD-API-KEY": os.environ.get("DD_API_KEY")}
-        HTTPPropagator.inject(trace_context, headers)
-        log.debug(f"Submitting with headers: {headers}")
+        # There is a problem here when you have multiple paths out of the node under the same parent
+        #HTTPPropagator.inject(trace_context, headers) 
+        #log.debug(f"Submitting with headers: {headers}")
         to_del = set()
         with self._lock:
             for bucket_time, bucket in self._buckets.items():
@@ -111,6 +112,7 @@ class _AccuPathProcessor(PeriodicService):
                         conn.request("POST", ACCUPATH_ENDPOINT, payload, headers)
                         resp = get_connection_response(conn)
                     except Exception:
+                        log.debug("accupath error posting payload")
                         raise
                     else:
                         if resp.status >= 200 and resp.status < 300:
@@ -168,8 +170,8 @@ def _generate_payload_v0(
 
     # REPRESENT THIS EDGE
     edge = EdgeID()
-    edge.resource_name = path_key_info.resource_name or ""
-    edge.operation_name = path_key_info.operation_name or ""
+    edge.resource_name = path_key_info.resource_name or "undefined"
+    edge.operation_name = path_key_info.operation_name or "undefined"
     edge.type = EdgeType.HTTP
     log.debug(f"Setting resource name to: {path_key_info.resource_name}")
 
