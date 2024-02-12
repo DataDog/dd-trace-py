@@ -73,7 +73,7 @@ class AstVisitor(ast.NodeTransformer):
             },
             # Replacement functions for modules
             "module_functions": {
-                "BytesIO": "ddtrace_aspects.stringio_aspect",
+                # "BytesIO": "ddtrace_aspects.stringio_aspect",
                 # "StringIO": "ddtrace_aspects.stringio_aspect",
                 # "format": "ddtrace_aspects.format_aspect",
                 # "format_map": "ddtrace_aspects.format_map_aspect",
