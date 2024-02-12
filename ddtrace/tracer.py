@@ -841,7 +841,6 @@ class Tracer(object):
             assert parent2.parent_id is None
             parent2.finish()
         """
-        assert False
         return self.start_span(
             name,
             child_of=self.context_provider.active(),
