@@ -108,8 +108,8 @@ add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::str
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
         errmsg = err_to_msg(&res.err, "");
-        ddog_Error_drop(&res.err);
         std::cout << errmsg << std::endl;
+        ddog_Error_drop(&res.err);
         return false;
     }
     return true;

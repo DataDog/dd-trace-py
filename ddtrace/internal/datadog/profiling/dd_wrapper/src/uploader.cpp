@@ -22,8 +22,8 @@ Uploader::upload(ddog_prof_Profile& profile)
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         errmsg = err_to_msg(&result.err, "Error serializing pprof");
-        ddog_Error_drop(&result.err);
         std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&result.err);
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &result.ok;
@@ -51,9 +51,9 @@ Uploader::upload(ddog_prof_Profile& profile)
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         errmsg = err_to_msg(&build_res.err, "Error building request");
+        std::cerr << errmsg << std::endl;
         ddog_Error_drop(&build_res.err);
         ddog_Vec_Tag_drop(tags);
-        std::cerr << errmsg << std::endl;
         return false;
     }
 
@@ -76,9 +76,9 @@ Uploader::upload(ddog_prof_Profile& profile)
         ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request);
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
             errmsg = err_to_msg(&res.err, "Error uploading");
+            std::cerr << errmsg << std::endl;
             ddog_Error_drop(&res.err);
             ddog_Vec_Tag_drop(tags);
-            std::cerr << errmsg << std::endl;
             return false;
         }
         ddog_prof_Exporter_Request_drop(&req);

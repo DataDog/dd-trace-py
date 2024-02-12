@@ -144,7 +144,7 @@ UploaderBuilder::build()
         ddog_exporter = res.ok;
     } else {
         const std::string errmsg = err_to_msg(&res.err, "Error initializing exporter");
-        ddog_Error_drop(&res.err);
+        ddog_Error_drop(&res.err); // errmsg contains a copy of res.err, OK to drop
         throw std::runtime_error(errmsg);
     }
 

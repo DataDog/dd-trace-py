@@ -44,8 +44,8 @@ Profile::cycle_buffers()
     auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
     if (!res.ok) {
         const std::string errmsg = err_to_msg(&res.err, "Error resetting profile");
-        ddog_Error_drop(&res.err);
         std::cout << "Could not drop profile:" << errmsg << std::endl;
+        ddog_Error_drop(&res.err);
         return false;
     }
     return true;
@@ -186,8 +186,8 @@ Profile::collect(const ddog_prof_Sample& sample)
     auto res = ddog_prof_Profile_add(&cur_profile, sample, 0);
     if (!res.ok) {
         const std::string errmsg = err_to_msg(&res.err, "Error adding sample to profile");
-        ddog_Error_drop(&res.err);
         std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&res.err);
         return false;
     }
     return true;
