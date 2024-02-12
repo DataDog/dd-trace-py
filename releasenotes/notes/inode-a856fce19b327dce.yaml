@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: This adds the ``Datadog-Entity-ID`` header to payloads sent to the Datadog Agent. This header
+    can be set to the container ID or the container's cgroup node inode, and serves as a unique identifier
+    for containers running under Linux ``cgroupv2``.

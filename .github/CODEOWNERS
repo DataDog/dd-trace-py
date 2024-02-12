@@ -46,10 +46,12 @@ ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
 ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/symbol_db/         @DataDog/debugger-python
 tests/debugging/                    @DataDog/debugger-python
 tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
 ddtrace/appsec/                     @DataDog/asm-python
@@ -71,10 +73,11 @@ ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
-ddtrace/internal/llmobs/                            @DataDog/ml-observability
+ddtrace/llmobs/                                     @DataDog/ml-observability
 ddtrace/contrib/openai                              @DataDog/ml-observability
 ddtrace/contrib/langchain                           @DataDog/ml-observability
 ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
+tests/llmobs                                        @DataDog/ml-observability
 tests/contrib/openai                                @DataDog/ml-observability
 tests/contrib/langchain                             @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability

@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import attr
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import FunctionLocationMixin

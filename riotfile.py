@@ -200,6 +200,7 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
+                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -428,7 +429,6 @@ venv = Venv(
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-asyncio": "~=0.21.1",
-                "vcrpy": latest,
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
             },
@@ -2547,13 +2547,14 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
-            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.7", max_version="3.9"),
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+                "envier": "==0.5.1",
             },
         ),
         Venv(
@@ -2582,6 +2583,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             pys=select_pys(),
+        ),
+        Venv(
+            name="llmobs",
+            command="pytest {cmdargs} tests/llmobs",
+            pkgs={"vcrpy": latest},
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="profile",

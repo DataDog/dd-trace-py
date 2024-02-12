@@ -47,7 +47,7 @@ STACK_V2_DIR = os.path.join(DDUP_DIR, "stack_v2")
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.1"
+LIBDDWAF_VERSION = "1.16.0"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -531,6 +531,7 @@ setup(
         "envier",
         "opentelemetry-api>=1",
         "setuptools; python_version>='3.12'",
+        "sqlparse>=0.2.2",
     ]
     + bytecode,
     extras_require={
