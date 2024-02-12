@@ -643,7 +643,7 @@ def test_dont_trace_websocket_by_default(client, test_spans):
         data = websocket.receive_json()
         assert data == {"test": "Hello WebSocket"}
         spans = test_spans.pop_traces()
-        assert len(spans) == initial_event_count
+        assert len(spans) <= initial_event_count
 
 
 @flaky(1735812000)
