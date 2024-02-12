@@ -26,7 +26,6 @@ TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
 
 
 def _mark_avoid_convert_recursively(node):
-    # if hasattr(node, "avoid_convert"):
     if node is not None:
         node.avoid_convert = True
         for child in ast.iter_child_nodes(node):
@@ -423,8 +422,12 @@ class AstVisitor(ast.NodeTransformer):
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
         if hasattr(def_node.args, "vararg") and def_node.args.vararg:
-            if def_node.args.vararg.annotation is not None:
-                setattr(def_node.args.vararg.annotation, "avoid_convert", True)
+            if def_node.args.vararg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.vararg.annotation)
+
+        if hasattr(def_node.args, "kwarg") and def_node.args.kwarg:
+            if def_node.args.kwarg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.kwarg.annotation)
 
         if hasattr(def_node, "returns"):
             _mark_avoid_convert_recursively(def_node.returns)
@@ -432,9 +435,6 @@ class AstVisitor(ast.NodeTransformer):
         for i in def_node.args.args:
             if hasattr(i, "annotation"):
                 _mark_avoid_convert_recursively(i.annotation)
-        # for i in def_node.args.kw_defaults:
-        #     if hasattr(i, "annotation"):
-        #         _mark_avoid_convert_recursively(i.annotation)
         for i in def_node.args.kwonlyargs:
             if hasattr(i, "annotation"):
                 _mark_avoid_convert_recursively(i.annotation)
@@ -640,7 +640,18 @@ class AstVisitor(ast.NodeTransformer):
         if isinstance(assign_node.value, ast.Subscript):
             if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
                 # Best effort to avoid converting type definitions
-                if assign_node.value.value.id in ("Sequence", "List", "Tuple", "Dict", "Optional"):
+                if assign_node.value.value.id in (
+                    "Callable",
+                    "Dict",
+                    "Generator",
+                    "List",
+                    "Optional",
+                    "Sequence",
+                    "Tuple",
+                    "Type",
+                    "TypeVar",
+                    "Union",
+                ):
                     _mark_avoid_convert_recursively(assign_node.value)
 
         for target in assign_node.targets:

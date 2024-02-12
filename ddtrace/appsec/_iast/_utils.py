@@ -107,7 +107,7 @@ def _iast_report_to_str(data):
     return json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
 
 
-def _print_patched_code(module_path, module_name):  # type: (str, str) -> str
+def _get_patched_code(module_path, module_name):  # type: (str, str) -> str
     """
     Print the patched code to stdout, for debugging purposes.
     """
@@ -125,11 +125,16 @@ def _print_patched_code(module_path, module_name):  # type: (str, str) -> str
             module_name=module_name,
         )
 
+        # If no modifications are done,
+        # visit_ast returns None
+        if not new_source:
+            return ""
+
         new_code = astunparse.unparse(new_source)
         return new_code
 
 
 if __name__ == "__main__":
-    module_path = sys.argv[1]
-    module_name = sys.argv[2]
-    print(_print_patched_code(module_path, module_name))
+    MODULE_PATH = sys.argv[1]
+    MODULE_NAME = sys.argv[2]
+    print(_get_patched_code(MODULE_PATH, MODULE_NAME))
