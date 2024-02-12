@@ -3,3 +3,4 @@ fixes:
   - |
     tracing: This fix resolves an issue where previously if ``span.sampled`` was not set on a span 
     in a trace, we would not send the trace to the agent. With this fix, all traces are sent to the agent.
+    
