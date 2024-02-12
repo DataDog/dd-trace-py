@@ -29,12 +29,12 @@ from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.llmobs.integrations import LangChainIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
