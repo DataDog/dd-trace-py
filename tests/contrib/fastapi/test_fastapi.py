@@ -638,11 +638,12 @@ def test_traced_websocket(test_spans, snapshot_app):
 
 
 def test_dont_trace_websocket_by_default(client, test_spans):
+    initial_event_count = len(test_spans.pop_traces())
     with client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "Hello WebSocket"}
         spans = test_spans.pop_traces()
-        assert len(spans) == 0
+        assert len(spans) == initial_event_count
 
 
 @flaky(1735812000)

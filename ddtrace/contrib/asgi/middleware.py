@@ -33,7 +33,7 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        trace_asgi_websocket=os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False),
+        trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 

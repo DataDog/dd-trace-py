@@ -24,7 +24,7 @@ config._add(
         request_span_name="fastapi.request",
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
-        trace_asgi_websocket=os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False),
+        trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 

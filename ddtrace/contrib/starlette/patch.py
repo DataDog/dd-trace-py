@@ -37,7 +37,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        trace_asgi_websocket=os.getenv("DD_TRACE_ASGI_WEBSOCKET", default=False),
+        trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 
