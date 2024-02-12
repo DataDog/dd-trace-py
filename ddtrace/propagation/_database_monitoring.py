@@ -106,11 +106,11 @@ class _DBM_Propagator(object):
             DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
 
-        db_instance = self._find_first_tag(db_span, DBM_PEER_DB_INSTANCE_SOURCE_TAGS)
+        db_instance = _find_first_tag(db_span, DBM_PEER_DB_INSTANCE_SOURCE_TAGS)
         if db_instance:
             dbm_tags[DBM_PEER_DB_INSTANCE_KEY] = db_instance
 
-        peer_hostname = self._find_first_tag(db_span, DBM_PEER_HOSTNAME_SOURCE_TAGS)
+        peer_hostname = _find_first_tag(db_span, DBM_PEER_HOSTNAME_SOURCE_TAGS)
         if peer_hostname:
             dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
 
@@ -124,11 +124,12 @@ class _DBM_Propagator(object):
             return sql_comment.strip() + " "
         return ""
 
-    def _find_first_tag(self, db_span, tags):
-        # type: (Span, List[str]) -> Optional[str]
-        for tag in tags:
-            val = db_span.get_tags().get(tag)
-            if val:
-                return val
 
-        return None
+def _find_first_tag(db_span, tags):
+    # type: (Span, List[str]) -> Optional[str]
+    for tag in tags:
+        val = db_span.get_tags().get(tag)
+        if val:
+            return val
+
+    return None
