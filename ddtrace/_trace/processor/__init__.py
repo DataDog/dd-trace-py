@@ -347,7 +347,7 @@ class SpanAggregator(SpanProcessor):
             pass
 
     def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
-        # type: (str, str, Optional[int]) -> None
+        # type: (str, str, int) -> None
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
