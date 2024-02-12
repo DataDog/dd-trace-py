@@ -2,7 +2,6 @@ import time
 
 from ddtrace.internal import core
 from ddtrace.internal.accupath.pathway_context import _get_current_pathway_context, _inject_request_pathway_context
-from ddtrace.internal.accupath.processor import submit_metrics
 from ddtrace.internal.logger import get_logger
 
 log = get_logger('accupath')
@@ -37,17 +36,17 @@ def handle_response_in(status_code, *args, **kwargs):
         current_pathway_context.checkpoint("response_in", time.time_ns())
         log.debug(f"AccuPath - response_in {current_pathway_context.uid}")
         current_pathway_context.success = (status_code < 400)
-        submit_metrics()
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
 
 
-def handle_response_out(headers, resource_name, operation_name, status, *args, **kwargs):
+def handle_response_out(headers, resource_name, operation_name, status_code, *args, **kwargs):
     try:
         current_pathway_context = _get_current_pathway_context()
         current_pathway_context.checkpoint("response_out", time.time_ns())
         log.debug(f"AccuPath - response_out {current_pathway_context.uid}")
-        submit_metrics()
+        if current_pathway_context.status is None:
+            current_pathway_context.success = (status_code < 400)
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
 
@@ -66,3 +65,15 @@ if _enabled():
     core.on("http.response.header.extraction", handle_response_in)
     core.on("http.response.header.injection", handle_response_out)
     core.on("http.request.start", handle_request_start)
+
+
+"""
+Status code logic:
+- If i have an HTTP.client span, report on that. (response_in)
+e Else report on the HTTP.server span (response_out)
+
+Load generators do (1)
+Middle nodes do (1)
+End services do (2)
+
+"""

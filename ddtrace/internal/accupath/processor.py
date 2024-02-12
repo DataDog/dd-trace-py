@@ -13,7 +13,6 @@ from ddsketch.pb.proto import DDSketchProto
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddtrace.internal import core
 from ddtrace.internal.accupath.service_context import AccuPathServiceContext
-from ddtrace.internal.accupath.pathway_context import _get_current_pathway_context
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.forksafe import Lock
 
@@ -249,7 +248,8 @@ class PathKey:
             self.request_pathway_id,
             ))
 
-def submit_metrics():
+def submit_metrics(*_args, **_kwargs):
+    from ddtrace.internal.accupath.pathway_context import _get_current_pathway_context
     try:
         current_pathway_context = _get_current_pathway_context()
         if current_pathway_context.submitted:

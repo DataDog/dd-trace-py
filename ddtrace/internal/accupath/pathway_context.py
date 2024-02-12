@@ -8,6 +8,7 @@ from ddtrace.internal.accupath.service_context import AccuPathServiceContext
 from ddtrace.internal.accupath.encoding import struct
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.fnv import fnv1_64
+from ddtrace.internal.accupath.processor import submit_metrics
 
 log = get_logger("accupath")
 
@@ -25,7 +26,7 @@ class AccuPathPathwayContext:
         self.parent_hash = 0
         self.root_checkpoint_time = time.time_ns()
         self.current_node_path = current_node.to_hash()
-        self.success = True
+        self.success = None
         self.submitted = False
 
         self.checkpoint_times = {
@@ -34,7 +35,8 @@ class AccuPathPathwayContext:
             "response_in": -1,
             "response_out": -1,
         }
-
+        core.on(f"context.ended.{core._CURRENT_CONTEXT.get().identifier}", submit_metrics)
+    
     def checkpoint(self, label, checkpoint_time=None):
         if label not in self.checkpoint_times:
             log.debug("Unknown checkpoint label: %s", label)
