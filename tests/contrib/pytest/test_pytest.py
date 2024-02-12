@@ -3565,7 +3565,7 @@ class PytestTestCase(TracerTestCase):
                         """
                     from tools import add_two_number_list
 
-                    def test_add_two_number_lis7418t():
+                    def test_add_two_number_list():
                         a_list = [1,2,3,4,5,6,7,8]
                         b_list = [2,3,4,5,6,7,8,9]
                         actual_output = add_two_number_list(a_list, b_list)
