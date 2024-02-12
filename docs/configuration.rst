@@ -76,6 +76,14 @@ The following environment variables for the tracer are supported:
          to the following :mod:`docs <ddtrace.opentelemetry>`.
      version_added:
        v1.12.0:
+    
+    DD_RUNTIME_METRICS_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
+         These metrics track the memory management and concurrency of the python runtime. 
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
