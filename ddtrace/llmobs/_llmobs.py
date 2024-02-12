@@ -144,9 +144,10 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         return {
             "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": span.parent_id,
+            "span_id": str(span.span_id),
+            "parent_id": str(span.parent_id),
             "session_id": span.trace_id,
-            "apm_context": {},
+            "apm_context": {"span_id": span.span_id, "trace_id": "{:x}".format(span.trace_id)},
             "tags": self._llmobs_tags(span, meta),
             "service": span.service,
             "name": span.name,

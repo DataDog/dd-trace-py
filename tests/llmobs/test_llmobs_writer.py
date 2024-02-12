@@ -5,18 +5,20 @@ import mock
 import pytest
 import vcr
 
-from ddtrace.internal.llmobs import LLMObsWriter
+from ddtrace.llmobs._writer import LLMObsWriter
 from tests.utils import request_token
 
 
-INTAKE_ENDPOINT = "https://api.datad0g.com/api/unstable/llm-obs/v1/records"
+INTAKE_ENDPOINT = "https://llmobs-intake.datad0g.com/api/v2/llmobs"
+DD_SITE = "datad0g.com"
+dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
 logs_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
     record_mode="once",
     match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX"), ("DD-APPLICATION-KEY", "XXXXXX")],
+    filter_headers=[("DD-API-KEY", "XXXXXX")],
     # Ignore requests to the agent
     ignore_localhost=True,
 )
@@ -37,82 +39,77 @@ def vcr_logs(request):
 
 @pytest.fixture
 def mock_logs():
-    with mock.patch("ddtrace.internal.llmobs.writer.logger") as m:
+    with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
 
 
-def _completion_record():
+def _completion_event():
     return {
-        "ddtags": [
-            "version:",
-            "env:",
-            "service:",
-            "src:integration",
-            "dd.trace_id:1234567890",
-            "dd.span_id:1234567890",
-            "ml_obs.request.model:ada",
-            "ml_obs.request.model_provider:openai",
-            "ml_obs.request.error:0",
-        ],
-        "type": "completion",
-        "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
-        "timestamp": 1681852797000,
-        "model": "ada",
-        "model_provider": "openai",
-        "input": {
-            "prompts": ["who broke enigma?"],
-            "temperature": 0,
-            "max_tokens": 256,
+        "kind": "llm",
+        "span_id": "12345678901",
+        "trace_id": "98765432101",
+        "parent_id": "",
+        "session_id": "98765432101",
+        "apm_context": {
+            "span_id": "12345678901",
+            "trace_id": "98765432101",
         },
-        "output": {
-            "completions": [
-                {
-                    "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, "
-                    "led by mathematician Alan Turing."
-                }
-            ],
-            "durations": [1.234],
+        "name": "completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223236,
+        "duration": 12345678900,
+        "status": "ok",
+        "status_message": "",
+        "meta": {
+            "model_name": "ada",
+            "model_provider": "openai",
+            "input": {
+                "messages": [{"content": "who broke enigma?"}],
+                "parameters": {"temperature": 0, "max_tokens": 256},
+            },
+            "output": {"messages": [{"content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]},
         },
+        "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
     }
 
 
-def _chat_completion_record():
+def _chat_completion_event():
     return {
-        "ddtags": [
-            "version:",
-            "env:",
-            "service:",
-            "src:integration",
-            "dd.trace_id:1234567890",
-            "dd.span_id:1234567890",
-            "ml_obs.request.model:gpt-3.5-turbo",
-            "ml_obs.request.model_provider:openai",
-            "ml_obs.request.error:0",
-        ],
-        "type": "chat",
-        "id": "chatcmpl-76n5heroUX66dt3wGtwp0tFFedLLu",
-        "timestamp": 1681853029000,
-        "model": "gpt-3.5-turbo",
-        "model_provider": "openai",
-        "input": {
-            "messages": [
-                {"role": "system", "content": "You are an evil dark lord looking for his one ring to rule them all"},
-                {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
-            ],
-            "temperature": 0.9,
-            "max_tokens": 256,
+        "kind": "llm",
+        "span_id": "12345678902",
+        "trace_id": "98765432102",
+        "parent_id": "",
+        "session_id": "98765432102",
+        "apm_context": {
+            "span_id": "12345678902",
+            "trace_id": "98765432102",
         },
-        "output": {
-            "completions": [
+        "name": "chat_completion_span",
+        "tags": ["version:", "env:", "service:", "source:integration"],
+        "start_ns": 1707763310981223936,
+        "duration": 12345678900,
+        "status": "ok",
+        "status_message": "",
+        "meta": {
+            "model_name": "gpt-3.5-turbo",
+            "model_provider": "openai",
+            "input": {
+                "messages": [
+                    {"role": "system", "content": "You are an evil dark lord looking for his one ring to rule them all"},
+                    {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
+                ],
+                "parameters": {"temperature": 0.9, "max_tokens": 256},
+            },
+            "output": {"messages": [
                 {
                     "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, "
-                    "little creature, I shall play along. But know that I am always watching, "
-                    "and your quest will not go unnoticed",
+                               "little creature, I shall play along. But know that I am always watching, "
+                               "and your quest will not go unnoticed",
                     "role": "assistant",
-                }
-            ],
-            "durations": [2.345],
+                },
+            ]},
         },
+        "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
     }
 
 
@@ -124,66 +121,67 @@ def test_buffer_limit(mock_logs):
 
 
 @pytest.mark.vcr_logs
-def test_send_completion(mock_logs):
-    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
+def test_send_completion_event(mock_logs):
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=dd_api_key, interval=1, timeout=1)
     llmobs_writer.start()
     mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
-    llmobs_writer.enqueue(_completion_record())
+    llmobs_writer.enqueue(_completion_event())
     mock_logs.reset_mock()
     llmobs_writer.periodic()
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLMObs events to %r", 1, INTAKE_ENDPOINT)])
 
 
 @pytest.mark.vcr_logs
-def test_send_chat_completion(mock_logs):
-    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
+def test_send_chat_completion_event(mock_logs):
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=dd_api_key, interval=1, timeout=1)
     llmobs_writer.start()
     mock_logs.debug.assert_has_calls([mock.call("started llmobs writer to %r", INTAKE_ENDPOINT)])
-    llmobs_writer.enqueue(_chat_completion_record())
+    llmobs_writer.enqueue(_chat_completion_event())
     mock_logs.reset_mock()
     llmobs_writer.periodic()
-    mock_logs.debug.assert_has_calls([mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT)])
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLMObs events to %r", 1, INTAKE_ENDPOINT)])
 
 
 @pytest.mark.vcr_logs
 def test_send_completion_bad_api_key(mock_logs):
-    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key="<bad-api-key>", interval=1, timeout=1)
     llmobs_writer.start()
-    llmobs_writer.enqueue(_completion_record())
+    llmobs_writer.enqueue(_completion_event())
     llmobs_writer.periodic()
     mock_logs.error.assert_called_with(
-        "failed to send %d LLM records to %r, got response code %r, status: %r",
+        "failed to send %d LLMObs events to %r, got response code %r, status: %r",
         1,
         INTAKE_ENDPOINT,
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com",'
-        b'"twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',
+        b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
     )
 
 
 @pytest.mark.vcr_logs
-def test_send_timed_records(mock_logs):
-    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1)
+def test_send_timed_events(mock_logs):
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=dd_api_key, interval=0.01, timeout=1)
     llmobs_writer.start()
     mock_logs.reset_mock()
 
-    llmobs_writer.enqueue(_completion_record())
-    llmobs_writer.enqueue(_completion_record())
+    llmobs_writer.enqueue(_completion_event())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls(
-        [
-            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
-            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
-        ]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLMObs events to %r", 1, INTAKE_ENDPOINT)])
     mock_logs.reset_mock()
-    llmobs_writer.enqueue(_chat_completion_record())
+    llmobs_writer.enqueue(_chat_completion_event())
     time.sleep(0.1)
-    mock_logs.debug.assert_has_calls(
-        [
-            mock.call("sent %d LLM records to %r", 1, INTAKE_ENDPOINT),
-        ]
-    )
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLMObs events to %r", 1, INTAKE_ENDPOINT)])
+
+
+@pytest.mark.vcr_logs
+def test_send_multiple_events(mock_logs):
+    llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=dd_api_key, interval=0.01, timeout=1)
+    llmobs_writer.start()
+    mock_logs.reset_mock()
+
+    llmobs_writer.enqueue(_completion_event())
+    llmobs_writer.enqueue(_chat_completion_event())
+    time.sleep(0.1)
+    mock_logs.debug.assert_has_calls([mock.call("sent %d LLMObs events to %r", 2, INTAKE_ENDPOINT)])
 
 
 def test_send_on_exit(mock_logs, run_python_code_in_subprocess):
@@ -193,16 +191,16 @@ import atexit
 import os
 import time
 
-from ddtrace.internal.llmobs import LLMObsWriter
-from tests.internal.test_llmobs import _completion_record
-from tests.internal.test_llmobs import logs_vcr
+from ddtrace.llmobs._writer import LLMObsWriter
+from tests.llmobs.test_llmobs_writer import _completion_event
+from tests.llmobs.test_llmobs_writer import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.internal.test_llmobs.test_send_on_exit.yaml")
+ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_writer.test_send_on_exit.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_writer = LLMObsWriter(site="datad0g.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1)
 llmobs_writer.start()
-llmobs_writer.enqueue(_completion_record())
+llmobs_writer.enqueue(_completion_event())
 """,
     )
     assert status == 0, err

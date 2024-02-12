@@ -49,10 +49,10 @@ class LLMObsWriter(PeriodicService):
         self._buffer_limit = 1000
         self._timeout = timeout  # type: float
         self._api_key = api_key or ""  # type: str
-        self._endpoint = "api/v2/llmobs"  # type: str
+        self._endpoint = "/api/v2/llmobs"  # type: str
         self._site = site  # type: str
         self._intake = "llmobs-intake.%s" % self._site  # type: str
-        self._headers = {"DD-API-KEY": self._api_key}
+        self._headers = {"DD-API-KEY": self._api_key, "Content-Type": "application/json"}
 
     def start(self, *args, **kwargs):
         super(LLMObsWriter, self).start()
@@ -86,7 +86,6 @@ class LLMObsWriter(PeriodicService):
         except TypeError:
             logger.error("failed to encode %d LLMObs events", len(events), exc_info=True)
             return
-
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_records, self._headers)

@@ -19,17 +19,16 @@ interactions:
     uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
   response:
     body:
-      string: '{"errors":[{"status":"403","title":"Forbidden","detail":"API key is
-        invalid"}]}'
+      string: '{}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '79'
+      - '2'
       Content-Type:
       - application/json
       Date:
-      - Mon, 12 Feb 2024 20:41:13 GMT
+      - Mon, 12 Feb 2024 20:30:02 GMT
       accept-encoding:
       - identity,gzip,x-gzip,deflate,x-deflate,zstd
       cross-origin-resource-policy:
@@ -39,6 +38,6 @@ interactions:
       x-content-type-options:
       - nosniff
     status:
-      code: 403
-      message: Forbidden
+      code: 202
+      message: Accepted
 version: 1
