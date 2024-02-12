@@ -120,7 +120,7 @@ def get_container_info(pid="self"):
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
-                if info:
+                if info and (info.container_id or info.node_inode):
                     return info
     except IOError as e:
         if e.errno != errno.ENOENT:

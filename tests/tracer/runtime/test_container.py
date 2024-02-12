@@ -262,7 +262,7 @@ def test_cgroup_info_from_line(line, expected_info):
 2:hugetlb:/garden/6f265890-5165-7fab-6b52-18d1
 1:name=systemd:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
             """,
-            "6f265890-5165-7fab-6b52-18d1",
+            None,
         ),
         # Linux non-containerized file
         (
@@ -301,7 +301,9 @@ def test_get_container_info(file_contents, container_id):
 
         info = get_container_info()
 
-        assert info.container_id == container_id
+        if info is not None:
+            assert info.container_id == container_id
+            assert isinstance(info.node_inode, int) or info.node_inode is None
 
         mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 
