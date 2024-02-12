@@ -457,21 +457,21 @@ if not IS_PYSTON:
     if platform.system() == "Linux" and is_64_bit_python():
         python_include = sysconfig.get_paths()["include"]
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling._ddup",
-                source_dir=DDUP_DIR,
-                optional=CURRENT_OS != "Linux",
-                cmake_args=[
-                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
-                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
-                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                    "-DPython3_INCLUDE_DIRS={}".format(python_include),
-                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
-                ],
-            )
-        )
+        #ext_modules.append(
+        #    CMakeExtension(
+        #        "ddtrace.internal.datadog.profiling._ddup",
+        #        source_dir=DDUP_DIR,
+        #        optional=CURRENT_OS != "Linux",
+        #        cmake_args=[
+        #            "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+        #            "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+        #            "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+        #            "-DPython3_INCLUDE_DIRS={}".format(python_include),
+        #            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+        #            "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
+        #        ],
+        #    )
+        #)
 
 else:
     ext_modules = []
