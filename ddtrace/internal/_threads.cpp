@@ -137,6 +137,11 @@ typedef struct periodic_thread
 } PeriodicThread;
 
 // ----------------------------------------------------------------------------
+// Maintain a mapping of thread ID to PeriodicThread objects. This is similar
+// to threading._active.
+static PyObject* _periodic_threads = NULL;
+
+// ----------------------------------------------------------------------------
 static PyMemberDef PeriodicThread_members[] = {
     { "interval", T_DOUBLE, offsetof(PeriodicThread, interval), 0, "thread interval" },
 
@@ -239,6 +244,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
             Py_DECREF(self->ident);
             self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
+
+            // Map the PeriodicThread object to its thread ID
+            PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
         }
 
         // Mark the thread as started from this point.
@@ -397,6 +405,10 @@ PeriodicThread_dealloc(PeriodicThread* self)
         }
     }
 
+    // Unmap the PeriodicThread
+    if (self->ident != NULL && PyDict_Contains(_periodic_threads, self->ident))
+        PyDict_DelItem(_periodic_threads, self->ident);
+
     Py_XDECREF(self->name);
     Py_XDECREF(self->_target);
     Py_XDECREF(self->_on_shutdown);
@@ -458,21 +470,33 @@ static struct PyModuleDef threadsmodule = {
 PyMODINIT_FUNC
 PyInit__threads(void)
 {
-    PyObject* m;
+    PyObject* m = NULL;
 
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return NULL;
 
+    _periodic_threads = PyDict_New();
+    if (_periodic_threads == NULL)
+        return NULL;
+
     m = PyModule_Create(&threadsmodule);
     if (m == NULL)
-        return NULL;
+        goto error;
 
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
-        Py_DECREF(m);
-        return NULL;
+        goto error;
     }
 
+    if (PyModule_AddObject(m, "periodic_threads", _periodic_threads) < 0)
+        goto error;
+
     return m;
+
+error:
+    Py_XDECREF(_periodic_threads);
+    Py_XDECREF(m);
+
+    return NULL;
 }
