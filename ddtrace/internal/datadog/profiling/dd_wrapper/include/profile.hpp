@@ -1,5 +1,6 @@
 #pragma once
 
+#include "constants.hpp"
 #include "types.hpp"
 
 #include <atomic>
@@ -17,8 +18,6 @@ extern "C"
 }
 
 namespace Datadog {
-
-constexpr unsigned int g_default_max_nframes = 128;
 
 // Unordered containers don't get heterogeneous lookup until gcc-10, so for now use this
 // strategy to dedup + store strings.

@@ -29,7 +29,6 @@ if (DD_WRAPPER_IS_SUBPROJECT)
   set(dd_wrapper_BUILD_DIR "${dd_wrapper_BUILD_PARENT}/ddtrace.internal.datadog.profiling" PARENT_SCOPE)
 endif()
 
-# Project-wide QoL settings
 add_compile_options(
   "$<$<CONFIG:Debug>:-Og;-ggdb3;-fno-omit-frame-pointer>"
   "$<$<CONFIG:Release>:-O3>"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "constants.hpp"
 #include "sample.hpp"
 #include "types.hpp"
 
@@ -12,12 +13,10 @@
 
 namespace Datadog {
 
-const unsigned int g_default_nframes = 64; // TODO is this the actual default?
-
 class SampleManager
 {
   private:
-    static inline unsigned int max_nframes{ g_default_nframes };
+    static inline unsigned int max_nframes{ g_default_max_nframes };
     static inline SampleType type_mask{ SampleType::All };
     static inline std::mutex init_mutex{};
 
