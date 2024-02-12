@@ -120,7 +120,7 @@ def get_container_info(pid="self"):
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
-                if info and info.container_id:
+                if info:
                     return info
     except IOError as e:
         if e.errno != errno.ENOENT:
@@ -131,8 +131,6 @@ def get_container_info(pid="self"):
 
 
 def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
-    log.info("container info time")
-    log.info(container_info)
     if container_info is None:
         return
     if container_info.container_id:
