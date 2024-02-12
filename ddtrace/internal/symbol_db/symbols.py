@@ -528,7 +528,13 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
         context = ScopeContext()
-        for scope in (Scope.from_module(m) for m in list(sys.modules.values()) if is_module_included(m)):
+        for module in (_ for _ in list(sys.modules.values()) if is_module_included(_)):
+            try:
+                scope = Scope.from_module(module)
+            except Exception:
+                log.debug("Cannot get symbol scope for module %s", module.__name__, exc_info=True)
+                continue
+
             if scope is not None:
                 log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
                 context.add_scope(scope)
