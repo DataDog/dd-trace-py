@@ -103,6 +103,9 @@
         "coverage": [
             "ddtrace/contrib/coverage/*"
         ],
+        "llmobs": [
+            "ddtrace/llmobs/*"
+        ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
         ],
@@ -517,6 +520,13 @@
             "@pytest",
             "tests/ci_visibility/*"
         ],
+        "llmobs": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@llmobs",
+            "tests/llmobs/*"
+        ],
         "sourcecode": [
             "@bootstrap",
             "@core",
@@ -538,6 +548,7 @@
             "@contrib",
             "@openai",
             "@requests",
+            "@llmobs",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -571,6 +582,7 @@
             "@core",
             "@contrib",
             "@tracing",
+            "@llmobs",
             "@botocore",
             "tests/contrib/botocore/*"
         ],
@@ -1226,6 +1238,7 @@
             "@contrib",
             "@langchain",
             "@requests",
+            "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]
