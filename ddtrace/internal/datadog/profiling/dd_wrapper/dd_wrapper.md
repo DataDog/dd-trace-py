@@ -6,6 +6,7 @@ In theory this should just be a thin wrapper, but in practice handling the edge-
 
 ## Historical context
 
+This is a section on how the "python" side of the profiler used to work (and still does, until this and stack v2 become the default).
 Traditionally, dd-trace-py maintained three separate sampling mechanisms for the collection of profiling data.
 These are called "collectors" in dd-trace-py parlance, but we'll refer to them as "samplers" in conformance with the broader litearture.
 
@@ -19,6 +20,11 @@ When it wakes up, it looks at the current threads/tasks and collects stack trace
 It also looks at the current exceptions and collects similar data for them.
 
 Although this sampler operates in its own thread, since its fundamental interaction requires taking the GIL, it never samples at a time when other threads are on-CPU (except if they're off-GIL in C code or in io or whatever, but that isn't an issue).
+
+
+#### Stack Sampler v2
+
+In a later patch, we'll add a native sampling mechanism for this.
 
 
 ### Lock sampler
@@ -67,15 +73,13 @@ Roughly, the data is organized in the following way
 ### Samples
 
 A Sample is a collection of data representing one observation.
-All types of observations (e.g., allocations, locks, CPU) are all represented by the same data structure, since the libdatadog API assumes any sample may contain one or all of the possible sample types.
+All types of observations (e.g., allocations, locks, CPU) are represented by the same data structure, since the libdatadog API assumes any sample may contain one or all of the possible sample types.
+When `start_sample()` is called, an opaque pointer is returned, which must then be passed to all subsequent operations on the sample.
 
 In a given moment, in a world where samplers may be on native threads, there may be multiple samples in flight.
 A sampler may also be interrupted by another sampler on the same thread.
-Samplers should not be interrupted by the same type of sampler in other threads, but if that happens, the interrupting sampler fails.
-
-In order to ensure that the client can abide by this contract, `start_sample()` yields a handle which must be consumed by all subsequent operations.
-Failed `start_sample()` is given an invalid handle.
-In a future version, using such an invalid handle may throw an error, but for now it will be a no-op in order to keep huge changes to the sampler error paths out of a single PR.
+Samplers should not be interrupted by the same type of sampler in other threads.
+However, this last case hardly matters, since the interrupted context will resume using the Sample it was given.
 
 Samples are interacted with transactionally, for example
 
@@ -84,6 +88,7 @@ Samples are interacted with transactionally, for example
 3. ddup_flush_sample() (every sample ends with a call to `flush_sample()`)
 
 The act of flushing a sample stores its data in a ddog_prof_Profile object (which is wrapped by Profile in this code).
+it also releases the Sample (don't reuse Samples in application code!)
 
 There's one wrinkle here.
 The navigation through frame data (unwinding) may result in temporary strings.
