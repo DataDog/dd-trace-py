@@ -89,3 +89,36 @@ def _iast_report_to_str(data):
             return json.JSONEncoder.default(self, obj)
 
     return json.dumps(attr.asdict(data, filter=lambda attr, x: x is not None), cls=OriginTypeEncoder)
+
+
+def _get_patched_code(module_path, module_name):  # type: (str, str) -> str
+    """
+    Print the patched code to stdout, for debugging purposes.
+    """
+    import astunparse
+
+    from ddtrace.appsec._iast._ast.ast_patching import get_encoding
+    from ddtrace.appsec._iast._ast.ast_patching import visit_ast
+
+    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+        source_text = source_file.read()
+
+        new_source = visit_ast(
+            source_text,
+            module_path,
+            module_name=module_name,
+        )
+
+        # If no modifications are done,
+        # visit_ast returns None
+        if not new_source:
+            return ""
+
+        new_code = astunparse.unparse(new_source)
+        return new_code
+
+
+if __name__ == "__main__":
+    MODULE_PATH = sys.argv[1]
+    MODULE_NAME = sys.argv[2]
+    print(_get_patched_code(MODULE_PATH, MODULE_NAME))
