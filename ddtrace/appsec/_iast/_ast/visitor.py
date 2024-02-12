@@ -435,12 +435,16 @@ class AstVisitor(ast.NodeTransformer):
         for i in def_node.args.args:
             if hasattr(i, "annotation"):
                 _mark_avoid_convert_recursively(i.annotation)
-        for i in def_node.args.kwonlyargs:
-            if hasattr(i, "annotation"):
-                _mark_avoid_convert_recursively(i.annotation)
-        for i in def_node.args.posonlyargs:
-            if hasattr(i, "annotation"):
-                _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "kwonlyargs"):
+            for i in def_node.args.kwonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "posonlyargs"):
+            for i in def_node.args.posonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
 
         self.generic_visit(def_node)
         self._current_function_name = None
