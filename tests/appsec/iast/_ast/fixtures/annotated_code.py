@@ -13,6 +13,9 @@ _T_co = TypeVar("_T_co", bound=Any, covariant=True)
 
 foo: Optional[int] = 42
 
+MySequenceType = Sequence[int]
+# bar = my_list[0]
+
 
 # function with positional-only argument
 def bar(arg: Dict[str, Sequence[Any]], /) -> Tuple[str, ...]:
