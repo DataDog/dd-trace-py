@@ -133,7 +133,6 @@ def get_container_info(pid="self"):
 def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
     if container_info is None:
         return
-    assert False
     if container_info.container_id:
         headers.update(
             {
