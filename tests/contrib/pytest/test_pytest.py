@@ -1269,8 +1269,8 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
         assert test_module_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace"
-        assert test_module_span.get_tag("test.module") == str(package_a_dir).split("/")[-1]
-        assert test_module_span.get_tag("test.module_path") == str(package_a_dir).split("/")[-1]
+        assert test_module_span.get_tag("test.module") == "test_package_a"
+        assert test_module_span.get_tag("test.module_path") == "test_package_a"
 
     def test_pytest_modules(self):
         """
@@ -1403,14 +1403,14 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        test_module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        test_module_spans = sorted([span for span in spans if span.get_tag("type") == "test_module_end"], key=lambda s: s.get_tag("test.module"))
         assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
         assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
-        assert test_suite_spans[0].get_tag("test.suite") == "test_outer_abc.py"
-        assert test_suite_spans[1].get_tag("test.suite") == "test_inner_abc.py"
+        test_suite_spans = sorted([span for span in spans if span.get_tag("type") == "test_suite_end"], key=lambda s: s.get_tag("test.suite"))
+        assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
+        assert test_suite_spans[1].get_tag("test.suite") == "test_outer_abc.py"
 
     def test_pytest_module_path_empty(self):
         """
@@ -1957,6 +1957,10 @@ class PytestTestCase(TracerTestCase):
         skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+
+        breakpoint()
+
+        assert True
 
     def test_pytest_skip_none_tests(self):
         """

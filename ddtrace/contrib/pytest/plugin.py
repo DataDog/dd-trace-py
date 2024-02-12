@@ -196,6 +196,8 @@ def _mark_test_status(item, span):
     """
     Given a `pytest.Item`, determine and set the test status of the corresponding span.
     """
+    print(f"ROMAIN SAYS marking item: {item}, parent: {item.parent}, parent type: {type(item.parent)}")
+
     # If any child has failed, mark span as failed.
     if _check_failed(item):
         status = test.Status.FAIL.value
@@ -228,10 +230,17 @@ def _get_pytest_command(config):
 def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
     # type (pytest.Item) -> str
+    # breakpoint()
     if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
-    return item.nodeid.rpartition("/")[0]
 
+    if _is_pytest_8_or_later() and isinstance(item, pytest.Package):
+        module_path = item.nodeid
+
+    else:
+        module_path  = item.nodeid.rpartition("/")[0]
+
+    return module_path
 
 def _is_test_unskippable(item):
     return any(
@@ -842,7 +851,6 @@ def pytest_ddtrace_get_item_module_name(item):
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
-    # breakpoint()
     if _module_is_package(pytest_package_item, pytest_module_item):
         if _is_pytest_8_or_later():
             # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by concatenating
@@ -867,7 +875,6 @@ def pytest_ddtrace_get_item_suite_name(item):
     Extract suite name from a `pytest.Item` instance.
     If the module path doesn't exist, the suite path will be reported in full.
     """
-    # breakpoint()
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     test_module_path = _get_module_path(pytest_module_item)
     if test_module_path:
