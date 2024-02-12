@@ -429,7 +429,6 @@ venv = Venv(
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-asyncio": "~=0.21.1",
-                "vcrpy": latest,
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
             },
@@ -2584,6 +2583,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             pys=select_pys(),
+        ),
+        Venv(
+            name="llmobs",
+            command="pytest {cmdargs} tests/llmobs",
+            pkgs={"vcrpy": latest},
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="profile",
