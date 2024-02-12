@@ -422,8 +422,9 @@ class AstVisitor(ast.NodeTransformer):
         """
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
-        if hasattr(def_node, "vararg") and hasattr(def_node.vararg, "annotation"):
-            _mark_avoid_convert_recursively(def_node.vararg.annotation)
+        if hasattr(def_node.args, "vararg") and def_node.args.vararg:
+            if def_node.args.vararg.annotation is not None:
+                setattr(def_node.args.vararg.annotation, "avoid_convert", True)
 
         if hasattr(def_node, "returns"):
             _mark_avoid_convert_recursively(def_node.returns)
@@ -636,6 +637,12 @@ class AstVisitor(ast.NodeTransformer):
         Add the ignore marks for left-side subscripts or list/tuples to avoid problems
         later with the visit_Subscript node.
         """
+        if isinstance(assign_node.value, ast.Subscript):
+            if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
+                # Best effort to avoid converting type definitions
+                if assign_node.value.value.id in ("Sequence", "List", "Tuple", "Dict", "Optional"):
+                    _mark_avoid_convert_recursively(assign_node.value)
+
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
                 # We can't assign to a function call, which is anyway going to rewrite
