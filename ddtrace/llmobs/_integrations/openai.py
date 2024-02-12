@@ -9,8 +9,8 @@ import uuid
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.llmobs.integrations.base import BaseLLMIntegration
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
 class OpenAIIntegration(BaseLLMIntegration):
