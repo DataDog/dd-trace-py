@@ -301,10 +301,7 @@ def test_get_container_info(file_contents, container_id):
 
         info = get_container_info()
 
-        if container_id is None:
-            assert info is None
-        else:
-            assert info.container_id == container_id
+        assert info.container_id == container_id
 
         mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 
