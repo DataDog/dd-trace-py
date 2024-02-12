@@ -83,10 +83,13 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 {
     return std::accumulate(
       vec.begin(), vec.end(), std::string(), [&delim](const std::string& a, const std::string& b) -> std::string {
-          if (!a.empty()) {
-              return a + delim + b;
+          // if a and b are empty, it doesn't matter what we return, as long as there's no delimiter
+          if (a.empty()) {
+              return b;
+          } else if (b.empty()) {
+              return a;
           }
-          return b;
+          return a + delim + b;
       });
 }
 
