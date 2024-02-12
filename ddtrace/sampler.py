@@ -349,11 +349,10 @@ class DatadogSampler(RateByServiceSampler):
                 if rule.tag_match(context._metrics):
                     rule_decision[self.rules.index(rule)] += 1
                     break
-            for span in trace:
-                if span._trace_sampling_checked:
-                    continue
-                if rule.matches(span):
-                    rule_decision[self.rules.index(rule)] += 1
+            # check root span tags against rules
+            root_span = trace[0]
+            if rule.matches(root_span):
+                rule_decision[self.rules.index(rule)] += 1
 
         for index, value in enumerate(rule_decision):
             if value > 0:
