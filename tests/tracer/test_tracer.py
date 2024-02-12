@@ -19,6 +19,7 @@ import six
 
 import ddtrace
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -41,7 +42,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
 from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
