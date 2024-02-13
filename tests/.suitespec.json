@@ -672,7 +672,6 @@
             "@wsgi",
             "@django",
             "@dbapi",
-            "@asgi",
             "@pg",
             "tests/appsec/*",
             "tests/contrib/django/*",
