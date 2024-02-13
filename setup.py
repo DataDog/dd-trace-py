@@ -43,7 +43,7 @@ IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.15.1"
+LIBDDWAF_VERSION = "1.16.0"
 
 LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
     HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
@@ -540,6 +540,7 @@ def get_ddup_ext():
                 },
                 force=True,
                 annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+                compiler_directives={"language_level": "3"},
             )
         )
     return ddup_ext
@@ -589,11 +590,12 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
+        "importlib_metadata<=6.5.0; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
         "setuptools; python_version>='3.12'",
+        "sqlparse>=0.2.2",
     ]
     + bytecode,
     extras_require={
@@ -692,6 +694,7 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "3"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil")

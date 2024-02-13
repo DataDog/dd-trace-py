@@ -123,6 +123,9 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      run_agent_checks:
+        type: boolean
+        default: true
     steps:
       - checkout
       - attach_workspace:
@@ -206,10 +209,13 @@ commands:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
             - ./latest-success-commit
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when: always
-          command: bash ./scripts/get-test-agent-results.sh
+      - when:
+          condition:
+              << parameters.run_agent_checks >>
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
   run_hatch_env_test:
     description: "Run hatch env test"
@@ -229,10 +235,16 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      run_agent_checks:
+        type: boolean
+        default: true
     steps:
       - checkout
       - attach_workspace:
           at: .
+      - restore_cache:
+          keys:
+            - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - setup_hatch
       - when:
           condition:
@@ -266,6 +278,10 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+      - save_cache:
+          key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.env>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
+          paths:
+            - ./latest-success-commit
       - run:
           name: "Store Test Agent Supported Integrations Data"
           command: |
@@ -288,10 +304,13 @@ commands:
       - store_artifacts:
           path: artifacts
           destination: supported-integrations
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when: always
-          command: bash ./scripts/get-test-agent-results.sh
+      - when:
+          condition:
+              << parameters.run_agent_checks >>
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
 executors:
   cimg_base:
@@ -430,6 +449,7 @@ jobs:
 
   appsec_iast:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'appsec_iast$'
@@ -458,10 +478,42 @@ jobs:
 
   appsec_integrations:
     <<: *machine_executor
+    parallelism: 7
     steps:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
+          run_agent_checks: false
+
+  appsec_threats_django:
+    parallelism: 12
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_django'
+          snapshot: false
+
+  appsec_threats_flask:
+    parallelism: 10
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_flask'
+          snapshot: false
+
+  appsec_threats_fastapi:
+    parallelism: 9
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_hatch_env_test:
+          env: 'appsec_threats_fastapi'
+          snapshot: false
 
   aws_lambda:
     <<: *machine_executor
@@ -480,6 +532,7 @@ jobs:
     <<: *contrib_job_small
     steps:
       - run_test:
+          store_coverage: false
           pattern: "datastreams"
 
   tracer:
@@ -496,6 +549,12 @@ jobs:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
+  llmobs:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "llmobs"
+
   subprocess:
     <<: *contrib_job_small
     steps:
@@ -509,6 +568,7 @@ jobs:
           pattern: "sourcecode"
 
   telemetry:
+    parallelism: 6
     <<: *machine_executor
     steps:
       - run_test:
@@ -524,7 +584,7 @@ jobs:
 
   openai:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 10
     steps:
       - run_test:
           pattern: 'openai'
@@ -570,7 +630,7 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
-            ./scripts/run-test-suite 'integration-latest' <<pipeline.parameters.coverage>> 1
+            ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
 
   integration_testagent:
     <<: *machine_executor
@@ -578,7 +638,7 @@ jobs:
       - run_test:
           snapshot: true
           store_coverage: false
-          pattern: 'integration-snapshot'
+          pattern: 'integration-snapshot*'
           trace_agent_url: ""
 
   vendor:
@@ -705,6 +765,7 @@ jobs:
         - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
+          store_coverage: false
           pattern: 'celery'
 
   cherrypy:
@@ -736,7 +797,7 @@ jobs:
 
   elasticsearch:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 17
     steps:
       - run_test:
           pattern: 'elasticsearch'
@@ -787,7 +848,7 @@ jobs:
 
   flask:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 10
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
@@ -815,6 +876,7 @@ jobs:
 
   graphql:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "graphql"
@@ -856,6 +918,7 @@ jobs:
 
   mariadb:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mariadb$'
@@ -916,7 +979,7 @@ jobs:
 
   pytest:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest'
@@ -1099,6 +1162,7 @@ jobs:
 
   redis:
     <<: *machine_executor
+    parallelism: 5
     steps:
       - run_test:
           docker_services: 'redis rediscluster'
@@ -1154,7 +1218,7 @@ jobs:
 
   kafka:
     <<: *machine_executor
-    parallelism: 2
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'kafka'
@@ -1201,6 +1265,7 @@ jobs:
 
   langchain:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "langchain"

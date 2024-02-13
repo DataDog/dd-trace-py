@@ -18,6 +18,8 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -30,7 +32,6 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
-from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal import telemetry
@@ -41,7 +42,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
 from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess

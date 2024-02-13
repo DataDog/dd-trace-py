@@ -15,8 +15,9 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -29,7 +30,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.span import Span
 from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
@@ -435,7 +435,7 @@ def test_span_link_v04_encoding():
             SpanLink(trace_id=3, span_id=4, flags=0),
             SpanLink(
                 trace_id=(123 << 64) + 456,
-                span_id=2,
+                span_id=6,
                 tracestate="congo=t61rcWkgMzE",
                 flags=1,
                 attributes={
@@ -451,7 +451,7 @@ def test_span_link_v04_encoding():
     )
     assert span._links
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[2]._drop_attribute("drop_me")
+    span._links.get(6)._drop_attribute("drop_me")
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -476,7 +476,7 @@ def test_span_link_v04_encoding():
         },
         {
             b"trace_id": 456,
-            b"span_id": 2,
+            b"span_id": 6,
             b"attributes": {
                 b"moon": b"ears",
                 b"link.name": b"link_name",
@@ -522,7 +522,7 @@ def test_span_link_v05_encoding():
 
     assert len(span._links) == 2
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links[1]._drop_attribute("drop_me")
+    span._links.get((2**64) - 1)._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -816,8 +816,8 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
+    from ddtrace._trace.span import Span
     import ddtrace.internal.encoding as encoding
-    from ddtrace.span import Span
 
     encoder_class_name = os.getenv("encoder_cls")
 

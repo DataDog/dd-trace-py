@@ -91,10 +91,18 @@ def _deleted_rc_config():
         },
         {
             "env": {"DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2"},
-            "rc": {"tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]},
+            "rc": {
+                "tracing_header_tags": [
+                    {"header": "X-Header-Tag-69", "tag_name": "header_tag_69"},
+                    {"header": "X-Header-Tag-70", "tag_name": ""},
+                ]
+            },
             "code": {"trace_http_header_tags": {"header": "value"}},
             "expected": {
-                "trace_http_header_tags": {"X-Header-Tag-69": "header_tag_69", "X-Header-Tag-70": "header_tag_70"}
+                "trace_http_header_tags": {
+                    "X-Header-Tag-69": "header_tag_69",
+                    "X-Header-Tag-70": "",
+                }
             },
             "expected_source": {"trace_http_header_tags": "remote_config"},
         },
@@ -115,6 +123,25 @@ def _deleted_rc_config():
             "rc": {"tracing_tags": ["key1:val2", "key2:val3"]},
             "expected": {"tags": {"key1": "val2", "key2": "val3"}},
             "expected_source": {"tags": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "true"},
+            "code": {"_tracing_enabled": True},
+            "rc": {"tracing_enabled": "true"},
+            "expected": {"_tracing_enabled": True},
+            "expected_source": {"_tracing_enabled": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "true"},
+            "code": {"_tracing_enabled": True},
+            "rc": {"tracing_enabled": "false"},
+            "expected": {"_tracing_enabled": False},
+            "expected_source": {"_tracing_enabled": "remote_config"},
+        },
+        {
+            "env": {"DD_TRACE_ENABLED": "false"},
+            "expected": {"_tracing_enabled": False},
+            "expected_source": {"_tracing_enabled": "env_var"},
         },
     ],
 )
@@ -227,6 +254,29 @@ assert span.get_tag("team") == "apm"
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
+def test_remoteconfig_tracing_enabled(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "true"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from tests.internal.test_settings import _base_rc_config
+
+assert tracer.enabled is True
+
+config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "false"}))
+
+assert tracer.enabled is False
+
+config._handle_remoteconfig(_base_rc_config({"tracing_enabled": "true"}))
+
+assert tracer.enabled is False
+        """,
+        env=env,
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
 def test_remoteconfig_logs_injection_jsonlogger(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
@@ -277,7 +327,8 @@ assert span.get_tag("env_set_tag_name") == "helloworld"
 
 config.http._reset()
 config._header_tag_name.invalidate()
-config._handle_remoteconfig(_base_rc_config({"tracing_header_tags": ["X-Header-Tag-420:header_tag_420"]}))
+config._handle_remoteconfig(_base_rc_config({"tracing_header_tags":
+    [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
 
 with tracer.trace("test_rc_override") as span2:
     trace_utils.set_http_meta(span2,

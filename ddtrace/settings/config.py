@@ -111,7 +111,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"tracecontext,datadog"``.
+    The default value is ``"datadog,tracecontext"``.
 
 
     Examples::
@@ -272,6 +272,11 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
+        "_trace_enabled": _ConfigItem(
+            name="trace_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
@@ -291,6 +296,26 @@ def _default_config():
             name="tags",
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
+        ),
+        "_tracing_enabled": _ConfigItem(
+            name="tracing_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+        ),
+        "_asm_enabled": _ConfigItem(
+            name="asm_enabled",
+            default=False,
+            envs=[("DD_APPSEC_ENABLED", asbool)],
+        ),
+        "_dsm_enabled": _ConfigItem(
+            name="dsm_enabled",
+            default=False,
+            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
         ),
     }
 
@@ -364,7 +389,6 @@ class Config(object):
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
@@ -526,6 +550,13 @@ class Config(object):
         self._telemetry_install_id = os.getenv("DD_INSTRUMENTATION_INSTALL_ID", None)
         self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
         self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
+
+        self._dd_api_key = os.getenv("DD_API_KEY")
+        self._dd_app_key = os.getenv("DD_APP_KEY")
+        self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
+
+        self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
+        self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -730,6 +761,9 @@ class Config(object):
                     tags = self._format_tags(lib_config["tracing_tags"])
                 base_rc_config["tags"] = tags
 
+            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
+                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
+
             if "tracing_header_tags" in lib_config:
                 tags = lib_config["tracing_header_tags"]
                 if tags:
@@ -749,10 +783,14 @@ class Config(object):
         selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
         self.http = HttpConfig(header_tags=selected_header_tags)
 
-    def _format_tags(self, tags):
+    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
-        return {k: v for k, v in [t.split(":") for t in tags]}
+        if isinstance(tags[0], Dict):
+            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        else:
+            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
         # type: () -> None

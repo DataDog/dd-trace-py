@@ -1,3 +1,4 @@
+import inspect
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -5,22 +6,26 @@ from typing import Optional  # noqa:F401
 
 import starlette
 from starlette import requests as starlette_requests
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 
+from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal import core
 from .. import trace_utils
+from ..trace_utils import with_traced_module
 
 
 log = get_logger(__name__)
@@ -55,12 +60,16 @@ def patch():
     starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
+    Pin().onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):
         _w("starlette.routing", "Route.handle", traced_handler)
     if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
         _w("starlette.routing", "Mount.handle", traced_handler)
+
+    if not isinstance(starlette.background.BackgroundTasks.add_task, ObjectProxy):
+        _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks(starlette))
 
 
 def unpatch():
@@ -77,6 +86,9 @@ def unpatch():
 
     if isinstance(starlette.routing.Mount.handle, ObjectProxy):
         _u(starlette.routing.Mount, "handle")
+
+    if isinstance(starlette.background.BackgroundTasks.add_task, ObjectProxy):
+        _u(starlette.background.BackgroundTasks, "add_task")
 
 
 def traced_handler(wrapped, instance, args, kwargs):
@@ -150,3 +162,23 @@ def traced_handler(wrapped, instance, args, kwargs):
         raise trace_utils.InterruptException("starlette")
 
     return wrapped(*args, **kwargs)
+
+
+@with_traced_module
+def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
+    task = get_argument_value(args, kwargs, 0, "func")
+    current_span = pin.tracer.current_span()
+
+    async def traced_task(*args, **kwargs):
+        with pin.tracer.start_span(
+            f"{module.__name__}.background_task", resource=task.__name__, child_of=None, activate=True
+        ) as span:
+            if current_span:
+                span.link_span(current_span.context)
+            if inspect.iscoroutinefunction(task):
+                await task(*args, **kwargs)
+            else:
+                await run_in_threadpool(task, *args, **kwargs)
+
+    args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
+    wrapped(*args, **kwargs)

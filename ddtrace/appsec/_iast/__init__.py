@@ -33,7 +33,6 @@ import sys
 
 from ddtrace.internal.logger import get_logger
 
-from ._ast.ast_patching import astpatch_module
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
 
@@ -53,6 +52,8 @@ def ddtrace_iast_flask_patch():
     """
     if not _is_iast_enabled():
         return
+
+    from ._ast.ast_patching import astpatch_module
 
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]

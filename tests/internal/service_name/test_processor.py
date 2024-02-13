@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from ddtrace.internal.processor.trace import BaseServiceProcessor
+from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.schema.span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 
 
@@ -26,8 +26,8 @@ import sys
 
 from ddtrace import config
 from ddtrace.constants import BASE_SERVICE_KEY
-from ddtrace.internal.processor.trace import BaseServiceProcessor
-from ddtrace.span import Span
+from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace._trace.span import Span
 from tests.internal.service_name.test_processor import processor
 
 def test(processor):

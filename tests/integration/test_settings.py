@@ -22,6 +22,7 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
+            "DD_TRACE_ENABLED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -55,6 +56,11 @@ with tracer.trace("test") as span:
         "value": "team:apm,component:web",
         "origin": "env_var",
     }
+    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
+        "name": "tracing_enabled",
+        "value": "true",
+        "origin": "env_var",
+    }
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -66,15 +72,19 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
+            "DD_TRACE_ENABLED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
+
 config._trace_sample_rate = 0.2
 config.logs_injection = False
 config.trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
+config._tracing_enabled = False
+
 with tracer.trace("test") as span:
     pass
         """,
@@ -101,6 +111,11 @@ with tracer.trace("test") as span:
     assert _get_latest_telemetry_config_item(events, "trace_tags") == {
         "name": "trace_tags",
         "value": "header:value",
+        "origin": "code",
+    }
+    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
+        "name": "tracing_enabled",
+        "value": "false",
         "origin": "code",
     }
 
@@ -179,14 +194,18 @@ from ddtrace.contrib import trace_utils
 from tests.internal.test_settings import _base_rc_config
 
 config._handle_remoteconfig(_base_rc_config({
-    "tracing_header_tags": ["X-Header-Tag-69:header_tag_69", "X-Header-Tag-70:header_tag_70"]
+    "tracing_header_tags": [
+        {"header": "used", "tag_name":"header_tag_69"},
+        {"header": "unused", "tag_name":"header_tag_70"},
+        {"header": "used-with-default", "tag_name":""}]
 }))
 with tracer.trace("test") as span:
     trace_utils.set_http_meta(span,
                               config.falcon,  # randomly chosen http integration config
-                              request_headers={"X-Header-Tag-69": "foobarbanana"})
+                              request_headers={"used": "foobarbanana", "used-with-default": "defaultname"})
 assert span.get_tag("header_tag_69") == "foobarbanana"
 assert span.get_tag("header_tag_70") is None
+assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
         """,
     )
     assert status == 0, err
@@ -194,6 +213,6 @@ assert span.get_tag("header_tag_70") is None
     events = test_agent_session.get_events()
     assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
         "name": "trace_header_tags",
-        "value": "X-Header-Tag-69:header_tag_69,X-Header-Tag-70:header_tag_70",
+        "value": "used:header_tag_69,unused:header_tag_70,used-with-default:",
         "origin": "remote_config",
     }
