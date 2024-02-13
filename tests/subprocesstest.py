@@ -120,8 +120,10 @@ class SubprocessTestCase(unittest.TestCase):
             env=sp_test_env,
         )
         stdout, stderr = sp.communicate()
+        stdout = stdout.decode()
+        stderr = stderr.decode()
 
-        if sp.returncode:
+        if sp.returncode and "_pytest.outcomes.xfailed" not in stderr.lower():
             try:
                 cmdf = " ".join(sp_test_cmd)
                 raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
@@ -130,8 +132,8 @@ class SubprocessTestCase(unittest.TestCase):
 
             # DEV: stderr, stdout are byte sequences so to print them nicely
             #      back out they should be decoded.
-            sys.stderr.write(stderr.decode())
-            sys.stdout.write(stdout.decode())
+            sys.stderr.write(stderr)
+            sys.stdout.write(stdout)
             result.addFailure(self, exc_info)
         else:
             result.addSuccess(self)
