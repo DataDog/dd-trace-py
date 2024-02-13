@@ -348,9 +348,8 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("query", "blocked"),
         [
-            # lowercase transformer is currently bugged on libddwaf
-            # ("?x=MoNiToR_ThAt_VaLuE", False),
-            # ("?x=BlOcK_ThAt_VaLuE&y=1", True),
+            ("?x=MoNiToR_ThAt_VaLuE", False),
+            ("?x=BlOcK_ThAt_VaLuE&y=1", True),
             ("?x=monitor_that_value", False),
             ("?x=block_that_value&y=1", True),
         ],
