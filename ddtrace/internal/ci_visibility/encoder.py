@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ..span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):
@@ -199,7 +199,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         converted_span = {
             "test_session_id": int(span.get_tag(SESSION_ID) or "1"),
             "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
-            "files": json.loads(span.get_tag(COVERAGE_TAG_NAME))["files"],
+            "files": json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"],
         }
 
         if not self.itr_suite_skipping_mode:
