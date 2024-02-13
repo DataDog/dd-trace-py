@@ -6,11 +6,11 @@ from typing import Optional
 from typing import Tuple
 import uuid
 
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.llmobs.integrations.base import BaseLLMIntegration
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
 class OpenAIIntegration(BaseLLMIntegration):
