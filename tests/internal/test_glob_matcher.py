@@ -7,6 +7,7 @@ from ddtrace.internal.glob_matching import GlobMatcher
     "pattern,string,result",
     [
         ("test_string", "test_string", True),
+        ("test_sTRING", "test_string", True),
         ("test_string", "a_test_string_a", False),
         ("test_st?ing", "test_string", True),
         ("test_st?i?g", "test_string", True),

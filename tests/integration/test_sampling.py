@@ -167,6 +167,16 @@ def test_extended_sampling_tags_glob(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
+def test_extended_sampling_tags_glob_insensitive_case_match(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, resource="BANANA")])
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = TAGS
+    tracer.trace("should_not_send", resource="bananA").finish()
+    tracer.trace("should_send2", resource="ban").finish()
+
+
+@snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_resource(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
