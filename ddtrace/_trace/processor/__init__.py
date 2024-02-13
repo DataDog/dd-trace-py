@@ -158,11 +158,9 @@ class TraceSamplingProcessor(TraceProcessor):
 
                     return single_spans or None
 
-            for span in trace:
-                if span.sampled:
-                    return trace
+            return trace
 
-            log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+        log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
         return None
 
