@@ -67,7 +67,13 @@ def _completion_event():
                 "messages": [{"content": "who broke enigma?"}],
                 "parameters": {"temperature": 0, "max_tokens": 256},
             },
-            "output": {"messages": [{"content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]},
+            "output": {
+                "messages": [
+                    {
+                        "content": "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."  # noqa: E501
+                    }
+                ]
+            },
         },
         "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
     }
@@ -95,19 +101,22 @@ def _chat_completion_event():
             "model_provider": "openai",
             "input": {
                 "messages": [
-                    {"role": "system", "content": "You are an evil dark lord looking for his one ring to rule them all"},
+                    {
+                        "role": "system",
+                        "content": "You are an evil dark lord looking for his one ring to rule them all",
+                    },
                     {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
                 ],
                 "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
-            "output": {"messages": [
-                {
-                    "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, "
-                               "little creature, I shall play along. But know that I am always watching, "
-                               "and your quest will not go unnoticed",
-                    "role": "assistant",
-                },
-            ]},
+            "output": {
+                "messages": [
+                    {
+                        "content": "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very well, little creature, I shall play along. But know that I am always watching, and your quest will not go unnoticed",  # noqa: E501
+                        "role": "assistant",
+                    },
+                ]
+            },
         },
         "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192},
     }

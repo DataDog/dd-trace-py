@@ -115,9 +115,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 def _handle_exception(span, integration, prompt, exc_info):
     """Helper method to finish the span on stream read error."""
     span.set_exc_info(*exc_info)
-    span.finish()
     if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    span.finish()
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:

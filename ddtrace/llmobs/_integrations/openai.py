@@ -7,6 +7,7 @@ from typing import Tuple
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -110,8 +111,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        metrics = self._set_llmobs_metrics(resp, kwargs)
-        meta = {"model_name": span.get_tag("openai.request.model"), "model_provider": "openai", "kind": "llm"}
+        span.span_type = SpanTypes.LLMOBS
+        metrics = self._set_llmobs_metrics(resp)
+        meta = {
+            "model_name": span.get_tag("openai.response.model") or span.get_tag("openai.request.model"),
+            "model_provider": "openai",
+            "kind": "llm",
+        }
         if record_type == "completion":
             meta = self._llmobs_set_completion_meta(resp, err, kwargs, meta)
         elif record_type == "chat":
@@ -129,6 +135,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             prompt = [prompt]
         meta["input"] = {"messages": [{"content": p} for p in prompt]}
+        meta["input"]["parameters"] = {"temperature": kwargs.get("temperature", 0)}
+        if kwargs.get("max_tokens"):
+            meta["input"]["parameters"]["max_tokens"] = kwargs.get("max_tokens")
         if err is not None:
             meta["output"] = {"messages": [{"content": ""}]}
         else:
@@ -141,8 +150,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         meta["input"] = {
             "messages": [
                 {"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])
-            ]
+            ],
+            "parameters": {"temperature": kwargs.get("temperature", 0)},
         }
+        if kwargs.get("max_tokens"):
+            meta["input"]["parameters"]["max_tokens"] = kwargs.get("max_tokens")
         if err is not None:
             meta["output"] = {"messages": [{"content": ""}]}
         else:
@@ -158,8 +170,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         return meta
 
     @staticmethod
-    def _set_llmobs_metrics(resp: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        metrics = {"temperature": kwargs.get("temperature"), "max_tokens": kwargs.get("max_tokens")}
+    def _set_llmobs_metrics(resp: Any) -> Dict[str, Any]:
+        metrics = {}
         if resp:
             metrics.update(
                 {

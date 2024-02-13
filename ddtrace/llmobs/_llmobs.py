@@ -96,6 +96,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         for span in trace:
             if span.span_type == SpanTypes.LLMOBS:
                 trace_contains_llm = True
+                self.submit_llmobs_span(span)
         if not trace_contains_llm:
             return trace
 
@@ -145,11 +146,10 @@ class LLMObsTraceProcessor(TraceProcessor):
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(span.parent_id),
-            "session_id": span.trace_id,
-            "apm_context": {"span_id": span.span_id, "trace_id": "{:x}".format(span.trace_id)},
+            "parent_id": str(span.parent_id or ""),
+            "session_id": "{:x}".format(span.trace_id),
+            "apm_context": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
             "tags": self._llmobs_tags(span, meta),
-            "service": span.service,
             "name": span.name,
             "kind": meta.pop("kind"),
             "start_ns": span.start_ns,

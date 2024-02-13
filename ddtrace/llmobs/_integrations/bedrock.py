@@ -21,25 +21,28 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         metrics = self._set_llmobs_metrics(span, formatted_response)
         meta = {
-            "model": span.get_tag("bedrock.request.model"),
+            "model_name": span.get_tag("bedrock.request.model"),
             "model_provider": span.get_tag("bedrock.request.model_provider"),
             "kind": "llm",
-            "input": {"messages": [{"content": prompt}]},
+            "input": {
+                "messages": [{"content": prompt}],
+                "parameters": {
+                    "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
+                    "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
+                },
+            },
         }
         if err or formatted_response is None:
             meta["output"] = {"messages": [{"content": ""}]}
         else:
-            meta["output"] = {"messages": [{"content": completion for completion in formatted_response["text"]}]}
+            meta["output"] = {"messages": [{"content": completion} for completion in formatted_response["text"]]}
         # Since span tags have to be strings, we have to json dump the data here and load on the trace processor.
         span.set_tag_str("ml_obs.meta", json.dumps(meta))
         span.set_tag_str("ml_obs.metrics", json.dumps(metrics))
 
     @staticmethod
     def _set_llmobs_metrics(span: Span, formatted_response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        metrics = {
-            "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
-            "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
-        }
+        metrics = {}
         if formatted_response and formatted_response.get("text"):
             prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
             completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)

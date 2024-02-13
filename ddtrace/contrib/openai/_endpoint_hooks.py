@@ -279,7 +279,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("completion", resp, error, span, kwargs)
+            integration.llmobs_set_tags("chat", resp, error, span, kwargs)
         if not resp:
             return
         for choice in resp.choices:
