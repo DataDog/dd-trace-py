@@ -3,7 +3,6 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
