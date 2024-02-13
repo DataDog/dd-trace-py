@@ -196,7 +196,7 @@ def test_extended_sampling_tags_and_resource_glob(writer, tracer):
 
 @snapshot_parametrized_with_writers
 def test_extended_sampling_tags_and_service_glob(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, service="mycoolser???")])
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, service="mycoolser????")])
     tracer.configure(sampler=sampler, writer=writer)
 
     tracer._tags = TAGS
