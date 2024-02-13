@@ -129,6 +129,7 @@ def test_request_ipblock_nomatch_200():
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",
+        "django.middleware",
     ]
 )
 def test_request_ipblock_match_403():
@@ -162,6 +163,7 @@ def test_request_ipblock_match_403():
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",
+        "django.middleware",
     ]
 )
 def test_request_ipblock_match_403_json():
