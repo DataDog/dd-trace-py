@@ -455,6 +455,11 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
 from ddtrace import tracer
 # Create a span to start the telemetry writer
 tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
