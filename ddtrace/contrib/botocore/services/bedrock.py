@@ -331,7 +331,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         resource=operation,
         activate=False,
-        span_type=SpanTypes.LLMOBS,
+        span_type=SpanTypes.LLM,
     )
     prompt = None
     try:

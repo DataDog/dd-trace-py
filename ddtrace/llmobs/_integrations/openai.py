@@ -7,7 +7,6 @@ from typing import Tuple
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -111,7 +110,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        span.span_type = SpanTypes.LLMOBS
         metrics = self._set_llmobs_metrics(resp)
         meta = {
             "model_name": span.get_tag("openai.response.model") or span.get_tag("openai.request.model"),

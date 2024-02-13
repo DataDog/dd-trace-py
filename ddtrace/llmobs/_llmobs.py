@@ -94,7 +94,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             return None
         trace_contains_llm = False
         for span in trace:
-            if span.span_type == SpanTypes.LLMOBS:
+            if span.span_type == SpanTypes.LLM:
                 trace_contains_llm = True
                 self.submit_llmobs_span(span)
         if not trace_contains_llm:

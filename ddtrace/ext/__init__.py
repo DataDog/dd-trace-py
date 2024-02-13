@@ -14,7 +14,7 @@ class SpanTypes(object):
     WORKER = "worker"
     AUTH = "auth"
     SYSTEM = "system"
-    LLMOBS = "llm"
+    LLM = "llm"
 
 
 class SpanKind(object):
