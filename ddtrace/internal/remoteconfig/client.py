@@ -181,11 +181,7 @@ class RemoteConfigClient(object):
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         tags = ddtrace.config.tags.copy()
 

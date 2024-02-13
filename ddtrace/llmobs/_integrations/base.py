@@ -7,8 +7,8 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import Pin
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
 from ddtrace.internal.agent import get_stats_url

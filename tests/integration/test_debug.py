@@ -12,7 +12,7 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
@@ -345,9 +345,13 @@ def test_startup_logs_sampling_rules():
     tracer.configure(sampler=sampler)
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == [
-        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE', tags='NO_RULE')"
-    ]
+    sampler_rules = f.get("sampler_rules")[0]
+    # since the object byte number is random, can't do exact string match
+    assert (
+        "SamplingRule(sample_rate=1.0, service=<ddtrace.internal.glob_matching.GlobMatcher object at" in sampler_rules
+    )
+    assert "name=<ddtrace.internal.glob_matching.GlobMatcher object at" in sampler_rules
+    assert "resource='NO_RULE', tags='NO_RULE')" in sampler_rules
 
 
 def test_error_output_ddtracerun_debug_mode():

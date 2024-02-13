@@ -90,6 +90,7 @@ def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
     evidence_type = EVIDENCE_CMDI
+    redact_report = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
@@ -111,22 +112,6 @@ class CommandInjection(VulnerabilityBase):
             ret[vuln_hash]["token_positions"] = _scrub_get_tokens_positions(text, ret[vuln_hash]["tokens"])
 
         return ret
-
-    @classmethod
-    def replace_tokens(
-        cls,
-        vuln,
-        vulns_to_tokens,
-        has_range=False,
-    ):
-        ret = vuln.evidence.value
-        replaced = False
-
-        for token in vulns_to_tokens[hash(vuln)]["tokens"]:
-            ret = ret.replace(token, "")
-            replaced = True
-
-        return ret, replaced
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
