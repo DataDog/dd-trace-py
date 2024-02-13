@@ -1246,19 +1246,31 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # starlette added support for Python 3.9 in 0.14
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14", "~=0.20", latest]},
+                    # Support added for Python 3.7 in 0.1.1
+
+                    # Support removed for Python 3.7 after 0.29.0
+                    pys="3.7",
+                    pkgs={"starlette": ["~=0.1.1", "~=0.29.0"]},
                 ),
                 Venv(
-                    # starlette added support for Python 3.10 in 0.15
+                    # Support added for Python 3.8 and Python 3.9 in 0.14.0
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"starlette": ["~=0.14.0", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.10 in 0.15.0
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15", "~=0.20", latest]},
+                    pkgs={"starlette": ["~=0.15.0", latest]},
                 ),
                 Venv(
-                    # starlette added support for Python 3.11 in 0.21
+                    # Support added for Python 3.11 in 0.21.0
                     pys="3.11",
-                    pkgs={"starlette": ["~=0.21", latest]},
+                    pkgs={"starlette": ["~=0.21.0", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.12 in 0.31.0
+                    pys="3.12",
+                    pkgs={"starlette": ["~=0.31.0", latest]},
                 ),
             ],
         ),
