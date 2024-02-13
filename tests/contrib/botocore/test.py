@@ -2672,6 +2672,7 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
+    @mock_kinesis
     def test_kinesis_get_records_empty_poll_disabled(self):
         # Tests that no span is created when empty poll is disabled and we received no records.
         with self.override_config("botocore", dict(empty_poll_enabled=False)):
@@ -2696,6 +2697,7 @@ class BotocoreTest(TracerTestCase):
             spans = self.get_spans()
             assert len(spans) == 0
 
+    @mock_kinesis
     def test_kinesis_get_records_empty_poll_enabled(self):
         # Tests that a span is created when empty poll is enabled and we received no records.
         with self.override_config("botocore", dict(empty_poll_enabled=True)):
