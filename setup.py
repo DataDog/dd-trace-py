@@ -249,11 +249,14 @@ class CMakeBuild(build_ext):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
             try:
                 subprocess.run(["strip", "-g", so_file], check=True)
-            except Exception as e:
+            except subprocess.CalledProcessError as e:
                 print(
                     "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
                 )
-                pass
+            except Exception as e:
+                print(
+                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
+                )
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
@@ -265,11 +268,7 @@ class CMakeBuild(build_ext):
                     return
                 raise
             except Exception as e:
-                print(
-                    "WARNING: An error occurred while building the CMake extension {}, {}.".format(
-                        ext.name, e.returncode
-                    )
-                )
+                print("WARNING: An error occurred while building the CMake extension {}, {}.".format(ext.name, e))
                 if ext.optional:
                     return
                 raise
@@ -457,21 +456,21 @@ if not IS_PYSTON:
     if platform.system() == "Linux" and is_64_bit_python():
         python_include = sysconfig.get_paths()["include"]
 
-        #ext_modules.append(
-        #    CMakeExtension(
-        #        "ddtrace.internal.datadog.profiling._ddup",
-        #        source_dir=DDUP_DIR,
-        #        optional=CURRENT_OS != "Linux",
-        #        cmake_args=[
-        #            "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
-        #            "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
-        #            "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-        #            "-DPython3_INCLUDE_DIRS={}".format(python_include),
-        #            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-        #            "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
-        #        ],
-        #    )
-        #)
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling._ddup",
+                source_dir=DDUP_DIR,
+                optional=CURRENT_OS != "Linux",
+                cmake_args=[
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                    "-DPython3_INCLUDE_DIRS={}".format(python_include),
+                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
+                ],
+            )
+        )
 
 else:
     ext_modules = []
