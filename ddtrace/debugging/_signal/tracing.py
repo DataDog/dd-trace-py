@@ -3,7 +3,7 @@ import typing as t
 import attr
 
 import ddtrace
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
