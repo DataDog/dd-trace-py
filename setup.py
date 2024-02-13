@@ -40,9 +40,9 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, "ddtrace", "appsec", "_ddwaf", "libddwaf")
-IAST_DIR = os.path.join(HERE, "ddtrace", "appsec", "_iast", "_taint_tracking")
-DDUP_DIR = os.path.join(HERE, "ddtrace", "internal", "datadog", "profiling")
+LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
+IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
+DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling"
 
 CURRENT_OS = platform.system()
 
@@ -89,7 +89,7 @@ def load_module_from_project_file(mod_name, fname):
          e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
          which has side effects like loading the tracer
     """
-    fpath = os.path.join(HERE, fname)
+    fpath = HERE / fname
 
     import importlib.util
 
@@ -115,14 +115,12 @@ class LibraryDownload:
     @classmethod
     def download_artifacts(cls):
         suffixes = cls.translate_suffix[CURRENT_OS]
+        download_dir = Path(cls.download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
 
-        # If the directory exists and it is not empty, assume the right files are there.
-        # Use `python setup.py clean` to remove it.
-        if os.path.isdir(cls.download_dir) and os.listdir(cls.download_dir):
+        # If the directory is nonempty, assume we're done
+        if any(download_dir.iterdir()):
             return
-
-        if not os.path.isdir(cls.download_dir):
-            os.makedirs(cls.download_dir)
 
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
@@ -139,10 +137,10 @@ class LibraryDownload:
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
 
-            arch_dir = os.path.join(cls.download_dir, arch)
+            arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists, assume the right files are there
-            if os.path.isdir(arch_dir):
+            # If the directory for the architecture exists and is nonempty, assume we're done
+            if arch_dir.is_dir() and any(arch_dir.iterdir()):
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
@@ -177,16 +175,17 @@ class LibraryDownload:
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                os.rename(os.path.join(HERE, archive_dir), arch_dir)
+                Path(HERE / archive_dir).rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
+            lib_dir = arch_dir / "lib"
             for suffix in suffixes:
-                original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
-                if os.path.exists(original_file):
-                    renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
-                    os.rename(original_file, renamed_file)
+                original_file = lib_dir / "{}{}".format(cls.name, suffix)
+                if original_file.exists():
+                    renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
+                    original_file.rename(renamed_file)
 
-            os.remove(filename)
+            Path(filename).unlink()
 
     @classmethod
     def run(cls):
@@ -210,13 +209,13 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def get_package_name(cls, arch, os):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+    def get_package_name(cls, arch, opsys):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, opsys.lower(), arch)
         return archive_dir
 
     @classmethod
-    def get_archive_name(cls, arch, os):
-        os_name = os.lower()
+    def get_archive_name(cls, arch, opsys):
+        os_name = opsys.lower()
         if os_name == "linux":
             archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
         else:
@@ -235,7 +234,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(os.path.join(IAST_DIR, "*.so"), True)
+        shutil.rmtree(IAST_DIR / "*.so", True)
 
     def run(self):
         CleanLibraries.remove_artifacts()
@@ -288,7 +287,7 @@ class CMakeBuild(build_ext):
         # We derive the cmake build directory from the output directory, but put it in
         # a sibling directory to avoid polluting the final package
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
-        os.makedirs(cmake_build_dir, exist_ok=True)
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
         # Get development paths
         python_include = sysconfig.get_paths()["include"]
@@ -508,7 +507,7 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
