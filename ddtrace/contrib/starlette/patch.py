@@ -12,6 +12,7 @@ from starlette.middleware import Middleware
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -20,7 +21,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 

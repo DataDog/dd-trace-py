@@ -15,6 +15,7 @@ from uuid import uuid4
 import attr
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.debugging import _safety
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import FunctionLocationMixin
@@ -22,7 +23,6 @@ from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.span import Span
 
 
 @attr.s
