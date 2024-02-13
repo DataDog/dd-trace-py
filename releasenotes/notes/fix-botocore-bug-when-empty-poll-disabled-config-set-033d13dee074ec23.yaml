@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: fix bug that wrapped function results/errors are not returned for SQS and Kinesis when `DD_BOTOCORE_EMPTY_POLL_ENABLED=false` or 
+    `config.botocore.empty_poll_enabled=false` and no records were found.
