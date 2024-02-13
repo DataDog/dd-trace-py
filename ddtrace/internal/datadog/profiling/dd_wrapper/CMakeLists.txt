@@ -87,5 +87,7 @@ install(TARGETS dd_wrapper
 )
 
 # Add the tests
-enable_testing()
-add_subdirectory(test)
+if (BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(test)
+endif()
