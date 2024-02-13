@@ -464,7 +464,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling._ddup",
                 source_dir=DDUP_DIR,
-                optional=CURRENT_OS != "Linux",
+                optional=True,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
