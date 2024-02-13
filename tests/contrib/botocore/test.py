@@ -2737,9 +2737,8 @@ class BotocoreTest(TracerTestCase):
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
             )
-            messages = response["Messages"]
 
-            assert len(messages) == 0
+            assert "Messages" not in response
 
             spans = self.get_spans()
             assert len(spans) == 0
@@ -2759,9 +2758,8 @@ class BotocoreTest(TracerTestCase):
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
             )
-            messages = response["Messages"]
 
-            assert len(messages) == 0
+            assert "Messages" not in response
 
             spans = self.get_spans()
             assert len(spans) == 1
