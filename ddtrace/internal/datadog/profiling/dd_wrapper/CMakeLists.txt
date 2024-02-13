@@ -76,7 +76,7 @@ if (SANITIZE_OPTIONS)
     target_link_options(dd_wrapper PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 endif()
 
-# Assumed dd_wrapper_INSTALL_DIR is propagated from the parent
+# If dd_wrapper_INSTALL_DIR is specified by the parent, use it
 if (NOT dd_wrapper_INSTALL_DIR)
   # If not, then just keep it in the build directory
   set(dd_wrapper_INSTALL_DIR "${CMAKE_BINARY_DIR}/lib")
