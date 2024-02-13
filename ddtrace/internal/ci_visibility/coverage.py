@@ -77,7 +77,10 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
-    coverage_data.switch_context(unique_test_name)
+    try:
+        coverage_data.switch_context(unique_test_name)
+    except RuntimeError as err:
+        log.warning(err)
 
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):

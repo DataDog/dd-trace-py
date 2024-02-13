@@ -7,6 +7,7 @@ import mock
 import pytest
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
@@ -24,7 +25,6 @@ from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampling_rule import SamplingRule
-from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
@@ -633,8 +633,8 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
+    from ddtrace._trace.span import Span
     from ddtrace.sampling_rule import SamplingRule
-    from ddtrace.span import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
         rule = SamplingRule(sample_rate=sample_rate)

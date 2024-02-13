@@ -11,6 +11,7 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -20,7 +21,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
@@ -182,10 +182,7 @@ def set_body_response(body_response):
     # local import to avoid circular import
     from ddtrace.appsec._utils import parse_response_body
 
-    parsed_body = parse_response_body(body_response)
-
-    if parse_response_body is not None:
-        set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, parsed_body)
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, lambda: parse_response_body(body_response))
 
 
 def set_waf_address(address: str, value: Any, span: Optional[Span] = None) -> None:
