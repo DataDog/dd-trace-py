@@ -77,13 +77,8 @@ class LLMObs(Service):
 
 
 class LLMObsTraceProcessor(TraceProcessor):
-    """Processor that marks all spans in a trace that have an LLM-type span.
-
-    1. If a span in a trace is an LLM-type span, we'll write the whole trace to LLMObs.
-    2. any leaf spans in this trace will be marked as task-type spans.
-    3. any non-leaf spans in this trace will be marked as chain/workflow-type spans.
-
-    # TODO: handle distributed cases (need to propagate LLMObs status in the response)
+    """
+    Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
     """
 
     def __init__(self, llmobs_writer):
@@ -92,30 +87,10 @@ class LLMObsTraceProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
             return None
-        trace_contains_llm = False
         for span in trace:
             if span.span_type == SpanTypes.LLM:
-                trace_contains_llm = True
                 self.submit_llmobs_span(span)
-        if not trace_contains_llm:
-            return trace
-
-        for span in trace:
-            if self._has_children(trace, span):
-                span.set_tag_str("ml_obs.kind", "chain")
-            else:
-                span.set_tag_str("ml_obs.kind", "task")
-
-        # TODO: Need to infer span kind and submit to LLMObsWriter
-
         return trace
-
-    @staticmethod
-    def _has_children(trace: List[Span], span: Span) -> bool:
-        for s in trace:
-            if s.parent_id == span.span_id:
-                return True
-        return False
 
     @staticmethod
     def _llmobs_tags(span: Span, meta: Dict[str, Any]) -> List[str]:
