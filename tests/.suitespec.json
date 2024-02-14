@@ -834,7 +834,7 @@
             "@contrib",
             "@unittest",
             "@ci_visibility",
-            "tests/contrib/unittest/*",
+            "tests/contrib/unittest_plugin/*",
             "tests/snapshots/tests.contrib.unittest.*"
         ],
         "asynctest": [
