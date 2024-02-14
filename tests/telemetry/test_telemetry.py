@@ -443,3 +443,28 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         "install_type": "k8s_single_step",
         "install_time": "1703188212",
     }
+
+
+def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
+    """Ensure no telemetry events are sent when telemetry is disabled"""
+
+    env = os.environ.copy()
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+
+    code = """
+from ddtrace import tracer
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    assert status == 0, stderr
+    assert stderr == b""
