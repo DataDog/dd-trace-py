@@ -31,8 +31,8 @@ endif()
 
 add_compile_options(
   "$<$<CONFIG:Debug>:-Og;-ggdb3;-fno-omit-frame-pointer>"
-  "$<$<CONFIG:Release>:-O3>"
-  -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
+  "$<$<CONFIG:Release>:-Os -s>"
+  -fno-semantic-interposition -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
 )
 
 # Library sources
@@ -45,8 +45,19 @@ add_library(dd_wrapper SHARED
     src/interface.cpp
 )
 
-# dd_wrapper requires c++17, but we'll take what we can get
+# At present, C++17 is chosen as the minimum standard. This conflicts with the
+# manylinux2014 standard upon which we must rely. We'll have to statically link
+# libstdc++ to avoid this conflict, but need to remain mindful of symbol visibility
+# and overall binary size.
 target_compile_features(dd_wrapper PUBLIC cxx_std_17)
+
+# Set some linker options
+target_compile_options(dd_wrapper PRIVATE -fno-semantic-interposition)
+target_compile_options(dd_wrapper PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(dd_wrapper PRIVATE -static-libstdc++)
+target_link_options(dd_wrapper PRIVATE -Wl,-Bsymbolic-functions)
+target_link_options(dd_wrapper PRIVATE -Wl,--gc-sections)
+set_property(TARGET dd_wrapper PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_include_directories(dd_wrapper PRIVATE
     include
