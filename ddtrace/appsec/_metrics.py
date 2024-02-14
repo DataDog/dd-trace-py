@@ -2,9 +2,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._ddwaf import DDWaf_info
 from ddtrace.appsec._ddwaf import version
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
 
 
 log = get_logger(__name__)
@@ -12,6 +10,9 @@ log = get_logger(__name__)
 
 @deduplication
 def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
+    # perf - avoid importing telemetry until needed
+    from ddtrace.internal import telemetry
+
     try:
         tags = {
             "waf_version": version(),
@@ -25,6 +26,10 @@ def _set_waf_error_metric(msg: str, stack_trace: str, info: DDWaf_info) -> None:
 
 
 def _set_waf_updates_metric(info):
+    # perf - avoid importing telemetry until needed
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+
     try:
         if info and info.version:
             tags = (
@@ -45,6 +50,10 @@ def _set_waf_updates_metric(info):
 
 
 def _set_waf_init_metric(info):
+    # perf - avoid importing telemetry until needed
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+
     try:
         if info and info.version:
             tags = (
@@ -70,6 +79,10 @@ def _set_waf_init_metric(info):
 
 
 def _set_waf_request_metrics(*args):
+    # perf - avoid importing telemetry until needed
+    from ddtrace.internal import telemetry
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+
     try:
         list_results, list_result_info, list_is_blocked = _asm_request_context.get_waf_results() or ([], [], [])
         if any((list_results, list_result_info, list_is_blocked)):

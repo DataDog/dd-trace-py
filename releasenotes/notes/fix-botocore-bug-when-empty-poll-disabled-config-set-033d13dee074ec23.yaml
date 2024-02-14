@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Fixes bug where SQS and Kinesis results and errors were not recorded when `DD_BOTOCORE_EMPTY_POLL_ENABLED=false`.
+    `config.botocore.empty_poll_enabled=false` and no records were found.
