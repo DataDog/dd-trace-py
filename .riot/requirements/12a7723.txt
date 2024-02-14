@@ -6,7 +6,7 @@
 #
 amqp==2.6.1
 atomicwrites==1.4.1
-attrs==23.1.0
+attrs==23.2.0
 billiard==3.6.4.0
 celery==4.4.7
 coverage==7.2.7
@@ -23,7 +23,7 @@ pytest==3.10.1
 pytest-cov==2.3.0
 pytest-mock==2.0.0
 pytest-randomly==3.12.0
-pytz==2023.3.post1
+pytz==2024.1
 redis==3.5.3
 six==1.16.0
 sortedcontainers==2.4.0

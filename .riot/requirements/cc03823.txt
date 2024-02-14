@@ -5,7 +5,7 @@
 #    pip-compile --config=pyproject.toml --no-annotate --resolver=backtracking .riot/requirements/cc03823.in
 #
 asynctest==0.13.0
-attrs==23.1.0
+attrs==23.2.0
 coverage[toml]==7.2.7
 hypothesis==6.45.0
 importlib-metadata==6.7.0
